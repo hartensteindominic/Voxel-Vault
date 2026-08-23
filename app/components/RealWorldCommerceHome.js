@@ -69,8 +69,8 @@ export default function RealWorldCommerceHome(){
       <div className="vv3-heroGlow" aria-hidden="true"/>
       <div className="vv3-heroCopy">
         <div className="vv3-eyebrow"><i/> PHYSICAL + DIGITAL COLLECTION</div>
-        <h1>Real objects.<br/><em>3D NFTs.</em></h1>
-        <p>Buy a verified physical object and unlock its interactive 3D twin. Wear it, place it in your room, pin it to the world, or trade it wallet-to-wallet.</p>
+        <h1>Real products.<br/><em>Digital collectibles.</em></h1>
+        <p>Buy one bundle: the real product is shipped to you, and its interactive 3D NFT is added to your Vault after verified delivery.</p>
         <div className="vv3-heroActions"><Link className="vv3-primaryCta" href="#collection">Shop both <Icon name="arrow" size={17}/></Link><Link className="vv3-textCta" href="/room"><span><Icon name="cube" size={14}/></span> Open Vault</Link></div>
         <div className="vv3-proofRow"><span><Icon name="shield" size={16}/><b>Real product source</b></span><span><Icon name="cube" size={16}/><b>Interactive 3D twin</b></span><span><Icon name="shield" size={16}/><b>Ownership-ready asset</b></span></div>
       </div>
@@ -91,7 +91,7 @@ export default function RealWorldCommerceHome(){
       <Link href="/messages"><small>VAULT SOCIAL</small><strong>Message people and prepare personal handoffs.</strong><span>Private profiles, chat, and approval-gated NFT requests.</span></Link>
     </section>
     <section className="vv3-collection" id="collection">
-      <div className="vv3-collectionHead"><div><div className="vv3-sectionLabel"><span>01</span> SHOP THE COLLECTION</div><h2>Buy the object.<br/><em>Own the twin.</em></h2></div><p>Each listing is anchored to a real-world product source. Voxel Vault keeps reference pricing, target retail markup, supplier cost and actual profit as separate concepts so the store never pretends a retail reference price is a dropship cost.</p></div>
+      <div className="vv3-collectionHead"><div><div className="vv3-sectionLabel"><span>01</span> SHOP PHYSICAL + DIGITAL</div><h2>Get the product.<br/><em>Collect its 3D NFT.</em></h2></div><p>Every bundle clearly includes two things: a real product shipped through a verified supplier, plus its interactive digital collectible. Checkout stays locked until inventory, shipping, and fulfillment are genuinely connected.</p></div>
       <div className="vv3-objectGrid">{REAL_WORLD_CATALOG.map((item,i)=><Card key={item.id} item={item} index={i}/>)}</div>
       <TrustSection/>
       <VaultRewardsInvite/>
