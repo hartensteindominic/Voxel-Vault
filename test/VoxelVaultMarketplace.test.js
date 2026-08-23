@@ -45,7 +45,8 @@ describe('Voxel Vault Ethereum marketplace', function () {
   });
 
   it('supports funded offers and refunds replaced offers', async function () {
-    const { creator, buyer, bidder, nft, market } = await deploy();
+    const { owner, creator, buyer, bidder, nft, market } = await deploy();
+    await nft.connect(owner).setPublicMintEnabled(true);
     await nft.connect(creator).setApprovalForAll(await market.getAddress(), true);
     await nft.connect(creator).mint('ipfs://asset-3', 250);
     const expiry = Math.floor(Date.now() / 1000) + 3600;
@@ -56,7 +57,8 @@ describe('Voxel Vault Ethereum marketplace', function () {
   });
 
   it('runs an auction and settles the winning bid', async function () {
-    const { creator, bidder, nft, market } = await deploy();
+    const { owner, creator, bidder, nft, market } = await deploy();
+    await nft.connect(owner).setPublicMintEnabled(true);
     await nft.connect(creator).mint('ipfs://asset-4', 250);
     await nft.connect(creator).approve(await market.getAddress(), 1);
     await market.connect(creator).startAuction(1, ethers.parseEther('0.5'), 300);

@@ -11,26 +11,6 @@ const DEMO_OBJECTS = [
   createUniversalCollectible({ name: 'Street Deck', family: 'sports', subtype: 'skateboard', rarity: 'uncommon', seed: 'board-001' }),
 ];
 
-function makeQrDataUrl(text) {
-  const size = 140;
-  const cells = 21;
-  const cell = size / cells;
-  let hash = 2166136261;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="100%" height="100%" fill="#0b0d15"/>`;
-  for (let y = 0; y < cells; y++) {
-    for (let x = 0; x < cells; x++) {
-      const bit = ((hash ^ (x * 17 + y * 31)) + x * y) & 1;
-      const finder = (x < 7 && y < 7) || (x > cells - 8 && y < 7) || (x < 7 && y > cells - 8);
-      if (bit || finder) svg += `<rect x="${x * cell}" y="${y * cell}" width="${cell}" height="${cell}" fill="${finder ? '#55e6ff' : '#e7e2ff'}"/>`;
-    }
-  }
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg + '</svg>')}`;
-}
-
 export default function TapToTrade({ initialOfferId = '', mode = 'create' }) {
   const [wallet, setWallet] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -49,7 +29,33 @@ export default function TapToTrade({ initialOfferId = '', mode = 'create' }) {
     return `${base}/trade?mode=accept&offer=${encodeURIComponent(offer.id || 'local')}`;
   }, [offer]);
 
-  const qrUrl = useMemo(() => (deepLink ? makeQrDataUrl(deepLink) : ''), [deepLink]);
+  const canWriteNfc = typeof window !== 'undefined' && 'NDEFReader' in window;
+
+  async function shareNearby() {
+    if (!deepLink) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Voxel Vault trade', text: 'Open this secure trade offer in Voxel Vault.', url: deepLink });
+        setStatus('Trade offer opened in the system share sheet. Choose a nearby device or contact.');
+      } else {
+        await navigator.clipboard.writeText(deepLink);
+        setStatus('Trade link copied. Send it to the recipient.');
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') setStatus(error?.message || 'Could not share this offer');
+    }
+  }
+
+  async function writeNfcTag() {
+    if (!deepLink || !canWriteNfc) { setStatus('Web NFC writing is not available in this browser. Use the nearby share button.'); return; }
+    try {
+      const writer = new window.NDEFReader();
+      await writer.write({ records: [{ recordType: 'url', data: deepLink }] });
+      setStatus('NFC tag written. Tapping the tag opens this offer; both wallets must still approve settlement.');
+    } catch (error) {
+      setStatus(error?.message || 'NFC write cancelled');
+    }
+  }
 
   async function connectWallet() {
     try {
@@ -166,7 +172,7 @@ export default function TapToTrade({ initialOfferId = '', mode = 'create' }) {
         <h1>Trade like <em>passing a card.</em></h1>
         <p>
           App offers coordinate the handoff. Real ownership moves with <strong>ETH gas</strong> on {EVM_CHAIN_NAME}:
-          NFT transfer or marketplace ETH offers.
+          NFT transfer or marketplace ETH offers. Nearby sharing never moves an asset by itself; both wallets approve the settlement.
         </p>
       </header>
 
@@ -204,21 +210,20 @@ export default function TapToTrade({ initialOfferId = '', mode = 'create' }) {
           <h3>2. Phone handoff</h3>
           {offer ? (
             <>
-              <div className="qrWrap">
-                {qrUrl && <img src={qrUrl} alt="Trade handoff code" width={160} height={160} />}
-                <div className="offerState">State: <b>{offer.state}</b></div>
-              </div>
+              <div className="handoffReady"><small>NEARBY OFFER READY</small><strong>Bring the recipient into this handoff.</strong><span>State: <b>{offer.state}</b></span></div>
               <p className="linkLabel">Deep link</p>
               <code className="deeplink">{deepLink}</code>
               <div className="actions">
+                <button type="button" className="primary" onClick={shareNearby}>Share to nearby phone</button>
+                <button type="button" className="secondary" onClick={writeNfcTag}>{canWriteNfc ? 'Write NFC tag' : 'NFC tag unavailable'}</button>
                 <button type="button" className="secondary" onClick={acceptOffer} disabled={busy || !wallet}>
                   {busy ? 'Working…' : 'Accept as recipient'}
                 </button>
               </div>
-              <p className="hint">Accept updates app state. Use Transfer NFT or Offer ETH to move value on-chain.</p>
+              <p className="hint">iPhone uses the system share sheet for nearby handoff. Compatible Android browsers can also write the offer URL to an NFC tag. The recipient reviews the offer before either wallet signs.</p>
             </>
           ) : (
-            <div className="emptyHandoff"><p>Create an offer to generate QR / deep link.</p></div>
+            <div className="emptyHandoff"><p>Create an offer to generate a secure nearby handoff link.</p></div>
           )}
         </div>
       </section>
@@ -250,7 +255,7 @@ export default function TapToTrade({ initialOfferId = '', mode = 'create' }) {
         .primary,.secondary{border-radius:999px;padding:12px 18px;font-weight:850;cursor:pointer;border:1px solid transparent}
         .primary{background:#fff;color:#07080c;border-color:#fff;width:100%}.secondary{background:#0b0d15;color:#e7e2ff;border-color:rgba(155,124,255,.35)}
         .handoff{display:flex;flex-direction:column;align-items:center;text-align:center}
-        .qrWrap{padding:16px;border-radius:18px;background:#090b12;border:1px solid rgba(255,255,255,.08);margin-bottom:12px}
+        .handoffReady{width:100%;min-height:190px;display:grid;place-items:center;align-content:center;gap:10px;padding:24px;border-radius:18px;background:radial-gradient(circle at 50% 45%,rgba(85,230,255,.16),transparent 42%),#090b12;border:1px solid rgba(85,230,255,.22);margin-bottom:12px}.handoffReady small{color:#55e6ff;font-size:9px;letter-spacing:.16em;font-weight:900}.handoffReady strong{max-width:300px;font-size:24px;line-height:1.05}.handoffReady span{font-size:11px;color:#9da3b5}.handoffReady b{color:#55e6ff;text-transform:uppercase}
         .offerState{margin-top:8px;font-size:12px;color:#9da3b5}.offerState b{color:#55e6ff;text-transform:uppercase}
         .linkLabel{font-size:10px;letter-spacing:.14em;color:#7f879b;margin:8px 0 4px}
         .deeplink{display:block;font-size:10px;word-break:break-all;color:#a183ff;padding:8px;background:rgba(0,0,0,.3);border-radius:8px}
