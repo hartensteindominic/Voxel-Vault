@@ -1,131 +1,55 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getWallet, mintCollectible } from '../../lib/blockchain';
-import { supabaseBrowser } from '../../lib/supabase-browser';
+import { REAL_WORLD_CATALOG } from '../../lib/realWorldCatalog';
+import RealWorld3DNFT from '../components/RealWorld3DNFT';
 
-function metadataUri(item) {
-  const payload = {
-    name: item.name,
-    description: `Voxel Vault original 3D digital twin of a ${item.realityBasis}. Purchased in USD through Voxel Vault.`,
-    image: item.nftImageUrl,
-    animation_url: item.nftAnimationUrl,
-    external_url: item.nftAnimationUrl,
-    attributes: [
-      { trait_type: 'Creator', value: item.creator },
-      { trait_type: 'Rarity', value: item.rarity },
-      { trait_type: 'Reality basis', value: item.realityBasis },
-      { trait_type: 'Material', value: item.material || 'Digital material study' },
-      { trait_type: '3D asset', value: 'Voxel Vault native procedural twin' },
-      { trait_type: 'Purchase', value: 'USD verified' },
-      { trait_type: 'Identity', value: `VV-${item.id}` },
-    ],
-  };
-  return `data:application/json,${encodeURIComponent(JSON.stringify(payload))}`;
-}
+const PRODUCT_ID = 'vault-spiral-table-lamp';
 
 export default function MintPage() {
-  const [wallet, setWallet] = useState('');
-  const [sessionId, setSessionId] = useState('');
-  const [catalogId, setCatalogId] = useState('');
-  const [item, setItem] = useState(null);
-  const [paid, setPaid] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [mint, setMint] = useState(null);
+  const product = REAL_WORLD_CATALOG.find((entry) => entry.id === PRODUCT_ID) || REAL_WORLD_CATALOG[0];
+  const modelUrl = product?.modelUri || product?.digitalTwin?.modelUrl;
+  const exactModelVerified = Boolean(modelUrl && product?.digitalTwin?.exactModelVerified);
+  const checkoutReady = Boolean(product?.fulfillmentReady && product?.purchaseAssetId && exactModelVerified);
 
-  const history = useMemo(() => {
-    if (typeof window === 'undefined') return [];
-    try { return JSON.parse(localStorage.getItem('vv-mint-history') || '[]'); } catch { return []; }
-  }, [mint]);
+  return <main className="page" id="main-content">
+    <header>
+      <Link href="/" className="brand">VOXEL VAULT</Link>
+      <Link href="/" className="back">Back to launch product</Link>
+    </header>
 
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    setSessionId(p.get('session_id') || '');
-    setCatalogId(p.get('catalog') || '');
-  }, []);
-
-  async function connect() {
-    try { const result = await getWallet(); setWallet(result.address); setMessage(`Wallet connected · ${result.address.slice(0, 6)}…${result.address.slice(-4)}`); }
-    catch (error) { setMessage(error.message || 'Wallet connection failed.'); }
-  }
-
-  async function verify() {
-    if (!sessionId || !wallet) return;
-    setBusy(true); setMessage('Verifying your USD payment…');
-    try {
-      const response = await fetch(`/api/mint-verify?session_id=${encodeURIComponent(sessionId)}&wallet=${encodeURIComponent(wallet)}`);
-      const data = await response.json();
-      if (!response.ok || !data.paid) throw new Error(data.error || 'Payment is not confirmed yet.');
-      setItem(data.item); setCatalogId(String(data.catalogId)); setPaid(data.claimEligible !== false); setMessage(data.claimEligible === false ? `Payment verified · ${data.fulfillmentStatus || 'fulfillment pending'}. Claim unlocks after confirmed delivery.` : 'Payment verified. Your original 3D NFT is ready to claim.');
-    } catch (error) { setMessage(error.message || 'Could not verify payment.'); }
-    finally { setBusy(false); }
-  }
-
-  async function startCheckout() {
-    if (!catalogId) return;
-    if (!wallet) { await connect(); return; }
-    setBusy(true); setMessage('Opening secure USD checkout…');
-    try {
-      const response = await fetch('/api/mint-checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ catalogId: Number(catalogId), wallet }) });
-      const data = await response.json();
-      if (!response.ok || !data.url) throw new Error(data.error || 'Checkout unavailable.');
-      window.location.assign(data.url);
-    } catch (error) { setMessage(error.message || 'Could not start checkout.'); setBusy(false); }
-  }
-
-  async function startPhysicalAndNftCheckout() {
-    if (!catalogId) return;
-    if (!wallet) { await connect(); return; }
-    setBusy(true); setMessage('Preparing physical delivery + digital twin checkout…');
-    try {
-      const { data: { session } } = await supabaseBrowser.auth.getSession();
-      if (!session?.access_token) throw new Error('Sign in to Vault before entering a shipping address.');
-      const response = await fetch('/api/physical-nft-checkout', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ catalogId: Number(catalogId), wallet }) });
-      const data = await response.json();
-      if (!response.ok || !data.url) {
-        if (data.sourceUrl) {
-          setMessage('Automated fulfillment is not connected yet. Opening the verified retailer so the physical product can be purchased safely.');
-          window.open(data.sourceUrl, '_blank', 'noopener,noreferrer');
-          setBusy(false);
-          return;
-        }
-        throw new Error(data.error || 'Physical checkout unavailable.');
-      }
-      window.location.assign(data.url);
-    } catch (error) { setMessage(error.message || 'Could not start physical + NFT checkout.'); setBusy(false); }
-  }
-
-  async function mintNow() {
-    if (!item || !paid) return;
-    setBusy(true); setMessage('Minting your original 3D digital twin… confirm the wallet transaction.');
-    try {
-      const result = await mintCollectible({ uri: metadataUri(item), royaltyBps: 500 });
-      const entry = { id: item.id, name: item.name, creator: item.creator, rarity: item.rarity, priceUsd: item.priceUsd, wallet, tokenId: result.tokenId, hash: result.hash, explorerTx: result.explorerTx, createdAt: new Date().toISOString() };
-      const current = JSON.parse(localStorage.getItem('vv-mint-history') || '[]');
-      localStorage.setItem('vv-mint-history', JSON.stringify([entry, ...current].slice(0, 100)));
-      setMint(result); setMessage(`Mint confirmed${result.tokenId ? ` · token #${result.tokenId}` : ''}.`);
-    } catch (error) { setMessage(error.message || 'Mint failed.'); }
-    finally { setBusy(false); }
-  }
-
-  useEffect(() => { if (sessionId && wallet) verify(); }, [sessionId, wallet]);
-
-  return <main className="page">
-    <header><Link href="/" className="brand">VOXEL VAULT</Link><Link href="/" className="back">Back</Link></header>
-    <section className="hero"><small>PHYSICAL + DIGITAL</small><h1>Buy it.<br /><em>Own both.</em></h1><p>Choose a verified real-world product, keep its original Voxel Vault 3D twin in your Vault, and place the collectible in your Room or the world.</p></section>
-    <section className="panel">
-      <div className="step"><b>01</b><strong>Connect your wallet</strong><button onClick={connect} disabled={busy}>{wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : 'Connect'}</button></div>
-      <div className="step"><b>02</b><strong>Physical + NFT · one USD total</strong><button onClick={startPhysicalAndNftCheckout} disabled={busy || !catalogId}>{catalogId ? 'Buy + ship + NFT' : 'Choose an object first'}</button></div>
-      <div className="step"><b>03</b><strong>Digital-only checkout</strong><button onClick={startCheckout} disabled={busy || !catalogId}>{catalogId ? 'Buy NFT' : 'Choose an object first'}</button></div>
-      <div className="step"><b>04</b><strong>Verify payment</strong><button onClick={verify} disabled={busy || !sessionId || !wallet}>Verify</button></div>
-      <div className="step"><b>05</b><strong>Claim the original 3D twin</strong><button onClick={mintNow} disabled={busy || !paid}>{paid ? 'Claim NFT' : 'Locked until paid'}</button></div>
+    <section className="hero">
+      <small>LAUNCH PRODUCT PREVIEW</small>
+      <h1>Buy the real thing.<br/><em>Keep its digital twin.</em></h1>
+      <p>Voxel Vault is launching with one simple bundle: the physical LED Spiral Table Lamp shipped to your home, with its matching 3D collectible included automatically. Pay in normal USD. No wallet setup or crypto knowledge is required to buy.</p>
+      <div className="price"><strong>${product.customerPriceUsd}</strong><span>target bundle price</span></div>
     </section>
-    {item && <section className="object"><small>REAL-WORLD OBJECT · ORIGINAL 3D TWIN</small><h2>{item.name}</h2><p>by {item.creator} · {item.rarity}</p><div className="facts"><span>${item.priceUsd}</span><span>Source verified</span><span>Native 3D media</span><span>VV-{item.id}</span></div><Link href={`/twin?asset=${catalogId}`} className="twinLink">Inspect the permanent 3D twin ↗</Link>{mint && <a href={mint.explorerTx} target="_blank" rel="noreferrer">View confirmed transaction ↗</a>}</section>}
-    {history.length > 0 && <section className="history"><small>YOUR HISTORY</small><h2>Collected objects.</h2>{history.slice(0, 8).map((entry, index) => <article key={`${entry.hash}-${index}`}><div><strong>{entry.name}</strong><span>{entry.creator} · {entry.createdAt.slice(0, 10)}</span></div><b>{entry.tokenId ? `#${entry.tokenId}` : 'Minted'}</b></article>)}</section>}
-    {message && <p className="message" role="status">{message}</p>}
-    <footer><Link href="/orders">Track orders</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></footer>
-    <style jsx>{`.page{min-height:100vh;background:#05060b;color:#f7f8fb;padding:0 16px 45px;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.page *{box-sizing:border-box}header{height:62px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08)}.brand{color:#fff;text-decoration:none;font-size:11px;font-weight:950;letter-spacing:.16em}.back{color:#858ea1;text-decoration:none;font-size:10px}.hero{padding:44px 0 25px}.hero small,.panel+section small,.history>small{color:#a895ff;font-size:9px;font-weight:900;letter-spacing:.17em}.hero h1{font-size:clamp(52px,13vw,80px);line-height:.86;letter-spacing:-.07em;margin:10px 0}.hero em{font-style:normal;color:#a894ff}.hero p{max-width:460px;color:#858ea1;font-size:13px;line-height:1.5}.panel,.object,.history{border:1px solid rgba(255,255,255,.09);border-radius:22px;background:rgba(255,255,255,.035);padding:10px}.step{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:14px 8px;border-bottom:1px solid rgba(255,255,255,.07)}.step:last-child{border-bottom:0}.step b{color:#727b8e;font-size:9px}.step strong{font-size:12px}.step button{border:1px solid rgba(255,255,255,.12);background:#f5f6f9;color:#08090d;border-radius:10px;padding:9px 10px;font-size:9px;font-weight:900}.step button:disabled{opacity:.45}.object{margin-top:12px;padding:20px;background:linear-gradient(135deg,rgba(143,112,255,.14),rgba(255,255,255,.025))}.object h2,.history h2{font-size:26px;letter-spacing:-.04em;margin:8px 0 3px}.object p{color:#7e8799;font-size:10px}.facts{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}.facts span{border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:7px 9px;color:#dce1ea;font-size:8px}.object a,.twinLink{display:inline-block;color:#a894ff;text-decoration:none;font-size:9px;margin-right:12px}.history{margin-top:12px}.history h2{margin-bottom:12px}.history article{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid rgba(255,255,255,.07)}.history article div{min-width:0}.history strong,.history span{display:block}.history strong{font-size:11px}.history span{font-size:8px;color:#737c8e;margin-top:3px}.history article>b{font-size:9px;color:#67eeb0}.message{color:#9aa3b5;font-size:10px;line-height:1.5;padding:10px 2px}.page footer{display:flex;justify-content:center;gap:18px;margin-top:24px}.page footer a{color:#5f687a;text-decoration:none;font-size:9px}@media(min-width:700px){.page{max-width:760px;margin:0 auto;padding-left:24px;padding-right:24px}}`}</style>
+
+    <section className="preview" aria-label="Launch product preview">
+      <RealWorld3DNFT item={product} hero />
+    </section>
+
+    <section className="panel" aria-labelledby="status-title">
+      <div className="intro"><small>CHECKOUT STATUS</small><h2 id="status-title">Preview now. Purchase when verified.</h2><p>Checkout remains locked until the physical fulfillment path and exact 3D asset have passed a complete test. We will not ask you to connect a wallet or offer a digital-only purchase as a substitute.</p></div>
+      <div className="steps" role="list">
+        <div className="step done" role="listitem"><b>01</b><div><strong>One physical-first bundle</strong><span>The real lamp is the product. The matching 3D collectible is included.</span></div><i>✓</i></div>
+        <div className="step done" role="listitem"><b>02</b><div><strong>Normal USD checkout</strong><span>Card payment only for the customer-facing launch flow. No crypto steps required.</span></div><i>✓</i></div>
+        <div className={`step ${exactModelVerified ? 'done' : 'pending'}`} role="listitem"><b>03</b><div><strong>Exact 3D verification</strong><span>{exactModelVerified ? 'The product-specific 3D twin has passed review.' : 'The exact product-specific 3D twin is still under review.'}</span></div><i>{exactModelVerified ? '✓' : '3'}</i></div>
+        <div className={`step ${product.fulfillmentReady ? 'done' : 'pending'}`} role="listitem"><b>04</b><div><strong>Fulfillment test</strong><span>{product.fulfillmentReady ? 'Inventory, shipping, tracking, and delivery have been verified.' : 'Supplier inventory, freight, tracking, and delivery still need a complete test order.'}</span></div><i>{product.fulfillmentReady ? '✓' : '4'}</i></div>
+      </div>
+    </section>
+
+    <section className="actions">
+      {checkoutReady
+        ? <Link href={`/marketplace?purchase=${encodeURIComponent(product.purchaseAssetId)}`} className="primary">Continue to secure checkout</Link>
+        : <a href="#status-title" className="primary disabled" aria-disabled="true">Checkout opens after verification</a>}
+      <a href={product.sourceUrl} target="_blank" rel="noreferrer" className="secondary">View physical product source ↗</a>
+    </section>
+
+    <section className="note"><strong>No wallet required to purchase.</strong><p>Wallet features may exist later for collectors who want them, but they are not part of the launch buying process.</p></section>
+
+    <footer><Link href="/">Launch product</Link><Link href="/orders">Track orders</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></footer>
+
+    <style jsx>{`.page{min-height:100vh;background:#05060b;color:#f7f8fb;padding:0 16px 48px;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.page *{box-sizing:border-box}header{height:64px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08)}.brand{color:#fff;text-decoration:none;font-size:11px;font-weight:950;letter-spacing:.16em}.back{color:#8d96a8;text-decoration:none;font-size:10px}.hero{padding:48px 0 28px}.hero small,.intro small{color:#a895ff;font-size:9px;font-weight:900;letter-spacing:.17em}.hero h1{font-size:clamp(48px,11vw,78px);line-height:.9;letter-spacing:-.065em;margin:10px 0 18px}.hero em{font-style:normal;color:#a894ff}.hero p{max-width:610px;color:#939bad;font-size:14px;line-height:1.65}.price{display:flex;gap:10px;align-items:baseline;margin-top:22px}.price strong{font-size:30px}.price span{color:#747d8f;font-size:10px;text-transform:uppercase;letter-spacing:.12em}.preview{margin:8px 0 18px}.panel{border:1px solid rgba(255,255,255,.09);border-radius:24px;background:rgba(255,255,255,.035);overflow:hidden}.intro{padding:24px}.intro h2{font-size:30px;letter-spacing:-.045em;margin:8px 0}.intro p{max-width:620px;color:#8b94a6;font-size:12px;line-height:1.6}.steps{border-top:1px solid rgba(255,255,255,.07)}.step{display:grid;grid-template-columns:34px 1fr 30px;gap:12px;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.07)}.step:last-child{border-bottom:0}.step>b{font-size:9px;color:#687184}.step strong,.step span{display:block}.step strong{font-size:12px}.step span{margin-top:4px;color:#7f889a;font-size:10px;line-height:1.45}.step i{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-style:normal;font-weight:900}.step.done i{background:#173326;color:#6ee7ab}.step.pending i{background:#2b2637;color:#b7a3ff}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.actions a{min-height:46px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:0 16px;text-decoration:none;font-size:10px;font-weight:900;letter-spacing:.04em}.primary{background:#f5f6f9;color:#08090d}.primary.disabled{opacity:.48;pointer-events:none}.secondary{border:1px solid rgba(255,255,255,.12);color:#dfe4ee}.note{margin-top:16px;padding:18px 20px;border-left:2px solid #8f70ff;background:rgba(143,112,255,.08)}.note strong{font-size:12px}.note p{margin:5px 0 0;color:#8e97a9;font-size:10px;line-height:1.5}.page footer{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;margin-top:28px}.page footer a{color:#626b7d;text-decoration:none;font-size:9px}@media(min-width:760px){.page{max-width:880px;margin:0 auto;padding-left:24px;padding-right:24px}}`}</style>
   </main>;
 }
