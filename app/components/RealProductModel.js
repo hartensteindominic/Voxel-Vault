@@ -4,7 +4,14 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { createStudioTwin, disposeStudioTwin, kindForItem, TWIN_COLORS } from '../../lib/studioTwin';
+import {
+  animateStudioTwin,
+  createStudioTwin,
+  disposeStudioTwin,
+  getStudioEnvMap,
+  kindForItem,
+  TWIN_COLORS,
+} from '../../lib/studioTwin';
 
 function modelUrlFor(item) {
   return item?.modelUri || item?.digitalTwin?.modelUrl || '';
@@ -48,26 +55,35 @@ export default function RealProductModel({ item, onLoaded, onUnavailable }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1 : 1.6));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 1.12;
     renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto;z-index:5;touch-action:none';
     root.appendChild(renderer.domElement);
 
+    scene.environment = getStudioEnvMap();
+    scene.environmentIntensity = 1.12;
+    let pmremTex = null;
+    let pmrem = null;
     if (!mobile && root.clientHeight > 380) {
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-      scene.environmentIntensity = 0.9;
+      pmrem = new THREE.PMREMGenerator(renderer);
+      pmremTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      scene.environment = pmremTex;
+      scene.environmentIntensity = 1.05;
     }
 
-    scene.add(new THREE.HemisphereLight(0xf4efe6, 0x1a1a1e, mobile ? 0.7 : 0.55));
-    const key = new THREE.DirectionalLight(0xfff6ea, mobile ? 1.8 : 2.2);
+    scene.add(new THREE.HemisphereLight(0xf7f1e6, 0x1a1816, mobile ? 0.72 : 0.62));
+    const key = new THREE.DirectionalLight(0xfff6ea, mobile ? 1.85 : 2.15);
     key.position.set(3, 4, 2.4);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0x9aabbd, 0.5);
+    const fill = new THREE.DirectionalLight(0x9aabbd, 0.58);
     fill.position.set(-2.4, 1.4, -1.6);
     scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffe9c8, 0.32);
+    rim.position.set(0.2, 2.2, -3);
+    scene.add(rim);
 
     const kind = kindForItem(item);
-    const twin = createStudioTwin(kind, TWIN_COLORS[kind] || TWIN_COLORS.spiral);
+    const quality = mobile || root.clientHeight < 380 ? 'compact' : 'hero';
+    const twin = createStudioTwin(kind, TWIN_COLORS[kind] || TWIN_COLORS.spiral, quality);
     scene.add(twin);
     onLoadedRef.current?.(true);
 
@@ -90,6 +106,7 @@ export default function RealProductModel({ item, onLoaded, onUnavailable }) {
         obj.rotation.x += (targetX - obj.rotation.x) * 0.16;
         obj.rotation.y += (targetY - obj.rotation.y) * 0.16;
         obj.position.y = Math.sin(performance.now() / 1100) * 0.04;
+        if (twin.visible) animateStudioTwin(twin, performance.now() / 1000);
         camera.position.set(0, 0.18, distance);
         camera.lookAt(0, 0.05, 0);
         renderer.render(scene, camera);
@@ -168,7 +185,8 @@ export default function RealProductModel({ item, onLoaded, onUnavailable }) {
           materials.filter(Boolean).forEach((material) => { material.map?.dispose?.(); material.dispose?.(); });
         });
       }
-      scene.environment?.dispose?.();
+      pmremTex?.dispose?.();
+      pmrem?.dispose?.();
       renderer.dispose();
       renderer.domElement.remove();
     };
