@@ -100,7 +100,7 @@ export default function ProductPublisherPage() {
       await update('save');
       const {product} = await api(`/api/admin/products/${selected.id}/verify-mint`,session.access_token,{method:'POST'});
       setProducts((current)=>current.map((item)=>item.id===product.id?product:item));
-      setStatus('Mint confirmed on Base.');
+      setStatus('Mint verified on Base.');
     } catch(error) { setStatus(error instanceof Error?error.message:'Mint verification failed.'); }
     finally { setBusy(false); }
   }
@@ -126,7 +126,7 @@ export default function ProductPublisherPage() {
             <label>Pre-mint receipt<span className="stateValue">{selected.mint_status?.replaceAll('_',' ')||'unverified'}</span><button type="button" disabled={busy||!selected.contract_address||!selected.token_id||!selected.mint_tx_hash} onClick={verifyMint}>Verify on Base</button></label>
             <label>Inventory<select value={selected.inventory_status} onChange={(e)=>change('inventory_status',e.target.value)}><option value="unverified">Unverified</option><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option><option value="transferred">Transferred</option><option value="blocked">Blocked</option></select></label>
           </div>
-          {!readiness.ready&&<div className="readiness"><strong>Required before publication</strong><ul>{[...(readiness.missing||[]),...(readiness.invalid||[]).map((item:string)=>`Invalid ${item}`)].map((item)=><li key={item}>{item}</li>)}</ul></div>}
+          {!readiness.ready&&<div className="readiness"><strong>Required for Vault Ready</strong><ul>{[...(readiness.missing||[]),...(readiness.invalid||[]).map((item:string)=>`Invalid ${item}`)].map((item)=><li key={item}>{item}</li>)}</ul></div>}
           <footer><button disabled={busy} onClick={()=>update('save')}>Save draft</button><button className="publish" disabled={busy} onClick={()=>update('review')}>Run Vault Ready checks</button></footer>
         </>}
       </section>
