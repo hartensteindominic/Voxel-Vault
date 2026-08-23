@@ -1,33 +1,25 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
-import Auto3DPreview from './Auto3DPreview';
+import { useEffect, useRef, useState } from 'react';
 import './vv3-nft.css';
 import './AccuracyCommerce.css';
 
 const Product3DTwin = dynamic(() => import('./Product3DTwin'), {
   ssr: false,
-  loading: () => <div className="vv3-twinLoading">LOADING INTERACTIVE COLLECTIBLE</div>,
+  loading: () => null,
 });
 
 function isPlaceholder(url = '') {
   return /unsplash\.com|\/cj\/share\d+x\d+\.(?:jpg|jpeg|png|webp)(?:\?|$)|config-resource\/cj\/share/i.test(url);
 }
 
-function PendingMedia() {
-  return <div className="vv3-accuracyEmpty">
-    <div aria-hidden="true" style={{width:72,height:72,border:'1px solid rgba(255,255,255,.18)',borderRadius:20,display:'grid',placeItems:'center',marginBottom:16,background:'linear-gradient(145deg,rgba(143,112,255,.16),rgba(255,255,255,.03))'}}><span style={{fontSize:28,color:'#a894ff'}}>◇</span></div>
-    <strong>Product media is syncing</strong>
-    <small>Voxel Vault is preparing an interactive preview in the background.</small>
-    <span style={{marginTop:12,fontSize:8,letterSpacing:'.14em',fontWeight:900,color:'#a894ff'}}>BROWSE NOW · CHECKOUT OPENS WHEN READY</span>
-  </div>;
-}
-
-function VerifiedProductPhoto({ item }) {
+function ProductPhoto({ item }) {
   const fallback = !isPlaceholder(item?.previewUri || '') ? item.previewUri : '';
   const [src, setSrc] = useState(fallback);
   const [failed, setFailed] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const drag = useRef({ x: 0, y: 0, active: false });
 
   useEffect(() => {
     let active = true;
@@ -35,43 +27,126 @@ function VerifiedProductPhoto({ item }) {
     const params = new URLSearchParams();
     if (item?.sourceUrl) params.set('url', item.sourceUrl);
     if (item?.supplierSku) params.set('sku', item.supplierSku);
-    fetch(`/api/product-image?${params.toString()}`, { cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Product image unavailable'))))
+    fetch(`/api/product-image?${params.toString()}`, { cache: 'force-cache' })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('unavailable'))))
       .then((data) => {
-        if (active && data?.imageUrl && !isPlaceholder(data.imageUrl)) { setSrc(data.imageUrl); setFailed(false); }
-        else if (active) { setSrc(''); setFailed(true); }
+        if (active && data?.imageUrl && !isPlaceholder(data.imageUrl)) {
+          setSrc(data.imageUrl);
+          setFailed(false);
+        } else if (active && !fallback) {
+          setSrc('');
+          setFailed(true);
+        }
       })
-      .catch(() => { if (active && !fallback) setFailed(true); });
-    return () => { active = false; };
+      .catch(() => {
+        if (active && !fallback) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [item?.sourceUrl, item?.supplierSku, fallback]);
 
-  if (!src || failed) return <PendingMedia />;
-  return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} product reference`} /><span>PRODUCT REFERENCE · INTERACTIVE PREVIEW BUILDING</span></div>;
+  if (!src || failed) {
+    return (
+      <div className="vv3-accuracyEmpty">
+        <strong>Product photo arriving</strong>
+        <small>The real item is synced. The digital twin stays hidden until it matches this product.</small>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="vv3-verifiedPhoto"
+      style={{ cursor: 'grab' }}
+      onPointerDown={(e) => {
+        drag.current = { x: e.clientX, y: e.clientY, active: true };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current.active) return;
+        setTilt({
+          x: Math.max(-10, Math.min(10, -(e.clientY - drag.current.y) / 18)),
+          y: Math.max(-14, Math.min(14, (e.clientX - drag.current.x) / 18)),
+        });
+      }}
+      onPointerUp={() => {
+        drag.current.active = false;
+        setTilt({ x: 0, y: 0 });
+      }}
+      onPointerCancel={() => {
+        drag.current.active = false;
+        setTilt({ x: 0, y: 0 });
+      }}
+    >
+      <img
+        src={src}
+        alt={`${item?.name || 'Product'} physical product`}
+        draggable={false}
+        style={{
+          transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+          transition: 'transform 150ms ease',
+        }}
+      />
+      <span>PHYSICAL PRODUCT · DRAG TO INSPECT</span>
+    </div>
+  );
 }
 
 export default function RealWorld3DNFT({ item, hero = false }) {
+  const [mode, setMode] = useState('photo');
   const price = item?.customerPriceUsd ? `$${item.customerPriceUsd}` : null;
   const modelUrl = item?.modelUri || item?.digitalTwin?.modelUrl;
   const exactModelVerified = Boolean(modelUrl && item?.digitalTwin?.exactModelVerified);
   const titleId = `collectible-${item?.id || 'object'}`;
+  const showTwin = exactModelVerified && mode === 'twin';
 
   return (
     <figure className={`vv3-modelFrame ${hero ? 'vv3-modelFrameHero' : ''}`} aria-labelledby={titleId}>
       <div className="vv3-twinHeader">
-        <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}><span aria-hidden="true">◆</span> {exactModelVerified ? 'EXACT MODEL APPROVED' : hero ? 'LIVE INTERACTIVE PREVIEW' : 'PREVIEW BUILDING'}</span>
-        <span className="vv3-twinSource">REAL PHYSICAL PRODUCT · USD PURCHASE</span>
+        <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}>
+          <span aria-hidden="true">◆</span>
+          {exactModelVerified ? 'COLLECTIBLE READY' : 'PHYSICAL PRODUCT'}
+        </span>
+        <span className="vv3-twinSource">USD · HOME DELIVERY · DIGITAL TWIN INCLUDED</span>
       </div>
       <div className="vv3-accuracyStage">
-        {exactModelVerified ? <Product3DTwin item={item} hero={hero} /> : hero ? <Auto3DPreview item={item} hero /> : <VerifiedProductPhoto item={item} />}
+        {showTwin ? <Product3DTwin item={item} hero={hero} /> : <ProductPhoto item={item} />}
       </div>
       <div className={`vv3-accuracyStatus ${exactModelVerified ? 'is-verified' : 'is-pending'}`}>
-        <strong>{exactModelVerified ? 'Interactive collectible matches the sellable physical item' : hero ? 'Interactive preview builds automatically' : 'Open this product to view its interactive preview'}</strong>
-        <small>{exactModelVerified ? 'Voxel Vault approved this model for the same physical product customers can buy.' : hero ? 'The preview is built from multiple product reference images when available. Checkout stays off until Voxel Vault confirms the result closely represents the same physical item.' : 'Readiness checks happen behind the scenes before checkout goes live.'}</small>
+        <strong>
+          {exactModelVerified
+            ? 'The interactive collectible was approved against this product photo'
+            : 'Shop the real product. The digital twin appears when it matches this photo.'}
+        </strong>
+        <small>
+          {exactModelVerified
+            ? 'One purchase includes the physical item and its matching 3D digital twin.'
+            : 'We never show a guessed model as if it were this product.'}
+        </small>
+        {exactModelVerified ? (
+          <button
+            type="button"
+            className="vv3-twinOpen"
+            onClick={() => setMode((current) => (current === 'twin' ? 'photo' : 'twin'))}
+            style={{ marginTop: 10 }}
+          >
+            {mode === 'twin' ? 'Show product photo' : 'View digital twin'}
+          </button>
+        ) : null}
       </div>
       <figcaption className="vv3-twinFooter" id={titleId}>
-        <div className="vv3-twinName"><small>{item?.creator || 'Voxel Vault'}</small><strong>{item?.name || 'Collectible object'}</strong></div>
-        <div className="vv3-twinPrice"><small>PHYSICAL + DIGITAL COLLECTIBLE</small>{price && <strong>{price}</strong>}</div>
-        <span className="vv3-twinOpen" aria-label="Supplier disclosure">Fulfilled through a third-party product partner</span>
+        <div className="vv3-twinName">
+          <small>Voxel Vault</small>
+          <strong>{item?.name || 'Collectible object'}</strong>
+        </div>
+        <div className="vv3-twinPrice">
+          <small>PHYSICAL + DIGITAL TWIN</small>
+          {price && <strong>{price}</strong>}
+        </div>
+        <span className="vv3-twinOpen" aria-label="Supplier disclosure">
+          Fulfilled through a verified Voxel Vault supply partner
+        </span>
       </figcaption>
     </figure>
   );
