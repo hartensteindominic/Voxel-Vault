@@ -57,7 +57,7 @@ function TrustSection(){
 }
 
 function MobileNav(){
-  return <nav className="vv3-mobileNav" aria-label="Mobile navigation"><Link href="/discover">Discover</Link><Link href="/marketplace">Shop</Link><Link href="/room">Vault</Link><Link href="/ai">AI</Link></nav>;
+  return <nav className="vv3-mobileNav" aria-label="Mobile navigation"><Link href="/discover">World</Link><Link href="/marketplace">Shop</Link><Link href="/avatar">Avatar</Link><Link href="/room">Room</Link><Link href="/trade">Trade</Link></nav>;
 }
 
 export default function RealWorldCommerceHome(){
@@ -70,7 +70,7 @@ export default function RealWorldCommerceHome(){
       <div className="vv3-heroCopy">
         <div className="vv3-eyebrow"><i/> PHYSICAL + DIGITAL COLLECTION</div>
         <h1>Real objects.<br/><em>3D NFTs.</em></h1>
-        <p>Choose a real-world object, inspect its interactive Voxel Vault 3D digital twin, and collect both through one storefront. Physical sourcing stays separate from the collectible layer, so the ownership record and fulfillment economics remain clean.</p>
+        <p>Buy a verified physical object and unlock its interactive 3D twin. Wear it, place it in your room, pin it to the world, or trade it wallet-to-wallet.</p>
         <div className="vv3-heroActions"><Link className="vv3-primaryCta" href="#collection">Shop both <Icon name="arrow" size={17}/></Link><Link className="vv3-textCta" href="/room"><span><Icon name="cube" size={14}/></span> Open Vault</Link></div>
         <div className="vv3-proofRow"><span><Icon name="shield" size={16}/><b>Real product source</b></span><span><Icon name="cube" size={16}/><b>Interactive 3D twin</b></span><span><Icon name="shield" size={16}/><b>Ownership-ready asset</b></span></div>
       </div>
@@ -82,6 +82,12 @@ export default function RealWorldCommerceHome(){
       </div>
     </section>
     <section className="vv3-signalBar"><span>REAL PRODUCTS</span><i/><span>INTERACTIVE 3D TWINS</span><i/><span>NFT-READY ASSETS</span><i/><span>VAULT + ROOM + WORLD</span></section>
+    <section className="vv3-coreLoop" aria-label="Voxel Vault experiences">
+      <Link href="/discover"><small>WORLD</small><strong>Place digital twins on a living globe.</strong><span>Explore public drops and location-linked objects.</span></Link>
+      <Link href="/avatar"><small>AVATAR</small><strong>Build the 3D version of you.</strong><span>Wear compatible items from your verified collection.</span></Link>
+      <Link href="/trade"><small>TAP TRADE</small><strong>Start a secure phone-to-phone handoff.</strong><span>Share the offer nearby; both wallets still approve.</span></Link>
+      <Link href="/ai"><small>CRESTODIAN AI</small><strong>Ask your collection what it knows.</strong><span>Research, organize, and plan without autonomous spending.</span></Link>
+    </section>
     <section className="vv3-collection" id="collection">
       <div className="vv3-collectionHead"><div><div className="vv3-sectionLabel"><span>01</span> SHOP THE COLLECTION</div><h2>Buy the object.<br/><em>Own the twin.</em></h2></div><p>Each listing is anchored to a real-world product source. Voxel Vault keeps reference pricing, target retail markup, supplier cost and actual profit as separate concepts so the store never pretends a retail reference price is a dropship cost.</p></div>
       <div className="vv3-objectGrid">{REAL_WORLD_CATALOG.map((item,i)=><Card key={item.id} item={item} index={i}/>)}</div>
