@@ -20,7 +20,7 @@ export default function MintPage() {
 
     <section className="hero">
       <small>LAUNCH PRODUCT PREVIEW</small>
-      <h1>Buy the real thing.<br/><em>Keep its digital twin.</em></h1>
+      <h1>Buy the real thing.<br/><em>Keep its 3D collectible.</em></h1>
       <p>Voxel Vault is launching with one simple bundle: the physical LED Spiral Table Lamp shipped to your home, with its matching 3D collectible included automatically. Pay in normal USD. No wallet setup or crypto knowledge is required to buy.</p>
       <div className="price"><strong>${product.customerPriceUsd}</strong><span>target bundle price</span></div>
     </section>
@@ -34,7 +34,7 @@ export default function MintPage() {
       <div className="steps" role="list">
         <div className="step done" role="listitem"><b>01</b><div><strong>One physical-first bundle</strong><span>The real lamp is the product. The matching 3D collectible is included.</span></div><i>✓</i></div>
         <div className="step done" role="listitem"><b>02</b><div><strong>Normal USD checkout</strong><span>Card payment only for the customer-facing launch flow. No crypto steps required.</span></div><i>✓</i></div>
-        <div className={`step ${exactModelVerified ? 'done' : 'pending'}`} role="listitem"><b>03</b><div><strong>Exact 3D verification</strong><span>{exactModelVerified ? 'The product-specific 3D twin has passed review.' : 'The exact product-specific 3D twin is still under review.'}</span></div><i>{exactModelVerified ? '✓' : '3'}</i></div>
+        <div className={`step ${exactModelVerified ? 'done' : 'pending'}`} role="listitem"><b>03</b><div><strong>Exact 3D verification</strong><span>{exactModelVerified ? 'The product-specific 3D collectible has passed review.' : 'The exact product-specific 3D collectible is still under review.'}</span></div><i>{exactModelVerified ? '✓' : '3'}</i></div>
         <div className={`step ${product.fulfillmentReady ? 'done' : 'pending'}`} role="listitem"><b>04</b><div><strong>Fulfillment test</strong><span>{product.fulfillmentReady ? 'Inventory, shipping, tracking, and delivery have been verified.' : 'Supplier inventory, freight, tracking, and delivery still need a complete test order.'}</span></div><i>{product.fulfillmentReady ? '✓' : '4'}</i></div>
       </div>
     </section>
