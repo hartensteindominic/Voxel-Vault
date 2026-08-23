@@ -1,3 +1,3 @@
 'use client';
-import RealWorldCommerceHome from './components/RealWorldCommerceHome';
-export default function Home(){return <RealWorldCommerceHome/>;}
+import VoxelStorefront from './components/VoxelStorefront';
+export default function Home(){return <VoxelStorefront/>;}
