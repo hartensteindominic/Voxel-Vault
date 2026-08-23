@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '../../lib/supabase-browser';
 
 export default function VaultMessenger() {
+  const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const [session, setSession] = useState(null);
   const [email, setEmail] = useState('');
   const [profile, setProfile] = useState({ handle: '', displayName: '', bio: '' });
@@ -19,10 +20,11 @@ export default function VaultMessenger() {
   const user = session?.user;
 
   useEffect(() => {
+    if (!configured) return;
     supabaseBrowser.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = supabaseBrowser.auth.onAuthStateChange((_event, next) => setSession(next));
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, [configured]);
 
   useEffect(() => { if (user) loadPeople(); }, [user?.id]);
   useEffect(() => {
@@ -88,6 +90,7 @@ export default function VaultMessenger() {
     setStatus(error?.message || `Token #${tokenId.trim()} approval request sent. The NFT has not moved.`); if (!error) setTokenId('');
   }
 
+  if (!configured) return <main className="vmRoot"><header className="vmTop"><Link href="/">VOXEL VAULT</Link><span>PRIVATE MESSAGING</span></header><section className="vmSignin"><small>VAULT SOCIAL</small><h1>Your people.<br/><em>Your collection.</em></h1><p>Profiles, private chat, realtime messages, and approval-gated NFT handoffs are built. Connect the production Supabase project and apply migration 004 to activate accounts—until then, no message or transfer is pretended.</p><Link href="/trade" style={{ display: 'inline-block', marginTop: 22, padding: '12px 16px', borderRadius: 12, background: '#b8ff4a', color: '#090b0f', textDecoration: 'none', fontSize: 11, fontWeight: 900 }}>Use Tap Trade</Link></section></main>;
   if (!session) return <main className="vmRoot"><header className="vmTop"><Link href="/">VOXEL VAULT</Link><span>PRIVATE MESSAGING</span></header><section className="vmSignin"><small>PROFILE + MESSAGES</small><h1>Your people.<br/><em>Your collection.</em></h1><p>Message collectors and prepare NFT handoffs. Only a wallet signature can move an NFT.</p><form onSubmit={signIn}><label>Email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label><button disabled={busy}>{busy ? 'Sending…' : 'Email secure sign-in link'}</button></form>{status && <p role="status">{status}</p>}</section></main>;
 
   return <main className="vmRoot"><header className="vmTop"><Link href="/">VOXEL VAULT</Link><nav><Link href="/avatar">Avatar</Link><Link href="/vault">Collection</Link><Link href="/trade">Trade</Link></nav><button onClick={() => supabaseBrowser.auth.signOut()}>Sign out</button></header><section className="vmLayout"><aside className="vmSidebar"><div className="vmIdentity"><span>{(profile.displayName || 'VA').slice(0, 2).toUpperCase()}</span><strong>{profile.displayName || 'Set up your profile'}</strong></div><form className="vmProfile" onSubmit={saveProfile}><label>Handle<input required minLength={3} maxLength={24} pattern="[a-z0-9_]+" value={profile.handle} onChange={event => setProfile({ ...profile, handle: event.target.value })} placeholder="vault_handle" /></label><label>Display name<input required maxLength={50} value={profile.displayName} onChange={event => setProfile({ ...profile, displayName: event.target.value })} /></label><label>Bio<textarea maxLength={280} value={profile.bio} onChange={event => setProfile({ ...profile, bio: event.target.value })} /></label><button disabled={busy}>Save profile</button></form><div className="vmPeople"><small>PEOPLE</small>{people.length ? people.map(person => <button key={person.user_id} className={peer?.user_id === person.user_id ? 'active' : ''} onClick={() => openChat(person)}><span>{person.display_name.slice(0, 2).toUpperCase()}</span><div><strong>{person.display_name}</strong><small>@{person.handle}</small></div></button>) : <p>No other profiles yet.</p>}</div></aside><section className="vmChat">{peer ? <><header><div><small>SECURE CONVERSATION</small><h1>{peer.display_name}</h1><p>@{peer.handle} · transfers require approval.</p></div><Link href="/trade">Open Tap Trade</Link></header><div className="vmMessages">{messages.length ? messages.map(message => <article key={message.id} className={message.sender_id === user.id ? 'mine' : ''}><p>{message.body}</p><time>{new Date(message.created_at).toLocaleString()}</time></article>) : <div className="vmEmpty"><strong>Talk first. Trade second.</strong><p>Agree on the handoff before either wallet signs.</p></div>}</div><form className="vmComposer" onSubmit={send}><input aria-label="Message" maxLength={2000} value={body} onChange={event => setBody(event.target.value)} placeholder={`Message ${peer.display_name}`} /><button>Send</button></form><div className="vmTransfer"><div><small>APPROVAL-GATED HANDOFF</small><strong>Prepare an NFT transfer</strong><p>Your NPC and Vault AI cannot sign it.</p></div><label>Token ID<input value={tokenId} onChange={event => setTokenId(event.target.value)} /></label><button onClick={requestTransfer}>Request approval</button></div></> : <div className="vmEmpty vmWelcome"><small>VAULT SOCIAL</small><h1>Message.<br/>Share. Trade.</h1><p>Choose a collector from your private network.</p></div>}</section></section>{status && <div role="status" className="vmToast">{status}<button onClick={() => setStatus('')} aria-label="Dismiss">×</button></div>}</main>;
