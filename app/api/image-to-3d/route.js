@@ -4,20 +4,19 @@ import { cjProductImages, getCjProductBySku } from '../../../lib/cjApi';
 export const runtime = 'nodejs';
 
 const MESHY_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
+const MAX_TEXTURE_PROMPT = 760;
 
 function buildPrompt(item = {}) {
-  const name = [item.name, item.type].filter(Boolean).join(' / ');
-  const material = item.material ? `Material family: ${item.material}.` : '';
-  const source = item.sourceName ? `This is a real commercial product listed by ${item.sourceName}.` : '';
-  const note = item.sourceNote || '';
-  return [
-    `Create a photorealistic review model of the exact physical product shown in the reference image: ${name || 'the product'}.`,
-    material, source, note,
-    'Match the reference exactly: silhouette, proportions, thickness, openings, seams, controls, buttons, handles, feet, hardware, surface finish, color placement and visible construction details.',
-    'Do not redesign, stylize, voxelize, cartoonize, beautify, simplify, or add fictional components. Do not invent logos, labels, controls, accessories, patterns, or geometry that is not supported by the reference.',
-    'Preserve physically plausible manufacturing details and real-world scale. Produce clean manifold geometry suitable for interactive e-commerce review.',
-    'Use realistic physically based materials with accurate roughness, metallic response, reflections and subtle surface variation. Keep textures aligned to the actual product rather than painting a generic material over the mesh.',
+  const name = [item.name, item.type].filter(Boolean).join(' / ') || 'the product';
+  const material = item.material ? `Material: ${item.material}.` : '';
+  const prompt = [
+    `Photorealistic review model of the exact physical product in the reference image: ${name}.`,
+    material,
+    'Match silhouette, proportions, openings, controls, hardware, colors and visible construction.',
+    'Do not redesign, stylize, simplify, invent logos, accessories, controls, patterns or geometry.',
+    'Keep real-world scale, clean geometry and realistic PBR materials. Match the reference image as closely as possible.'
   ].filter(Boolean).join(' ');
+  return prompt.slice(0, MAX_TEXTURE_PROMPT);
 }
 
 function isPlaceholderImage(url = '') { return /unsplash\.com/i.test(url); }
@@ -61,15 +60,16 @@ export async function POST(request) {
     const requestedImageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl.trim() : '';
     const imageUrl = await resolveProductImage(requestedImageUrl, item);
     if (!isHttpUrl(imageUrl)) return NextResponse.json({ error: 'A public CJ product image could not be resolved. Confirm CJ_API_KEY and the supplier SKU.' }, { status: 400 });
+    const texturePrompt = buildPrompt(item);
     const response = await fetch(MESHY_ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url: imageUrl, model_type: 'standard', ai_model: 'latest', ultra_mode: true, image_enhancement: true, remove_lighting: true, should_texture: true, enable_pbr: true, texture_resolution: '4k', texture_image_url: imageUrl, texture_prompt: buildPrompt(item), target_formats: ['glb'], auto_size: true, origin_at: 'bottom', multi_view_thumbnails: true }),
+      body: JSON.stringify({ image_url: imageUrl, model_type: 'standard', ai_model: 'latest', ultra_mode: true, image_enhancement: true, remove_lighting: true, should_texture: true, enable_pbr: true, texture_resolution: '4k', texture_image_url: imageUrl, texture_prompt: texturePrompt, target_formats: ['glb'], auto_size: true, origin_at: 'bottom', multi_view_thumbnails: true }),
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return NextResponse.json({ error: data?.message || data?.error || data?.task_error?.message || 'Image-to-3D provider rejected the request.' }, { status: response.status });
-    return NextResponse.json({ configured: true, sourceImageUrl: imageUrl, taskId: data?.result || data?.id || null });
+    return NextResponse.json({ configured: true, sourceImageUrl: imageUrl, taskId: data?.result || data?.id || null, promptLength: texturePrompt.length });
   } catch (error) { return NextResponse.json({ error: error?.message || 'Image-to-3D request failed.' }, { status: 500 }); }
 }
 
