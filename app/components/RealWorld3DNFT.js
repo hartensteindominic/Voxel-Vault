@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
+import Auto3DPreview from './Auto3DPreview';
 import './vv3-nft.css';
 import './AccuracyCommerce.css';
 
@@ -34,27 +35,17 @@ function VerifiedProductPhoto({ item }) {
     const params = new URLSearchParams();
     if (item?.sourceUrl) params.set('url', item.sourceUrl);
     if (item?.supplierSku) params.set('sku', item.supplierSku);
-
     fetch(`/api/product-image?${params.toString()}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Product image unavailable'))))
       .then((data) => {
-        if (active && data?.imageUrl && !isPlaceholder(data.imageUrl)) {
-          setSrc(data.imageUrl);
-          setFailed(false);
-        } else if (active) {
-          setSrc('');
-          setFailed(true);
-        }
+        if (active && data?.imageUrl && !isPlaceholder(data.imageUrl)) { setSrc(data.imageUrl); setFailed(false); }
+        else if (active) { setSrc(''); setFailed(true); }
       })
-      .catch(() => {
-        if (active && !fallback) setFailed(true);
-      });
-
+      .catch(() => { if (active && !fallback) setFailed(true); });
     return () => { active = false; };
   }, [item?.sourceUrl, item?.supplierSku, fallback]);
 
   if (!src || failed) return <PendingMedia />;
-
   return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} from CJdropshipping`} /><span>LIVE CJ PRODUCT IMAGE · 3D REVIEW PENDING</span></div>;
 }
 
@@ -67,13 +58,15 @@ export default function RealWorld3DNFT({ item, hero = false }) {
   return (
     <figure className={`vv3-modelFrame ${hero ? 'vv3-modelFrameHero' : ''}`} aria-labelledby={titleId}>
       <div className="vv3-twinHeader">
-        <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}><span aria-hidden="true">◆</span> {exactModelVerified ? 'VERIFIED 3D COLLECTIBLE' : 'EXACT 3D PENDING'}</span>
+        <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}><span aria-hidden="true">◆</span> {exactModelVerified ? 'VERIFIED 3D COLLECTIBLE' : hero ? 'LIVE 3D REVIEW' : 'EXACT 3D PENDING'}</span>
         <span className="vv3-twinSource">PRODUCT-SPECIFIC ACCURACY REQUIRED</span>
       </div>
-      <div className="vv3-accuracyStage">{exactModelVerified ? <Product3DTwin item={item} hero={hero} /> : <VerifiedProductPhoto item={item} />}</div>
+      <div className="vv3-accuracyStage">
+        {exactModelVerified ? <Product3DTwin item={item} hero={hero} /> : hero ? <Auto3DPreview item={item} hero /> : <VerifiedProductPhoto item={item} />}
+      </div>
       <div className={`vv3-accuracyStatus ${exactModelVerified ? 'is-verified' : 'is-pending'}`}>
-        <strong>{exactModelVerified ? 'Exact 3D collectible verified' : 'Exact 3D collectible not yet verified'}</strong>
-        <small>{exactModelVerified ? 'This interactive 3D collectible has been checked against the physical product.' : 'The real CJ product image can display now. Interactive 3D appears after the generated model is reviewed and approved.'}</small>
+        <strong>{exactModelVerified ? 'Exact 3D collectible verified' : hero ? 'Interactive 3D generates automatically' : 'Exact 3D collectible not yet verified'}</strong>
+        <small>{exactModelVerified ? 'This interactive 3D collectible has been checked against the physical product.' : hero ? 'The selected CJ product is sent to Meshy for an interactive review model. It is visibly labeled under review and checkout remains locked until accuracy is approved.' : 'The real CJ product image can display now. Open the product to generate its interactive 3D review model.'}</small>
       </div>
       <figcaption className="vv3-twinFooter" id={titleId}>
         <div className="vv3-twinName"><small>{item?.creator || 'Voxel Vault'}</small><strong>{item?.name || 'Collectible object'}</strong></div>
