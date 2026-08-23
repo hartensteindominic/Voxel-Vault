@@ -5,6 +5,7 @@ const checkout = fs.readFileSync('app/api/physical-nft-checkout/route.ts', 'utf8
 const webhook = fs.readFileSync('app/api/stripe/webhook/route.ts', 'utf8');
 const verify = fs.readFileSync('app/api/mint-verify/route.ts', 'utf8');
 const fulfillment = fs.readFileSync('lib/fulfillment.js', 'utf8');
+const preflight = fs.readFileSync('lib/fulfillment-preflight.js', 'utf8');
 const fulfillmentCallback = fs.readFileSync('app/api/fulfillment/status/route.ts', 'utf8');
 const orders = fs.readFileSync('app/api/orders/route.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/005_one_sku_delivery_claim_pipeline.sql', 'utf8');
@@ -22,7 +23,7 @@ const required = [
   ['durable Stripe event idempotency', /commerce_webhook_events/g, webhook],
   ['durable physical order lookup', /physical_orders/g, webhook],
   ['fulfillment idempotency key', /Idempotency-Key/g, fulfillment],
-  ['supplier inventory preflight', /inventoryQuantity/g, fulfillment],
+  ['supplier pilot preflight', /pilotEnabled/g, preflight],
   ['Shopify order creation support', /orderCreate/g, fulfillment],
   ['delivery-gated twin claim', /claim_eligible/g, verify],
   ['signed fulfillment callback', /timingSafeEqual/g, fulfillmentCallback],
