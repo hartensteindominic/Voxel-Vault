@@ -25,9 +25,9 @@ function BuyBoth({item}){
   return <div className="vv3-buyBoth">
     {ready
       ? <Link href={`/marketplace?purchase=${encodeURIComponent(item.purchaseAssetId)}`} className="vv3-buyButton">BUY PHYSICAL + 3D NFT · ${item.customerPriceUsd}</Link>
-      : <div className="vv3-buyButton vv3-buyButtonDisabled">CHECKOUT LOCKED · SUPPLIER CONNECTION REQUIRED</div>}
+      : <div className="vv3-buyButton vv3-buyButtonDisabled">PHYSICAL + DIGITAL CHECKOUT COMING SOON</div>}
     <div className="vv3-buyPerks"><span>📦 physical object</span><span>🧊 3D twin included</span><span>🏠 Vault + Room</span></div>
-    {item.customerPriceUsd&&<div className="vv3-priceNote">Target retail · {item.markupPercent}% configured Vault markup over the reference price · physical checkout unlocks after a real supplier/SKU is connected</div>}
+    {item.customerPriceUsd&&<div className="vv3-priceNote">Target bundle price · delivery checkout opens after verified inventory, shipping, and supplier setup</div>}
   </div>;
 }
 
@@ -64,7 +64,7 @@ export default function RealWorldCommerceHome(){
   const hero=REAL_WORLD_CATALOG[0];
   return <main className="vv3-home">
     <div className="vv3-noise" aria-hidden="true"/>
-    <header className="vv3-header"><div className="vv3-topbar"><Brand/><nav className="vv3-desktopNav" aria-label="Primary navigation"><Link href="/discover">Discover</Link><Link href="/marketplace">Marketplace</Link><Link href="/room">My vault</Link><Link href="/ai">Intelligence</Link></nav><Link className="vv3-headerCta" href="#collection">Shop physical + NFT <Icon name="arrow" size={15}/></Link></div></header>
+    <header className="vv3-header"><div className="vv3-topbar"><Brand/><nav className="vv3-desktopNav" aria-label="Primary navigation"><Link href="/discover">Discover</Link><Link href="/marketplace">Marketplace</Link><Link href="/room">My vault</Link><Link href="/ai">Intelligence</Link></nav><Link className="vv3-headerCta" href="#collection">Shop both <Icon name="arrow" size={15}/></Link></div></header>
     <section className="vv3-hero">
       <div className="vv3-heroGlow" aria-hidden="true"/>
       <div className="vv3-heroCopy">
@@ -83,7 +83,7 @@ export default function RealWorldCommerceHome(){
     </section>
     <section className="vv3-signalBar"><span>REAL PRODUCTS</span><i/><span>INTERACTIVE 3D TWINS</span><i/><span>NFT-READY ASSETS</span><i/><span>VAULT + ROOM + WORLD</span></section>
     <section className="vv3-coreLoop" aria-label="Voxel Vault experiences">
-      <Link href="/discover"><small>WORLD</small><strong>Place digital twins on a living globe.</strong><span>Explore public drops and location-linked objects.</span></Link>
+      <Link href="/discover"><small>WORLD MAP</small><strong>Explore digital collectibles by location.</strong><span>Find public drops, landmarks, and location-linked objects on an interactive map.</span></Link>
       <Link href="/avatar"><small>AVATAR</small><strong>Build the 3D version of you.</strong><span>Wear compatible items from your verified collection.</span></Link>
       <Link href="/trade"><small>TAP TRADE</small><strong>Start a secure phone-to-phone handoff.</strong><span>Share the offer nearby; both wallets still approve.</span></Link>
       <Link href="/ai"><small>CRESTODIAN AI</small><strong>Ask your collection what it knows.</strong><span>Research, organize, and plan without autonomous spending.</span></Link>
