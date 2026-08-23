@@ -1,104 +1,20 @@
 'use client';
-
 import Link from 'next/link';
 import { REAL_WORLD_CATALOG } from '../../lib/realWorldCatalog';
 import RealWorld3DNFT from './RealWorld3DNFT';
-import VaultRewardsInvite from './VaultRewardsInvite';
 import './VaultHomeV3.css';
 import './VaultCommercePolish.css';
+import './FocusedCommerce.css';
 
-function Icon({ name, size = 18 }) {
-  const paths = {
-    arrow:<><path d="M5 13 13 5"/><path d="M7 5h6v6"/></>,
-    cube:<><path d="m10 2.5 6.5 3.7v7.6L10 17.5l-6.5-3.7V6.2Z"/><path d="m3.7 6.3 6.3 3.6 6.3-3.6M10 9.9v7.3"/></>,
-    shield:<><path d="M10 2.5 16 5v4.5c0 3.6-2.2 6.3-6 8-3.8-1.7-6-4.4-6-8V5Z"/><path d="m7.2 10 1.8 1.8 3.8-4"/></>
-  };
-  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
-}
-
-function Brand(){
-  return <Link href="/" className="vv3-brand" aria-label="Voxel Vault home"><span className="vv3-brandMark"><i/><i/><i/></span><span>VOXEL <b>VAULT</b></span></Link>;
-}
-
-function BuyBoth({item}){
-  const ready=Boolean(item.fulfillmentReady&&item.purchaseAssetId);
-  return <div className="vv3-buyBoth">
-    {ready
-      ? <Link href={`/marketplace?purchase=${encodeURIComponent(item.purchaseAssetId)}`} className="vv3-buyButton">BUY PHYSICAL + 3D NFT · ${item.customerPriceUsd}</Link>
-      : <button type="button" className="vv3-buyButton vv3-buyButtonDisabled" disabled>PHYSICAL + DIGITAL CHECKOUT COMING SOON</button>}
-    <div className="vv3-buyPerks"><span>📦 physical object</span><span>🧊 3D twin included</span><span>🏠 Vault + Room</span></div>
-    {item.customerPriceUsd&&<div className="vv3-priceNote">Target bundle price · delivery checkout opens after verified inventory, shipping, and supplier setup</div>}
-  </div>;
-}
-
-function Card({item,index}){
-  return <article className="vv3-objectCard">
-    <div className="vv3-objectVisual">
-      <RealWorld3DNFT item={item}/>
-      <span className="vv3-cardIndex">{String(index+1).padStart(2,'0')}</span>
-      <span className="vv3-liveBadge"><i/> REAL OBJECT</span>
-      <span className="vv3-nftBadge">3D NFT INCLUDED</span>
-    </div>
-    <div className="vv3-objectDetails"><div><small>{item.type}</small><h3>{item.name}</h3></div><strong>{item.customerPriceUsd?`$${item.customerPriceUsd}`:'Price on request'}</strong></div>
-    <div className="vv3-objectMeta"><span>{item.sourceName}</span><span>3D TWIN · {item.digitalTwin?.status || 'READY'}</span></div>
-    <div className="vv3-sourceRow"><a href={item.sourceUrl} target="_blank" rel="noreferrer">View physical source ↗</a><span>{item.markupPercent ? `${item.markupPercent}% Vault markup` : 'Reference pricing'}</span></div>
-    <BuyBoth item={item}/>
-  </article>;
-}
-
-function TrustSection(){
-  return <div className="vv3-trustSection">
-    <strong>How the offer works.</strong>
-    <span>Real product sources establish the physical object's reference and identity.</span>
-    <span>Voxel Vault can apply a configured markup to eligible reference pricing.</span>
-    <span>The interactive 3D collectible is presented as the digital layer.</span>
-    <span>Physical checkout stays locked until a real supplier, SKU, cost and fulfillment route are connected.</span>
-  </div>;
-}
-
-function MobileNav(){
-  return <nav className="vv3-mobileNav" aria-label="Mobile navigation"><Link href="/discover">World</Link><Link href="/capture">Create</Link><Link href="/avatar">Avatar</Link><Link href="/messages">People</Link><Link href="/trade">Trade</Link></nav>;
-}
-
-export default function RealWorldCommerceHome(){
-  const hero=REAL_WORLD_CATALOG[0];
-  return <main className="vv3-home" id="main-content">
-    <a className="vv3-skipLink" href="#collection">Skip to collection</a>
-    <div className="vv3-noise" aria-hidden="true"/>
-    <header className="vv3-header"><div className="vv3-topbar"><Brand/><nav className="vv3-desktopNav" aria-label="Primary navigation"><Link href="/discover">Discover</Link><Link href="/marketplace">Marketplace</Link><Link href="/room">My vault</Link><Link href="/ai">Intelligence</Link></nav><Link className="vv3-headerCta" href="#collection">Shop both <Icon name="arrow" size={15}/></Link></div></header>
-    <section className="vv3-hero">
-      <div className="vv3-heroGlow" aria-hidden="true"/>
-      <div className="vv3-heroCopy">
-        <div className="vv3-eyebrow"><i/> PHYSICAL + DIGITAL COLLECTION</div>
-        <h1>Real products.<br/><em>Digital collectibles.</em></h1>
-        <p>Buy one bundle: the real product is shipped to you, and its interactive 3D NFT is added to your Vault after verified delivery.</p>
-        <div className="vv3-heroActions"><Link className="vv3-primaryCta" href="#collection">Shop both <Icon name="arrow" size={17}/></Link><Link className="vv3-textCta" href="/room"><span><Icon name="cube" size={14}/></span> Open Vault</Link></div>
-        <div className="vv3-proofRow"><span><Icon name="shield" size={16}/><b>Real product source</b></span><span><Icon name="cube" size={16}/><b>Interactive 3D twin</b></span><span><Icon name="shield" size={16}/><b>Ownership-ready asset</b></span></div>
-      </div>
-      <div className="vv3-heroVisual">
-        <div className="vv3-visualTop"><span><i/> 3D NFT</span><small>PHYSICAL PRODUCT + DIGITAL TWIN</small></div>
-        <RealWorld3DNFT item={hero} hero/>
-        <div className="vv3-featureMeta"><div><small>PHYSICAL + DIGITAL BUNDLE</small><strong>{hero.name}</strong><span>{hero.creator} · {hero.customerPriceUsd?`$${hero.customerPriceUsd}`:'Price on request'}</span></div></div>
-        <BuyBoth item={hero}/>
-      </div>
-    </section>
-    <section className="vv3-signalBar" aria-label="Bundle highlights"><span>REAL PRODUCTS</span><i/><span>INTERACTIVE 3D TWINS</span><i/><span>NFT-READY ASSETS</span><i/><span>VAULT + ROOM + WORLD</span></section>
-    <section className="vv3-coreLoop" aria-label="Voxel Vault experiences">
-      <Link href="/discover"><small>WORLD MAP</small><strong>Explore digital collectibles by location.</strong><span>Find public drops, landmarks, and location-linked objects on an interactive map.</span></Link>
-      <Link href="/avatar"><small>AVATAR</small><strong>Build the 3D version of you.</strong><span>Wear compatible items from your verified collection.</span></Link>
-      <Link href="/trade"><small>TAP TRADE</small><strong>Start a secure phone-to-phone handoff.</strong><span>Share the offer nearby; both wallets still approve.</span></Link>
-      <Link href="/ai"><small>CRESTODIAN AI</small><strong>Ask your collection what it knows.</strong><span>Research, organize, and plan without autonomous spending.</span></Link>
-      <Link href="/capture"><small>FREE CAPTURE</small><strong>Turn a photo or QR scan into an elemental twin.</strong><span>Create a private memory first; verify provenance before trading.</span></Link>
-      <Link href="/messages"><small>VAULT SOCIAL</small><strong>Message people and prepare personal handoffs.</strong><span>Private profiles, chat, and approval-gated NFT requests.</span></Link>
-    </section>
-    <section className="vv3-collection" id="collection">
-      <div className="vv3-collectionHead"><div><div className="vv3-sectionLabel"><span>01</span> SHOP PHYSICAL + DIGITAL</div><h2>Get the product.<br/><em>Collect its 3D NFT.</em></h2></div><p>Every bundle clearly includes two things: a real product shipped through a verified supplier, plus its interactive digital collectible. Checkout stays locked until inventory, shipping, and fulfillment are genuinely connected.</p></div>
-      <div className="vv3-objectGrid">{REAL_WORLD_CATALOG.map((item,i)=><Card key={item.id} item={item} index={i}/>)}</div>
-      <TrustSection/>
-      <VaultRewardsInvite/>
-    </section>
-    <section className="vv3-finalCta"><div><small>VOXEL VAULT</small><h2>Physical in your hands. Digital in your world.</h2><p>Buy both when a verified supplier route is live, keep the 3D collectible in your Vault, place it in your Room, and make it discoverable in the World.</p></div><Link className="vv3-primaryCta" href="/room">Open My Room <Icon name="arrow" size={17}/></Link></section>
-    <footer className="vv3-commerceFooter"><Brand/><p>Real products paired with interactive digital collectibles.</p><nav aria-label="Legal navigation"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><span>© 2026 Voxel Vault</span></footer>
-    <MobileNav/>
-  </main>;
-}
+function Icon({name,size=18}){const p={arrow:<><path d="M5 13 13 5"/><path d="M7 5h6v6"/></>,cube:<><path d="m10 2.5 6.5 3.7v7.6L10 17.5l-6.5-3.7V6.2Z"/><path d="m3.7 6.3 6.3 3.6 6.3-3.6M10 9.9v7.3"/></>,shield:<><path d="M10 2.5 16 5v4.5c0 3.6-2.2 6.3-6 8-3.8-1.7-6-4.4-6-8V5Z"/><path d="m7.2 10 1.8 1.8 3.8-4"/></>,card:<><rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M2.5 8h15M6 12h3"/></>};return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{p[name]}</svg>}
+function Brand(){return <Link href="/" className="vv3-brand" aria-label="Voxel Vault home"><span className="vv3-brandMark"><i/><i/><i/></span><span>VOXEL <b>VAULT</b></span></Link>}
+function BuyButton({item}){const ready=Boolean(item.fulfillmentReady&&item.purchaseAssetId);return ready?<Link href={`/marketplace?purchase=${encodeURIComponent(item.purchaseAssetId)}`} className="fc-buy">Buy with card · ${item.customerPriceUsd}<Icon name="arrow" size={15}/></Link>:<button type="button" className="fc-buy fc-locked" disabled><span>Card checkout coming soon</span><small>Opens after supplier, shipping, and NFT delivery are verified</small></button>}
+function Product({item,index}){return <article className="fc-product"><div className="fc-productTop"><span>{String(index+1).padStart(2,'0')}</span><span><i/> LEGITIMATE PRODUCT SOURCE</span></div><div className="fc-media"><RealWorld3DNFT item={item}/></div><div className="fc-productBody"><small>{item.type}</small><div className="fc-title"><h3>{item.name}</h3><strong>${item.customerPriceUsd}</strong></div><div className="fc-includes"><span>Physical product shipped</span><span>Authenticated 3D NFT included</span><span>No crypto required</span></div><a className="fc-source" href={item.sourceUrl} target="_blank" rel="noreferrer">Verify the physical product source <Icon name="arrow" size={13}/></a><BuyButton item={item}/></div></article>}
+export default function RealWorldCommerceHome(){const hero=REAL_WORLD_CATALOG[0];return <main className="vv3-home fc-home" id="main-content"><a className="vv3-skipLink" href="#products">Skip to products</a><div className="vv3-noise" aria-hidden="true"/>
+<header className="vv3-header"><div className="vv3-topbar"><Brand/><nav className="vv3-desktopNav" aria-label="Primary navigation"><Link href="#products">Shop products</Link><Link href="#how">How it works</Link><Link href="#included">What is included</Link></nav><Link className="vv3-headerCta" href="#products">Shop bundles <Icon name="arrow" size={15}/></Link></div></header>
+<section className="vv3-hero fc-hero"><div className="vv3-heroGlow" aria-hidden="true"/><div className="vv3-heroCopy"><div className="vv3-eyebrow"><i/> ONE PURCHASE · TWO THINGS</div><h1>Buy the product.<br/><em>Get its 3D NFT.</em></h1><p>Choose a legitimate physical product, pay normally with a card, and have it shipped to your door. Its authenticated interactive 3D NFT is included—already prepared for delivery to your Voxel Vault account. No crypto, wallet, or blockchain knowledge required.</p><div className="vv3-heroActions"><Link className="vv3-primaryCta" href="#products">Shop product + NFT <Icon name="arrow" size={17}/></Link><Link className="vv3-textCta" href="#how"><span><Icon name="cube" size={14}/></span> See how it works</Link></div><div className="vv3-proofRow"><span><Icon name="card" size={16}/><b>Pay by card</b></span><span><Icon name="shield" size={16}/><b>Real product shipped</b></span><span><Icon name="cube" size={16}/><b>3D NFT included</b></span></div></div><div className="vv3-heroVisual fc-heroProduct"><div className="vv3-visualTop"><span><i/> PRODUCT + 3D NFT</span><small>NO CRYPTO REQUIRED</small></div><RealWorld3DNFT item={hero} hero/><div className="vv3-featureMeta"><div><small>FEATURED BUNDLE</small><strong>{hero.name}</strong><span>Physical delivery + authenticated 3D NFT · ${hero.customerPriceUsd}</span></div></div><BuyButton item={hero}/></div></section>
+<section className="fc-promise" id="included" aria-label="Everything included"><div><Icon name="shield" size={23}/><span>01</span><h2>A legitimate product</h2><p>Every listing starts with a traceable physical supplier and SKU. Checkout remains unavailable until inventory, cost, shipping, and fulfillment are confirmed.</p></div><div><Icon name="cube" size={23}/><span>02</span><h2>Its authenticated 3D NFT</h2><p>The matching interactive 3D collectible is part of the bundle—not an extra purchase. The NFT delivery path must be connected before checkout opens.</p></div><div><Icon name="card" size={23}/><span>03</span><h2>A normal card payment</h2><p>You pay in dollars. Voxel Vault handles the digital delivery behind the scenes, so customers never need to buy or use cryptocurrency.</p></div></section>
+<section className="fc-how" id="how"><div className="vv3-sectionLabel"><span>01</span> HOW YOUR ORDER WORKS</div><h2>Simple from checkout<br/><em>to your door.</em></h2><ol><li><span>1</span><div><strong>Choose one bundle</strong><p>See the real product, its source, exact bundle price, and included 3D NFT together.</p></div></li><li><span>2</span><div><strong>Pay normally</strong><p>Use a standard card checkout. No wallet connection, gas fee, token, or crypto purchase.</p></div></li><li><span>3</span><div><strong>Receive the real product</strong><p>The verified fulfillment partner ships the physical item and provides delivery tracking.</p></div></li><li><span>4</span><div><strong>Open the included 3D NFT</strong><p>After verified delivery, the authenticated 3D NFT appears in the account connected to your order.</p></div></li></ol></section>
+<section className="vv3-collection fc-collection" id="products"><div className="vv3-collectionHead"><div><div className="vv3-sectionLabel"><span>02</span> PRODUCT + 3D NFT BUNDLES</div><h2>One price.<br/><em>Both included.</em></h2></div><p>These are real supplier-backed products with matching interactive 3D collectibles. Prices are targets until the complete card, shipping, and NFT-delivery flow is connected and verified.</p></div><div className="fc-grid">{REAL_WORLD_CATALOG.map((item,i)=><Product key={item.id} item={item} index={i}/>)}</div></section>
+<section className="fc-trust"><div><small>LAUNCH STANDARD</small><h2>We only turn on “Buy” when the whole promise is real.</h2></div><p>A product is not purchasable until its supplier, current inventory, shipping cost, card payment, tracking, and included NFT delivery have all been tested together. Until then, the interface clearly says checkout is coming soon.</p></section>
+<footer className="vv3-commerceFooter fc-footer"><Brand/><p>Real product shipped to you.<br/>Authenticated 3D NFT included.</p><nav aria-label="Legal navigation"><Link href="#how">How it works</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><span>NO CRYPTO REQUIRED</span></footer><nav className="fc-mobileNav" aria-label="Mobile navigation"><Link href="#products">Shop</Link><Link href="#how">How it works</Link><Link href="#included">Included</Link></nav></main>}
