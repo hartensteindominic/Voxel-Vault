@@ -1,8 +1,8 @@
 'use client';
 
 export default function CJProductCard({ item, index, active, state, ready, onSelect, onOpen, onWarm }) {
-  const visualLabel = state === 'verified' ? 'EXACT MODEL APPROVED' : state === 'review' ? 'INTERACTIVE PREVIEW READY' : 'PREVIEW WARMING';
-  const readinessLabel = ready ? 'READY TO BUY' : state === 'verified' ? 'FULFILLMENT CHECK' : 'NOT FOR SALE YET';
+  const visualLabel = state === 'verified' ? 'COLLECTIBLE APPROVED' : state === 'review' ? 'INTERACTIVE PREVIEW READY' : 'PREVIEW WARMING';
+  const readinessLabel = ready ? 'READY TO BUY' : state === 'verified' ? 'FULFILLMENT CHECK' : 'COMING TO LIFE';
   return <article className={`cj-card ${active ? 'is-active' : ''}`} onMouseEnter={onWarm} onFocusCapture={onWarm} onTouchStart={onWarm}>
     <button className="cj-cardPick" onClick={onSelect} aria-label={`Open ${item.name} in the interactive viewer`}>
       <div className="cj-cardVisual" aria-hidden="true">
@@ -15,7 +15,7 @@ export default function CJProductCard({ item, index, active, state, ready, onSel
         <strong>${item.customerPriceUsd}</strong>
       </div>
     </button>
-    <div className="cj-cardState"><span className="ok">CJ SYNCED</span><span>{state === 'verified' ? 'MODEL APPROVED' : state === 'review' ? 'PREVIEW READY' : 'PREVIEW WARMING'}</span><span>{readinessLabel}</span></div>
-    <div className="cj-cardBottom"><span>{item.supplierSku}</span><button onMouseEnter={onWarm} onFocus={onWarm} onClick={onOpen}>{active ? 'Viewing above' : 'Open interactive'} ↗</button></div>
+    <div className="cj-cardState"><span className="ok">PRODUCT SYNCED</span><span>{state === 'verified' ? 'MATCH APPROVED' : state === 'review' ? 'PREVIEW READY' : 'PREVIEW WARMING'}</span><span>{readinessLabel}</span></div>
+    <div className="cj-cardBottom"><span>Physical product + digital collectible</span><button onMouseEnter={onWarm} onFocus={onWarm} onClick={onOpen}>{active ? 'Viewing above' : 'Open interactive'} ↗</button></div>
   </article>;
 }
