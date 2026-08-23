@@ -23,6 +23,10 @@ export async function POST(request: Request) {
     const draft = buildProductDraft(body);
     const readiness = getVaultReadyReport(draft);
     const { data, error } = await auth.supabase.from('supplier_product_drafts').insert({ ...draft, readiness, created_by: auth.user.id }).select('*').single();
+    if (error?.code === '23505') {
+      const { data: existing } = await auth.supabase.from('supplier_product_drafts').select('*').eq('source_url', draft.source_url).maybeSingle();
+      if (existing) return NextResponse.json({ product: existing, duplicate: true });
+    }
     if (error || !data) throw error || new Error('Draft creation failed');
     return NextResponse.json({ product: data }, { status: 201 });
   } catch (error) {
