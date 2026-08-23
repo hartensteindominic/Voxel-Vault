@@ -3,6 +3,7 @@ import { stripe } from '../../../lib/stripe-server';
 import { getCatalogItem } from '../../../lib/catalog';
 import { getSupabaseAdmin } from '../../../lib/supabase-admin';
 import { preflightPhysicalFulfillment } from '../../../lib/fulfillment-preflight';
+import { getVaultReadyReport } from '../../../lib/vault-ready.mjs';
 
 const NFT_FEE_CENTS = 299;
 const DEFAULT_MARKUP_PERCENT = 25;
@@ -37,6 +38,8 @@ export async function POST(request: Request) {
 
     const item = getCatalogItem(id - 1);
     if (!item) return NextResponse.json({ error: 'Product unavailable' }, { status: 404 });
+    const readiness = getVaultReadyReport(item);
+    if (!readiness.ready) return NextResponse.json({ error: 'This product is a concept and is not Vault Ready.', code: 'PRODUCT_NOT_VAULT_READY' }, { status: 409 });
     if (!item.sourceUrl || !item.sourceName) return NextResponse.json({ error: 'This product has no verified online source' }, { status: 409 });
     const pilotCatalogKey = process.env.VOXEL_PILOT_CATALOG_KEY;
     if (!pilotCatalogKey) return NextResponse.json({ error: 'The one-product shipping pilot is not activated.', code: 'PILOT_NOT_CONFIGURED' }, { status: 503 });
