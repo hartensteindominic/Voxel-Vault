@@ -53,7 +53,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     patch.readiness = readiness;
     patch.updated_at = new Date().toISOString();
-    if (action === 'review') patch.status = readiness.ready ? 'ready' : 'review';
+    if (action === 'review') {
+      patch.status = readiness.ready ? 'ready' : 'review';
+      patch.published_at = null;
+    }
     if (action === 'publish') {
       patch.status = 'published';
       patch.published_at = new Date().toISOString();
@@ -63,6 +66,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       patch.published_at = null;
     }
     if (!action && current.status !== 'published') patch.status = readiness.ready ? 'ready' : 'draft';
+    if (action === 'save' && current.status === 'published' && !readiness.ready) {
+      patch.status = 'draft';
+      patch.published_at = null;
+    }
     const { data, error } = await auth.supabase.from('supplier_product_drafts').update(patch).eq('id', id).select('*').single();
     if (error || !data) throw error || new Error('Draft update failed');
     return NextResponse.json({ product: data });
