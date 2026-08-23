@@ -71,8 +71,9 @@ export async function POST(request) {
     const body = await request.json();
     const item = body?.item && typeof body.item === 'object' ? body.item : {};
     const itemId = String(item?.id || body?.itemId || '').trim();
+    const forceRestart = body?.forceRestart === true;
 
-    if (itemId) {
+    if (itemId && !forceRestart) {
       const saved = await readCatalog3D(itemId);
       if (saved?.model_url || saved?.model_storage_path) {
         return NextResponse.json({ configured: true, reused: true, modelUrl: saved.model_url || null, stored: Boolean(saved.model_storage_path), taskId: saved.task_id || null, progress: 100 });
@@ -138,13 +139,17 @@ export async function POST(request) {
         task_id: taskId,
         source_image_url: imageUrls[0],
         source_image_urls: imageUrls,
+        model_url: null,
+        model_storage_path: null,
+        thumbnail_url: null,
         status: 'PENDING',
         progress: 0,
         started_at: new Date().toISOString(),
-        error: null,
+        completed_at: null,
+        error: forceRestart ? 'Previous build was stale or failed; server restarted generation automatically.' : null,
       });
     }
-    return NextResponse.json({ configured: true, sourceImageUrl: imageUrls[0], sourceImageCount: imageUrls.length, generationMode: useMultiView ? 'multi-view' : 'single-view', taskId });
+    return NextResponse.json({ configured: true, restarted: forceRestart, sourceImageUrl: imageUrls[0], sourceImageCount: imageUrls.length, generationMode: useMultiView ? 'multi-view' : 'single-view', taskId });
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Model request failed.' }, { status: 500 });
   }

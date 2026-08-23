@@ -5,6 +5,8 @@ import { catalog3DStoreHealth, listCatalog3D } from '../../../../lib/catalog3dSt
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const STALE_AFTER_MS = 25 * 60 * 1000;
+
 function authorized(request) {
   const secret = process.env.CRON_SECRET;
   if (secret) return request.headers.get('authorization') === `Bearer ${secret}`;
@@ -17,6 +19,12 @@ function terminalFailure(row) {
 
 function hasFinishedModel(row) {
   return Boolean(row?.model_storage_path || row?.model_url);
+}
+
+function isStale(row) {
+  if (!row?.task_id || hasFinishedModel(row)) return false;
+  const stamp = Date.parse(row.updated_at || row.started_at || '');
+  return Number.isFinite(stamp) && Date.now() - stamp > STALE_AFTER_MS;
 }
 
 export async function GET(request) {
@@ -39,19 +47,30 @@ export async function GET(request) {
   const operations = [];
 
   for (const row of rows) {
-    if (!row.task_id || hasFinishedModel(row) || terminalFailure(row)) continue;
+    if (!row.task_id || hasFinishedModel(row) || terminalFailure(row) || isStale(row)) continue;
     operations.push(fetch(`${origin}/api/image-to-3d?taskId=${encodeURIComponent(row.task_id)}`, {
       cache: 'no-store',
     }).then(async response => ({ kind: 'poll', itemId: row.item_id, ok: response.ok, data: await response.json().catch(() => ({})) })));
   }
 
+  const toRestart = REAL_WORLD_CATALOG.filter(item => {
+    const row = byItem.get(item.id);
+    return Boolean(row && !hasFinishedModel(row) && (terminalFailure(row) || isStale(row)));
+  });
+
   const toStart = REAL_WORLD_CATALOG.filter(item => {
     const row = byItem.get(item.id);
-    if (!row) return true;
-    if (hasFinishedModel(row)) return false;
-    if (!row.task_id) return true;
-    return terminalFailure(row);
+    return !row || (!hasFinishedModel(row) && !row.task_id);
   });
+
+  for (const item of toRestart) {
+    operations.push(fetch(`${origin}/api/image-to-3d`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ item, forceRestart: true }),
+      cache: 'no-store',
+    }).then(async response => ({ kind: 'restart', itemId: item.id, ok: response.ok, data: await response.json().catch(() => ({})) })));
+  }
 
   for (const item of toStart) {
     operations.push(fetch(`${origin}/api/image-to-3d`, {
@@ -79,6 +98,7 @@ export async function GET(request) {
     failed,
     queued: Math.max(0, REAL_WORLD_CATALOG.length - ready - building - failed),
     started: toStart.length,
+    restarted: toRestart.length,
     operations: settled.length,
     operationFailures: failures,
     updatedAt: new Date().toISOString(),
