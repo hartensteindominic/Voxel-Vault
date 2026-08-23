@@ -10,7 +10,7 @@ const fields = [
   ['source_price_cents','Supplier price (cents)'],['retail_price_cents','Vault price (cents)'],
   ['fulfillment_provider','Authorized fulfillment adapter'],['fulfillment_sku','Fulfillment SKU'],
   ['model_uri','GLB/GLTF URI'],['usdz_uri','USDZ URI'],['model_license','Model rights'],
-  ['model_license_uri','Rights evidence URI'],['model_hash','GLB SHA-256'],['contract_address','NFT contract'],
+  ['model_license_uri','Rights evidence URI'],['model_hash','GLB SHA-256'],['contract_address','NFT contract'],['chain_id','Chain ID'],
   ['token_id','Pre-minted token ID'],['mint_tx_hash','Confirmed mint transaction'],
 ] as const;
 
@@ -78,6 +78,7 @@ export default function ProductPublisherPage() {
     for (const [key] of fields) body[key] = selected[key] ?? '';
     body.source_price_cents = selected.source_price_cents ? Number(selected.source_price_cents) : null;
     body.retail_price_cents = selected.retail_price_cents ? Number(selected.retail_price_cents) : null;
+    body.chain_id = selected.chain_id ? Number(selected.chain_id) : null;
     body.fulfillment_status = selected.fulfillment_status;
     body.shipping_status = selected.shipping_status;
     body.mint_status = selected.mint_status;
