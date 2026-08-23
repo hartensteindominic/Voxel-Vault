@@ -8,8 +8,8 @@ function ProductFallback({ item, hidden }) {
   return (
     <div className="vv3-twinFallback" role="img" aria-label={`${item?.name || 'Real-world object'} product preview`} aria-hidden={hidden ? 'true' : undefined} style={{ opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : 'auto' }}>
       <div className="vv3-twinFallbackOrb" style={preview ? { backgroundImage: `url(${preview})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', borderRadius: '18px', width: '180px', height: '190px', backgroundColor: '#10131c' } : undefined} />
-      <span>LOADING INTERACTIVE OBJECT</span>
-      <small>{item?.name || 'Interactive collectible'} · drag / orbit / zoom</small>
+      <span>Preparing 3D NFT</span>
+      <small>{item?.name || 'Interactive collectible'} · drag to turn</small>
     </div>
   );
 }

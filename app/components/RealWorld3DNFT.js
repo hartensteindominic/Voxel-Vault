@@ -1,13 +1,13 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import Auto3DPreview from './Auto3DPreview';
 import './AccuracyCommerce.css';
 import './vv3-nft.css';
 
 const Product3DTwin = dynamic(() => import('./Product3DTwin'), {
   ssr: false,
-  loading: () => <div className="vv3-twinLoading">Waking 3D NFT</div>,
+  loading: () => <div className="vv3-twinLoading">Turning on the object</div>,
 });
 
 export default function RealWorld3DNFT({ item, hero = false, compact = false }) {
@@ -15,13 +15,23 @@ export default function RealWorld3DNFT({ item, hero = false, compact = false }) 
   const modelUrl = item?.modelUri || item?.digitalTwin?.modelUrl;
   const exactModelVerified = Boolean(modelUrl && item?.digitalTwin?.exactModelVerified);
   const titleId = `collectible-${item?.id || 'object'}`;
-  const stage = modelUrl
-    ? <Product3DTwin item={item} hero={hero} />
-    : <Auto3DPreview item={item} hero />;
+  const frame = useRef(null);
+  const [seen, setSeen] = useState(!compact);
+
+  useEffect(() => {
+    if (!compact) return undefined;
+    const node = frame.current;
+    if (!node) return undefined;
+    const io = new IntersectionObserver(([entry]) => setSeen(entry.isIntersecting), { rootMargin: '80px', threshold: 0.05 });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [compact]);
+
+  const stage = seen ? <Product3DTwin item={item} hero={hero} /> : null;
 
   if (compact) {
     return (
-      <figure className="vv3-modelFrame vv3-compact" aria-labelledby={titleId}>
+      <figure ref={frame} className="vv3-modelFrame vv3-compact" aria-labelledby={titleId}>
         <div className="vv3-accuracyStage">{stage}</div>
         <figcaption className="vv3-compactFoot" id={titleId}>
           <strong>{item?.name || '3D NFT'}</strong>
