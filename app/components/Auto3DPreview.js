@@ -22,7 +22,7 @@ export default function Auto3DPreview({ item, hero = false }) {
     if(!hero||!item?.id||item?.modelUri||item?.digitalTwin?.modelUrl)return;
     let alive=true;let timer;let attempt=0;
 
-    const useReadyModel=(url)=>{warmModelAsset(url);setModelUrl(url);setStatus('ready');setError('');setProgress(100)};
+    const useReadyModel=(url)=>{warmModelAsset(url);writeModel(item.id,{url,provider:'meshy'});setModelUrl(url);setStatus('ready');setError('');setProgress(100)};
     const cached=readModel(item.id);
     if(cached?.url){useReadyModel(cached.url);return;}
 
@@ -38,48 +38,50 @@ export default function Auto3DPreview({ item, hero = false }) {
       try{
         const response=await fetch(`/api/image-to-3d?taskId=${encodeURIComponent(taskId)}`,{cache:'no-store'});
         const data=await response.json();
-        if(!response.ok)throw new Error(data?.error||'Unable to read 3D generation status.');
+        if(!response.ok)throw new Error(data?.error||'Unable to read object build status.');
         if(!alive)return;
         const nextProgress=Math.max(0,Math.min(100,Number(data?.progress||0)));
         setProgress(nextProgress);
         writeTask(item.id,{taskId,progress:nextProgress,status:data?.status||'PENDING'});
-        if(data?.modelUrl){
-          warmModelAsset(data.modelUrl);
-          writeModel(item.id,{url:data.modelUrl,thumbnailUrl:data?.thumbnailUrl||'',sourceImageUrl:data?.sourceImageUrl||'',provider:'meshy'});
-          clearTask(item.id);
-          useReadyModel(data.modelUrl);
-          return;
-        }
+        if(data?.modelUrl){clearTask(item.id);useReadyModel(data.modelUrl);return;}
         const providerStatus=String(data?.status||'').toUpperCase();
-        if(providerStatus==='FAILED'||providerStatus==='CANCELED'||data?.error){clearTask(item.id);throw new Error(data?.error||'3D generation failed.');}
+        if(providerStatus==='FAILED'||providerStatus==='CANCELED'||data?.error){clearTask(item.id);throw new Error(data?.error||'Object build failed.');}
         attempt+=1;
-        timer=window.setTimeout(()=>poll(taskId),pollDelay(attempt));
+        const delay=nextProgress>=95?1400:pollDelay(attempt);
+        timer=window.setTimeout(()=>poll(taskId),delay);
       }catch(e){
         if(!alive)return;
-        if(attempt<3){attempt+=1;timer=window.setTimeout(()=>poll(taskId),pollDelay(attempt));return;}
-        setStatus('error');setError(e?.message||'3D generation failed.');
+        if(attempt<4){attempt+=1;timer=window.setTimeout(()=>poll(taskId),Math.min(5000,pollDelay(attempt)));return;}
+        setStatus('error');setError(e?.message||'Object build failed.');
       }
     }
 
     async function start(){
       try{
+        setStatus('checking');
+        const savedResponse=await fetch(`/api/catalog-3d?itemId=${encodeURIComponent(item.id)}`,{cache:'no-store'}).catch(()=>null);
+        const saved=savedResponse?.ok?await savedResponse.json():null;
+        if(saved?.modelUrl){useReadyModel(saved.modelUrl);return;}
+        if(saved?.taskId){setProgress(Number(saved.progress||0));writeTask(item.id,{taskId:saved.taskId,progress:Number(saved.progress||0),status:saved.status||'PENDING'});poll(saved.taskId);return;}
         const existing=readTask(item.id);
         if(existing?.taskId){setProgress(Number(existing.progress||0));poll(existing.taskId);return;}
         setStatus('starting');
         const response=await fetch('/api/image-to-3d',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({item})});
         const data=await response.json();
-        if(!response.ok||!data?.taskId)throw new Error(data?.error||'Unable to start 3D generation.');
-        writeTask(item.id,{taskId:data.taskId,progress:0,status:'PENDING'});
+        if(data?.modelUrl){useReadyModel(data.modelUrl);return;}
+        if(!response.ok||!data?.taskId)throw new Error(data?.error||'Unable to start object build.');
+        writeTask(item.id,{taskId:data.taskId,progress:Number(data.progress||0),status:'PENDING'});
         poll(data.taskId);
-      }catch(e){if(alive){clearTask(item.id);setStatus('error');setError(e?.message||'Unable to start 3D generation.');}}
+      }catch(e){if(alive){clearTask(item.id);setStatus('error');setError(e?.message||'Unable to start object build.');}}
     }
 
     start();
     return()=>{alive=false;unsubscribe();if(timer)window.clearTimeout(timer)};
   },[hero,item?.id,item?.modelUri,item?.digitalTwin?.modelUrl,retryNonce]);
 
-  if(modelUrl)return <div><Product3DTwin item={runtimeItem} hero={hero}/><div className="vv3-liveReview"><b>3D PREVIEW READY · ACCURACY REVIEW</b><span>Generated from the synced CJ product image. The preview is cached for faster reopening; checkout remains off until Voxel Vault approves product accuracy.</span></div></div>;
+  if(modelUrl)return <div><Product3DTwin item={runtimeItem} hero={hero}/><div className="vv3-liveReview"><b>INTERACTIVE PREVIEW READY · UNDER REVIEW</b><span>Built from the synced CJ product image and saved for repeat visits. It stays preview-only until Voxel Vault confirms the shape closely matches the physical product.</span></div></div>;
 
-  const message=status==='starting'?'Starting 3D build…':status==='generating'?`Building 3D preview${progress?` · ${progress}%`:''}`:'Preparing 3D preview…';
-  return <div className="vv3-generationState"><div className="vv3-generationOrb">3D</div><strong>{status==='error'?'3D preview needs another try':message}</strong><small>{status==='error'?error:'CJ media is synced. Voxel Vault reuses active jobs and cached models so repeat views load much faster.'}</small>{status!=='error'&&<div className="vv3-progress"><i style={{width:`${Math.max(6,Math.min(100,progress||8))}%`}}/></div>}{status==='error'&&<button type="button" className="vv3-retry" onClick={()=>setRetryNonce(value=>value+1)}>Retry 3D build</button>}</div>;
+  const finishing=progress>=95;
+  const message=status==='checking'?'Checking for a finished preview…':status==='starting'?'Starting interactive preview…':status==='generating'?(finishing?'Finishing the interactive preview…':`Building interactive preview${progress?` · ${progress}%`:''}`):'Preparing interactive preview…';
+  return <div className="vv3-generationState"><div className="vv3-generationOrb">◆</div><strong>{status==='error'?'Preview needs another try':message}</strong><small>{status==='error'?error:(finishing?'The provider is packaging the final model file. Voxel Vault is polling faster at this stage and will reuse it automatically when ready.':'The build can continue in the background and the finished model is reused on future visits.')}</small>{status!=='error'&&<div className="vv3-progress"><i style={{width:`${Math.max(6,Math.min(100,progress||8))}%`}}/></div>}{status==='error'&&<button type="button" className="vv3-retry" onClick={()=>setRetryNonce(value=>value+1)}>Retry preview</button>}</div>;
 }
