@@ -15,10 +15,11 @@ export default function Auto3DPreview({ item, hero = false }) {
   const [progress,setProgress]=useState(0);
   const [error,setError]=useState('');
   const [retryNonce,setRetryNonce]=useState(0);
+  const [mode,setMode]=useState('');
   const runtimeItem=useMemo(()=>modelUrl?{...item,modelUri:modelUrl,digitalTwin:{...(item?.digitalTwin||{}),modelUrl,exactModelVerified:false}}:item,[item,modelUrl]);
 
   useEffect(()=>{
-    setModelUrl('');setProgress(0);setError('');setStatus('idle');
+    setModelUrl('');setProgress(0);setError('');setStatus('idle');setMode('');
     if(!hero||!item?.id||item?.modelUri||item?.digitalTwin?.modelUrl)return;
     let alive=true;let timer;let attempt=0;
 
@@ -40,6 +41,7 @@ export default function Auto3DPreview({ item, hero = false }) {
         const data=await response.json();
         if(!response.ok)throw new Error(data?.error||'Unable to read object build status.');
         if(!alive)return;
+        if(data?.generationMode)setMode(data.generationMode);
         const nextProgress=Math.max(0,Math.min(100,Number(data?.progress||0)));
         setProgress(nextProgress);
         writeTask(item.id,{taskId,progress:nextProgress,status:data?.status||'PENDING'});
@@ -47,7 +49,7 @@ export default function Auto3DPreview({ item, hero = false }) {
         const providerStatus=String(data?.status||'').toUpperCase();
         if(providerStatus==='FAILED'||providerStatus==='CANCELED'||data?.error){clearTask(item.id);throw new Error(data?.error||'Object build failed.');}
         attempt+=1;
-        const delay=nextProgress>=95?1400:pollDelay(attempt);
+        const delay=nextProgress>=95?1200:pollDelay(attempt);
         timer=window.setTimeout(()=>poll(taskId),delay);
       }catch(e){
         if(!alive)return;
@@ -68,6 +70,7 @@ export default function Auto3DPreview({ item, hero = false }) {
         setStatus('starting');
         const response=await fetch('/api/image-to-3d',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({item})});
         const data=await response.json();
+        if(data?.generationMode)setMode(data.generationMode);
         if(data?.modelUrl){useReadyModel(data.modelUrl);return;}
         if(!response.ok||!data?.taskId)throw new Error(data?.error||'Unable to start object build.');
         writeTask(item.id,{taskId:data.taskId,progress:Number(data.progress||0),status:'PENDING'});
@@ -79,9 +82,9 @@ export default function Auto3DPreview({ item, hero = false }) {
     return()=>{alive=false;unsubscribe();if(timer)window.clearTimeout(timer)};
   },[hero,item?.id,item?.modelUri,item?.digitalTwin?.modelUrl,retryNonce]);
 
-  if(modelUrl)return <div><Product3DTwin item={runtimeItem} hero={hero}/><div className="vv3-liveReview"><b>INTERACTIVE PREVIEW READY · UNDER REVIEW</b><span>Built from the synced CJ product image and saved for repeat visits. It stays preview-only until Voxel Vault confirms the shape closely matches the physical product.</span></div></div>;
+  if(modelUrl)return <div><Product3DTwin item={runtimeItem} hero={hero}/><div className="vv3-liveReview"><b>INTERACTIVE PREVIEW READY · MATCH REVIEW</b><span>{mode==='multi-view'?'Built from multiple product angles for stronger shape fidelity. ':'Built from the best available product reference. '}It remains preview-only until Voxel Vault confirms it closely matches the physical item.</span></div></div>;
 
   const finishing=progress>=95;
   const message=status==='checking'?'Checking for a finished preview…':status==='starting'?'Starting interactive preview…':status==='generating'?(finishing?'Finishing the interactive preview…':`Building interactive preview${progress?` · ${progress}%`:''}`):'Preparing interactive preview…';
-  return <div className="vv3-generationState"><div className="vv3-generationOrb">◆</div><strong>{status==='error'?'Preview needs another try':message}</strong><small>{status==='error'?error:(finishing?'The provider is packaging the final model file. Voxel Vault is polling faster at this stage and will reuse it automatically when ready.':'The build can continue in the background and the finished model is reused on future visits.')}</small>{status!=='error'&&<div className="vv3-progress"><i style={{width:`${Math.max(6,Math.min(100,progress||8))}%`}}/></div>}{status==='error'&&<button type="button" className="vv3-retry" onClick={()=>setRetryNonce(value=>value+1)}>Retry preview</button>}</div>;
+  return <div className="vv3-generationState"><div className="vv3-generationOrb">◆</div><strong>{status==='error'?'Preview needs another try':message}</strong><small>{status==='error'?error:(finishing?'The final model file is being packaged. Voxel Vault checks more frequently at this stage and reuses it automatically when ready.':mode==='multi-view'?'Multiple product angles are being used to improve shape and proportion accuracy.':'The build can continue in the background and the finished model is reused on future visits.')}</small>{status!=='error'&&<div className="vv3-progress"><i style={{width:`${Math.max(6,Math.min(100,progress||8))}%`}}/></div>}{status==='error'&&<button type="button" className="vv3-retry" onClick={()=>setRetryNonce(value=>value+1)}>Retry preview</button>}</div>;
 }
