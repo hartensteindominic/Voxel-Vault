@@ -4,23 +4,25 @@ import { readCatalog3D, readCatalog3DByTask, saveCatalog3D } from '../../../lib/
 
 export const runtime = 'nodejs';
 
-const MESHY_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
-const MAX_TEXTURE_PROMPT = 700;
+const IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
+const MULTI_IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
+const MAX_TEXTURE_PROMPT = 560;
 
 function buildPrompt(item = {}) {
   const name = [item.name, item.type].filter(Boolean).join(' / ') || 'the product';
   const material = item.material ? `Material: ${item.material}.` : '';
   return [
-    `Reconstruct the exact physical product shown in the reference image: ${name}.`,
+    `Reconstruct the same physical product shown in the reference: ${name}.`,
     material,
-    'Preserve silhouette, proportions, openings, controls, hardware, colors, visible seams and construction.',
+    'Preserve silhouette, dimensions, proportions, openings, controls, hardware, seams, colors and visible construction.',
     'Do not redesign, stylize, simplify, add accessories, invent controls, logos, patterns or geometry.',
-    'Favor geometric fidelity to the reference over artistic interpretation. Use realistic PBR materials and real-world scale.'
+    'Prioritize faithful geometry and appearance over artistic interpretation.'
   ].filter(Boolean).join(' ').slice(0, MAX_TEXTURE_PROMPT);
 }
 
 function isPlaceholderImage(url = '') { return /unsplash\.com/i.test(url); }
 function isHttpUrl(value = '') { try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } }
+function uniqueImages(values = []) { return [...new Set(values.filter(value => isHttpUrl(value) && !isPlaceholderImage(value)))].slice(0, 4); }
 
 async function scrapeProductImage(sourceUrl) {
   if (!isHttpUrl(sourceUrl)) return '';
@@ -39,16 +41,23 @@ async function scrapeProductImage(sourceUrl) {
   return '';
 }
 
-async function resolveProductImage(imageUrl, item) {
-  if (imageUrl && !isPlaceholderImage(imageUrl)) return imageUrl;
+async function resolveProductImages(requestedImageUrl, item) {
+  const images = [];
+  if (requestedImageUrl && !isPlaceholderImage(requestedImageUrl)) images.push(requestedImageUrl);
   if (item?.supplierSku) {
     try {
       const product = await getCjProductBySku(item.supplierSku);
-      const images = cjProductImages(product);
-      if (images[0]) return images[0];
+      images.push(...cjProductImages(product));
     } catch {}
   }
-  return scrapeProductImage(item?.sourceUrl || '');
+  if (!images.length) images.push(await scrapeProductImage(item?.sourceUrl || ''));
+  return uniqueImages(images);
+}
+
+function parseTaskId(value = '') {
+  if (value.startsWith('multi:')) return { mode: 'multi', id: value.slice(6) };
+  if (value.startsWith('image:')) return { mode: 'image', id: value.slice(6) };
+  return { mode: 'image', id: value };
 }
 
 export async function POST(request) {
@@ -63,21 +72,58 @@ export async function POST(request) {
       if (saved?.model_url) return NextResponse.json({ configured: true, reused: true, modelUrl: saved.model_url, taskId: saved.task_id || null, progress: 100 });
       if (saved?.task_id && ['PENDING','IN_PROGRESS'].includes(String(saved.status || '').toUpperCase())) return NextResponse.json({ configured: true, reused: true, taskId: saved.task_id, progress: saved.progress || 0 });
     }
+
     const requestedImageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl.trim() : '';
-    const imageUrl = await resolveProductImage(requestedImageUrl, item);
-    if (!isHttpUrl(imageUrl)) return NextResponse.json({ error: 'A public CJ product image could not be resolved.' }, { status: 400 });
-    const texturePrompt = buildPrompt(item);
-    const response = await fetch(MESHY_ENDPOINT, {
+    const imageUrls = await resolveProductImages(requestedImageUrl, item);
+    if (!imageUrls.length) return NextResponse.json({ error: 'Public product media could not be resolved.' }, { status: 400 });
+
+    const useMultiView = imageUrls.length >= 2;
+    const endpoint = useMultiView ? MULTI_IMAGE_ENDPOINT : IMAGE_ENDPOINT;
+    const prompt = buildPrompt(item);
+    const payload = useMultiView ? {
+      image_urls: imageUrls,
+      ai_model: 'latest',
+      should_texture: true,
+      enable_pbr: true,
+      texture_resolution: '4k',
+      texture_image_urls: imageUrls,
+      image_enhancement: false,
+      remove_lighting: true,
+      should_remesh: false,
+      target_formats: ['glb'],
+      auto_size: true,
+      origin_at: 'bottom',
+      multi_view_thumbnails: true,
+    } : {
+      image_url: imageUrls[0],
+      model_type: 'standard',
+      ai_model: 'latest',
+      image_enhancement: false,
+      remove_lighting: true,
+      should_texture: true,
+      enable_pbr: true,
+      texture_resolution: '4k',
+      texture_image_url: imageUrls[0],
+      texture_prompt: prompt,
+      should_remesh: false,
+      target_formats: ['glb'],
+      auto_size: true,
+      origin_at: 'bottom',
+      multi_view_thumbnails: true,
+    };
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url: imageUrl, model_type: 'standard', ai_model: 'latest', ultra_mode: true, image_enhancement: true, remove_lighting: true, should_texture: true, enable_pbr: true, texture_resolution: '2k', texture_image_url: imageUrl, texture_prompt: texturePrompt, target_formats: ['glb'], auto_size: true, origin_at: 'bottom', multi_view_thumbnails: true }),
+      body: JSON.stringify(payload),
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return NextResponse.json({ error: data?.message || data?.error || data?.task_error?.message || 'Model provider rejected the request.' }, { status: response.status });
-    const taskId = data?.result || data?.id || null;
-    if (itemId && taskId) await saveCatalog3D(itemId, { supplier_sku: item?.supplierSku || null, task_id: taskId, source_image_url: imageUrl, status: 'PENDING', progress: 0, started_at: new Date().toISOString(), error: null });
-    return NextResponse.json({ configured: true, sourceImageUrl: imageUrl, taskId, promptLength: texturePrompt.length });
+    const rawTaskId = data?.result || data?.id || null;
+    const taskId = rawTaskId ? `${useMultiView ? 'multi' : 'image'}:${rawTaskId}` : null;
+    if (itemId && taskId) await saveCatalog3D(itemId, { supplier_sku: item?.supplierSku || null, task_id: taskId, source_image_url: imageUrls[0], status: 'PENDING', progress: 0, started_at: new Date().toISOString(), error: null });
+    return NextResponse.json({ configured: true, sourceImageUrl: imageUrls[0], sourceImageCount: imageUrls.length, generationMode: useMultiView ? 'multi-view' : 'single-view', taskId });
   } catch (error) { return NextResponse.json({ error: error?.message || 'Model request failed.' }, { status: 500 }); }
 }
 
@@ -87,7 +133,9 @@ export async function GET(request) {
   if (!apiKey) return NextResponse.json({ configured: false, error: 'Model generation is not configured.' }, { status: 503 });
   if (!taskId) return NextResponse.json({ error: 'taskId is required.' }, { status: 400 });
   try {
-    const response = await fetch(`${MESHY_ENDPOINT}/${encodeURIComponent(taskId)}`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: 'no-store' });
+    const parsed = parseTaskId(taskId);
+    const endpoint = parsed.mode === 'multi' ? MULTI_IMAGE_ENDPOINT : IMAGE_ENDPOINT;
+    const response = await fetch(`${endpoint}/${encodeURIComponent(parsed.id)}`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: 'no-store' });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return NextResponse.json({ error: data?.message || data?.error || data?.task_error?.message || 'Unable to read model generation status.' }, { status: response.status });
     const status = data?.status || 'PENDING';
@@ -96,6 +144,6 @@ export async function GET(request) {
     const thumbnailUrl = data?.thumbnail_url || null;
     const saved = await readCatalog3DByTask(taskId);
     if (saved?.item_id) await saveCatalog3D(saved.item_id, { task_id: taskId, status, progress, model_url: modelUrl || saved.model_url || null, thumbnail_url: thumbnailUrl || saved.thumbnail_url || null, completed_at: modelUrl ? new Date().toISOString() : saved.completed_at || null, error: data?.task_error?.message || null });
-    return NextResponse.json({ configured: true, status, progress, modelUrl, thumbnailUrl, thumbnailUrls: data?.thumbnail_urls || null, error: data?.task_error?.message || null });
+    return NextResponse.json({ configured: true, generationMode: parsed.mode === 'multi' ? 'multi-view' : 'single-view', status, progress, modelUrl, thumbnailUrl, thumbnailUrls: data?.thumbnail_urls || null, error: data?.task_error?.message || null });
   } catch (error) { return NextResponse.json({ error: error?.message || 'Model generation status request failed.' }, { status: 500 }); }
 }
