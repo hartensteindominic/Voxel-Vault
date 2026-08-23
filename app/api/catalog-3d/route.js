@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { catalog3DStoreReady, readCatalog3D } from '../../../lib/catalog3dStore';
+import { catalog3DStoreHealth, createModelSignedUrl, readCatalog3D } from '../../../lib/catalog3dStore';
 
 export const runtime = 'nodejs';
 
@@ -7,27 +7,33 @@ export async function GET(request) {
   const itemId = new URL(request.url).searchParams.get('itemId');
   if (!itemId) return NextResponse.json({ error: 'itemId is required' }, { status: 400 });
 
-  const storageReady = await catalog3DStoreReady();
-  if (!storageReady) {
+  const health = await catalog3DStoreHealth();
+  if (!health.ready) {
     return NextResponse.json({
       found: false,
       storageReady: false,
+      storageBackend: health.backend,
       status: 'storage_unavailable',
       error: 'Persistent collectible storage is not ready.',
     }, { status: 503 });
   }
 
   const row = await readCatalog3D(itemId);
-  if (!row) return NextResponse.json({ found: false, storageReady: true, status: 'queued' });
+  if (!row) return NextResponse.json({ found: false, storageReady: true, storageBackend: health.backend, status: 'queued' });
+
+  const storedModelUrl = row.model_storage_path ? await createModelSignedUrl(row.model_storage_path, 60 * 60 * 6) : null;
+  const modelUrl = storedModelUrl || row.model_url || null;
 
   return NextResponse.json({
     found: true,
     storageReady: true,
+    storageBackend: health.backend,
     itemId: row.item_id,
     taskId: row.task_id || null,
     status: row.status || 'pending',
     progress: row.progress || 0,
-    modelUrl: row.model_url || null,
+    modelUrl,
+    modelStored: Boolean(row.model_storage_path),
     thumbnailUrl: row.thumbnail_url || null,
     exactModelApproved: Boolean(row.exact_model_approved),
     error: row.error || null,
