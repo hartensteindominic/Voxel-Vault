@@ -8,7 +8,7 @@ const TEXT_FIELDS = new Set([
   'model_license_uri', 'model_hash', 'contract_address', 'token_id', 'mint_tx_hash',
   'mint_status', 'inventory_status',
 ]);
-const PRICE_FIELDS = new Set(['source_price_cents', 'retail_price_cents']);
+const NUMBER_FIELDS = new Set(['source_price_cents', 'retail_price_cents', 'chain_id']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function sanitizePatch(body: Record<string, unknown>) {
@@ -19,7 +19,7 @@ function sanitizePatch(body: Record<string, unknown>) {
       else if (typeof value === 'string' && value.length <= 2048) patch[key] = value.trim();
       else throw new Error(`Invalid ${key}.`);
     }
-    if (PRICE_FIELDS.has(key)) {
+    if (NUMBER_FIELDS.has(key)) {
       if (value === null || value === '') { patch[key] = null; continue; }
       const number = Number(value);
       if (!Number.isInteger(number) || number <= 0) throw new Error(`Invalid ${key}.`);
