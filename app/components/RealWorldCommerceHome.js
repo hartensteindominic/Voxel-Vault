@@ -57,7 +57,7 @@ function TrustSection(){
 }
 
 function MobileNav(){
-  return <nav className="vv3-mobileNav" aria-label="Mobile navigation"><Link href="/discover">World</Link><Link href="/marketplace">Shop</Link><Link href="/avatar">Avatar</Link><Link href="/room">Room</Link><Link href="/trade">Trade</Link></nav>;
+  return <nav className="vv3-mobileNav" aria-label="Mobile navigation"><Link href="/discover">World</Link><Link href="/capture">Create</Link><Link href="/avatar">Avatar</Link><Link href="/messages">People</Link><Link href="/trade">Trade</Link></nav>;
 }
 
 export default function RealWorldCommerceHome(){
@@ -87,6 +87,8 @@ export default function RealWorldCommerceHome(){
       <Link href="/avatar"><small>AVATAR</small><strong>Build the 3D version of you.</strong><span>Wear compatible items from your verified collection.</span></Link>
       <Link href="/trade"><small>TAP TRADE</small><strong>Start a secure phone-to-phone handoff.</strong><span>Share the offer nearby; both wallets still approve.</span></Link>
       <Link href="/ai"><small>CRESTODIAN AI</small><strong>Ask your collection what it knows.</strong><span>Research, organize, and plan without autonomous spending.</span></Link>
+      <Link href="/capture"><small>FREE CAPTURE</small><strong>Turn a photo or QR scan into an elemental twin.</strong><span>Create a private memory first; verify provenance before trading.</span></Link>
+      <Link href="/messages"><small>VAULT SOCIAL</small><strong>Message people and prepare personal handoffs.</strong><span>Private profiles, chat, and approval-gated NFT requests.</span></Link>
     </section>
     <section className="vv3-collection" id="collection">
       <div className="vv3-collectionHead"><div><div className="vv3-sectionLabel"><span>01</span> SHOP THE COLLECTION</div><h2>Buy the object.<br/><em>Own the twin.</em></h2></div><p>Each listing is anchored to a real-world product source. Voxel Vault keeps reference pricing, target retail markup, supplier cost and actual profit as separate concepts so the store never pretends a retail reference price is a dropship cost.</p></div>
