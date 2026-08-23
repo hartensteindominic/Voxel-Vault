@@ -27,6 +27,9 @@ function sanitizePatch(body: Record<string, unknown>) {
     }
   }
   if (typeof body.source_url === 'string') patch.source_url = normalizeSupplierUrl(body.source_url);
+  for (const key of ['currency','fulfillment_provider','model_hash','contract_address','mint_tx_hash']) {
+    if (typeof patch[key] === 'string') patch[key] = patch[key].toLowerCase();
+  }
   return patch;
 }
 
@@ -66,7 +69,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       patch.published_at = null;
     }
     if (!action && current.status !== 'published') patch.status = readiness.ready ? 'ready' : 'draft';
-    if (action === 'save' && current.status === 'published' && !readiness.ready) {
+    if (current.status === 'published' && action !== 'publish' && !readiness.ready) {
       patch.status = 'draft';
       patch.published_at = null;
     }
