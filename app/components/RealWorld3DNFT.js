@@ -7,11 +7,20 @@ import './AccuracyCommerce.css';
 
 const Product3DTwin = dynamic(() => import('./Product3DTwin'), {
   ssr: false,
-  loading: () => <div className="vv3-twinLoading">LOADING VERIFIED 3D NFT</div>,
+  loading: () => <div className="vv3-twinLoading">LOADING VERIFIED 3D TWIN</div>,
 });
 
 function isPlaceholder(url = '') {
   return /unsplash\.com|\/cj\/share\d+x\d+\.(?:jpg|jpeg|png|webp)(?:\?|$)|config-resource\/cj\/share/i.test(url);
+}
+
+function PendingMedia() {
+  return <div className="vv3-accuracyEmpty">
+    <div aria-hidden="true" style={{width:72,height:72,border:'1px solid rgba(255,255,255,.18)',borderRadius:20,display:'grid',placeItems:'center',marginBottom:16,background:'linear-gradient(145deg,rgba(143,112,255,.16),rgba(255,255,255,.03))'}}><span style={{fontSize:28,color:'#a894ff'}}>◇</span></div>
+    <strong>Exact product media is being verified</strong>
+    <small>We removed generic or stock imagery. The supplier product photo and interactive 3D twin will appear here only after they are confirmed to match the lamp you can actually buy.</small>
+    <span style={{marginTop:12,fontSize:8,letterSpacing:'.14em',fontWeight:900,color:'#a894ff'}}>PREVIEW ONLY · CHECKOUT LOCKED</span>
+  </div>;
 }
 
 function VerifiedProductPhoto({ item }) {
@@ -41,11 +50,9 @@ function VerifiedProductPhoto({ item }) {
     return () => { active = false; };
   }, [item?.sourceUrl, fallback]);
 
-  if (!src || failed) {
-    return <div className="vv3-accuracyEmpty"><strong>Product media under review</strong><small>The supplier returned a generic storefront graphic, so it has been removed. An exact lamp image will appear here only after verification.</small></div>;
-  }
+  if (!src || failed) return <PendingMedia />;
 
-  return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} from the linked supplier`} /><span>LIVE SUPPLIER PRODUCT IMAGE</span></div>;
+  return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} from the linked supplier`} /><span>VERIFIED SUPPLIER PRODUCT IMAGE</span></div>;
 }
 
 export default function RealWorld3DNFT({ item, hero = false }) {
@@ -57,7 +64,7 @@ export default function RealWorld3DNFT({ item, hero = false }) {
   return (
     <figure className={`vv3-modelFrame ${hero ? 'vv3-modelFrameHero' : ''}`} aria-labelledby={titleId}>
       <div className="vv3-twinHeader">
-        <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}><span aria-hidden="true">◆</span> {exactModelVerified ? 'VERIFIED 3D NFT' : 'EXACT 3D NFT PENDING'}</span>
+        <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}><span aria-hidden="true">◆</span> {exactModelVerified ? 'VERIFIED 3D TWIN' : 'EXACT 3D TWIN PENDING'}</span>
         <span className="vv3-twinSource">PRODUCT-SPECIFIC ACCURACY REQUIRED</span>
       </div>
 
@@ -66,13 +73,13 @@ export default function RealWorld3DNFT({ item, hero = false }) {
       </div>
 
       <div className={`vv3-accuracyStatus ${exactModelVerified ? 'is-verified' : 'is-pending'}`}>
-        <strong>{exactModelVerified ? 'Exact model verified' : 'Exact 3D model not yet verified'}</strong>
-        <small>{exactModelVerified ? 'This interactive 3D NFT has been checked against the physical product.' : 'We will not show a generic shape or unlock checkout as though it were this product.'}</small>
+        <strong>{exactModelVerified ? 'Exact 3D twin verified' : 'Exact 3D twin not yet verified'}</strong>
+        <small>{exactModelVerified ? 'This interactive 3D collectible has been checked against the physical product.' : 'Preview only. We will not show a generic shape or open checkout as though it were this product.'}</small>
       </div>
 
       <figcaption className="vv3-twinFooter" id={titleId}>
         <div className="vv3-twinName"><small>{item?.creator || 'Voxel Vault'}</small><strong>{item?.name || 'Collectible object'}</strong></div>
-        <div className="vv3-twinPrice"><small>PHYSICAL + DIGITAL</small>{price && <strong>{price}</strong>}</div>
+        <div className="vv3-twinPrice"><small>PHYSICAL + DIGITAL TWIN</small>{price && <strong>{price}</strong>}</div>
         <a className="vv3-twinOpen" href={item?.sourceUrl} target="_blank" rel="noreferrer" aria-label={`Verify the supplier product for ${item?.name || 'this collectible'}`}>VERIFY PRODUCT ↗</a>
       </figcaption>
     </figure>
