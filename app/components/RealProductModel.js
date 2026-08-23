@@ -123,6 +123,13 @@ export default function RealProductModel({ item, onLoaded }) {
     let model = null;
     let raf;
     let upgraded = false;
+    let dragging = false;
+    let pointerId = null;
+    let lastX = 0;
+    let lastY = 0;
+    let targetX = -0.08;
+    let targetY = -0.18;
+    let distance = 5.2;
     const normalize = object => {
       const box3 = new THREE.Box3().setFromObject(object);
       const size = box3.getSize(new THREE.Vector3());
@@ -147,7 +154,8 @@ export default function RealProductModel({ item, onLoaded }) {
       scene.add(object);
       model = object;
       upgraded = isUpgrade;
-      camera.position.set(0, 0.15, 5.2);
+      model.rotation.set(targetX, targetY, 0);
+      camera.position.set(0, 0.15, distance);
       camera.lookAt(0, 0, 0);
       onLoadedRef.current?.(true);
       return true;
@@ -163,6 +171,42 @@ export default function RealProductModel({ item, onLoaded }) {
     };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(root);
+
+    const canvas = renderer.domElement;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', `${item?.name || 'Product'} interactive 3D twin. Drag in any direction to rotate. Use the mouse wheel or pinch gesture to zoom.`);
+    canvas.style.touchAction = 'none';
+    const pointerDown = event => {
+      dragging = true;
+      pointerId = event.pointerId;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      canvas.setPointerCapture?.(pointerId);
+    };
+    const pointerMove = event => {
+      if (!dragging || event.pointerId !== pointerId) return;
+      targetY += (event.clientX - lastX) * 0.012;
+      targetX = THREE.MathUtils.clamp(targetX + (event.clientY - lastY) * 0.01, -Math.PI / 2, Math.PI / 2);
+      lastX = event.clientX;
+      lastY = event.clientY;
+    };
+    const pointerUp = event => {
+      if (event.pointerId !== pointerId) return;
+      dragging = false;
+      canvas.releasePointerCapture?.(pointerId);
+      pointerId = null;
+    };
+    const wheel = event => {
+      event.preventDefault();
+      distance = THREE.MathUtils.clamp(distance + event.deltaY * 0.004, 3.2, 7.2);
+    };
+    const resetView = () => { targetX = -0.08; targetY = -0.18; distance = 5.2; };
+    canvas.addEventListener('pointerdown', pointerDown);
+    canvas.addEventListener('pointermove', pointerMove);
+    canvas.addEventListener('pointerup', pointerUp);
+    canvas.addEventListener('pointercancel', pointerUp);
+    canvas.addEventListener('dblclick', resetView);
+    canvas.addEventListener('wheel', wheel, { passive: false });
 
     const createImmediateTwin = () => {
       const twin = createProductTwin(item, imageUrl);
@@ -192,7 +236,12 @@ export default function RealProductModel({ item, onLoaded }) {
     const tick = () => {
       if (!alive) return;
       raf = requestAnimationFrame(tick);
-      if (model) model.rotation.y += upgraded ? 0.0018 : 0.0024;
+      if (model) {
+        if (!dragging) targetY += upgraded ? 0.0012 : 0.0017;
+        model.rotation.x += (targetX - model.rotation.x) * 0.14;
+        model.rotation.y += (targetY - model.rotation.y) * 0.14;
+      }
+      camera.position.z += (distance - camera.position.z) * 0.16;
       renderer.render(scene, camera);
     };
     tick();
@@ -201,6 +250,12 @@ export default function RealProductModel({ item, onLoaded }) {
       alive = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
+      canvas.removeEventListener('pointerdown', pointerDown);
+      canvas.removeEventListener('pointermove', pointerMove);
+      canvas.removeEventListener('pointerup', pointerUp);
+      canvas.removeEventListener('pointercancel', pointerUp);
+      canvas.removeEventListener('dblclick', resetView);
+      canvas.removeEventListener('wheel', wheel);
       if (renderer.domElement.parentNode === root) root.removeChild(renderer.domElement);
       disposeModel(model);
       renderer.dispose();
@@ -208,5 +263,5 @@ export default function RealProductModel({ item, onLoaded }) {
   }, [item]);
 
   if (!item?.modelUri && !item?.digitalTwin?.modelUrl && !item?.previewUri && !item?.digitalTwin?.previewUrl && !item?.sourceUrl) return null;
-  return <div ref={host} aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 5 }} />;
+  return <div ref={host} style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'grid', placeItems: 'center' }} />;
 }

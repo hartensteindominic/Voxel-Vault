@@ -9,9 +9,10 @@ import { useEffect, useRef, useState } from 'react';
  */
 export default function RealProduct3DCollectible({ item, hero = false }) {
   const stageRef = useRef(null);
-  const [rotation, setRotation] = useState(-14);
+  const [rotation, setRotation] = useState({ x: -4, y: -14 });
   const dragging = useRef(false);
   const lastX = useRef(0);
+  const lastY = useRef(0);
 
   const src = item?.previewUri || item?.image || item?.imageUrl;
   const name = item?.name || 'Real product';
@@ -22,8 +23,13 @@ export default function RealProduct3DCollectible({ item, hero = false }) {
     const onMove = (event) => {
       if (!dragging.current) return;
       const x = event.clientX ?? event.touches?.[0]?.clientX ?? lastX.current;
-      setRotation((value) => value + (x - lastX.current) * 0.55);
+      const y = event.clientY ?? event.touches?.[0]?.clientY ?? lastY.current;
+      setRotation((value) => ({
+        x: Math.max(-75, Math.min(75, value.x - (y - lastY.current) * 0.45)),
+        y: value.y + (x - lastX.current) * 0.55,
+      }));
       lastX.current = x;
+      lastY.current = y;
     };
     const stop = () => { dragging.current = false; };
     stage.addEventListener('pointermove', onMove);
@@ -56,11 +62,12 @@ export default function RealProduct3DCollectible({ item, hero = false }) {
       onPointerDown={(event) => {
         dragging.current = true;
         lastX.current = event.clientX;
+        lastY.current = event.clientY;
         event.currentTarget.setPointerCapture?.(event.pointerId);
       }}
     >
       <div className="vv3-real3dGrid" aria-hidden="true" />
-      <div className="vv3-real3dObject" style={{ transform: `rotateY(${rotation}deg) rotateX(-4deg)` }}>
+      <div className="vv3-real3dObject" style={{ transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
         <div className="vv3-real3dFace vv3-real3dFront">
           <img src={src} alt="" draggable="false" />
         </div>
@@ -76,7 +83,7 @@ export default function RealProduct3DCollectible({ item, hero = false }) {
       <div className="vv3-real3dLabel">
         <span>REAL PRODUCT</span>
         <strong>3D NFT</strong>
-        <small>DRAG TO ROTATE · MATCHED TO PHYSICAL ITEM</small>
+        <small>DRAG ANY DIRECTION · MATCHED TO PHYSICAL ITEM</small>
       </div>
     </div>
   );

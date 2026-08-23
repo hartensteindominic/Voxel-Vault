@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { getWallet, mintCollectible } from '../../lib/blockchain';
+import { supabaseBrowser } from '../../lib/supabase-browser';
 
 function metadataUri(item) {
   const payload = {
@@ -79,7 +80,9 @@ export default function MintPage() {
     if (!wallet) { await connect(); return; }
     setBusy(true); setMessage('Preparing physical delivery + digital twin checkout…');
     try {
-      const response = await fetch('/api/physical-nft-checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ catalogId: Number(catalogId), wallet }) });
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
+      if (!session?.access_token) throw new Error('Sign in to Vault before entering a shipping address.');
+      const response = await fetch('/api/physical-nft-checkout', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ catalogId: Number(catalogId), wallet }) });
       const data = await response.json();
       if (!response.ok || !data.url) {
         if (data.sourceUrl) {
@@ -114,10 +117,10 @@ export default function MintPage() {
     <section className="hero"><small>PHYSICAL + DIGITAL</small><h1>Buy it.<br /><em>Own both.</em></h1><p>Choose a verified real-world product, keep its original Voxel Vault 3D twin in your Vault, and place the collectible in your Room or the world.</p></section>
     <section className="panel">
       <div className="step"><b>01</b><strong>Connect your wallet</strong><button onClick={connect} disabled={busy}>{wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : 'Connect'}</button></div>
-      <div className="step"><b>02</b><strong>Physical + NFT</strong><button onClick={startPhysicalAndNftCheckout} disabled={busy || !catalogId}>{catalogId ? 'Buy + ship + NFT' : 'Choose an object first'}</button></div>
+      <div className="step"><b>02</b><strong>Physical + NFT · one USD total</strong><button onClick={startPhysicalAndNftCheckout} disabled={busy || !catalogId}>{catalogId ? 'Buy + ship + NFT' : 'Choose an object first'}</button></div>
       <div className="step"><b>03</b><strong>Digital-only checkout</strong><button onClick={startCheckout} disabled={busy || !catalogId}>{catalogId ? 'Buy NFT' : 'Choose an object first'}</button></div>
       <div className="step"><b>04</b><strong>Verify payment</strong><button onClick={verify} disabled={busy || !sessionId || !wallet}>Verify</button></div>
-      <div className="step"><b>05</b><strong>Mint the original 3D twin</strong><button onClick={mintNow} disabled={busy || !paid}>{paid ? 'Mint NFT' : 'Locked until paid'}</button></div>
+      <div className="step"><b>05</b><strong>Claim the original 3D twin</strong><button onClick={mintNow} disabled={busy || !paid}>{paid ? 'Claim NFT' : 'Locked until paid'}</button></div>
     </section>
     {item && <section className="object"><small>REAL-WORLD OBJECT · ORIGINAL 3D TWIN</small><h2>{item.name}</h2><p>by {item.creator} · {item.rarity}</p><div className="facts"><span>${item.priceUsd}</span><span>Source verified</span><span>Native 3D media</span><span>VV-{item.id}</span></div><Link href={`/twin?asset=${catalogId}`} className="twinLink">Inspect the permanent 3D twin ↗</Link>{mint && <a href={mint.explorerTx} target="_blank" rel="noreferrer">View confirmed transaction ↗</a>}</section>}
     {history.length > 0 && <section className="history"><small>YOUR HISTORY</small><h2>Collected objects.</h2>{history.slice(0, 8).map((entry, index) => <article key={`${entry.hash}-${index}`}><div><strong>{entry.name}</strong><span>{entry.creator} · {entry.createdAt.slice(0, 10)}</span></div><b>{entry.tokenId ? `#${entry.tokenId}` : 'Minted'}</b></article>)}</section>}
