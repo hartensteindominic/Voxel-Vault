@@ -25,7 +25,7 @@ function BuyBoth({item}){
   return <div className="vv3-buyBoth">
     {ready
       ? <Link href={`/marketplace?purchase=${encodeURIComponent(item.purchaseAssetId)}`} className="vv3-buyButton">BUY PHYSICAL + 3D NFT · ${item.customerPriceUsd}</Link>
-      : <div className="vv3-buyButton vv3-buyButtonDisabled">PHYSICAL + DIGITAL CHECKOUT COMING SOON</div>}
+      : <button type="button" className="vv3-buyButton vv3-buyButtonDisabled" disabled>PHYSICAL + DIGITAL CHECKOUT COMING SOON</button>}
     <div className="vv3-buyPerks"><span>📦 physical object</span><span>🧊 3D twin included</span><span>🏠 Vault + Room</span></div>
     {item.customerPriceUsd&&<div className="vv3-priceNote">Target bundle price · delivery checkout opens after verified inventory, shipping, and supplier setup</div>}
   </div>;
@@ -62,7 +62,8 @@ function MobileNav(){
 
 export default function RealWorldCommerceHome(){
   const hero=REAL_WORLD_CATALOG[0];
-  return <main className="vv3-home">
+  return <main className="vv3-home" id="main-content">
+    <a className="vv3-skipLink" href="#collection">Skip to collection</a>
     <div className="vv3-noise" aria-hidden="true"/>
     <header className="vv3-header"><div className="vv3-topbar"><Brand/><nav className="vv3-desktopNav" aria-label="Primary navigation"><Link href="/discover">Discover</Link><Link href="/marketplace">Marketplace</Link><Link href="/room">My vault</Link><Link href="/ai">Intelligence</Link></nav><Link className="vv3-headerCta" href="#collection">Shop both <Icon name="arrow" size={15}/></Link></div></header>
     <section className="vv3-hero">
@@ -81,7 +82,7 @@ export default function RealWorldCommerceHome(){
         <BuyBoth item={hero}/>
       </div>
     </section>
-    <section className="vv3-signalBar"><span>REAL PRODUCTS</span><i/><span>INTERACTIVE 3D TWINS</span><i/><span>NFT-READY ASSETS</span><i/><span>VAULT + ROOM + WORLD</span></section>
+    <section className="vv3-signalBar" aria-label="Bundle highlights"><span>REAL PRODUCTS</span><i/><span>INTERACTIVE 3D TWINS</span><i/><span>NFT-READY ASSETS</span><i/><span>VAULT + ROOM + WORLD</span></section>
     <section className="vv3-coreLoop" aria-label="Voxel Vault experiences">
       <Link href="/discover"><small>WORLD MAP</small><strong>Explore digital collectibles by location.</strong><span>Find public drops, landmarks, and location-linked objects on an interactive map.</span></Link>
       <Link href="/avatar"><small>AVATAR</small><strong>Build the 3D version of you.</strong><span>Wear compatible items from your verified collection.</span></Link>
@@ -97,6 +98,7 @@ export default function RealWorldCommerceHome(){
       <VaultRewardsInvite/>
     </section>
     <section className="vv3-finalCta"><div><small>VOXEL VAULT</small><h2>Physical in your hands. Digital in your world.</h2><p>Buy both when a verified supplier route is live, keep the 3D collectible in your Vault, place it in your Room, and make it discoverable in the World.</p></div><Link className="vv3-primaryCta" href="/room">Open My Room <Icon name="arrow" size={17}/></Link></section>
+    <footer className="vv3-commerceFooter"><Brand/><p>Real products paired with interactive digital collectibles.</p><nav aria-label="Legal navigation"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><span>© 2026 Voxel Vault</span></footer>
     <MobileNav/>
   </main>;
 }
