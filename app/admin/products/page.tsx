@@ -71,7 +71,7 @@ export default function ProductPublisherPage() {
     setProducts((current) => current.map((product) => product.id === selectedId ? { ...product, [key]: value } : product));
   }
 
-  async function update(action: 'save'|'review'|'publish'|'unpublish') {
+  async function update(action: 'save'|'review') {
     if (!selected || !session?.access_token) return;
     setBusy(true); setStatus('');
     const body: Record<string, unknown> = { action };
@@ -86,7 +86,7 @@ export default function ProductPublisherPage() {
     try {
       const { product } = await api(`/api/admin/products/${selected.id}`, session.access_token, { method:'PATCH', body:JSON.stringify(body) });
       setProducts((current) => current.map((item) => item.id === product.id ? product : item));
-      setStatus(action === 'publish' ? 'Product published.' : 'Draft saved.');
+      setStatus(action === 'review' && product.status === 'ready' ? 'Product passed the Vault Ready checks.' : 'Draft saved.');
     } catch (error: any) {
       if (error?.payload?.readiness) change('readiness', error.payload.readiness as any);
       setStatus(error instanceof Error ? error.message : 'Unable to update draft.');
@@ -127,7 +127,7 @@ export default function ProductPublisherPage() {
             <label>Inventory<select value={selected.inventory_status} onChange={(e)=>change('inventory_status',e.target.value)}><option value="unverified">Unverified</option><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option><option value="transferred">Transferred</option><option value="blocked">Blocked</option></select></label>
           </div>
           {!readiness.ready&&<div className="readiness"><strong>Required before publication</strong><ul>{[...(readiness.missing||[]),...(readiness.invalid||[]).map((item:string)=>`Invalid ${item}`)].map((item)=><li key={item}>{item}</li>)}</ul></div>}
-          <footer><button disabled={busy} onClick={()=>update('save')}>Save draft</button><button disabled={busy} onClick={()=>update('review')}>Run checks</button>{selected.status==='published'?<button disabled={busy} onClick={()=>update('unpublish')}>Unpublish</button>:<button className="publish" disabled={busy||!readiness.ready} onClick={()=>update('publish')}>Publish</button>}</footer>
+          <footer><button disabled={busy} onClick={()=>update('save')}>Save draft</button><button className="publish" disabled={busy} onClick={()=>update('review')}>Run Vault Ready checks</button></footer>
         </>}
       </section>
     </div>
