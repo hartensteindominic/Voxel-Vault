@@ -21,6 +21,7 @@ create table if not exists public.supplier_product_drafts (
   model_license_uri text,
   model_hash text,
   contract_address text,
+  chain_id integer check (chain_id > 0),
   token_id text,
   mint_tx_hash text,
   mint_status text not null default 'unverified' check (mint_status in ('unverified','pending','confirmed','failed')),
