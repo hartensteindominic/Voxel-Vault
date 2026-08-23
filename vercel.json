@@ -1,6 +1,9 @@
 {
   "framework": "nextjs",
   "regions": ["iad1"],
+  "crons": [
+    { "path": "/api/cron/catalog-3d", "schedule": "*/10 * * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
