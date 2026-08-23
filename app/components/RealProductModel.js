@@ -95,10 +95,12 @@ function createProductTwin(item, imageUrl) {
   return group;
 }
 
-export default function RealProductModel({ item, onLoaded }) {
+export default function RealProductModel({ item, onLoaded, onUnavailable }) {
   const host = useRef(null);
   const onLoadedRef = useRef(onLoaded);
+  const onUnavailableRef = useRef(onUnavailable);
   useEffect(() => { onLoadedRef.current = onLoaded; }, [onLoaded]);
+  useEffect(() => { onUnavailableRef.current = onUnavailable; }, [onUnavailable]);
 
   useEffect(() => {
     const root = host.current;
@@ -106,9 +108,20 @@ export default function RealProductModel({ item, onLoaded }) {
     let imageUrl = item?.previewUri || item?.digitalTwin?.previewUrl;
     if (!root || (!directUrl && !imageUrl && !item?.sourceUrl)) return undefined;
     let alive = true;
+    let renderer;
+    try {
+      const probe = document.createElement('canvas');
+      const gl = probe.getContext('webgl2', { failIfMajorPerformanceCaveat: false }) || probe.getContext('webgl', { failIfMajorPerformanceCaveat: false });
+      if (!gl) { onUnavailableRef.current?.(); return undefined; }
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    } catch (error) {
+      console.warn('Interactive 3D unavailable; keeping the product image fallback.', error);
+      onUnavailableRef.current?.();
+      return undefined;
+    }
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 100);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;

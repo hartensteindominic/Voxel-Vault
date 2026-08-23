@@ -44,6 +44,7 @@ function TwinFallback({ item, hidden }) {
 
 export default function Product3DTwin({ item, hero = false }) {
   const [ready, setReady] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
 
   return (
     <div
@@ -52,7 +53,7 @@ export default function Product3DTwin({ item, hero = false }) {
       aria-label={`${item?.name || 'Real-world object'} 3D NFT digital twin`}
       data-hero={hero ? 'true' : 'false'}
     >
-      <RealProductModel item={item} onLoaded={setReady} />
+      {!unavailable && <RealProductModel item={item} onLoaded={setReady} onUnavailable={() => setUnavailable(true)} />}
       <TwinFallback item={item} hidden={ready} />
     </div>
   );
