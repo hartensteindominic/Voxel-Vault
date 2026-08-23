@@ -13,7 +13,7 @@ Never place supplier credentials in a draft. Existing Shopify and generic-provid
 
 ## Publication contract
 
-The publisher fails closed until the product has all of the following:
+The qualification workflow fails closed until the product has all of the following:
 
 - a real physical and fulfillment SKU;
 - verified supplier cost, markup, inventory, shipping and returns;
@@ -23,6 +23,8 @@ The publisher fails closed until the product has all of the following:
 - available inventory.
 
 The existing image-based and third-party-model catalogs remain concepts. `getSellableCatalog()` excludes them, and physical checkout returns `PRODUCT_NOT_VAULT_READY` for them.
+
+This first contribution stops at a server-verified `ready` record. It deliberately does not expose a Publish action or route a ready record into checkout until atomic NFT reservation and the selected supplier adapter are implemented and tested.
 
 ## Supplier automation boundary
 
