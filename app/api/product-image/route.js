@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cjProductImages, getCjProductBySku } from '../../../lib/cjApi';
 
 export const runtime = 'nodejs';
 
@@ -18,19 +19,33 @@ function extractImage(html, sourceUrl) {
   return null;
 }
 
+async function scrapeFallback(sourceUrl) {
+  if (!/^https?:\/\//i.test(sourceUrl)) return null;
+  const response = await fetch(sourceUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VoxelVaultProductResolver/1.0)' }, cache: 'no-store' });
+  if (!response.ok) return null;
+  return extractImage(await response.text(), sourceUrl);
+}
+
 export async function GET(request) {
-  const sourceUrl = new URL(request.url).searchParams.get('url') || '';
-  if (!/^https?:\/\//i.test(sourceUrl)) return NextResponse.json({ error: 'A valid supplier URL is required.' }, { status: 400 });
+  const params = new URL(request.url).searchParams;
+  const sourceUrl = params.get('url') || '';
+  const sku = params.get('sku') || '';
+
+  if (sku) {
+    try {
+      const product = await getCjProductBySku(sku);
+      const images = cjProductImages(product);
+      if (images[0]) return NextResponse.json({ imageUrl: images[0], images, sourceUrl, sku, source: 'cj-api' });
+    } catch (error) {
+      if (!sourceUrl) return NextResponse.json({ error: error?.message || 'CJ product media unavailable.' }, { status: 502 });
+    }
+  }
+
+  if (!/^https?:\/\//i.test(sourceUrl)) return NextResponse.json({ error: 'A valid supplier URL or CJ SKU is required.' }, { status: 400 });
   try {
-    const response = await fetch(sourceUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VoxelVaultProductResolver/1.0)' },
-      cache: 'no-store',
-    });
-    if (!response.ok) return NextResponse.json({ error: 'Supplier listing could not be fetched.' }, { status: 502 });
-    const html = await response.text();
-    const imageUrl = extractImage(html, sourceUrl);
-    if (!imageUrl) return NextResponse.json({ error: 'No public product image was advertised by the supplier listing.' }, { status: 404 });
-    return NextResponse.json({ imageUrl, sourceUrl });
+    const imageUrl = await scrapeFallback(sourceUrl);
+    if (!imageUrl) return NextResponse.json({ error: 'No product image could be resolved from CJ.' }, { status: 404 });
+    return NextResponse.json({ imageUrl, images: [imageUrl], sourceUrl, sku, source: 'page-fallback' });
   } catch (error) {
     return NextResponse.json({ error: error?.message || 'Supplier image resolution failed.' }, { status: 500 });
   }
