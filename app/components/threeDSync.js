@@ -1,4 +1,4 @@
-export const SYNC_VERSION = 3;
+export const SYNC_VERSION = 2;
 export const TASK_TTL_MS = 45 * 60 * 1000;
 export const MODEL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
