@@ -1,7 +1,7 @@
 'use client';
 
-import VaultUniverse from '../components/VaultUniverse';
+import RealWorldCommerceHome from '../components/RealWorldCommerceHome';
 
 export default function MarketplacePage() {
-  return <VaultUniverse />;
+  return <RealWorldCommerceHome />;
 }
