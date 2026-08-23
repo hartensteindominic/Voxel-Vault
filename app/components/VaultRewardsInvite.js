@@ -1,17 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function VaultRewardsInvite() {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const code = useMemo(() => {
-    if (typeof window === 'undefined') return 'VAULT-FRIEND';
+  const [code, setCode] = useState('VAULT-FRIEND');
+
+  useEffect(() => {
     const saved = window.localStorage.getItem('vv-referral-code');
-    if (saved) return saved;
+    if (saved) {
+      setCode(saved);
+      return;
+    }
+
     const generated = `VAULT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     window.localStorage.setItem('vv-referral-code', generated);
-    return generated;
+    setCode(generated);
   }, []);
 
   const copy = async () => {
