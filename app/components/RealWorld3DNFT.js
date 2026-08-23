@@ -18,7 +18,7 @@ function PendingMedia() {
   return <div className="vv3-accuracyEmpty">
     <div aria-hidden="true" style={{width:72,height:72,border:'1px solid rgba(255,255,255,.18)',borderRadius:20,display:'grid',placeItems:'center',marginBottom:16,background:'linear-gradient(145deg,rgba(143,112,255,.16),rgba(255,255,255,.03))'}}><span style={{fontSize:28,color:'#a894ff'}}>◇</span></div>
     <strong>Exact product media is being verified</strong>
-    <small>We removed generic or stock imagery. The supplier product photo and interactive 3D collectible will appear here only after they are confirmed to match the product you can actually buy.</small>
+    <small>Voxel Vault is syncing the supplier image and 3D review asset for this exact CJ product. Checkout stays locked until the product-specific model is approved.</small>
     <span style={{marginTop:12,fontSize:8,letterSpacing:'.14em',fontWeight:900,color:'#a894ff'}}>PREVIEW ONLY · CHECKOUT LOCKED</span>
   </div>;
 }
@@ -30,9 +30,12 @@ function VerifiedProductPhoto({ item }) {
 
   useEffect(() => {
     let active = true;
-    if (!item?.sourceUrl) return undefined;
+    if (!item?.sourceUrl && !item?.supplierSku) return undefined;
+    const params = new URLSearchParams();
+    if (item?.sourceUrl) params.set('url', item.sourceUrl);
+    if (item?.supplierSku) params.set('sku', item.supplierSku);
 
-    fetch(`/api/product-image?url=${encodeURIComponent(item.sourceUrl)}`, { cache: 'no-store' })
+    fetch(`/api/product-image?${params.toString()}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Product image unavailable'))))
       .then((data) => {
         if (active && data?.imageUrl && !isPlaceholder(data.imageUrl)) {
@@ -48,11 +51,11 @@ function VerifiedProductPhoto({ item }) {
       });
 
     return () => { active = false; };
-  }, [item?.sourceUrl, fallback]);
+  }, [item?.sourceUrl, item?.supplierSku, fallback]);
 
   if (!src || failed) return <PendingMedia />;
 
-  return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} from the linked supplier`} /><span>VERIFIED SUPPLIER PRODUCT IMAGE</span></div>;
+  return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} from CJdropshipping`} /><span>LIVE CJ PRODUCT IMAGE · 3D REVIEW PENDING</span></div>;
 }
 
 export default function RealWorld3DNFT({ item, hero = false }) {
@@ -67,16 +70,11 @@ export default function RealWorld3DNFT({ item, hero = false }) {
         <span className={`vv3-twinPill ${exactModelVerified ? 'is-verified' : 'is-pending'}`}><span aria-hidden="true">◆</span> {exactModelVerified ? 'VERIFIED 3D COLLECTIBLE' : 'EXACT 3D PENDING'}</span>
         <span className="vv3-twinSource">PRODUCT-SPECIFIC ACCURACY REQUIRED</span>
       </div>
-
-      <div className="vv3-accuracyStage">
-        {exactModelVerified ? <Product3DTwin item={item} hero={hero} /> : <VerifiedProductPhoto item={item} />}
-      </div>
-
+      <div className="vv3-accuracyStage">{exactModelVerified ? <Product3DTwin item={item} hero={hero} /> : <VerifiedProductPhoto item={item} />}</div>
       <div className={`vv3-accuracyStatus ${exactModelVerified ? 'is-verified' : 'is-pending'}`}>
         <strong>{exactModelVerified ? 'Exact 3D collectible verified' : 'Exact 3D collectible not yet verified'}</strong>
-        <small>{exactModelVerified ? 'This interactive 3D collectible has been checked against the physical product.' : 'Preview only. We will not show a generic shape or open checkout as though it were this product.'}</small>
+        <small>{exactModelVerified ? 'This interactive 3D collectible has been checked against the physical product.' : 'The real CJ product image can display now. Interactive 3D appears after the generated model is reviewed and approved.'}</small>
       </div>
-
       <figcaption className="vv3-twinFooter" id={titleId}>
         <div className="vv3-twinName"><small>{item?.creator || 'Voxel Vault'}</small><strong>{item?.name || 'Collectible object'}</strong></div>
         <div className="vv3-twinPrice"><small>PHYSICAL + 3D COLLECTIBLE</small>{price && <strong>{price}</strong>}</div>
