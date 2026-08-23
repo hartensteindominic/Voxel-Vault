@@ -1,9 +1,9 @@
-export const SYNC_VERSION = 3;
+export const SYNC_VERSION = 4;
 export const TASK_TTL_MS = 45 * 60 * 1000;
 export const MODEL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const key = (kind, id) => `voxel:3d:v${SYNC_VERSION}:${kind}:${id}`;
-const inFlightStarts = new Map();
+const inFlightChecks = new Map();
 
 function parse(value) {
   try { return value ? JSON.parse(value) : null; } catch { return null; }
@@ -63,23 +63,21 @@ export async function prime3D(item) {
     try { fetch(cached.url, { cache: 'force-cache', mode: 'cors' }).catch(() => {}); } catch {}
     return { status: 'ready', ...cached };
   }
-  const existing = readTask(item.id);
-  if (existing?.taskId) return existing;
-  if (inFlightStarts.has(item.id)) return inFlightStarts.get(item.id);
+  if (inFlightChecks.has(item.id)) return inFlightChecks.get(item.id);
 
-  const request = fetch('/api/image-to-3d', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ item }),
-  })
+  const request = fetch(`/api/catalog-3d?itemId=${encodeURIComponent(item.id)}`, { cache: 'no-store' })
     .then(async response => {
-      const data = await response.json();
-      if (!response.ok || !data?.taskId) throw new Error(data?.error || 'Unable to start 3D generation.');
-      return writeTask(item.id, { taskId: data.taskId, progress: 0, status: 'PENDING', prewarmed: true });
+      const data = response.ok ? await response.json() : null;
+      if (data?.modelUrl) {
+        try { fetch(data.modelUrl, { cache: 'force-cache', mode: 'cors' }).catch(() => {}); } catch {}
+        return writeModel(item.id, { url: data.modelUrl, provider: 'server-prebuilt', thumbnailUrl: data.thumbnailUrl || '' });
+      }
+      if (data?.taskId) return writeTask(item.id, { taskId: data.taskId, progress: Number(data.progress || 0), status: data.status || 'PENDING', serverOwned: true });
+      return { status: 'queued' };
     })
-    .finally(() => inFlightStarts.delete(item.id));
+    .finally(() => inFlightChecks.delete(item.id));
 
-  inFlightStarts.set(item.id, request);
+  inFlightChecks.set(item.id, request);
   return request;
 }
 
