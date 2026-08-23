@@ -6,12 +6,15 @@ import * as THREE from 'three';
 
 function ElementalPreview({ color, energy }) {
   const host = useRef(null);
+  const [available, setAvailable] = useState(true);
   useEffect(() => {
     const root = host.current; if (!root) return;
     let alive = true, raf, down = false, px = 0, py = 0;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, .1, 100); camera.position.z = 5;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer;
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
+    catch { setAvailable(false); return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none'; root.appendChild(renderer.domElement);
     const geometry = new THREE.IcosahedronGeometry(1.25, 4);
@@ -28,6 +31,7 @@ function ElementalPreview({ color, energy }) {
     const tick = () => { if (!alive) return; raf = requestAnimationFrame(tick); if (!down) { core.rotation.y += .003 + energy * .0000003; ring.rotation.z += .002; } core.scale.setScalar(1 + Math.sin(performance.now() * .002) * .025); renderer.render(scene, camera); }; tick();
     return () => { alive = false; cancelAnimationFrame(raf); observer.disconnect(); root.removeChild(renderer.domElement); geometry.dispose(); material.dispose(); renderer.dispose(); };
   }, [color, energy]);
+  if (!available) return <div role="status" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 8, padding: 30, textAlign: 'center' }}><strong style={{ fontSize: 18 }}>3D preview unavailable</strong><span style={{ maxWidth: 360, color: '#8d95a7', fontSize: 11, lineHeight: 1.55 }}>You can still capture, fingerprint, and save this twin. Open it later on a WebGL-capable device.</span></div>;
   return <div className="cap3d" ref={host} role="img" aria-label="Interactive elemental 3D twin. Drag in any direction to rotate." />;
 }
 
