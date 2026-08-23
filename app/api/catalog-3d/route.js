@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { catalog3DStoreHealth, createModelSignedUrl, readCatalog3D } from '../../../lib/catalog3dStore';
+import { catalog3DStoreHealth, readCatalog3D } from '../../../lib/catalog3dStore';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   const itemId = new URL(request.url).searchParams.get('itemId');
@@ -21,8 +22,8 @@ export async function GET(request) {
   const row = await readCatalog3D(itemId);
   if (!row) return NextResponse.json({ found: false, storageReady: true, storageBackend: health.backend, status: 'queued' });
 
-  const storedModelUrl = row.model_storage_path ? await createModelSignedUrl(row.model_storage_path, 60 * 60 * 6) : null;
-  const modelUrl = storedModelUrl || row.model_url || null;
+  const hasModel = Boolean(row.model_storage_path || row.model_url);
+  const modelUrl = hasModel ? `/api/catalog-3d/model?itemId=${encodeURIComponent(itemId)}` : null;
 
   return NextResponse.json({
     found: true,
@@ -31,7 +32,7 @@ export async function GET(request) {
     itemId: row.item_id,
     taskId: row.task_id || null,
     status: row.status || 'pending',
-    progress: row.progress || 0,
+    progress: hasModel ? 100 : row.progress || 0,
     modelUrl,
     modelStored: Boolean(row.model_storage_path),
     thumbnailUrl: row.thumbnail_url || null,
