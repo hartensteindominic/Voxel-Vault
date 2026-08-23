@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '@/lib/supabase';
+import { createCheckoutSession } from '@/lib/stripe';
+export async function POST(req:Request){try{const supabase=await getSupabaseServerClient();const {data:{user}}=await supabase.auth.getUser();if(!user)return NextResponse.json({error:'Unauthorized'},{status:401});const {plan}=await req.json();const priceId=plan==='studio'?process.env.STRIPE_STUDIO_PRICE_ID:process.env.STRIPE_PRO_PRICE_ID;if(!priceId)return NextResponse.json({error:'Billing is not configured yet'},{status:503});const session=await createCheckoutSession(user.id,user.email||'',priceId);return NextResponse.json({url:session.url});}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Checkout failed'},{status:500});}}

@@ -1,0 +1,6 @@
+'use client';
+import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
+const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+export default function Login(){const [email,setEmail]=useState('');const [msg,setMsg]=useState('');async function submit(e:React.FormEvent){e.preventDefault();setMsg('Sending secure sign-in link…');const {error}=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:`${window.location.origin}/auth/callback`}});setMsg(error?.message||'Check your email for the sign-in link.');}return <main className="shell section"><Link className="brand" href="/">Workflow<span>Forge</span></Link><div className="card" style={{maxWidth:520,margin:'70px auto'}}><h1>Sign in</h1><p className="muted">We use passwordless email authentication.</p><form className="form" onSubmit={submit}><label className="label">Email</label><input className="input" type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@business.com"/><button className="button" type="submit">Email me a sign-in link</button></form>{msg&&<p className="muted">{msg}</p>}<p className="muted">New here? <Link href="/signup">Create your account</Link></p></div></main>}
