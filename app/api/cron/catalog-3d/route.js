@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { REAL_WORLD_CATALOG } from '../../../../lib/realWorldCatalog';
-import { catalog3DStoreReady, listCatalog3D } from '../../../../lib/catalog3dStore';
+import { catalog3DStoreHealth, listCatalog3D } from '../../../../lib/catalog3dStore';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -15,16 +15,21 @@ function terminalFailure(row) {
   return ['FAILED', 'CANCELED'].includes(String(row?.status || '').toUpperCase());
 }
 
+function hasFinishedModel(row) {
+  return Boolean(row?.model_storage_path || row?.model_url);
+}
+
 export async function GET(request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const storeReady = await catalog3DStoreReady();
-  if (!storeReady) {
+  const health = await catalog3DStoreHealth();
+  if (!health.ready) {
     return NextResponse.json({
       ok: false,
       skipped: true,
       storageReady: false,
-      reason: 'catalog_3d_media is unavailable. Apply supabase/migrations/007_catalog_3d_media.sql to production Supabase before background generation can persist safely.',
+      storageBackend: health.backend,
+      reason: 'Persistent collectible storage is unavailable. Generation is paused to avoid duplicate paid jobs.',
     }, { status: 503 });
   }
 
@@ -33,19 +38,17 @@ export async function GET(request) {
   const byItem = new Map(rows.map(row => [row.item_id, row]));
   const operations = [];
 
-  // Advance every active provider task on every worker run.
   for (const row of rows) {
-    if (!row.task_id || row.model_url || terminalFailure(row)) continue;
+    if (!row.task_id || hasFinishedModel(row) || terminalFailure(row)) continue;
     operations.push(fetch(`${origin}/api/image-to-3d?taskId=${encodeURIComponent(row.task_id)}`, {
       cache: 'no-store',
     }).then(async response => ({ kind: 'poll', itemId: row.item_id, ok: response.ok, data: await response.json().catch(() => ({})) })));
   }
 
-  // Prebuild every catalog item. Failed/canceled tasks are retried automatically.
   const toStart = REAL_WORLD_CATALOG.filter(item => {
     const row = byItem.get(item.id);
     if (!row) return true;
-    if (row.model_url) return false;
+    if (hasFinishedModel(row)) return false;
     if (!row.task_id) return true;
     return terminalFailure(row);
   });
@@ -62,19 +65,22 @@ export async function GET(request) {
   const settled = await Promise.allSettled(operations);
   const failures = settled.filter(result => result.status === 'rejected' || (result.status === 'fulfilled' && !result.value?.ok)).length;
   const after = await listCatalog3D();
-  const ready = after.filter(row => Boolean(row.model_url)).length;
-  const building = after.filter(row => row.task_id && !row.model_url && !terminalFailure(row)).length;
+  const ready = after.filter(hasFinishedModel).length;
+  const building = after.filter(row => row.task_id && !hasFinishedModel(row) && !terminalFailure(row)).length;
   const failed = after.filter(terminalFailure).length;
 
   return NextResponse.json({
     ok: failures === 0,
     storageReady: true,
+    storageBackend: health.backend,
     catalogTotal: REAL_WORLD_CATALOG.length,
     ready,
     building,
     failed,
+    queued: Math.max(0, REAL_WORLD_CATALOG.length - ready - building - failed),
     started: toStart.length,
     operations: settled.length,
     operationFailures: failures,
+    updatedAt: new Date().toISOString(),
   });
 }

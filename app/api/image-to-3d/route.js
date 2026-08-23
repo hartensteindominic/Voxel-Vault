@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cjProductImages, getCjProductBySku } from '../../../lib/cjApi';
-import { readCatalog3D, readCatalog3DByTask, saveCatalog3D } from '../../../lib/catalog3dStore';
+import { persistModelBinary, readCatalog3D, readCatalog3DByTask, saveCatalog3D } from '../../../lib/catalog3dStore';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MULTI_IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
@@ -12,11 +13,11 @@ function buildPrompt(item = {}) {
   const name = [item.name, item.type].filter(Boolean).join(' / ') || 'the product';
   const material = item.material ? `Material: ${item.material}.` : '';
   return [
-    `Reconstruct the same physical product shown in the reference: ${name}.`,
+    `Reconstruct the same manufactured product shown in every reference image: ${name}.`,
     material,
-    'Preserve silhouette, dimensions, proportions, openings, controls, hardware, seams, colors and visible construction.',
+    'Treat all views as the same object. Preserve silhouette, proportions, thickness, openings, controls, hardware, seams, colors and visible construction.',
     'Do not redesign, stylize, simplify, add accessories, invent controls, logos, patterns or geometry.',
-    'Prioritize faithful geometry and appearance over artistic interpretation.'
+    'When views disagree, prefer geometry supported by multiple references. Prioritize faithful product reconstruction over artistic interpretation.'
   ].filter(Boolean).join(' ').slice(0, MAX_TEXTURE_PROMPT);
 }
 
@@ -36,7 +37,10 @@ async function scrapeProductImage(sourceUrl) {
       /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
     ];
-    for (const pattern of patterns) { const match = html.match(pattern); if (match?.[1]) { try { return new URL(match[1], sourceUrl).toString(); } catch {} } }
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match?.[1]) { try { return new URL(match[1], sourceUrl).toString(); } catch {} }
+    }
   } catch {}
   return '';
 }
@@ -67,10 +71,15 @@ export async function POST(request) {
     const body = await request.json();
     const item = body?.item && typeof body.item === 'object' ? body.item : {};
     const itemId = String(item?.id || body?.itemId || '').trim();
+
     if (itemId) {
       const saved = await readCatalog3D(itemId);
-      if (saved?.model_url) return NextResponse.json({ configured: true, reused: true, modelUrl: saved.model_url, taskId: saved.task_id || null, progress: 100 });
-      if (saved?.task_id && ['PENDING','IN_PROGRESS'].includes(String(saved.status || '').toUpperCase())) return NextResponse.json({ configured: true, reused: true, taskId: saved.task_id, progress: saved.progress || 0 });
+      if (saved?.model_url || saved?.model_storage_path) {
+        return NextResponse.json({ configured: true, reused: true, modelUrl: saved.model_url || null, stored: Boolean(saved.model_storage_path), taskId: saved.task_id || null, progress: 100 });
+      }
+      if (saved?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(saved.status || '').toUpperCase())) {
+        return NextResponse.json({ configured: true, reused: true, taskId: saved.task_id, progress: saved.progress || 0 });
+      }
     }
 
     const requestedImageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl.trim() : '';
@@ -120,11 +129,25 @@ export async function POST(request) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return NextResponse.json({ error: data?.message || data?.error || data?.task_error?.message || 'Model provider rejected the request.' }, { status: response.status });
+
     const rawTaskId = data?.result || data?.id || null;
     const taskId = rawTaskId ? `${useMultiView ? 'multi' : 'image'}:${rawTaskId}` : null;
-    if (itemId && taskId) await saveCatalog3D(itemId, { supplier_sku: item?.supplierSku || null, task_id: taskId, source_image_url: imageUrls[0], status: 'PENDING', progress: 0, started_at: new Date().toISOString(), error: null });
+    if (itemId && taskId) {
+      await saveCatalog3D(itemId, {
+        supplier_sku: item?.supplierSku || null,
+        task_id: taskId,
+        source_image_url: imageUrls[0],
+        source_image_urls: imageUrls,
+        status: 'PENDING',
+        progress: 0,
+        started_at: new Date().toISOString(),
+        error: null,
+      });
+    }
     return NextResponse.json({ configured: true, sourceImageUrl: imageUrls[0], sourceImageCount: imageUrls.length, generationMode: useMultiView ? 'multi-view' : 'single-view', taskId });
-  } catch (error) { return NextResponse.json({ error: error?.message || 'Model request failed.' }, { status: 500 }); }
+  } catch (error) {
+    return NextResponse.json({ error: error?.message || 'Model request failed.' }, { status: 500 });
+  }
 }
 
 export async function GET(request) {
@@ -132,18 +155,50 @@ export async function GET(request) {
   const taskId = new URL(request.url).searchParams.get('taskId');
   if (!apiKey) return NextResponse.json({ configured: false, error: 'Model generation is not configured.' }, { status: 503 });
   if (!taskId) return NextResponse.json({ error: 'taskId is required.' }, { status: 400 });
+
   try {
     const parsed = parseTaskId(taskId);
     const endpoint = parsed.mode === 'multi' ? MULTI_IMAGE_ENDPOINT : IMAGE_ENDPOINT;
     const response = await fetch(`${endpoint}/${encodeURIComponent(parsed.id)}`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: 'no-store' });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return NextResponse.json({ error: data?.message || data?.error || data?.task_error?.message || 'Unable to read model generation status.' }, { status: response.status });
+
     const status = data?.status || 'PENDING';
     const progress = Number(data?.progress ?? 0);
-    const modelUrl = data?.model_urls?.glb || null;
+    const providerModelUrl = data?.model_urls?.glb || null;
     const thumbnailUrl = data?.thumbnail_url || null;
     const saved = await readCatalog3DByTask(taskId);
-    if (saved?.item_id) await saveCatalog3D(saved.item_id, { task_id: taskId, status, progress, model_url: modelUrl || saved.model_url || null, thumbnail_url: thumbnailUrl || saved.thumbnail_url || null, completed_at: modelUrl ? new Date().toISOString() : saved.completed_at || null, error: data?.task_error?.message || null });
-    return NextResponse.json({ configured: true, generationMode: parsed.mode === 'multi' ? 'multi-view' : 'single-view', status, progress, modelUrl, thumbnailUrl, thumbnailUrls: data?.thumbnail_urls || null, error: data?.task_error?.message || null });
-  } catch (error) { return NextResponse.json({ error: error?.message || 'Model generation status request failed.' }, { status: 500 }); }
+    let modelStoragePath = saved?.model_storage_path || null;
+
+    if (providerModelUrl && saved?.item_id && !modelStoragePath) {
+      modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+    }
+
+    if (saved?.item_id) {
+      await saveCatalog3D(saved.item_id, {
+        task_id: taskId,
+        status,
+        progress: providerModelUrl ? 100 : progress,
+        model_url: providerModelUrl || saved.model_url || null,
+        model_storage_path: modelStoragePath || null,
+        thumbnail_url: thumbnailUrl || saved.thumbnail_url || null,
+        completed_at: providerModelUrl ? new Date().toISOString() : saved.completed_at || null,
+        error: data?.task_error?.message || null,
+      });
+    }
+
+    return NextResponse.json({
+      configured: true,
+      generationMode: parsed.mode === 'multi' ? 'multi-view' : 'single-view',
+      status,
+      progress: providerModelUrl ? 100 : progress,
+      modelUrl: providerModelUrl,
+      modelStored: Boolean(modelStoragePath),
+      thumbnailUrl,
+      thumbnailUrls: data?.thumbnail_urls || null,
+      error: data?.task_error?.message || null,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error?.message || 'Model generation status request failed.' }, { status: 500 });
+  }
 }
