@@ -9,12 +9,5 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 86400,
   },
-  experimental: {
-    parallelServerCompiles: false,
-    parallelServerBuildTraces: false,
-    webpackBuildWorker: true,
-    webpackMemoryOptimizations: true,
-    serverSourceMaps: false,
-  },
 };
 export default nextConfig;
