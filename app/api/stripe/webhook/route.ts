@@ -4,6 +4,8 @@ import { stripe } from '../../../../lib/stripe-server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { getCatalogItem } from '../../../../lib/catalog';
 import { submitPhysicalFulfillment } from '../../../../lib/fulfillment';
+import { buildVerifiedRewardRecord } from '../../../../lib/rewards/stripeWebhook.js';
+import { persistRewardEvent } from '../../../../lib/rewards/persistence.js';
 
 const WALLET_RE = /^0x[a-f0-9]{40}$/;
 type ShippingDetails = {
@@ -29,8 +31,14 @@ export async function POST(request: Request) {
   try { event = stripe.webhooks.constructEvent(payload, signature, secret); }
   catch { return NextResponse.json({ error: 'Invalid signature' }, { status: 400 }); }
 
+  const supabaseAdmin = getSupabaseAdmin();
+  let eventRecorded = false;
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const { error: eventError } = await supabaseAdmin.from('commerce_webhook_events').insert({ provider: 'stripe', event_id: event.id, event_type: event.type });
+    if (eventError?.code === '23505') return NextResponse.json({ received: true, duplicate: true });
+    if (eventError) throw eventError;
+    eventRecorded = true;
+    await supabaseAdmin.from('stripe_events').upsert({ id: event.id, type: event.type, livemode: Boolean(event.livemode) }, { onConflict: 'id', ignoreDuplicates: true });
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       const session = event.data.object as CheckoutSessionWithShipping;
       if (session.payment_status !== 'paid') return NextResponse.json({ received: true });
@@ -71,10 +79,16 @@ export async function POST(request: Request) {
             currency: session.currency || 'usd',
             physical_amount_cents: Number(session.metadata?.physical_amount_cents || 0),
             nft_amount_cents: Number(session.metadata?.nft_amount_cents || 0),
+            shipping_amount_cents: Number(session.metadata?.shipping_amount_cents || 0),
+            tax_amount_cents: Number(session.total_details?.amount_tax || 0),
+            total_amount_cents: Number(session.amount_total || 0),
+            order_status: 'fulfillment_pending',
             fulfillment_status: 'awaiting_fulfillment',
           }).select('id,fulfillment_status,fulfillment_order_id,tracking_number,tracking_url').single();
           if (error || !created) throw error ?? new Error('Physical order creation failed');
           order = created;
+          const { error: timelineError } = await supabaseAdmin.from('physical_order_events').insert({ physical_order_id: order.id, event_id: `${event.id}:paid`, event_type: 'payment_confirmed', public_message: 'Payment confirmed. Preparing your physical product.' });
+          if (timelineError) throw timelineError;
         }
 
         if (!['submitted', 'shipped', 'delivered'].includes(order.fulfillment_status)) {
@@ -87,15 +101,19 @@ export async function POST(request: Request) {
               email: session.customer_details?.email || session.customer_email || undefined,
             });
             const update: Record<string, unknown> = { fulfillment_status: fulfillment.status, updated_at: new Date().toISOString() };
+            update.order_status = fulfillment.status === 'submitted' ? 'submitted' : 'fulfillment_pending';
             if ('fulfillmentOrderId' in fulfillment && fulfillment.fulfillmentOrderId) update.fulfillment_order_id = fulfillment.fulfillmentOrderId;
             if ('trackingNumber' in fulfillment && fulfillment.trackingNumber) update.tracking_number = fulfillment.trackingNumber;
             if ('trackingUrl' in fulfillment && fulfillment.trackingUrl) update.tracking_url = fulfillment.trackingUrl;
-            await supabaseAdmin.from('physical_orders').update(update).eq('id', order.id);
+            const { error: orderUpdateError } = await supabaseAdmin.from('physical_orders').update(update).eq('id', order.id);
+            if (orderUpdateError) throw orderUpdateError;
+            const { error: fulfillmentTimelineError } = await supabaseAdmin.from('physical_order_events').upsert({ physical_order_id: order.id, event_id: `${event.id}:fulfillment`, event_type: 'fulfillment_submitted', public_message: fulfillment.status === 'submitted' ? 'Your order was accepted by the fulfillment partner.' : 'Your order is queued for fulfillment.' }, { onConflict: 'event_id' });
+            if (fulfillmentTimelineError) throw fulfillmentTimelineError;
           } catch (fulfillmentError) {
             console.error('VoxelVault physical fulfillment submission failed', fulfillmentError);
             // Stripe retries the signed webhook. The provider adapter uses the
             // durable Voxel Vault order ID as its idempotency key where supported.
-            return NextResponse.json({ error: 'Fulfillment submission failed; retrying' }, { status: 500 });
+            throw fulfillmentError;
           }
         }
         return NextResponse.json({ received: true });
@@ -115,8 +133,19 @@ export async function POST(request: Request) {
         if (entitlementError) throw entitlementError;
       }
     }
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntent = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+      if (paymentIntent) {
+        const { data: order } = await supabaseAdmin.from('physical_orders').update({ order_status: 'refunded', return_status: 'refunded', refunded_at: new Date().toISOString(), claim_eligible: false, updated_at: new Date().toISOString() }).eq('stripe_payment_intent_id', paymentIntent).select('id').maybeSingle();
+        if (order) await supabaseAdmin.from('physical_order_events').upsert({ physical_order_id: order.id, event_id: `${event.id}:refunded`, event_type: 'refunded', public_message: 'The order was refunded. Its delivery claim is closed.' }, { onConflict: 'event_id' });
+      }
+    }
+    const reward = buildVerifiedRewardRecord(event);
+    if (reward) await persistRewardEvent(reward);
   } catch (error) {
     console.error('VoxelVault webhook failed', error);
+    if (eventRecorded) await supabaseAdmin.from('commerce_webhook_events').delete().eq('provider', 'stripe').eq('event_id', event.id);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
   return NextResponse.json({ received: true });
