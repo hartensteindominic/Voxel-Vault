@@ -1,6 +1,6 @@
-export const SYNC_VERSION = 2;
+export const SYNC_VERSION = 3;
 export const TASK_TTL_MS = 45 * 60 * 1000;
-export const MODEL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const MODEL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const key = (kind, id) => `voxel:3d:v${SYNC_VERSION}:${kind}:${id}`;
 const inFlightStarts = new Map();
@@ -13,7 +13,10 @@ export function readModel(id) {
   try {
     const value = parse(window.localStorage.getItem(key('model', id)));
     if (!value?.url) return null;
-    if (value.savedAt && Date.now() - value.savedAt > MODEL_TTL_MS) return null;
+    if (value.savedAt && Date.now() - value.savedAt > MODEL_TTL_MS) {
+      window.localStorage.removeItem(key('model', id));
+      return null;
+    }
     return value;
   } catch { return null; }
 }
@@ -55,7 +58,11 @@ export function clearModel(id) {
 
 export async function prime3D(item) {
   if (typeof window === 'undefined' || !item?.id || item?.modelUri || item?.digitalTwin?.modelUrl) return null;
-  if (readModel(item.id)) return { status: 'ready' };
+  const cached = readModel(item.id);
+  if (cached?.url) {
+    try { fetch(cached.url, { cache: 'force-cache', mode: 'cors' }).catch(() => {}); } catch {}
+    return { status: 'ready', ...cached };
+  }
   const existing = readTask(item.id);
   if (existing?.taskId) return existing;
   if (inFlightStarts.has(item.id)) return inFlightStarts.get(item.id);
@@ -65,7 +72,7 @@ export async function prime3D(item) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ item }),
   })
-    .then(async (response) => {
+    .then(async response => {
       const data = await response.json();
       if (!response.ok || !data?.taskId) throw new Error(data?.error || 'Unable to start 3D generation.');
       return writeTask(item.id, { taskId: data.taskId, progress: 0, status: 'PENDING', prewarmed: true });
@@ -89,11 +96,11 @@ export function publish(id, message) {
 export function subscribe(id, handler) {
   try {
     const channel = new BroadcastChannel(channelName(id));
-    channel.onmessage = (event) => handler(event.data || {});
+    channel.onmessage = event => handler(event.data || {});
     return () => channel.close();
   } catch { return () => {}; }
 }
 
 export function pollDelay(attempt = 0) {
-  return Math.min(10000, 2500 + attempt * 900);
+  return Math.min(8500, 2200 + attempt * 800);
 }
