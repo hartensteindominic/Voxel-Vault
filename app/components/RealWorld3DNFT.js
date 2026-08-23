@@ -11,7 +11,7 @@ const Product3DTwin = dynamic(() => import('./Product3DTwin'), {
 });
 
 function isPlaceholder(url = '') {
-  return /unsplash\.com/i.test(url);
+  return /unsplash\.com|\/cj\/share\d+x\d+\.(?:jpg|jpeg|png|webp)(?:\?|$)|config-resource\/cj\/share/i.test(url);
 }
 
 function VerifiedProductPhoto({ item }) {
@@ -26,9 +26,12 @@ function VerifiedProductPhoto({ item }) {
     fetch(`/api/product-image?url=${encodeURIComponent(item.sourceUrl)}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Product image unavailable'))))
       .then((data) => {
-        if (active && data?.imageUrl) {
+        if (active && data?.imageUrl && !isPlaceholder(data.imageUrl)) {
           setSrc(data.imageUrl);
           setFailed(false);
+        } else if (active) {
+          setSrc('');
+          setFailed(true);
         }
       })
       .catch(() => {
@@ -39,7 +42,7 @@ function VerifiedProductPhoto({ item }) {
   }, [item?.sourceUrl, fallback]);
 
   if (!src || failed) {
-    return <div className="vv3-accuracyEmpty">Product image pending supplier verification</div>;
+    return <div className="vv3-accuracyEmpty"><strong>Product media under review</strong><small>The supplier returned a generic storefront graphic, so it has been removed. An exact lamp image will appear here only after verification.</small></div>;
   }
 
   return <div className="vv3-verifiedPhoto"><img src={src} alt={`${item?.name || 'Product'} from the linked supplier`} /><span>LIVE SUPPLIER PRODUCT IMAGE</span></div>;
