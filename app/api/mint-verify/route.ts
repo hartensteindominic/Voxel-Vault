@@ -24,11 +24,13 @@ export async function GET(request: Request) {
     if (!item) return NextResponse.json({ error: 'Catalog object unavailable' }, { status: 404 });
 
     let fulfillmentStatus = null;
+    let claimEligible = mintMode !== 'physical_nft';
+    let orderId = null;
     if (mintMode === 'physical_nft') {
       const supabaseAdmin = getSupabaseAdmin();
       const { data: order, error } = await supabaseAdmin
         .from('physical_orders')
-        .select('catalog_key,fulfillment_status')
+        .select('id,catalog_key,fulfillment_status,order_status,claim_eligible,tracking_number,tracking_url')
         .eq('stripe_checkout_session_id', sessionId)
         .maybeSingle();
       if (error) throw error;
@@ -36,6 +38,8 @@ export async function GET(request: Request) {
       if (order.catalog_key !== item.id) return NextResponse.json({ paid: false, error: 'Order/catalog mismatch' }, { status: 409 });
       if (['cancelled', 'failed'].includes(order.fulfillment_status)) return NextResponse.json({ paid: false, error: 'Physical fulfillment is not available for this order.' }, { status: 409 });
       fulfillmentStatus = order.fulfillment_status;
+      claimEligible = order.claim_eligible === true && order.fulfillment_status === 'delivered';
+      orderId = order.id;
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io';
@@ -43,6 +47,8 @@ export async function GET(request: Request) {
       paid: true,
       fulfillmentIncluded: mintMode === 'physical_nft',
       fulfillmentStatus,
+      claimEligible,
+      orderId,
       catalogId,
       wallet,
       item: {
