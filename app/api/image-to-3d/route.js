@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cjProductImages, getCjProductBySku } from '../../../lib/cjApi';
 
 export const runtime = 'nodejs';
 
@@ -10,27 +11,23 @@ function buildPrompt(item = {}) {
   const source = item.sourceName ? `This is a real commercial product listed by ${item.sourceName}.` : '';
   const note = item.sourceNote || '';
   return [
-    `Create a photorealistic, production-ready 3D digital twin of the exact physical product shown in the reference image: ${name || 'the product'}.`,
+    `Create a photorealistic review model of the exact physical product shown in the reference image: ${name || 'the product'}.`,
     material, source, note,
     'Match the reference exactly: silhouette, proportions, thickness, openings, seams, controls, buttons, handles, feet, hardware, surface finish, color placement and visible construction details.',
     'Do not redesign, stylize, voxelize, cartoonize, beautify, simplify, or add fictional components. Do not invent logos, labels, controls, accessories, patterns, or geometry that is not supported by the reference.',
-    'Preserve physically plausible manufacturing details and real-world scale. Produce clean manifold geometry suitable for an interactive e-commerce digital twin and NFT asset.',
+    'Preserve physically plausible manufacturing details and real-world scale. Produce clean manifold geometry suitable for interactive e-commerce review.',
     'Use realistic physically based materials with accurate roughness, metallic response, reflections and subtle surface variation. Keep textures aligned to the actual product rather than painting a generic material over the mesh.',
   ].filter(Boolean).join(' ');
 }
 
 function isPlaceholderImage(url = '') { return /unsplash\.com/i.test(url); }
+function isHttpUrl(value = '') { try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } }
 
-function isHttpUrl(value = '') {
-  try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; }
-}
-
-async function resolveProductImage(imageUrl, sourceUrl) {
-  if (imageUrl && !isPlaceholderImage(imageUrl)) return imageUrl;
-  if (!isHttpUrl(sourceUrl)) return imageUrl || '';
+async function scrapeProductImage(sourceUrl) {
+  if (!isHttpUrl(sourceUrl)) return '';
   try {
     const response = await fetch(sourceUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VoxelVaultProductResolver/1.0)' }, cache: 'no-store' });
-    if (!response.ok) return imageUrl || '';
+    if (!response.ok) return '';
     const html = await response.text();
     const patterns = [
       /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
@@ -38,12 +35,21 @@ async function resolveProductImage(imageUrl, sourceUrl) {
       /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
     ];
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
-      if (match?.[1]) { try { return new URL(match[1], sourceUrl).toString(); } catch {} }
-    }
+    for (const pattern of patterns) { const match = html.match(pattern); if (match?.[1]) { try { return new URL(match[1], sourceUrl).toString(); } catch {} } }
   } catch {}
-  return imageUrl || '';
+  return '';
+}
+
+async function resolveProductImage(imageUrl, item) {
+  if (imageUrl && !isPlaceholderImage(imageUrl)) return imageUrl;
+  if (item?.supplierSku) {
+    try {
+      const product = await getCjProductBySku(item.supplierSku);
+      const images = cjProductImages(product);
+      if (images[0]) return images[0];
+    } catch {}
+  }
+  return scrapeProductImage(item?.sourceUrl || '');
 }
 
 export async function POST(request) {
@@ -53,8 +59,8 @@ export async function POST(request) {
     const body = await request.json();
     const item = body?.item && typeof body.item === 'object' ? body.item : {};
     const requestedImageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl.trim() : '';
-    const imageUrl = await resolveProductImage(requestedImageUrl, typeof item.sourceUrl === 'string' ? item.sourceUrl : '');
-    if (!isHttpUrl(imageUrl)) return NextResponse.json({ error: 'A public product image URL could not be resolved from the supplier listing.' }, { status: 400 });
+    const imageUrl = await resolveProductImage(requestedImageUrl, item);
+    if (!isHttpUrl(imageUrl)) return NextResponse.json({ error: 'A public CJ product image could not be resolved. Confirm CJ_API_KEY and the supplier SKU.' }, { status: 400 });
     const response = await fetch(MESHY_ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
