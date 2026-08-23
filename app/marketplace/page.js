@@ -7,6 +7,7 @@ import RealWorld3DNFT from '../components/RealWorld3DNFT';
 import CJProductCard from '../components/CJProductCard';
 import '../components/CJMarketplace.css';
 import '../components/CJMarketplaceCards.css';
+import '../components/ReadinessClarity.css';
 
 function modelState(item){const model=item.modelUri||item.digitalTwin?.modelUrl;if(model&&item.digitalTwin?.exactModelVerified)return'verified';if(model)return'review';return'pending'}
 function isReady(item){return Boolean(item.fulfillmentReady&&item.purchaseAssetId&&modelState(item)==='verified')}
