@@ -28,22 +28,20 @@ export async function GET(request) {
     return NextResponse.json({
       found: false,
       storageReady: false,
-      storageBackend: health.backend,
-      status: 'storage_unavailable',
-      error: 'Persistent collectible storage is not ready.',
-    }, { status: 503 });
+      status: 'preparing',
+      message: 'Collectible preparation is temporarily unavailable.',
+    }, { status: 200, headers: { 'Cache-Control': 'no-store' } });
   }
 
   if (!itemId) {
     const rows = await listCatalog3D();
     return NextResponse.json({
       storageReady: true,
-      storageBackend: health.backend,
       items: rows.map(publicRow).filter(Boolean),
     }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   const row = await readCatalog3D(itemId);
-  if (!row) return NextResponse.json({ found: false, storageReady: true, storageBackend: health.backend, status: 'queued' });
-  return NextResponse.json({ found: true, storageReady: true, storageBackend: health.backend, ...publicRow(row) }, { headers: { 'Cache-Control': 'no-store' } });
+  if (!row) return NextResponse.json({ found: false, storageReady: true, status: 'queued' }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ found: true, storageReady: true, ...publicRow(row) }, { headers: { 'Cache-Control': 'no-store' } });
 }
