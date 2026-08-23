@@ -74,14 +74,13 @@ export default function RealProductModel({ item, onLoaded, onUnavailable }) {
 
     const render = () => {
       if (!alive) return;
-      if (visible && dirty) {
+      if (visible) {
         if (model) {
-          const beforeX = model.rotation.x;
-          const beforeY = model.rotation.y;
+          if (!dragging) targetY += 0.007;
           model.rotation.x += (targetX - model.rotation.x) * 0.18;
           model.rotation.y += (targetY - model.rotation.y) * 0.18;
-          dirty = dragging || Math.abs(model.rotation.x - targetX) > 0.001 || Math.abs(model.rotation.y - targetY) > 0.001 || Math.abs(beforeX-model.rotation.x)>0.001 || Math.abs(beforeY-model.rotation.y)>0.001;
-        } else dirty = false;
+          model.position.y = 0.05 + Math.sin(performance.now() / 1100) * 0.045;
+        }
         camera.position.set(0, 0.15, distance);
         camera.lookAt(0, 0, 0);
         renderer.render(scene, camera);
