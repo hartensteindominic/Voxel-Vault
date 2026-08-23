@@ -2,7 +2,7 @@
   "framework": "nextjs",
   "regions": ["iad1"],
   "crons": [
-    { "path": "/api/cron/catalog-3d", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/catalog-3d", "schedule": "* * * * *" }
   ],
   "headers": [
     {

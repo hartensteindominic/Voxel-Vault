@@ -29,12 +29,25 @@ export default function Auto3DPreview({ item, hero = false }) {
       if(!alive)return;
       try{
         const response=await fetch(`/api/catalog-3d?itemId=${encodeURIComponent(item.id)}`,{cache:'no-store'});
-        const data=response.ok?await response.json():null;
+        const data=await response.json().catch(()=>null);
         if(!alive)return;
+
         if(data?.modelUrl){useReadyModel(data.modelUrl);return;}
-        if(data?.taskId){setStatus('building');setProgress(Math.max(0,Math.min(99,Number(data.progress||0))));}
-        else setStatus('queued');
-        timer=window.setTimeout(check,5000);
+        if(data?.storageReady===false){
+          setStatus('storage');
+          setError('Collectible storage is not connected in production yet. The server cannot safely keep finished models until that database migration is applied.');
+          timer=window.setTimeout(check,10000);
+          return;
+        }
+        if(data?.taskId){
+          setStatus('building');
+          setProgress(Math.max(0,Math.min(99,Number(data.progress||0))));
+          setError(data?.error||'');
+        } else {
+          setStatus('queued');
+          setError('');
+        }
+        timer=window.setTimeout(check,4000);
       }catch(e){
         if(!alive)return;
         setStatus('waiting');setError(e?.message||'Preview status temporarily unavailable.');
@@ -49,6 +62,8 @@ export default function Auto3DPreview({ item, hero = false }) {
   if(modelUrl)return <div><Product3DTwin item={runtimeItem} hero={hero}/><div className="vv3-liveReview"><b>INTERACTIVE PREVIEW READY · MATCH REVIEW</b><span>This prebuilt model is reused across visits and devices. It remains preview-only until Voxel Vault confirms it closely matches the physical item.</span></div></div>;
 
   const finishing=progress>=95;
-  const message=status==='queued'?'Preview is queued in the background':status==='building'?(finishing?'Finishing your interactive preview…':`Preparing interactive preview${progress?` · ${progress}%`:''}`):status==='waiting'?'Preview is still preparing':'Checking for a prebuilt preview…';
-  return <div className="vv3-generationState"><div className="vv3-generationOrb">◆</div><strong>{message}</strong><small>{error||'Generation runs on Voxel Vault servers, not on your phone. You can leave the site and come back later; finished assets are saved and load instantly when available.'}</small>{status==='building'&&<div className="vv3-progress"><i style={{width:`${Math.max(6,Math.min(99,progress||8))}%`}}/></div>}</div>;
+  const message=status==='storage'?'Collectible pipeline needs storage':status==='queued'?'Prebuilding this collectible':status==='building'?(finishing?'Finishing the collectible…':`Prebuilding collectible${progress?` · ${progress}%`:''}`):status==='waiting'?'Collectible is still preparing':'Checking for a prebuilt collectible…';
+  const detail=status==='storage'?error:status==='queued'?'This product is in the server build queue. No generation happens on your iPhone.':status==='building'?(finishing?'The provider is packaging the finished model. The server checks every minute and saves it permanently when ready.':'Voxel Vault is building this once on the server so future visitors load the finished object instead of waiting for generation.'):error||'Finished assets are loaded from the server and cached on your device for fast repeat visits.';
+
+  return <div className="vv3-generationState"><div className="vv3-generationOrb">◆</div><strong>{message}</strong><small>{detail}</small>{status==='building'&&<div className="vv3-progress"><i style={{width:`${Math.max(6,Math.min(99,progress||8))}%`}}/></div>}</div>;
 }
