@@ -48,10 +48,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const candidate = { ...current, ...patch };
     const readiness = getVaultReadyReport(candidate);
     const action = body.action;
-    if (action === 'publish' && !readiness.ready) {
-      return NextResponse.json({ error: 'Product is not Vault Ready.', readiness }, { status: 409 });
-    }
-    if (action && !['save', 'review', 'publish', 'unpublish'].includes(String(action))) {
+    if (action && !['save', 'review'].includes(String(action))) {
       return NextResponse.json({ error: 'Invalid product action.' }, { status: 400 });
     }
     patch.readiness = readiness;
@@ -60,16 +57,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       patch.status = readiness.ready ? 'ready' : 'review';
       patch.published_at = null;
     }
-    if (action === 'publish') {
-      patch.status = 'published';
-      patch.published_at = new Date().toISOString();
-    }
-    if (action === 'unpublish') {
-      patch.status = readiness.ready ? 'ready' : 'draft';
-      patch.published_at = null;
-    }
     if (!action && current.status !== 'published') patch.status = readiness.ready ? 'ready' : 'draft';
-    if (current.status === 'published' && action !== 'publish' && !readiness.ready) {
+    if (current.status === 'published' && !readiness.ready) {
       patch.status = 'draft';
       patch.published_at = null;
     }
