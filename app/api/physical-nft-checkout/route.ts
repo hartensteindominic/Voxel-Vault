@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '../../../lib/stripe-server';
 import { getCatalogItem } from '../../../lib/catalog';
 import { getSupabaseAdmin } from '../../../lib/supabase-admin';
-import { preflightPhysicalFulfillment } from '../../../lib/fulfillment';
+import { preflightPhysicalFulfillment } from '../../../lib/fulfillment-preflight';
 
 const NFT_FEE_CENTS = 299;
 const DEFAULT_MARKUP_PERCENT = 25;
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     if (!pilotCatalogKey) return NextResponse.json({ error: 'The one-product shipping pilot is not activated.', code: 'PILOT_NOT_CONFIGURED' }, { status: 503 });
     if (item.id !== pilotCatalogKey) return NextResponse.json({ error: 'Only the verified pilot product is available for home delivery right now.', code: 'PILOT_SKU_ONLY' }, { status: 409 });
 
-    const fulfillment = await preflightPhysicalFulfillment(item.id, 'US');
+    const fulfillment = await preflightPhysicalFulfillment(item.id);
     if (!fulfillment.configured) {
       return NextResponse.json({
         error: 'This product is source-verified but not connected to a Voxel Vault fulfillment supplier yet.',
