@@ -22,10 +22,10 @@ function customerPriceCents(basePrice) {
 
 export async function POST(request: Request) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
     const auth = request.headers.get('authorization');
     const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
     if (!token) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const supabaseAdmin = getSupabaseAdmin();
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
