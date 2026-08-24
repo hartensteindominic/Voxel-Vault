@@ -29,7 +29,18 @@ export async function POST(request:Request){
       if(!existingResponse.ok||!['FAILED','EXPIRED','CANCELED','CANCELLED'].includes(existingStatus)) return NextResponse.json({configured:true,reused:true,taskId:existingTask});
       if(retryCount>=1) return NextResponse.json({error:'This mesh has already used its retry. Please contact support if it still cannot finish.'},{status:409});retryCount+=1;
     }
-    const response=await fetch(MESH_ENDPOINT,{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({image_url:image,model_type:'smart-topology',ai_model:'meshy-t2',target_polycount:12000,should_texture:true,enable_pbr:true,texture_resolution:'2k',texture_image_url:image,image_enhancement:false,target_formats:['glb'],auto_size:true,origin_at:'bottom',alpha_thumbnail:true,multi_view_thumbnails:true,moderation:true}),cache:'no-store'});
+    // Meshy smart-topology rejects image_enhancement. Keep the request intentionally minimal
+    // so it remains compatible with the current Image-to-3D API while still returning a textured GLB.
+    const meshPayload={
+      image_url:image,
+      model_type:'smart-topology',
+      target_polycount:12000,
+      should_texture:true,
+      enable_pbr:true,
+      texture_resolution:'2k',
+      target_formats:['glb'],
+    };
+    const response=await fetch(MESH_ENDPOINT,{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify(meshPayload),cache:'no-store'});
     const data=await response.json().catch(()=>({}));if(!response.ok) return NextResponse.json({error:providerMessage(data)},{status:response.status});const taskId=String(data?.result||data?.id||'');if(!taskId) return NextResponse.json({error:'The 3D provider did not return a task ID.'},{status:502});
     await stripe.checkout.sessions.update(sessionId,{metadata:{...(session.metadata||{}),[taskKey]:taskId,[retryKey]:String(retryCount),mesh_name_0:String(body?.name||'your-voxel').slice(0,80),mesh_idea_0:idea.slice(0,120)}});
     return NextResponse.json({configured:true,reused:false,taskId});
