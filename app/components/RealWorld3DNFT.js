@@ -22,7 +22,10 @@ export default function RealWorld3DNFT({ item, hero = false, compact = false }) 
     if (!compact) return undefined;
     const node = frame.current;
     if (!node) return undefined;
-    const io = new IntersectionObserver(([entry]) => setSeen(entry.isIntersecting), { rootMargin: '80px', threshold: 0.05 });
+    const io = new IntersectionObserver(
+      ([entry]) => setSeen(Boolean(entry?.isIntersecting)),
+      { rootMargin: '120px', threshold: 0.02 },
+    );
     io.observe(node);
     return () => io.disconnect();
   }, [compact]);
@@ -32,7 +35,13 @@ export default function RealWorld3DNFT({ item, hero = false, compact = false }) 
   if (compact) {
     return (
       <figure ref={frame} className="vv3-modelFrame vv3-compact" aria-labelledby={titleId}>
-        <div className="vv3-accuracyStage">{stage}</div>
+        <div className="vv3-accuracyStage">
+          <div className="vv3-loopChrome" aria-hidden="true">
+            <span><i /> Dynamic 3D</span>
+            <span>Auto-rotating</span>
+          </div>
+          {stage}
+        </div>
         <figcaption className="vv3-compactFoot" id={titleId}>
           <strong>{item?.name || '3D NFT'}</strong>
           {price ? <span>{price}</span> : null}
