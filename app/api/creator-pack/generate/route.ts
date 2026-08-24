@@ -32,7 +32,6 @@ async function describeReference(config:NonNullable<ReturnType<typeof aiConfig>>
     headers:{Authorization:`Bearer ${config.key}`,'Content-Type':'application/json'},
     body:JSON.stringify({
       model:config.vision,
-      max_tokens:220,
       messages:[{role:'user',content:[
         {type:'text',text:'Describe this reference for an asset-pack art director. Focus on subject identity, distinctive shapes, materials, colors, mood and visual motifs. Do not identify private people. Keep it under 120 words.'},
         {type:'image_url',image_url:{url:image,detail:'low'}},
@@ -85,7 +84,6 @@ export async function POST(request:Request){
         quality:'low',
         background:'transparent',
         output_format:'png',
-        response_format:'b64_json',
       }),
     });
 
