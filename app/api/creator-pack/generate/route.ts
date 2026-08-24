@@ -15,9 +15,9 @@ type AIConfig={key:string;base:string;imageModels:string[]};
 
 function aiConfigs(request:Request):AIConfig[]{
   const configs:AIConfig[]=[];
-  if(process.env.OPENAI_API_KEY) configs.push({key:process.env.OPENAI_API_KEY,base:'https://api.openai.com/v1',imageModels:['gpt-image-2','gpt-image-1.5','gpt-image-1']});
+  if(process.env.OPENAI_API_KEY) configs.push({key:process.env.OPENAI_API_KEY,base:'https://api.openai.com/v1',imageModels:['gpt-image-1']});
   const gatewayKey=process.env.AI_GATEWAY_API_KEY || request.headers.get('x-vercel-oidc-token') || process.env.VERCEL_OIDC_TOKEN;
-  if(gatewayKey) configs.push({key:gatewayKey,base:'https://ai-gateway.vercel.sh/v1',imageModels:['openai/gpt-image-2','openai/gpt-image-1.5','openai/gpt-image-1']});
+  if(gatewayKey) configs.push({key:gatewayKey,base:'https://ai-gateway.vercel.sh/v1',imageModels:['openai/gpt-image-1']});
   return configs;
 }
 
@@ -28,14 +28,14 @@ async function generateImage(config:AIConfig,prompt:string){
       const response=await fetch(`${config.base}/images/generations`,{
         method:'POST',
         headers:{Authorization:`Bearer ${config.key}`,'Content-Type':'application/json'},
-        body:JSON.stringify({model,prompt,n:1,size:'1024x1024',quality:'medium',background:'opaque',output_format:'jpeg',output_compression:88})
+        body:JSON.stringify({model,prompt,n:1,size:'1024x1024',quality:'medium'})
       });
       if(!response.ok){last=`${model} ${response.status}: ${(await response.text()).slice(0,700)}`;console.error('VoxelPop image model failed',config.base,last);continue;}
       const generated=await response.json();
       const item=generated?.data?.[0];
-      if(item?.b64_json) return `data:image/jpeg;base64,${item.b64_json}`;
+      if(item?.b64_json) return `data:image/png;base64,${item.b64_json}`;
       if(item?.url){
-        const imageResponse=await fetch(item.url);
+        const imageResponse=await fetch(item.url,{cache:'no-store'});
         if(imageResponse.ok){const bytes=Buffer.from(await imageResponse.arrayBuffer());return `data:${imageResponse.headers.get('content-type')||'image/png'};base64,${bytes.toString('base64')}`;}
       }
       last=`${model}: empty image response`;
@@ -54,10 +54,10 @@ export async function POST(request:Request){
 
     const session=await stripe.checkout.sessions.retrieve(sessionId);
     if(session.payment_status!=='paid'||session.metadata?.product!=='voxelpop-3d-asset') return NextResponse.json({error:'A completed VoxelPop 3D Asset purchase is required.'},{status:403});
-    if(Number(session.metadata?.generations||0)>=1) return NextResponse.json({error:'This purchase has already generated its voxel. You can continue building or downloading its 3D mesh.'},{status:409});
+    if(Number(session.metadata?.generations||0)>=1) return NextResponse.json({error:'This purchase has already generated its voxel. Return to this purchase on the same device to continue building or downloading its 3D mesh.'},{status:409});
 
     const configs=aiConfigs(request);
-    if(!configs.length) return NextResponse.json({error:'VoxelPop needs an image-generation API key on this deployment. Your purchase is still valid.'},{status:503});
+    if(!configs.length) return NextResponse.json({error:'VoxelPop image generation is not configured on this deployment. Add OPENAI_API_KEY or AI_GATEWAY_API_KEY in Vercel; your purchase remains valid.'},{status:503});
 
     const finish=styleDirections[style]||styleDirections.polished;
     const prompt=`Create ONE complete 3D voxel game asset of: ${idea}. Visual direction: ${finish}. Front three-quarter view, whole subject visible, centered with generous padding. Strong readable voxel/block geometry and depth. Isolated subject only on a plain white background. No scene, floor, platform, border, text, letters, numbers, logo or watermark. This image will be used for image-to-3D reconstruction, so keep all major forms distinct and visible.`;
@@ -72,7 +72,7 @@ export async function POST(request:Request){
     }
 
     console.error('All VoxelPop image providers failed',lastError.slice(0,1200));
-    return NextResponse.json({error:'Voxel generation could not start. Your purchase is still valid. Please retry after the deployment updates.'},{status:502});
+    return NextResponse.json({error:'Voxel generation is temporarily unavailable. Your purchase is still valid and has not been used. Please retry.'},{status:502});
   }catch(error){
     console.error('custom 3D voxel generation failed',error);
     return NextResponse.json({error:'Unable to generate your voxel right now. Your purchase is still valid; please retry.'},{status:500});
