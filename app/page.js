@@ -1,3 +1,5 @@
-'use client';
-import VoxelStorefront from './components/VoxelStorefront';
-export default function Home(){return <VoxelStorefront/>;}
+import StudioPage from './studio/page';
+
+export default function Home() {
+  return <StudioPage />;
+}
