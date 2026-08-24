@@ -10,12 +10,12 @@ const previewAssets = [
 ];
 
 const categories = [
-  ['01','Combat','Sword · shield · bow · arrow · helmet'],
-  ['02','Loot','Coin · gem · chest · key · crown · ring'],
-  ['03','Magic','Potions · crystal · scroll · book · orb · portal'],
-  ['04','World','Tree · rock · torch · mushroom · slime'],
-  ['05','Tools','Pickaxe · axe · hammer · backpack · map'],
-  ['06','Buildings','Castle · tower · house · crate · barrel'],
+  ['01','Hero set','Character · companion · helmet · signature item'],
+  ['02','Combat','Weapon · shield · bow · projectile · tool'],
+  ['03','Loot','Coin · gem · chest · key · collectible'],
+  ['04','Magic','Potion · crystal · spell · orb · portal'],
+  ['05','World','Tree · rock · plant · prop · container'],
+  ['06','Landmarks','Building · tower · sign · special structure'],
 ];
 
 function VoxelIcon({kind}) {
@@ -37,19 +37,51 @@ function VoxelIcon({kind}) {
   return <svg viewBox="0 0 96 96" aria-hidden="true">{common}{shapes[kind]}</svg>;
 }
 
+async function compressReference(file){
+  const bitmap=await createImageBitmap(file);
+  const max=640;
+  const scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  const ctx=canvas.getContext('2d');
+  if(!ctx) throw new Error('Image preview is not supported in this browser.');
+  ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  bitmap.close?.();
+  return canvas.toDataURL('image/jpeg',.78);
+}
+
 export default function StudioPage(){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const [idea,setIdea]=useState('Cozy medieval fantasy adventure with warm lantern light, mossy stone and emerald accents');
+  const [style,setStyle]=useState('polished');
+  const [reference,setReference]=useState('');
+  const [referenceName,setReferenceName]=useState('');
+
+  async function chooseReference(event){
+    const file=event.target.files?.[0];
+    if(!file) return;
+    if(!file.type.startsWith('image/')){setError('Please choose a JPG, PNG or WebP image.');return;}
+    if(file.size>12*1024*1024){setError('Please choose an image under 12 MB.');return;}
+    try{
+      setError('');
+      setReference(await compressReference(file));
+      setReferenceName(file.name);
+    }catch(err){setError(err instanceof Error?err.message:'Could not read that image.');}
+  }
 
   async function buy(){
+    if(idea.trim().length<8){setError('Describe the world or subject you want first.');return;}
     setBusy(true); setError('');
     try{
-      const response=await fetch('/api/creator-pack/checkout',{method:'POST'});
+      sessionStorage.setItem('voxelPackBrief',JSON.stringify({idea:idea.trim().slice(0,600),style,reference,referenceName}));
+      const response=await fetch('/api/creator-pack/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:idea.trim().slice(0,180),style})});
       const data=await response.json();
       if(!response.ok||!data.url) throw new Error(data.error||'Checkout unavailable');
       location.href=data.url;
-    }catch(error){
-      setError(error instanceof Error ? error.message : 'Checkout unavailable');
+    }catch(err){
+      setError(err instanceof Error?err.message:'Checkout unavailable');
       setBusy(false);
     }
   }
@@ -57,56 +89,66 @@ export default function StudioPage(){
   return <main className={styles.page}>
     <nav className={styles.nav}>
       <a className={styles.brand} href="/"><span>VV</span><b>Voxel Vault</b></a>
-      <div className={styles.navLinks}><a href="#inside">What’s inside</a><a href="#license">License</a></div>
-      <button className={styles.navBuy} onClick={buy} disabled={busy}>Get the pack <b>$15</b></button>
+      <div className={styles.navLinks}><a href="#make">Make yours</a><a href="#inside">What you get</a><a href="#license">License</a></div>
+      <button className={styles.navBuy} onClick={()=>document.getElementById('make')?.scrollIntoView({behavior:'smooth'})}>Create a pack <b>$15</b></button>
     </nav>
 
     <section className={styles.hero}>
       <div className={styles.heroCopy}>
-        <div className={styles.eyebrow}><span>NEW</span> THE VOXEL CREATOR PACK</div>
-        <h1>Build your world.<br/><em>Skip the blank canvas.</em></h1>
-        <p className={styles.lead}>36 editable voxel-style assets for games, thumbnails, communities and creator projects — ready to download in one organized pack.</p>
-        <div className={styles.offer}>
-          <div className={styles.offerPrice}><strong>$15</strong><span><b>ONE-TIME</b>Instant download</span></div>
-          <button className={styles.buy} onClick={buy} disabled={busy}>{busy?'Opening secure checkout…':'Get all 36 assets →'}</button>
-          <div className={styles.micro}><span>✓ Commercial use</span><span>✓ Editable SVG</span><span>✓ No subscription</span></div>
-        </div>
-        {error&&<p className={styles.error}>{error}</p>}
+        <div className={styles.eyebrow}><span>AI</span> CUSTOM VOXEL ASSET PACK</div>
+        <h1>One idea in.<br/><em>25 matching assets out.</em></h1>
+        <p className={styles.lead}>Describe a world — or add a reference photo — and get a coordinated 25-piece voxel-style PNG asset pack generated for your project.</p>
+        <div className={styles.heroPoints}><span>✓ Your theme</span><span>✓ Transparent PNGs</span><span>✓ Commercial-use license</span></div>
+        <a className={styles.heroButton} href="#make">Build my pack — $15 <span>→</span></a>
+        <p className={styles.heroFine}>One-time payment · no subscription · generated after purchase</p>
       </div>
 
       <div className={styles.productWrap}>
         <div className={styles.glow}/>
         <div className={styles.productWindow}>
-          <div className={styles.windowTop}><div><i/><i/><i/></div><span>VOXEL_CREATOR_PACK / PREVIEW</span><b>36 FILES</b></div>
+          <div className={styles.windowTop}><div><i/><i/><i/></div><span>CUSTOM_PACK / PREVIEW</span><b>25 ASSETS</b></div>
           <div className={styles.assetGrid}>{previewAssets.map(([kind,name],i)=><div className={styles.asset} key={kind}><span className={styles.assetNumber}>{String(i+1).padStart(2,'0')}</span><VoxelIcon kind={kind}/><small>{name}</small></div>)}</div>
-          <div className={styles.windowBottom}><div><b>36</b><span>editable assets</span></div><div><b>SVG</b><span>scalable files</span></div><div><b>$0.42</b><span>per asset</span></div></div>
+          <div className={styles.windowBottom}><div><b>25</b><span>matching PNGs</span></div><div><b>1:1</b><span>square assets</span></div><div><b>$0.60</b><span>per asset</span></div></div>
         </div>
-        <div className={styles.floatBadge}><span>+</span><div><b>COMMERCIAL LICENSE</b><small>included in the download</small></div></div>
+        <div className={styles.floatBadge}><span>+</span><div><b>MADE FROM YOUR IDEA</b><small>not a generic stock pack</small></div></div>
       </div>
     </section>
 
-    <section className={styles.trustBar}><span>36 EDITABLE ASSETS</span><i>◆</i><span>INSTANT DOWNLOAD</span><i>◆</i><span>COMMERCIAL USE</span><i>◆</i><span>SECURE CHECKOUT</span></section>
+    <section className={styles.trustBar}><span>25 CUSTOM ASSETS</span><i>◆</i><span>YOUR PHOTO OR WORDS</span><i>◆</i><span>TRANSPARENT PNG</span><i>◆</i><span>ONE ZIP DOWNLOAD</span></section>
+
+    <section className={styles.builderSection} id="make">
+      <div className={styles.builderIntro}><p className={styles.kicker}>MAKE YOUR PACK</p><h2>Give the generator a direction.</h2><p>Keep it simple. A game world, character, product, pet, brand mascot or visual theme is enough.</p></div>
+      <div className={styles.builderCard}>
+        <label className={styles.field}><span>1. Describe the pack</span><textarea value={idea} maxLength={600} onChange={e=>setIdea(e.target.value)} placeholder="Example: cute cyberpunk cat café with neon pink signs and tiny robot waiters"/><small>{idea.length}/600</small></label>
+        <div className={styles.styleRow}><span>2. Pick a finish</span><div>{[['polished','Polished'],['chunky','Chunky'],['cute','Cute'],['dark','Dark fantasy']].map(([value,label])=><button key={value} type="button" className={style===value?styles.styleActive:''} onClick={()=>setStyle(value)}>{label}</button>)}</div></div>
+        <label className={styles.upload}><input type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseReference}/><div className={styles.uploadIcon}>{reference?<img src={reference} alt="Reference preview"/>:<span>＋</span>}</div><div><b>{referenceName||'3. Add a reference photo (optional)'}</b><p>{reference?'We’ll use its subject, palette and visual cues. Tap to replace it.':'Photo, sketch, product, pet or character reference · JPG/PNG/WebP'}</p></div><strong>{reference?'CHANGE':'UPLOAD'}</strong></label>
+        <div className={styles.orderBox}><div><span>Custom AI Voxel Pack</span><small>25 coordinated transparent PNG assets + ZIP + license</small></div><strong>$15</strong></div>
+        <button className={styles.buy} onClick={buy} disabled={busy}>{busy?'Opening secure checkout…':'Generate my 25-asset pack — $15'}</button>
+        {error&&<p className={styles.error}>{error}</p>}
+        <p className={styles.builderFine}>Secure Stripe checkout. Generation starts after payment. Upload only images you own or have permission to use.</p>
+      </div>
+    </section>
 
     <section className={styles.section} id="inside">
-      <div className={styles.sectionIntro}><div><p className={styles.kicker}>ONE PACK. A WHOLE STARTING LIBRARY.</p><h2>Everything you need to start building.</h2></div><p>Weapons, loot, magic, tools, scenery and buildings — organized as editable SVG files so you can recolor, resize and remix them for your project.</p></div>
+      <div className={styles.sectionIntro}><div><p className={styles.kicker}>A WHOLE COORDINATED LIBRARY</p><h2>Not one image. A usable pack.</h2></div><p>The generator asks for a consistent 5×5 collection, then the download tool separates the sheet into 25 individual transparent PNG files and packages them with your license and manifest.</p></div>
       <div className={styles.categories}>{categories.map(([number,title,list])=><article key={title}><div><span>{number}</span><b>{title}</b></div><p>{list}</p></article>)}</div>
     </section>
 
     <section className={styles.workflow}>
-      <div className={styles.workflowCopy}><p className={styles.kicker}>MADE TO BE USED</p><h2>From download to design in minutes.</h2><p>Drop the SVG files into Figma, Canva, Illustrator, Photopea or any SVG-compatible workflow. Scale without blur, change colors, combine pieces and ship.</p><div className={styles.appPills}><span>FIGMA</span><span>CANVA</span><span>ILLUSTRATOR</span><span>PHOTOPEA</span></div></div>
-      <div className={styles.stack} aria-hidden="true"><div className={styles.stackCard}><span>01</span><VoxelIcon kind="sword"/></div><div className={styles.stackCard}><span>02</span><VoxelIcon kind="gem"/></div><div className={styles.stackCard}><span>03</span><VoxelIcon kind="castle"/></div></div>
+      <div className={styles.workflowCopy}><p className={styles.kicker}>BUILT FOR FAST PROJECTS</p><h2>Describe. Generate. Download. Use.</h2><p>Your ZIP includes the 25 PNGs, the original master sheet, a manifest, a straightforward commercial-use license and bonus Facebook-ad copy starters.</p><div className={styles.appPills}><span>GAMES</span><span>CANVA</span><span>FIGMA</span><span>THUMBNAILS</span><span>SOCIAL</span></div></div>
+      <div className={styles.steps}><article><b>01</b><span>Describe your theme</span></article><article><b>02</b><span>Pay once with Stripe</span></article><article><b>03</b><span>AI builds the collection</span></article><article><b>04</b><span>Download one ZIP</span></article></div>
     </section>
 
     <section className={styles.section} id="license">
       <div className={styles.license}>
         <div><p className={styles.kicker}>STRAIGHTFORWARD LICENSE</p><h2>Make things with it.<br/><em>Even commercial things.</em></h2></div>
-        <div className={styles.licenseRules}><article><span>✓</span><div><b>Use & modify</b><p>Games, videos, social posts, marketing, client work and other finished personal or commercial projects.</p></div></article><article><span>×</span><div><b>Don’t redistribute the source pack</b><p>The editable source files can’t be resold, sublicensed or given away as a competing asset library.</p></div></article></div>
+        <div className={styles.licenseRules}><article><span>✓</span><div><b>Use & modify your generated pack</b><p>Use the outputs in games, videos, social posts, marketing, client work and other finished personal or commercial projects.</p></div></article><article><span>!</span><div><b>Third-party rights still matter</b><p>Don’t upload material you lack permission to use, and don’t assume the pack grants rights to third-party characters, logos or trademarks.</p></div></article></div>
       </div>
     </section>
 
-    <section className={styles.finalCta}><div className={styles.finalGlow}/><p className={styles.kicker}>36 ASSETS · ONE DOWNLOAD · $15</p><h2>Your next world starts<br/>with a better first block.</h2><p>Get the complete Voxel Creator Pack, commercial-use license and bonus Facebook ad-copy starters.</p><button onClick={buy} disabled={busy}>{busy?'Opening checkout…':'Get the Voxel Creator Pack — $15'}</button><small>Secure Stripe checkout · one-time payment · instant access after purchase</small></section>
+    <section className={styles.finalCta}><div className={styles.finalGlow}/><p className={styles.kicker}>YOUR IDEA · 25 ASSETS · $15</p><h2>Turn a theme into<br/>a tiny visual world.</h2><p>Build a matching asset pack from words or a reference image, then download the whole collection in one ZIP.</p><a href="#make">Create my pack — $15</a><small>One-time payment · secure checkout · AI-generated output can vary</small></section>
 
-    <footer className={styles.footer}><a className={styles.brand} href="/"><span>VV</span><b>Voxel Vault</b></a><p>Independent digital asset studio · Digital product; no promise of earnings.</p></footer>
-    <div className={styles.mobileBuy}><div><b>$15</b><span>36 assets · instant</span></div><button onClick={buy} disabled={busy}>{busy?'Opening…':'Get the pack'}</button></div>
+    <footer className={styles.footer}><a className={styles.brand} href="/"><span>VV</span><b>Voxel Vault</b></a><p>Independent digital asset studio · AI-generated digital product; no promise of earnings.</p></footer>
+    <div className={styles.mobileBuy}><div><b>$15</b><span>25 custom assets</span></div><button onClick={()=>document.getElementById('make')?.scrollIntoView({behavior:'smooth'})}>Create pack</button></div>
   </main>;
 }
