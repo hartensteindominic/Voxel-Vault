@@ -70,8 +70,15 @@ export async function recordVoxelPopEvent(input: {
   if (!eventKey) return false;
   const attribution = cleanAttribution(input.attribution);
 
+  let supabase: ReturnType<typeof getSupabaseAdmin>;
   try {
-    const supabase = getSupabaseAdmin();
+    supabase = getSupabaseAdmin();
+  } catch (error) {
+    console.error('VoxelPop analytics client unavailable', input.eventName, error);
+    return false;
+  }
+
+  try {
     const { error } = await supabase.from('voxelpop_conversion_events').upsert({
       event_name: input.eventName,
       event_key: eventKey,
@@ -84,11 +91,23 @@ export async function recordVoxelPopEvent(input: {
       content: attribution.content || null,
       details: input.details || {},
     }, { onConflict: 'event_key', ignoreDuplicates: true });
+    if (!error) return true;
+    console.warn('VoxelPop rich analytics unavailable; using fallback', input.eventName, error.message);
+  } catch (error) {
+    console.warn('VoxelPop rich analytics unavailable; using fallback', input.eventName, error);
+  }
+
+  try {
+    const { error } = await supabase.from('commerce_webhook_events').upsert({
+      provider: 'voxelpop',
+      event_id: eventKey,
+      event_type: input.eventName,
+    }, { onConflict: 'provider,event_id', ignoreDuplicates: true });
     if (error) throw error;
     return true;
   } catch (error) {
     // Analytics must never break checkout, generation, meshing, or downloads.
-    console.error('VoxelPop conversion event failed', input.eventName, error);
+    console.error('VoxelPop conversion event failed on primary and fallback stores', input.eventName, error);
     return false;
   }
 }
