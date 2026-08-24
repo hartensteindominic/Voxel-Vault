@@ -19,7 +19,7 @@ export async function POST(request: Request) {
           unit_amount: 199,
           product_data: {
             name: 'VoxelPop 3D Asset',
-            description: 'Your selected custom voxel-style 3D asset with downloadable GLB, OBJ and PNG files',
+            description: 'One custom voxel-style 3D asset with a downloadable GLB model and source image',
           },
         },
       }],
