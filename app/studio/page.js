@@ -10,12 +10,9 @@ const previewAssets = [
 ];
 
 const categories = [
-  ['01','Hero set','Character · companion · helmet · signature item'],
-  ['02','Combat','Weapon · shield · bow · projectile · tool'],
-  ['03','Loot','Coin · gem · chest · key · collectible'],
-  ['04','Magic','Potion · crystal · spell · orb · portal'],
-  ['05','World','Tree · rock · plant · prop · container'],
-  ['06','Landmarks','Building · tower · sign · special structure'],
+  ['01','Primary voxel','Your exact subject as a complete, isolated 3D-ready asset'],
+  ['02','Matching variant','The same subject with a distinct pose or useful variation'],
+  ['03','Collector variant','A polished third version with prompt-matched details'],
 ];
 
 function VoxelIcon({kind}) {
@@ -90,31 +87,31 @@ export default function StudioPage(){
     <nav className={styles.nav}>
       <a className={styles.brand} href="/"><span>VV</span><b>Voxel Vault</b></a>
       <div className={styles.navLinks}><a href="#make">Make yours</a><a href="#inside">What you get</a><a href="#license">License</a></div>
-      <button className={styles.navBuy} onClick={()=>document.getElementById('make')?.scrollIntoView({behavior:'smooth'})}>Create a pack <b>$15</b></button>
+      <button className={styles.navBuy} onClick={()=>document.getElementById('make')?.scrollIntoView({behavior:'smooth'})}>Create 3 voxels <b>$11.97</b></button>
     </nav>
 
     <section className={styles.hero}>
       <div className={styles.heroCopy}>
-        <div className={styles.eyebrow}><span>AI</span> CUSTOM VOXEL ASSET PACK</div>
-        <h1>One idea in.<br/><em>25 matching assets out.</em></h1>
-        <p className={styles.lead}>Describe a world — or add a reference photo — and get a coordinated 25-piece voxel-style PNG asset pack generated for your project.</p>
-        <div className={styles.heroPoints}><span>✓ Your theme</span><span>✓ Transparent PNGs</span><span>✓ Commercial-use license</span></div>
-        <a className={styles.heroButton} href="#make">Build my pack — $15 <span>→</span></a>
-        <p className={styles.heroFine}>One-time payment · no subscription · generated after purchase</p>
+        <div className={styles.eyebrow}><span>AI</span> VOXELPOP 3D GENERATOR</div>
+        <h1>One idea in.<br/><em>3 real 3D voxels out.</em></h1>
+        <p className={styles.lead}>Describe a person, character, product, pet or object — or add a reference photo — and get three matching assets you can turn into movable 3D GLB models.</p>
+        <div className={styles.heroPoints}><span>✓ Follows your prompt</span><span>✓ Movable 3D meshes</span><span>✓ Commercial-use license</span></div>
+        <a className={styles.heroButton} href="#make">Build 3 voxels — $11.97 <span>→</span></a>
+        <p className={styles.heroFine}>$3.99 each · one-time payment · no subscription</p>
       </div>
 
       <div className={styles.productWrap}>
         <div className={styles.glow}/>
         <div className={styles.productWindow}>
-          <div className={styles.windowTop}><div><i/><i/><i/></div><span>CUSTOM_PACK / PREVIEW</span><b>25 ASSETS</b></div>
+          <div className={styles.windowTop}><div><i/><i/><i/></div><span>VOXELPOP / PREVIEW</span><b>3 PER PACK</b></div>
           <div className={styles.assetGrid}>{previewAssets.map(([kind,name],i)=><div className={styles.asset} key={kind}><span className={styles.assetNumber}>{String(i+1).padStart(2,'0')}</span><VoxelIcon kind={kind}/><small>{name}</small></div>)}</div>
-          <div className={styles.windowBottom}><div><b>25</b><span>matching PNGs</span></div><div><b>1:1</b><span>square assets</span></div><div><b>$0.60</b><span>per asset</span></div></div>
+          <div className={styles.windowBottom}><div><b>3</b><span>matching voxels</span></div><div><b>GLB</b><span>movable 3D files</span></div><div><b>$3.99</b><span>per voxel</span></div></div>
         </div>
         <div className={styles.floatBadge}><span>+</span><div><b>MADE FROM YOUR IDEA</b><small>not a generic stock pack</small></div></div>
       </div>
     </section>
 
-    <section className={styles.trustBar}><span>25 CUSTOM ASSETS</span><i>◆</i><span>YOUR PHOTO OR WORDS</span><i>◆</i><span>TRANSPARENT PNG</span><i>◆</i><span>ONE ZIP DOWNLOAD</span></section>
+    <section className={styles.trustBar}><span>3 CUSTOM VOXELS</span><i>◆</i><span>YOUR PHOTO OR WORDS</span><i>◆</i><span>REAL 3D GLB MESHES</span><i>◆</i><span>ONE ZIP DOWNLOAD</span></section>
 
     <section className={styles.builderSection} id="make">
       <div className={styles.builderIntro}><p className={styles.kicker}>MAKE YOUR PACK</p><h2>Give the generator a direction.</h2><p>Keep it simple. A game world, character, product, pet, brand mascot or visual theme is enough.</p></div>
@@ -122,21 +119,21 @@ export default function StudioPage(){
         <label className={styles.field}><span>1. Describe the pack</span><textarea value={idea} maxLength={600} onChange={e=>setIdea(e.target.value)} placeholder="Example: cute cyberpunk cat café with neon pink signs and tiny robot waiters"/><small>{idea.length}/600</small></label>
         <div className={styles.styleRow}><span>2. Pick a finish</span><div>{[['polished','Polished'],['chunky','Chunky'],['cute','Cute'],['dark','Dark fantasy']].map(([value,label])=><button key={value} type="button" className={style===value?styles.styleActive:''} onClick={()=>setStyle(value)}>{label}</button>)}</div></div>
         <label className={styles.upload}><input type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseReference}/><div className={styles.uploadIcon}>{reference?<img src={reference} alt="Reference preview"/>:<span>＋</span>}</div><div><b>{referenceName||'3. Add a reference photo (optional)'}</b><p>{reference?'We’ll use its subject, palette and visual cues. Tap to replace it.':'Photo, sketch, product, pet or character reference · JPG/PNG/WebP'}</p></div><strong>{reference?'CHANGE':'UPLOAD'}</strong></label>
-        <div className={styles.orderBox}><div><span>Custom AI Voxel Pack</span><small>25 coordinated transparent PNG assets + ZIP + license</small></div><strong>$15</strong></div>
-        <button className={styles.buy} onClick={buy} disabled={busy}>{busy?'Opening secure checkout…':'Generate my 25-asset pack — $15'}</button>
+        <div className={styles.orderBox}><div><span>VoxelPop 3D Pack</span><small>3 coordinated source images + 3 movable GLB meshes + ZIP + license</small></div><strong>$11.97</strong></div>
+        <button className={styles.buy} onClick={buy} disabled={busy}>{busy?'Opening secure checkout…':'Generate my 3 voxels — $11.97'}</button>
         {error&&<p className={styles.error}>{error}</p>}
         <p className={styles.builderFine}>Secure Stripe checkout. Generation starts after payment. Upload only images you own or have permission to use.</p>
       </div>
     </section>
 
     <section className={styles.section} id="inside">
-      <div className={styles.sectionIntro}><div><p className={styles.kicker}>A WHOLE COORDINATED LIBRARY</p><h2>Not one image. A usable pack.</h2></div><p>The generator asks for a consistent 5×5 collection, then the download tool separates the sheet into 25 individual transparent PNG files and packages them with your license and manifest.</p></div>
+      <div className={styles.sectionIntro}><div><p className={styles.kicker}>THREE MATCHING 3D ASSETS</p><h2>Not a flat preview. A usable pack.</h2></div><p>The generator creates three isolated, prompt-matched source images. After you approve them, the mesh button reconstructs each one as a textured GLB model you can rotate, move and download.</p></div>
       <div className={styles.categories}>{categories.map(([number,title,list])=><article key={title}><div><span>{number}</span><b>{title}</b></div><p>{list}</p></article>)}</div>
     </section>
 
     <section className={styles.workflow}>
-      <div className={styles.workflowCopy}><p className={styles.kicker}>BUILT FOR FAST PROJECTS</p><h2>Describe. Generate. Download. Use.</h2><p>Your ZIP includes the 25 PNGs, the original master sheet, a manifest, a straightforward commercial-use license and bonus Facebook-ad copy starters.</p><div className={styles.appPills}><span>GAMES</span><span>CANVA</span><span>FIGMA</span><span>THUMBNAILS</span><span>SOCIAL</span></div></div>
-      <div className={styles.steps}><article><b>01</b><span>Describe your theme</span></article><article><b>02</b><span>Pay once with Stripe</span></article><article><b>03</b><span>AI builds the collection</span></article><article><b>04</b><span>Download one ZIP</span></article></div>
+      <div className={styles.workflowCopy}><p className={styles.kicker}>BUILT FOR FAST PROJECTS</p><h2>Describe. Generate. Mesh. Move.</h2><p>Your ZIP includes three high-quality source images, every completed GLB model, a manifest, a straightforward commercial-use license and bonus Facebook-ad copy starters.</p><div className={styles.appPills}><span>GAMES</span><span>BLENDER</span><span>UNITY</span><span>ROBLOX</span><span>SOCIAL</span></div></div>
+      <div className={styles.steps}><article><b>01</b><span>Describe your subject</span></article><article><b>02</b><span>Generate three images</span></article><article><b>03</b><span>Build each 3D mesh</span></article><article><b>04</b><span>Move and download</span></article></div>
     </section>
 
     <section className={styles.section} id="license">
@@ -146,9 +143,9 @@ export default function StudioPage(){
       </div>
     </section>
 
-    <section className={styles.finalCta}><div className={styles.finalGlow}/><p className={styles.kicker}>YOUR IDEA · 25 ASSETS · $15</p><h2>Turn a theme into<br/>a tiny visual world.</h2><p>Build a matching asset pack from words or a reference image, then download the whole collection in one ZIP.</p><a href="#make">Create my pack — $15</a><small>One-time payment · secure checkout · AI-generated output can vary</small></section>
+    <section className={styles.finalCta}><div className={styles.finalGlow}/><p className={styles.kicker}>YOUR IDEA · 3 VOXELS · $11.97</p><h2>Turn a prompt into<br/>something you can move.</h2><p>Build three matching voxel assets from words or a reference image, convert each one into a real 3D mesh, then download the complete pack.</p><a href="#make">Create 3 voxels — $11.97</a><small>$3.99 each · secure checkout · AI-generated output can vary</small></section>
 
     <footer className={styles.footer}><a className={styles.brand} href="/"><span>VV</span><b>Voxel Vault</b></a><p>Independent digital asset studio · AI-generated digital product; no promise of earnings.</p></footer>
-    <div className={styles.mobileBuy}><div><b>$15</b><span>25 custom assets</span></div><button onClick={()=>document.getElementById('make')?.scrollIntoView({behavior:'smooth'})}>Create pack</button></div>
+    <div className={styles.mobileBuy}><div><b>$11.97</b><span>3 movable voxels</span></div><button onClick={()=>document.getElementById('make')?.scrollIntoView({behavior:'smooth'})}>Create pack</button></div>
   </main>;
 }
