@@ -7,7 +7,7 @@ const examples=[
  ['/voxelpop/rune-portal.jpg','Rune Portal'],
  ['/voxelpop/glowcap-lantern.jpg','Glowcap Lantern']
 ];
-function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo-exact.webp" alt="VoxelPop" width="256" height="256" loading="eager" style={{display:'block',width:'clamp(108px,28vw,132px)',height:'clamp(108px,28vw,132px)',objectFit:'contain'}}/></a>}
+function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.svg" alt="VoxelPop" className={styles.brandLogo} width="96" height="96"/></a>}
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
  const [busy,setBusy]=useState(false);
