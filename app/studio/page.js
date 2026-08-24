@@ -14,12 +14,16 @@ export default function StudioPage(){
  const [error,setError]=useState('');
  async function create(){
   if(idea.trim().length<3){setError('Describe what you want first.');return;}
+  if(busy)return;
   setBusy(true);setError('');
   try{
    sessionStorage.setItem('voxelPackBrief',JSON.stringify({idea:idea.trim(),style:'polished'}));
-   const r=await fetch('/api/creator-pack/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:idea.trim().slice(0,180),style:'polished'})});
-   const d=await r.json(); if(!r.ok||!d.url) throw new Error(d.error||'Checkout unavailable'); location.href=d.url;
-  }catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}
+   const r=await fetch('/api/creator-pack/checkout',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},cache:'no-store',body:JSON.stringify({idea:idea.trim().slice(0,180),style:'polished'})});
+   let d={};
+   try{d=await r.json()}catch{}
+   if(!r.ok||!d.url)throw new Error(d.error||'Checkout could not be opened. Please try again.');
+   window.location.assign(d.url);
+  }catch(e){setError(e instanceof Error?e.message:'Checkout could not be opened. Please try again.');setBusy(false)}
  }
  return <main className={styles.page}>
   <nav><a href="/" className={styles.brand}><span className={styles.logo}>▦</span><b>VoxelPop</b></a><span className={styles.price}><i/>$1.99 per 3D asset</span></nav>
@@ -30,10 +34,10 @@ export default function StudioPage(){
   </header>
   <section className={styles.card}>
    <div className={styles.step}><span>1</span><div><h2>Describe anything</h2><p>If you can type it, VoxelPop can voxel it.</p></div></div>
-   <div className={styles.input}><textarea value={idea} onChange={e=>setIdea(e.target.value)} maxLength={300}/><button onClick={()=>setIdea(['Tiny cyberpunk ramen shop','Cute dragon barista','Haunted forest shrine','Space pirate captain'][Math.floor(Math.random()*4)])}>✦ Surprise me</button></div>
+   <div className={styles.input}><textarea value={idea} onChange={e=>setIdea(e.target.value)} maxLength={300}/><button type="button" onClick={()=>setIdea(['Tiny cyberpunk ramen shop','Cute dragon barista','Haunted forest shrine','Space pirate captain'][Math.floor(Math.random()*4)])}>✦ Surprise me</button></div>
    <div className={styles.checks}><span>✓ <b>3 previews to choose from</b></span><span>✓ <b>Buy only your favorite</b></span><span>✓ <b>GLB + OBJ + PNG</b></span></div>
-   <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create 3 free previews'}</button>
-   <small>No account · See all 3 before choosing</small>{error&&<p className={styles.error}>{error}</p>}
+   <button type="button" className={styles.cta} onClick={create} disabled={busy} aria-busy={busy}>✦ {busy?'Opening secure checkout…':'Create 3 free previews'}</button>
+   <small>No account · See all 3 before choosing</small>{error&&<p className={styles.error} role="alert">{error}</p>}
   </section>
   <section className={styles.preview}>
    <div className={styles.previewHead}><div><small>LIVE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLE</span></div>
