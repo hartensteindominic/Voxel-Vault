@@ -85,6 +85,8 @@ function saveBlob(blob:Blob,name:string){
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
+function bytes(buffer:ArrayBuffer){return new Uint8Array(buffer);}
+
 export default function PackBuilder({sessionId}:{sessionId:string}){
   const [brief,setBrief]=useState<Brief>(defaultBrief);
   const [status,setStatus]=useState<'ready'|'generating'|'done'|'error'>('ready');
@@ -117,8 +119,8 @@ export default function PackBuilder({sessionId}:{sessionId:string}){
   async function downloadZip(){
     if(!sheet||assets.length!==25)return;setMessage('Packaging your ZIP…');
     const encoder=new TextEncoder();const files:{name:string;data:Uint8Array}[]=[];
-    for(const asset of assets)files.push({name:`assets/${asset.name}`,data:new Uint8Array(await asset.blob.arrayBuffer())});
-    files.push({name:'master-sheet.png',data:new Uint8Array(await fetch(sheet).then(r=>r.arrayBuffer()))});
+    for(const asset of assets){const buffer=await asset.blob.arrayBuffer();files.push({name:`assets/${asset.name}`,data:bytes(buffer)});}
+    const sheetResponse=await fetch(sheet);const sheetBuffer=await sheetResponse.arrayBuffer();files.push({name:'master-sheet.png',data:bytes(sheetBuffer)});
     files.push({name:'manifest.json',data:encoder.encode(JSON.stringify({product:'Voxel Vault Custom AI Pack',theme:brief.idea,style:brief.style,assets:names},null,2))});
     files.push({name:'README.txt',data:encoder.encode('VOXEL VAULT CUSTOM AI PACK\n\n25 transparent PNG assets + master sheet. Assets are generated as a coordinated collection and separated from a 5x5 master sheet. Because generative output can vary, inspect each file before production use.\n')});
     files.push({name:'LICENSE.txt',data:encoder.encode('CUSTOM AI ASSET PACK LICENSE\n\nYou may edit and use these generated outputs in personal and commercial finished projects, including games, videos, social content, marketing and client work, subject to applicable law and the AI provider terms.\n\nThis license does not grant rights to third-party trademarks, copyrighted characters, likenesses or other material you do not own. You are responsible for having permission to use any reference material you upload.\n\nDo not resell or redistribute this source pack as a competing standalone asset pack. No financial results are promised.\n')});
