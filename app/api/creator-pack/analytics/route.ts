@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cleanAttribution, normalizeFlowId, recordVoxelPopEvent, type VoxelPopEventName } from '../../../../../lib/voxelpop-analytics';
+import { cleanAttribution, normalizeFlowId, recordVoxelPopEvent, type VoxelPopEventName } from '../../../../lib/voxelpop-analytics';
 
 const BROWSER_EVENTS = new Set<VoxelPopEventName>([
   'studio_view',
