@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
+import { attributionFromMetadata, recordVoxelPopEvent } from '../../../../lib/voxelpop-analytics';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -33,12 +34,16 @@ export async function POST(request:Request){
   if(!sessionId||idea.length<3)return NextResponse.json({error:'A purchase and a description are required.'},{status:400});
   if(reference&&(!reference.startsWith('data:image/')||reference.length>4_000_000))return NextResponse.json({error:'The reference image is too large. Please choose a smaller image.'},{status:400});
   const session=await stripe.checkout.sessions.retrieve(sessionId);if(session.payment_status!=='paid'||session.metadata?.product!=='voxelpop-3d-asset')return NextResponse.json({error:'A completed VoxelPop 3D Asset purchase is required.'},{status:403});
+  const attribution=attributionFromMetadata(session.metadata);const flowId=session.metadata?.flow_id||null;
+  await recordVoxelPopEvent({eventName:'purchase_completed',eventKey:`purchase_completed:${session.id}`,flowId,stripeSessionId:session.id,attribution,details:{amount_cents:Number(session.amount_total||0),currency:session.currency||'usd'}});
   const used=Math.max(0,Number(session.metadata?.generations||0));if(used>=MAX_GENERATIONS)return NextResponse.json({error:'You have used all 3 voxel versions included with this purchase.'},{status:409});
+  const generationNumber=used+1;
+  await recordVoxelPopEvent({eventName:'image_generation_started',eventKey:`image_generation_started:${sessionId}:${generationNumber}`,flowId,stripeSessionId:sessionId,attribution,details:{generation:generationNumber,improve,style}});
   const finish=styleDirections[style]||styleDirections.polished;
   const improvement=improve&&reference?' Improve the supplied voxel into a stronger version while preserving the same subject, identity, colors and core design. Fix awkward geometry, make the silhouette cleaner, make block shapes more intentional and separated, improve symmetry where appropriate, and make it especially suitable for accurate image-to-3D reconstruction. Do not merely copy the image; refine it.':'';
   const prompt=`Create ONE complete 3D voxel game asset of: ${idea}. Visual direction: ${finish}.${improvement} Front three-quarter view, whole subject visible, centered with generous padding. Strong readable voxel/block geometry and depth. Isolated subject only on a plain white background. No scene, floor, platform, border, text, letters, numbers, logo or watermark. Keep all major forms distinct and visible for image-to-3D reconstruction.`;
   let image='',lastError='';const meshyKey=process.env.MESHY_API_KEY;if(meshyKey){try{image=await generateWithMeshy(meshyKey,prompt,reference)}catch(error){lastError=error instanceof Error?error.message:String(error);console.error('Meshy image generation failed',lastError.slice(0,1000))}}if(!image){try{image=await generateWithOpenAI(prompt)}catch(error){lastError=error instanceof Error?error.message:String(error);console.error('OpenAI image fallback failed',lastError.slice(0,1000))}}
-  if(!image){console.error('All VoxelPop image generation paths failed',lastError.slice(0,1200));return NextResponse.json({error:'Voxel generation could not finish. Your purchase is still valid and this attempt was not used. Please retry.'},{status:502})}
-  const generations=used+1;await stripe.checkout.sessions.update(sessionId,{metadata:{...(session.metadata||{}),generations:String(generations)}});return NextResponse.json({images:[image],names:['your-voxel'],theme:idea,generationsLeft:Math.max(0,MAX_GENERATIONS-generations),generation:generations});
+  if(!image){await recordVoxelPopEvent({eventName:'image_generation_failed',eventKey:`image_generation_failed:${sessionId}:${generationNumber}`,flowId,stripeSessionId:sessionId,attribution,details:{generation:generationNumber,improve,style}});console.error('All VoxelPop image generation paths failed',lastError.slice(0,1200));return NextResponse.json({error:'Voxel generation could not finish. Your purchase is still valid and this attempt was not used. Please retry.'},{status:502})}
+  const generations=used+1;await stripe.checkout.sessions.update(sessionId,{metadata:{...(session.metadata||{}),generations:String(generations)}});await recordVoxelPopEvent({eventName:'image_generated',eventKey:`image_generated:${sessionId}:${generations}`,flowId,stripeSessionId:sessionId,attribution,details:{generation:generations,improve,style}});return NextResponse.json({images:[image],names:['your-voxel'],theme:idea,generationsLeft:Math.max(0,MAX_GENERATIONS-generations),generation:generations});
  }catch(error){console.error('custom 3D voxel generation failed',error);return NextResponse.json({error:'Unable to generate your voxel right now. Your purchase is still valid; please retry.'},{status:500})}
 }
