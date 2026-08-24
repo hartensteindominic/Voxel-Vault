@@ -7,7 +7,7 @@ const examples=[
  ['/voxelpop/rune-portal.jpg','Rune Portal'],
  ['/voxelpop/glowcap-lantern.jpg','Glowcap Lantern']
 ];
-
+function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop" className={styles.brandLogo}/></a>}
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
  const [busy,setBusy]=useState(false);
@@ -22,7 +22,7 @@ export default function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}
  }
  return <main className={styles.page}>
-  <nav><a href="/" className={styles.brand}><span className={styles.logo}>▦</span><b>VoxelPop</b></a><span className={styles.price}><i/>$1.99 per 3D asset</span></nav>
+  <nav><Brand/><span className={styles.price}><i/>$1.99 per 3D asset</span></nav>
   <header>
    <p className={styles.kicker}>✦ MADE FOR GAME CREATORS</p>
    <h1>Your idea.<br/><em>Built in voxels.</em></h1>
@@ -41,6 +41,6 @@ export default function StudioPage(){
    <div className={styles.empty}>✦ Your 3 assets will appear here.</div>
   </section>
   <section className={styles.facts}><div><b>Anything</b><span>prompted into voxels</span></div><div><b>3 free</b><span>previews to choose from</span></div><div><b>Real 3D</b><span>rotate, zoom & move</span></div><div><b>$1.99</b><span>one-time, per asset</span></div></section>
-  <footer><div className={styles.brand}><span className={styles.logo}>▦</span><b>VoxelPop</b></div><p>Three ideas. Buy only<br/>the one you love.</p></footer>
+  <footer><Brand/><p>Three ideas. Buy only<br/>the one you love.</p></footer>
  </main>
 }
