@@ -6,8 +6,9 @@
 .vs-topbar nav a,.vs-shop{color:#9a9893;text-decoration:none;font-size:14px;padding:8px 12px;border-radius:999px}
 .vs-shop{background:#f3efe8;color:#161512}
 .vs-intro{text-align:center;padding:28px 20px 8px}
-.vs-intro p{margin:0;font-size:15px;color:#9a9893}
-.vs-intro small{display:block;margin-top:8px;color:#6d6b67;font-size:13px}
+.vs-introHeading{margin:0;color:#f4f2ee;font:500 clamp(28px,8vw,48px)/1.02 ui-sans-serif,system-ui,-apple-system,sans-serif;letter-spacing:-.04em}
+.vs-introHeading+.vs-introHeading{margin-top:4px}
+.vs-intro small{display:block;margin-top:12px;color:#6d6b67;font-size:13px}
 .vs-rail{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:12px 20px 24px;scrollbar-width:none}
 .vs-rail::-webkit-scrollbar{display:none}
 .vs-capsule{flex:0 0 82vw;max-width:380px;scroll-snap-align:center;border-radius:32px;overflow:hidden;background:#141418;box-shadow:0 24px 50px rgba(0,0,0,.35)}
