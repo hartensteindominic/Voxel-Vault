@@ -1,6 +1,6 @@
-import Link from 'next/link';
+import PackBuilder from './PackBuilder';
 
 export default async function PackSuccessPage({searchParams}:{searchParams:Promise<{session_id?:string}>}){
- const {session_id}=await searchParams;
- return <main style={{minHeight:'100vh',background:'#08080c',color:'#f7f5ee',display:'grid',placeItems:'center',padding:24,fontFamily:'ui-sans-serif,system-ui'}}><section style={{width:'min(620px,100%)',border:'1px solid #292735',borderRadius:24,padding:'42px 28px',background:'#101017',textAlign:'center'}}><p style={{color:'#58e8ff',fontSize:11,fontWeight:800,letterSpacing:'.18em'}}>PURCHASE COMPLETE</p><h1 style={{fontSize:'clamp(42px,8vw,68px)',lineHeight:1,letterSpacing:'-.05em',margin:'18px 0'}}>Your pack is ready.</h1><p style={{color:'#a7a4b1',lineHeight:1.65}}>Download all 36 editable voxel SVG assets, the commercial-use license and Facebook ad copy starters.</p>{session_id?<a href={`/api/creator-pack/download?session_id=${encodeURIComponent(session_id)}`} style={{display:'inline-flex',marginTop:22,padding:'15px 22px',borderRadius:11,background:'#b7ff50',color:'#0b0c08',fontWeight:900,textDecoration:'none'}}>Download the ZIP</a>:<p style={{color:'#ff8b8b'}}>Checkout session missing.</p>}<div style={{marginTop:26}}><Link href="/" style={{color:'#a7a4b1'}}>Back to Voxel Vault</Link></div></section></main>
+  const {session_id}=await searchParams;
+  return <PackBuilder sessionId={session_id||''}/>;
 }
