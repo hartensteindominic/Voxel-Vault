@@ -7,24 +7,24 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Custom AI Voxel Asset Pack | 25 Assets for $15',
+    default: 'VoxelPop 3D Generator | 3 Custom GLB Voxels for $11.97',
     template: '%s | Voxel Vault',
   },
-  description: 'Turn your words or reference image into a coordinated 25-piece voxel-style PNG asset pack. One-time $15 purchase with commercial-use license.',
-  keywords: ['AI asset generator','voxel assets','custom game assets','voxel asset pack','PNG game assets','creator assets'],
+  description: 'Turn your words or reference image into three coordinated voxel-style 3D GLB assets with source images, ZIP download, and a commercial-use license.',
+  keywords: ['AI 3D asset generator','voxel assets','custom GLB assets','VoxelPop','3D voxel generator','creator assets'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   openGraph: {
-    title: 'Your Idea → 25 Custom Voxel Assets — $15',
-    description: 'Describe a world or add a reference image. Get a coordinated 25-piece voxel-style PNG pack in one ZIP.',
+    title: 'VoxelPop: 3 Custom 3D Voxel Assets for $11.97',
+    description: 'Describe a subject or add a reference image. Generate three matching source images, build movable GLB meshes, and download the complete pack.',
     type: 'website',
     url: SITE_URL,
     siteName: 'Voxel Vault',
   },
   twitter: {
     card: 'summary_large_image',
-    title: '25 Custom AI Voxel Assets — $15',
-    description: 'One idea in. 25 matching voxel-style PNG assets out.',
+    title: 'VoxelPop 3D Generator - 3 GLB Voxels for $11.97',
+    description: 'One idea in. Three matching 3D voxel assets out.',
   },
 };
 
