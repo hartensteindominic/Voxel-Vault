@@ -22,7 +22,7 @@ export default function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}
  }
  return <main className={styles.page}>
-  <nav><Brand/><span className={styles.price}><i/>$1.99 per 3D asset</span></nav>
+  <nav><Brand/><div style={{display:'flex',alignItems:'center',gap:12}}><a href="/my-voxels" style={{fontWeight:900,color:'#32106e',textDecoration:'none'}}>My Voxels</a><span className={styles.price}><i/>$1.99 per 3D asset</span></div></nav>
   <header>
    <p className={styles.kicker}>✦ MADE FOR GAME CREATORS</p>
    <h1>Your idea.<br/><em>Built in voxels.</em></h1>
@@ -33,7 +33,7 @@ export default function StudioPage(){
    <div className={styles.input}><textarea value={idea} onChange={e=>setIdea(e.target.value)} maxLength={300}/><button onClick={()=>setIdea(['Tiny cyberpunk ramen shop','Cute dragon barista','Haunted forest shrine','Space pirate captain'][Math.floor(Math.random()*4)])}>✦ Surprise me</button></div>
    <div className={styles.checks}><span>✓ <b>One custom voxel</b></span><span>✓ <b>One-time $1.99 payment</b></span><span>✓ <b>3D GLB + image</b></span></div>
    <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create my voxel · $1.99'}</button>
-   <small>No account · One payment, one custom asset</small>{error&&<p className={styles.error}>{error}</p>}
+   <small>No account required to create · Sign in with Google to save your library</small>{error&&<p className={styles.error}>{error}</p>}
   </section>
   <section className={styles.preview}>
    <div className={styles.previewHead}><div><small>STYLE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLES</span></div>
