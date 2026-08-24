@@ -7,7 +7,7 @@ const examples=[
  ['/voxelpop/rune-portal.jpg','Rune Portal'],
  ['/voxelpop/glowcap-lantern.jpg','Glowcap Lantern']
 ];
-function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop" className={styles.brandLogo}/><b>VoxelPop</b></a>}
+function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop" className={styles.brandLogo}/></a>}
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
  const [busy,setBusy]=useState(false);
@@ -22,7 +22,7 @@ export default function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}
  }
  return <main className={styles.page}>
-  <nav><Brand/><span className={styles.price}><i/>$1.99 per 3D asset</span></nav>
+  <nav><Brand/><div style={{display:'flex',alignItems:'center',gap:12}}><a href="/my-voxels" style={{fontWeight:900,color:'#32106e',textDecoration:'none'}}>My Voxels</a><span className={styles.price}><i/>$1.99 per 3D asset</span></div></nav>
   <header>
    <p className={styles.kicker}>✦ MADE FOR GAME CREATORS</p>
    <h1>Your idea.<br/><em>Built in voxels.</em></h1>
@@ -33,14 +33,14 @@ export default function StudioPage(){
    <div className={styles.input}><textarea value={idea} onChange={e=>setIdea(e.target.value)} maxLength={300}/><button onClick={()=>setIdea(['Tiny cyberpunk ramen shop','Cute dragon barista','Haunted forest shrine','Space pirate captain'][Math.floor(Math.random()*4)])}>✦ Surprise me</button></div>
    <div className={styles.checks}><span>✓ <b>One custom voxel</b></span><span>✓ <b>One-time $1.99 payment</b></span><span>✓ <b>3D GLB + image</b></span></div>
    <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create my voxel · $1.99'}</button>
-   <small>No account · One payment, one custom asset</small>{error&&<p className={styles.error}>{error}</p>}
+   <small>No account required to create · Sign in with Google to save your library</small>{error&&<p className={styles.error}>{error}</p>}
   </section>
   <section className={styles.preview}>
    <div className={styles.previewHead}><div><small>STYLE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLES</span></div>
    <div className={styles.gallery}>{examples.map(([src,name],i)=><figure key={src}><b>0{i+1}</b><img src={src} alt={name}/><figcaption>{name}</figcaption></figure>)}</div>
-   <div className={styles.empty}>✦ Your paid voxel will appear after checkout.</div>
+   <div className={styles.empty}>Your generated voxel appears here after checkout.</div>
   </section>
-  <section className={styles.facts}><div><b>Anything</b><span>prompted into voxels</span></div><div><b>1 voxel</b><span>created after payment</span></div><div><b>Real 3D</b><span>rotate, zoom & move</span></div><div><b>$1.99</b><span>one-time, per asset</span></div></section>
-  <footer><Brand/><p>One idea. One payment.<br/>One voxel you own.</p></footer>
+  <section className={styles.facts}><div><b>$1.99</b><span>per finished asset</span></div><div><b>GLB + PNG</b><span>ready to download</span></div><div><b>3D preview</b><span>rotate before download</span></div><div><b>1 regeneration</b><span>included if you want another try</span></div></section>
+  <footer><Brand/><p>Generate → Build 3D → Rotate → Download</p></footer>
  </main>
 }
