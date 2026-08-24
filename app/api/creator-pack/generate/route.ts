@@ -2,21 +2,28 @@ import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
-const assetNames = [
-  'hero-character','companion','helmet','signature-item','weapon',
-  'shield','bow','projectile','tool','coin',
-  'gem','treasure-chest','key','collectible','potion',
-  'crystal','spell-effect','magic-orb','portal','tree',
-  'rock','plant','world-prop','building','tower',
+const assetDirections = [
+  {
+    name: 'primary-voxel',
+    direction: 'Create the definitive primary version of the requested subject in a clear neutral or natural pose.',
+  },
+  {
+    name: 'matching-variant',
+    direction: 'Create a clearly different pose or useful variation of the exact same subject. Preserve identity, colors, outfit, materials and proportions.',
+  },
+  {
+    name: 'collector-variant',
+    direction: 'Create a premium third variation of the exact same subject with one tasteful prompt-matched accessory or detail. Preserve identity and the shared design language.',
+  },
 ];
 
 const styleDirections: Record<string,string> = {
-  polished: 'polished premium voxel art, crisp geometry, tasteful detail, game-ready presentation',
-  chunky: 'chunky low-poly voxel art, bold block shapes, readable silhouettes, playful game asset style',
-  cute: 'cute friendly voxel art, rounded blocky proportions, charming expressions, bright cohesive palette',
-  dark: 'dark-fantasy voxel art, dramatic materials, moody jewel-tone palette, readable silhouettes',
+  polished: 'premium high-detail voxel art, crisp block geometry, realistic materials, clean readable silhouette',
+  chunky: 'chunky low-poly voxel art, bold block shapes, readable silhouette, playful game-asset proportions',
+  cute: 'cute friendly voxel art, rounded blocky proportions, charming expression, bright cohesive palette',
+  dark: 'dark-fantasy voxel art, dramatic materials, moody jewel-tone palette, crisp readable silhouette',
 };
 
 function aiConfig(request:Request){
@@ -35,7 +42,7 @@ async function describeReference(config:AIConfig, image:string){
     body:JSON.stringify({
       model:config.vision,
       messages:[{role:'user',content:[
-        {type:'text',text:'Describe this reference for an asset-pack art director. Focus on subject identity, distinctive shapes, materials, colors, mood and visual motifs. Do not identify private people. Keep it under 120 words.'},
+        {type:'text',text:'Describe this reference for a 3D character or object artist. Focus on subject identity, complete silhouette, proportions, pose, clothing or construction, materials, colors and distinctive details. Do not identify private people. Keep it under 160 words.'},
         {type:'image_url',image_url:{url:image,detail:'low'}},
       ]}],
     }),
@@ -46,7 +53,33 @@ async function describeReference(config:AIConfig, image:string){
     return '';
   }
   const json=await response.json();
-  return String(json?.choices?.[0]?.message?.content||'').slice(0,900);
+  return String(json?.choices?.[0]?.message?.content||'').slice(0,1200);
+}
+
+async function generateImage(config:AIConfig,prompt:string){
+  const response=await fetch(`${config.base}/images/generations`,{
+    method:'POST',
+    headers:{Authorization:`Bearer ${config.key}`,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:config.image,
+      prompt,
+      n:1,
+      size:'1024x1024',
+      quality:'medium',
+      background:'opaque',
+      output_format:'jpeg',
+      output_compression:88,
+    }),
+  });
+  if(!response.ok){
+    const detail=await response.text();
+    console.error('voxel source generation failed',response.status,detail.slice(0,1000));
+    throw new Error('The image generator could not finish all three assets. Please retry once; you will not be charged again.');
+  }
+  const generated=await response.json();
+  const image=generated?.data?.[0]?.b64_json;
+  if(!image) throw new Error('The generator returned an empty asset. Please retry.');
+  return `data:image/jpeg;base64,${image}`;
 }
 
 export async function POST(request:Request){
@@ -57,44 +90,35 @@ export async function POST(request:Request){
     const style=typeof body?.style==='string'?body.style:'polished';
     const reference=typeof body?.reference==='string'?body.reference:'';
 
-    if(!sessionId||idea.length<8) return NextResponse.json({error:'A purchase and a short pack description are required.'},{status:400});
+    if(!sessionId||idea.length<8) return NextResponse.json({error:'A purchase and a short description are required.'},{status:400});
     if(reference && (!reference.startsWith('data:image/') || reference.length>2_500_000)) return NextResponse.json({error:'The reference image is too large. Please choose a smaller image.'},{status:400});
 
     const session=await stripe.checkout.sessions.retrieve(sessionId);
-    if(session.payment_status!=='paid'||session.metadata?.product!=='ai-voxel-pack-v2') return NextResponse.json({error:'A completed $15 pack purchase is required.'},{status:403});
+    if(session.payment_status!=='paid'||session.metadata?.product!=='ai-voxel-pack-v3') return NextResponse.json({error:'A completed VoxelPop 3D Pack purchase is required.'},{status:403});
 
     const generations=Number(session.metadata?.generations||0);
-    if(generations>=2) return NextResponse.json({error:'This purchase has already used its generation allowance. Download the pack you generated, or start a new pack.'},{status:409});
+    if(generations>=2) return NextResponse.json({error:'This purchase has already used its image-generation allowance. Use the images you generated to build and download the 3D meshes.'},{status:409});
 
     const config=aiConfig(request);
     if(!config) return NextResponse.json({error:'AI generation is not configured on this deployment yet. Your payment is safe; please contact support before retrying.'},{status:503});
 
-    let referenceNotes='';
-    if(reference) referenceNotes=await describeReference(config,reference);
-
+    const referenceNotes=reference?await describeReference(config,reference):'';
     const finish=styleDirections[style]||styleDirections.polished;
-    const prompt=`Create ONE square master sprite sheet containing exactly 25 separate voxel-style game assets arranged in a precise 5 by 5 grid. Theme: ${idea}. ${referenceNotes?`Reference-image art direction: ${referenceNotes}.`:''}\n\nVisual direction: ${finish}. Every asset must clearly belong to the same world, sharing palette, materials, lighting and proportions. Use an isometric three-quarter view where appropriate. Each cell must contain exactly one isolated object, centered with generous transparent padding. Keep all objects fully inside their cells. No overlaps between cells. NO text, NO letters, NO numbers, NO labels, NO logos, NO watermark, NO border and NO grid lines. Transparent background only.\n\nPlace these 25 assets in this exact row-major order: ${assetNames.join(', ')}. Make every item visibly distinct and useful as a standalone game/social/creator asset. The final image will be automatically cut into 25 equal squares, so alignment to the exact 5x5 cell layout is critical.`;
+    const identity=`Requested subject: ${idea}. ${referenceNotes?`Reference-image identity and art direction: ${referenceNotes}.`:''}`;
+    const shared=`${identity}\n\nRender a SINGLE complete subject as a real 3D voxel collectible suitable for image-to-3D reconstruction. Visual direction: ${finish}. Use a front three-quarter camera view at eye level with the entire subject visible from top to bottom and generous padding on every side. Show one isolated subject only. Keep limbs, accessories and silhouette separated and readable. Use balanced studio lighting that reveals depth without a cast shadow. Plain white background. No scene, floor, platform, border, text, letters, numbers, logo or watermark.`;
 
-    const imageResponse=await fetch(`${config.base}/images/generations`,{
-      method:'POST',
-      headers:{Authorization:`Bearer ${config.key}`,'Content-Type':'application/json'},
-      body:JSON.stringify({model:config.image,prompt,n:1,size:'1024x1024',quality:'low',background:'transparent',output_format:'png'}),
-    });
-
-    if(!imageResponse.ok){
-      const detail=await imageResponse.text();
-      console.error('asset pack generation failed',imageResponse.status,detail.slice(0,1000));
-      return NextResponse.json({error:'The image generator could not finish this pack. Please retry once; you will not be charged again.'},{status:502});
-    }
-
-    const generated=await imageResponse.json();
-    const image=generated?.data?.[0]?.b64_json;
-    if(!image) return NextResponse.json({error:'The generator returned an empty pack. Please retry.'},{status:502});
+    const images=await Promise.all(assetDirections.map(asset=>generateImage(config,`${asset.direction}\n\n${shared}`)));
 
     await stripe.checkout.sessions.update(sessionId,{metadata:{...(session.metadata||{}),generations:String(generations+1)}});
-    return NextResponse.json({image:`data:image/png;base64,${image}`,names:assetNames,theme:idea,generationsLeft:Math.max(0,1-generations)});
+    return NextResponse.json({
+      images,
+      names:assetDirections.map(asset=>asset.name),
+      theme:idea,
+      generationsLeft:Math.max(0,1-generations),
+    });
   }catch(error){
-    console.error('custom creator pack failed',error);
-    return NextResponse.json({error:'Unable to generate the pack right now. Please retry.'},{status:500});
+    console.error('custom 3D voxel pack failed',error);
+    const message=error instanceof Error?error.message:'Unable to generate the pack right now. Please retry.';
+    return NextResponse.json({error:message},{status:500});
   }
 }
