@@ -19,14 +19,16 @@ const styleDirections: Record<string,string> = {
   dark: 'dark-fantasy voxel art, dramatic materials, moody jewel-tone palette, readable silhouettes',
 };
 
-function aiConfig(){
-  const gatewayKey=process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+function aiConfig(request:Request){
+  const gatewayKey=process.env.AI_GATEWAY_API_KEY || request.headers.get('x-vercel-oidc-token') || process.env.VERCEL_OIDC_TOKEN;
   if(gatewayKey) return { key:gatewayKey, base:'https://ai-gateway.vercel.sh/v1', vision:'openai/gpt-5.4-mini', image:'openai/gpt-image-1-mini' };
   if(process.env.OPENAI_API_KEY) return { key:process.env.OPENAI_API_KEY, base:'https://api.openai.com/v1', vision:'gpt-5.4-mini', image:'gpt-image-1-mini' };
   return null;
 }
 
-async function describeReference(config:NonNullable<ReturnType<typeof aiConfig>>, image:string){
+type AIConfig=NonNullable<ReturnType<typeof aiConfig>>;
+
+async function describeReference(config:AIConfig, image:string){
   const response=await fetch(`${config.base}/chat/completions`,{
     method:'POST',
     headers:{Authorization:`Bearer ${config.key}`,'Content-Type':'application/json'},
@@ -64,7 +66,7 @@ export async function POST(request:Request){
     const generations=Number(session.metadata?.generations||0);
     if(generations>=2) return NextResponse.json({error:'This purchase has already used its generation allowance. Download the pack you generated, or start a new pack.'},{status:409});
 
-    const config=aiConfig();
+    const config=aiConfig(request);
     if(!config) return NextResponse.json({error:'AI generation is not configured on this deployment yet. Your payment is safe; please contact support before retrying.'},{status:503});
 
     let referenceNotes='';
@@ -90,7 +92,6 @@ export async function POST(request:Request){
     if(!image) return NextResponse.json({error:'The generator returned an empty pack. Please retry.'},{status:502});
 
     await stripe.checkout.sessions.update(sessionId,{metadata:{...(session.metadata||{}),generations:String(generations+1)}});
-
     return NextResponse.json({image:`data:image/png;base64,${image}`,names:assetNames,theme:idea,generationsLeft:Math.max(0,1-generations)});
   }catch(error){
     console.error('custom creator pack failed',error);
