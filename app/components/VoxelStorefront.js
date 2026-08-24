@@ -67,9 +67,10 @@ export default function VoxelStorefront() {
         <Link href="/marketplace" className="vs-shop">Bag</Link>
       </header>
 
-      <section className="vs-intro">
-        <p>Real objects. Digital twins.</p>
-        <small>Drag to turn. Swipe for the next.</small>
+      <section className="vs-intro" aria-labelledby="vs-collection-heading">
+        <p className="vs-introHeading">The collection</p>
+        <h1 id="vs-collection-heading" className="vs-introHeading">Love essentials.</h1>
+        <small>Real objects. Digital twins. Drag to turn. Swipe for the next.</small>
       </section>
 
       <section className="vs-rail" aria-label="3D NFT collection">
