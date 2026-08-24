@@ -7,7 +7,7 @@ const examples=[
  ['/voxelpop/rune-portal.jpg','Rune Portal'],
  ['/voxelpop/glowcap-lantern.jpg','Glowcap Lantern']
 ];
-function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop" className={styles.brandLogo}/><b>VoxelPop</b></a>}
+function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop" className={styles.brandLogo}/></a>}
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
  const [busy,setBusy]=useState(false);
@@ -38,9 +38,9 @@ export default function StudioPage(){
   <section className={styles.preview}>
    <div className={styles.previewHead}><div><small>STYLE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLES</span></div>
    <div className={styles.gallery}>{examples.map(([src,name],i)=><figure key={src}><b>0{i+1}</b><img src={src} alt={name}/><figcaption>{name}</figcaption></figure>)}</div>
-   <div className={styles.empty}>✦ Your paid voxel will appear after checkout.</div>
+   <div className={styles.empty}>Your generated voxel appears here after checkout.</div>
   </section>
-  <section className={styles.facts}><div><b>Anything</b><span>prompted into voxels</span></div><div><b>1 voxel</b><span>created after payment</span></div><div><b>Real 3D</b><span>rotate, zoom & move</span></div><div><b>$1.99</b><span>one-time, per asset</span></div></section>
-  <footer><Brand/><p>One idea. One payment.<br/>One voxel you own.</p></footer>
+  <section className={styles.facts}><div><b>$1.99</b><span>per finished asset</span></div><div><b>GLB + PNG</b><span>ready to download</span></div><div><b>3D preview</b><span>rotate before download</span></div><div><b>1 regeneration</b><span>included if you want another try</span></div></section>
+  <footer><Brand/><p>Generate → Build 3D → Rotate → Download</p></footer>
  </main>
 }
