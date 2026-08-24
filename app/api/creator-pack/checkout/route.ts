@@ -16,16 +16,16 @@ export async function POST(request: Request) {
         quantity: 1,
         price_data: {
           currency: 'usd',
-          unit_amount: 1197,
+          unit_amount: 199,
           product_data: {
-            name: 'VoxelPop 3D Pack — 3 Voxels',
-            description: 'Three custom voxel-style PNG sources and three movable GLB meshes generated from your words or reference image',
+            name: 'VoxelPop 3D Asset',
+            description: 'Your selected custom voxel-style 3D asset with downloadable GLB, OBJ and PNG files',
           },
         },
       }],
-      metadata: { product: 'ai-voxel-pack-v3', style, generations: '0' },
+      metadata: { product: 'voxelpop-3d-asset', style, generations: '0' },
       success_url: `${origin}/pack/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/?checkout=cancelled#make`,
+      cancel_url: `${origin}/studio?checkout=cancelled`,
     });
 
     return NextResponse.json({ url: session.url });
