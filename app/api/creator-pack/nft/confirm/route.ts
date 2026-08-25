@@ -68,7 +68,7 @@ function bigintValue(value: unknown) {
     if (typeof value === 'bigint') return value;
     return BigInt(String(value ?? 0));
   } catch {
-    return 0n;
+    return BigInt(0);
   }
 }
 
@@ -96,7 +96,8 @@ async function verifyMintViaRpc(rpcUrl: string, contractAddress: string, tokenId
     const receiptAny = receipt as any;
     const gasUsed = bigintValue(receiptAny.gasUsed);
     const gasPrice = bigintValue(receiptAny.gasPrice ?? receiptAny.effectiveGasPrice);
-    const feeWei = bigintValue(receiptAny.fee) || gasUsed * gasPrice;
+    const explicitFee = bigintValue(receiptAny.fee);
+    const feeWei = explicitFee !== BigInt(0) ? explicitFee : gasUsed * gasPrice;
     const gasPayer = String(receiptAny.from || '').toLowerCase();
     return {
       mintFeeEth: Number(formatEther(feeWei)),
