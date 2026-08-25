@@ -1,6 +1,8 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import styles from './studio.module.css';
+import {getSupabaseBrowser} from '../../lib/supabase-browser';
+import {mergeVoxelRecords,readLocalVoxelRecords,summarizeVoxel,syncLocalVoxelsToAccount,voxelAccountConfigured} from '../../lib/voxelpop-account';
 
 const examples=[
  ['/voxelpop/relic-chest.jpg','Relic Chest'],
@@ -8,29 +10,13 @@ const examples=[
  ['/voxelpop/glowcap-lantern.jpg','Glowcap Lantern']
 ];
 const flowStorageKey='voxelpopFlowId';
-const voxelStoragePrefix='voxelpop:';
 
 function Brand(){return <a href="/" className={styles.brand}><img src="/voxelpop/voxelpop-logo.svg" alt="VoxelPop" className={styles.brandLogo} width="96" height="96"/></a>}
 function getAttribution(){const p=new URLSearchParams(window.location.search);return {source:p.get('utm_source')||'',medium:p.get('utm_medium')||'',campaign:p.get('utm_campaign')||'',content:p.get('utm_content')||''}}
 function ensureFlowId(){let id=sessionStorage.getItem(flowStorageKey)||'';if(!/^[0-9a-f-]{36}$/i.test(id)){id=crypto.randomUUID();sessionStorage.setItem(flowStorageKey,id)}return id}
 function track(eventName,flowId,attribution,promptLength){if(!flowId)return;fetch('/api/creator-pack/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventName,flowId,attribution,promptLength}),keepalive:true}).catch(()=>{})}
-function loadMyVoxels(){
- const found=[];
- try{
-  for(let i=0;i<localStorage.length;i++){
-   const key=localStorage.key(i)||'';
-   if(!key.startsWith(voxelStoragePrefix))continue;
-   const sessionId=key.slice(voxelStoragePrefix.length);
-   if(!sessionId)continue;
-   try{
-    const parsed=JSON.parse(localStorage.getItem(key)||'{}');
-    if(!parsed?.asset?.dataUrl)continue;
-    found.push({sessionId,name:String(parsed.asset.name||'Your voxel'),image:String(parsed.asset.dataUrl),meshStatus:String(parsed?.mesh?.status||'idle')});
-   }catch{}
-  }
- }catch{}
- return found.reverse();
-}
+function userName(user){return String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||'Google account')}
+function userAvatar(user){return String(user?.user_metadata?.avatar_url||user?.user_metadata?.picture||'')}
 
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
@@ -38,16 +24,58 @@ export default function StudioPage(){
  const [error,setError]=useState('');
  const [flowId,setFlowId]=useState('');
  const [attribution,setAttribution]=useState({source:'',medium:'',campaign:'',content:''});
- const [myVoxels,setMyVoxels]=useState([]);
+ const [voxelRecords,setVoxelRecords]=useState([]);
+ const [session,setSession]=useState(null);
+ const [accountBusy,setAccountBusy]=useState(false);
+ const [accountStatus,setAccountStatus]=useState('');
  const promptTracked=useRef(false);
+ const configured=voxelAccountConfigured();
+ const myVoxels=voxelRecords.map(summarizeVoxel).filter(voxel=>voxel.image);
+
  useEffect(()=>{
   const id=ensureFlowId();const attr=getAttribution();
-  setFlowId(id);setAttribution(attr);setMyVoxels(loadMyVoxels());track('studio_view',id,attr);
+  setFlowId(id);setAttribution(attr);setVoxelRecords(readLocalVoxelRecords());track('studio_view',id,attr);
   const p=new URLSearchParams(window.location.search);if(p.get('checkout')==='cancelled')track('checkout_cancelled',id,attr);
-  const refresh=()=>setMyVoxels(loadMyVoxels());
+ },[]);
+
+ useEffect(()=>{
+  if(!configured)return;
+  const supabase=getSupabaseBrowser();let active=true;
+  async function apply(next){
+   if(!active)return;setSession(next);
+   if(!next?.user){setVoxelRecords(current=>mergeVoxelRecords(current,readLocalVoxelRecords()));return;}
+   setAccountBusy(true);
+   try{
+    const cloud=await syncLocalVoxelsToAccount(supabase,next.user);
+    if(!active)return;
+    setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelRecords()));
+    setAccountStatus(`Google connected. My Voxels is synced for ${userName(next.user)}.`);
+   }catch(e){if(active)setAccountStatus(e instanceof Error?e.message:'Google account connected, but My Voxels could not sync.');}
+   finally{if(active)setAccountBusy(false)}
+  }
+  supabase.auth.getSession().then(({data,error})=>{if(error&&active)setAccountStatus(error.message);else apply(data.session)});
+  const {data}=supabase.auth.onAuthStateChange((_event,next)=>apply(next));
+  return()=>{active=false;data.subscription.unsubscribe()};
+ },[configured]);
+
+ useEffect(()=>{
+  const refresh=async()=>{
+   const local=readLocalVoxelRecords();setVoxelRecords(current=>mergeVoxelRecords(current,local));
+   if(session?.user&&configured){try{const cloud=await syncLocalVoxelsToAccount(getSupabaseBrowser(),session.user);setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelRecords()))}catch{}}
+  };
   window.addEventListener('focus',refresh);window.addEventListener('storage',refresh);
   return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('storage',refresh)};
- },[]);
+ },[session?.user?.id,configured]);
+
+ async function signInGoogle(){
+  setAccountStatus('');setAccountBusy(true);
+  try{
+   if(!configured)throw new Error('Google sign-in needs the Voxel Vault Supabase public URL and anon key configured in Vercel.');
+   const {error}=await getSupabaseBrowser().auth.signInWithOAuth({provider:'google',options:{redirectTo:`${window.location.origin}/?auth=google#my-voxels`}});
+   if(error)throw error;
+  }catch(e){setAccountStatus(e instanceof Error?e.message:'Could not start Google sign-in.');setAccountBusy(false)}
+ }
+ async function signOut(){setAccountBusy(true);try{const {error}=await getSupabaseBrowser().auth.signOut();if(error)throw error;setSession(null);setVoxelRecords(readLocalVoxelRecords());setAccountStatus('Signed out of Google. Your browser copies are still here.')}catch(e){setAccountStatus(e instanceof Error?e.message:'Could not sign out.')}finally{setAccountBusy(false)}}
  function markPromptStarted(value,id=flowId,attr=attribution){if(promptTracked.current||value.trim().length<3||!id)return;promptTracked.current=true;track('prompt_started',id,attr,value.trim().length)}
  function changeIdea(value){setIdea(value);markPromptStarted(value)}
  function surprise(){const value=['Tiny cyberpunk ramen shop','Cute dragon barista','Haunted forest shrine','Space pirate captain'][Math.floor(Math.random()*4)];setIdea(value);markPromptStarted(value)}
@@ -79,12 +107,16 @@ export default function StudioPage(){
   <section id="my-voxels" style={{maxWidth:980,margin:'14px auto 28px',padding:'24px',border:'1px solid #e5e7eb',borderRadius:24,background:'#fff',color:'#111827',boxShadow:'0 18px 50px rgba(15,23,42,.10)'}}>
    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:16}}>
     <div><small style={{fontWeight:900,letterSpacing:'.14em',color:'#6b7280'}}>MY VOXELS</small><h2 style={{margin:'5px 0 0',fontSize:'clamp(1.55rem,4vw,2.35rem)',color:'#111827'}}>Your paid creations</h2></div>
-    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid #e5e7eb',borderRadius:14,padding:'10px 12px',background:'#f8fafc'}}>
-     <span aria-hidden="true" style={{width:28,height:28,borderRadius:'50%',display:'grid',placeItems:'center',background:'#fff',border:'1px solid #e5e7eb',fontWeight:900,color:'#2563eb'}}>G</span>
-     <div><b style={{display:'block',fontSize:14,color:'#111827'}}>Continue with Google</b><small style={{color:'#6b7280'}}>Your voxels will follow you across devices.</small></div>
-     <span style={{fontSize:11,fontWeight:900,letterSpacing:'.08em',color:'#6b7280',background:'#fff',border:'1px solid #e5e7eb',borderRadius:999,padding:'5px 8px'}}>COMING NEXT</span>
-    </div>
+    {session?.user?<div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid #dbeafe',borderRadius:14,padding:'10px 12px',background:'#eff6ff'}}>
+      {userAvatar(session.user)?<img src={userAvatar(session.user)} alt="Google profile" style={{width:32,height:32,borderRadius:'50%'}}/>:<span aria-hidden="true" style={{width:32,height:32,borderRadius:'50%',display:'grid',placeItems:'center',background:'#fff',border:'1px solid #bfdbfe',fontWeight:900,color:'#2563eb'}}>G</span>}
+      <div><b style={{display:'block',fontSize:14,color:'#111827'}}>Google connected</b><small style={{color:'#475569'}}>{userName(session.user)}</small></div>
+      <button type="button" onClick={signOut} disabled={accountBusy} style={{border:'1px solid #cbd5e1',borderRadius:10,padding:'7px 10px',background:'#fff',color:'#334155',fontWeight:800,cursor:'pointer'}}>Sign out</button>
+     </div>:<button type="button" onClick={signInGoogle} disabled={accountBusy} style={{display:'flex',alignItems:'center',gap:10,border:'1px solid #d1d5db',borderRadius:14,padding:'10px 14px',background:'#fff',color:'#111827',boxShadow:'0 6px 18px rgba(15,23,42,.08)',fontWeight:900,cursor:accountBusy?'wait':'pointer'}}>
+      <span aria-hidden="true" style={{width:28,height:28,borderRadius:'50%',display:'grid',placeItems:'center',background:'#fff',border:'1px solid #e5e7eb',fontWeight:900,color:'#2563eb'}}>G</span>
+      {accountBusy?'Connecting…':'Continue with Google'}
+     </button>}
    </div>
+   {accountStatus&&<div role="status" style={{margin:'0 0 16px',padding:'10px 12px',borderRadius:12,background:'#f8fafc',border:'1px solid #e5e7eb',fontSize:13,color:'#475569'}}>{accountStatus}</div>}
    {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
     {myVoxels.map(voxel=>{
      const ready=voxel.meshStatus==='ready';
@@ -98,7 +130,7 @@ export default function StudioPage(){
       </div>
      </article>;
     })}
-   </div>:<div style={{padding:'24px 18px',border:'1px dashed #d1d5db',borderRadius:16,textAlign:'center',background:'#f8fafc'}}><b style={{display:'block',fontSize:18,marginBottom:5,color:'#111827'}}>Your library is ready.</b><span style={{color:'#6b7280'}}>After you create a paid voxel on VoxelPop, it will appear here automatically on this browser.</span></div>}
+   </div>:<div style={{padding:'24px 18px',border:'1px dashed #d1d5db',borderRadius:16,textAlign:'center',background:'#f8fafc'}}><b style={{display:'block',fontSize:18,marginBottom:5,color:'#111827'}}>Your library is ready.</b><span style={{color:'#6b7280'}}>{session?.user?'Paid voxels saved to this Google account will appear here on every device.':'Continue with Google to make My Voxels follow you across devices.'}</span></div>}
   </section>
 
   <section className={styles.card}>
@@ -106,7 +138,7 @@ export default function StudioPage(){
    <div className={styles.input}><textarea value={idea} onChange={e=>changeIdea(e.target.value)} maxLength={300}/><button onClick={surprise}>✦ Surprise me</button></div>
    <div className={styles.checks}><span>✓ <b>One custom voxel</b></span><span>✓ <b>One-time $1.99 payment</b></span><span>✓ <b>3D GLB + image</b></span></div>
    <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create my voxel · $1.99'}</button>
-   <small>Paid creations return to My Voxels on this browser · Google sign-in and cross-device sync are coming next</small>{error&&<p className={styles.error}>{error}</p>}
+   <small>{session?.user?'Signed in · paid creations sync to My Voxels across devices':'Sign in with Google above to keep paid creations in My Voxels across devices'}</small>{error&&<p className={styles.error}>{error}</p>}
   </section>
   <section className={styles.preview}>
    <div className={styles.previewHead}><div><small>STYLE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLES</span></div>
