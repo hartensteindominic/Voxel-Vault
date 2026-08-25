@@ -13,6 +13,30 @@ const ABI = ['function ownerOf(uint256 tokenId) view returns (address)','functio
 function openSeaUrl(contract: string, tokenId: string) {
   return `https://opensea.io/assets/base/${contract}/${tokenId}`;
 }
+function rpcCandidates() {
+  const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
+  return Array.from(new Set([configured, 'https://base.llamarpc.com', 'https://mainnet.base.org', 'https://base-rpc.publicnode.com'].filter(Boolean)));
+}
+async function verifyMintOnChain(contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
+  let lastError: unknown = null;
+  for (const rpcUrl of rpcCandidates()) {
+    try {
+      const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (!receipt) throw new Error('The mint transaction is not visible on this RPC yet.');
+      if (receipt.status !== 1) throw new Error('The mint transaction failed.');
+      if (receipt.to?.toLowerCase() !== contractAddress.toLowerCase()) throw new Error('The transaction did not mint from the registered VoxelFlip contract.');
+      const contract = new Contract(contractAddress.toLowerCase(), ABI, provider);
+      const [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
+      if (String(owner).toLowerCase() !== wallet.toLowerCase()) throw new Error('The connected wallet does not own this VoxelFlip token.');
+      if (String(uri) !== metadataUrl) throw new Error('The minted token metadata does not match this VoxelPop asset.');
+      return true;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Unable to verify the mint on Base right now.');
+}
 
 export async function POST(request: Request) {
   try {
@@ -22,28 +46,31 @@ export async function POST(request: Request) {
     const tokenId = String(body?.tokenId || '').trim();
     const txHash = typeof body?.txHash === 'string' ? body.txHash.trim() : '';
     const wallet = typeof body?.wallet === 'string' ? body.wallet.trim() : '';
+    const metadataUrl = typeof body?.metadataUrl === 'string' ? body.metadataUrl.trim() : '';
     const deployment = await getVoxelFlipDeployment();
     const contractAddress = deployment?.address || '';
-    const rpcUrl = process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || 'https://mainnet.base.org';
-    if (!sessionId || !taskId || !/^\d+$/.test(tokenId) || !TX_RE.test(txHash) || !ADDRESS_RE.test(wallet)) return NextResponse.json({ error: 'Mint confirmation details are incomplete.' }, { status: 400 });
+    if (!sessionId || !taskId || !/^\d+$/.test(tokenId) || !TX_RE.test(txHash) || !ADDRESS_RE.test(wallet) || !/^https:\/\//i.test(metadataUrl)) {
+      return NextResponse.json({ error: 'Mint confirmation details are incomplete.' }, { status: 400 });
+    }
     if (!ADDRESS_RE.test(contractAddress)) return NextResponse.json({ error: 'VoxelFlip contract is not configured.' }, { status: 503 });
 
     const entitlement = await getVoxelPopEntitlement(sessionId);
     if (!entitlement) return NextResponse.json({ error: 'A completed VoxelPop purchase is required.' }, { status: 403 });
     if (entitlement.metadata?.mesh_task_0 !== taskId) return NextResponse.json({ error: 'The mint does not match this VoxelPop mesh.' }, { status: 403 });
-    if (entitlement.metadata?.voxelflip_wallet?.toLowerCase() !== wallet.toLowerCase()) return NextResponse.json({ error: 'The mint wallet does not match the prepared VoxelFlip.' }, { status: 403 });
 
-    const provider = new JsonRpcProvider(rpcUrl, 8453);
-    const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt || receipt.status !== 1) return NextResponse.json({ error: 'The mint transaction is not confirmed yet.' }, { status: 409 });
-    if (receipt.to?.toLowerCase() !== contractAddress.toLowerCase()) return NextResponse.json({ error: 'The transaction did not mint from the registered VoxelFlip contract.' }, { status: 409 });
+    await verifyMintOnChain(contractAddress, tokenId, txHash, wallet, metadataUrl);
 
-    const contract = new Contract(contractAddress, ABI, provider);
-    const [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
-    if (String(owner).toLowerCase() !== wallet.toLowerCase()) return NextResponse.json({ error: 'The connected wallet does not own this VoxelFlip token.' }, { status: 409 });
-    if (!entitlement.metadata?.voxelflip_metadata_url || String(uri) !== entitlement.metadata.voxelflip_metadata_url) return NextResponse.json({ error: 'The minted token metadata does not match this VoxelPop asset.' }, { status: 409 });
+    try {
+      await updateVoxelPopEntitlementMetadata(entitlement, {
+        voxelflip_wallet: wallet.toLowerCase(),
+        voxelflip_metadata_url: metadataUrl.slice(0, 500),
+        voxelflip_token_id: tokenId.slice(0, 80),
+        voxelflip_tx_hash: txHash,
+      });
+    } catch (error) {
+      console.warn('VoxelFlip mint confirmed on-chain; optional entitlement persistence is unavailable.', error);
+    }
 
-    await updateVoxelPopEntitlementMetadata(entitlement, { voxelflip_token_id: tokenId.slice(0, 80), voxelflip_tx_hash: txHash });
     const attribution = attributionFromMetadata(entitlement.metadata);
     await recordVoxelPopEvent({
       eventName: 'nft_minted', eventKey: `nft_minted:${contractAddress.toLowerCase()}:${tokenId}`, flowId: entitlement.metadata?.flow_id || null,
@@ -54,6 +81,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ confirmed: true, tokenId, wallet, contractAddress, openSeaUrl: openSeaUrl(contractAddress, tokenId), explorerUrl: `${process.env.NEXT_PUBLIC_VOXELFLIP_EXPLORER_URL || 'https://basescan.org'}/tx/${txHash}` });
   } catch (error) {
     console.error('VoxelFlip mint confirmation failed', error);
-    return NextResponse.json({ error: 'Unable to verify the VoxelFlip mint right now.' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to verify the VoxelFlip mint right now.' }, { status: 500 });
   }
 }
