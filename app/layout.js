@@ -2,29 +2,29 @@ import { WalletIdentityProvider } from './components/WalletIdentity';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://voxel-vault.vercel.app').replace(/\/$/, '');
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'VoxelPop 3D Generator | 3 Custom GLB Voxels for $11.97',
-    template: '%s | Voxel Vault',
+    default: 'VoxelPop 3D Generator | Your Idea, Made 3D for $1.99',
+    template: '%s | VoxelPop',
   },
-  description: 'Turn your words or reference image into three coordinated voxel-style 3D GLB assets with source images, ZIP download, and a commercial-use license.',
-  keywords: ['AI 3D asset generator','voxel assets','custom GLB assets','VoxelPop','3D voxel generator','creator assets'],
+  description: 'Turn a written idea into one custom downloadable 3D voxel asset for $1.99. Get the GLB model and source image with no subscription.',
+  keywords: ['3D voxel generator','custom voxel','GLB generator','3D asset generator','VoxelPop','voxel assets'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   openGraph: {
-    title: 'VoxelPop: 3 Custom 3D Voxel Assets for $11.97',
-    description: 'Describe a subject or add a reference image. Generate three matching source images, build movable GLB meshes, and download the complete pack.',
+    title: 'VoxelPop | Your Idea, Made 3D for $1.99',
+    description: 'Describe what you want and create one custom 3D voxel asset with a downloadable GLB model and source image for $1.99.',
     type: 'website',
     url: SITE_URL,
-    siteName: 'Voxel Vault',
+    siteName: 'VoxelPop',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'VoxelPop 3D Generator - 3 GLB Voxels for $11.97',
-    description: 'One idea in. Three matching 3D voxel assets out.',
+    title: 'VoxelPop | Your Idea, Made 3D for $1.99',
+    description: 'One idea in. One custom 3D voxel asset out. GLB + source image, no subscription.',
   },
 };
 
