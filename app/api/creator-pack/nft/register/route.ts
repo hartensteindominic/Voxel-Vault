@@ -8,6 +8,7 @@ const APPROVED_OWNER = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
 const APPROVED_ROYALTY_BPS = 500;
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
+const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
 const ABI = [
   'function owner() view returns (address)',
   'function mintSigner() view returns (address)',
@@ -17,6 +18,13 @@ const ABI = [
   'function symbol() view returns (string)',
   'function royaltyInfo(uint256 tokenId,uint256 salePrice) view returns (address,uint256)',
 ];
+
+function normalizePrivateKey(value: string) {
+  const trimmed = value.trim();
+  if (PRIVATE_KEY_RE.test(trimmed)) return `0x${trimmed}`;
+  if (/^0X[a-fA-F0-9]{64}$/.test(trimmed)) return `0x${trimmed.slice(2)}`;
+  return trimmed;
+}
 
 export async function POST(request: Request) {
   try {
@@ -33,10 +41,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `VoxelFlip is already registered at ${existing.address}.` }, { status: 409 });
     }
 
-    const signerSecret = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY?.trim() || '';
-    if (!signerSecret) return NextResponse.json({ error: 'VoxelFlip mint signer is not configured.' }, { status: 503 });
+    const rawSignerSecret = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY?.trim() || '';
+    if (!rawSignerSecret) return NextResponse.json({ error: 'VoxelFlip mint signer is not configured.' }, { status: 503 });
     let expectedMintSigner = '';
-    try { expectedMintSigner = new Wallet(signerSecret).address; }
+    try { expectedMintSigner = new Wallet(normalizePrivateKey(rawSignerSecret)).address; }
     catch { return NextResponse.json({ error: 'VoxelFlip mint signer configuration is invalid.' }, { status: 503 }); }
 
     const rpcUrl = process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || 'https://mainnet.base.org';
