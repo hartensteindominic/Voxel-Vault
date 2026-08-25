@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { getBytes, keccak256, solidityPackedKeccak256, toUtf8Bytes, Wallet } from 'ethers';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../../lib/stripe-server';
 import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
@@ -10,6 +11,7 @@ export const maxDuration = 120;
 const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const BUCKET = 'voxelflip-nft';
 const TASK_KEY = 'mesh_task_0';
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 function safeName(value: unknown) {
   const cleaned = String(value || 'your-voxel')
@@ -61,6 +63,20 @@ async function paidSession(sessionId: string) {
   return session;
 }
 
+function voucherIdFor(sessionId: string, taskId: string) {
+  return `0x${createHash('sha256').update(`voxelflip:${sessionId}:${taskId}`).digest('hex')}`;
+}
+
+async function mintVoucher(wallet: string, metadataUrl: string, voucherId: string) {
+  const privateKey = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY;
+  if (!privateKey) return null;
+  const signer = new Wallet(privateKey);
+  const uriHash = keccak256(toUtf8Bytes(metadataUrl));
+  const digest = solidityPackedKeccak256(['address', 'bytes32', 'bytes32'], [wallet, uriHash, voucherId]);
+  const signature = await signer.signMessage(getBytes(digest));
+  return { signature, signer: signer.address };
+}
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.MESHY_API_KEY;
@@ -71,11 +87,12 @@ export async function POST(request: Request) {
     const taskId = typeof body?.taskId === 'string' ? body.taskId : '';
     const imageDataUrl = typeof body?.image === 'string' ? body.image : '';
     const idea = typeof body?.idea === 'string' ? body.idea.trim().slice(0, 240) : '';
+    const wallet = typeof body?.wallet === 'string' ? body.wallet.trim() : '';
     const name = safeName(body?.name);
     const image = decodeImage(imageDataUrl);
 
-    if (!sessionId || !taskId || !image) {
-      return NextResponse.json({ error: 'A completed VoxelPop image and 3D mesh are required.' }, { status: 400 });
+    if (!sessionId || !taskId || !image || !ADDRESS_RE.test(wallet)) {
+      return NextResponse.json({ error: 'A connected wallet, completed VoxelPop image, and finished 3D mesh are required.' }, { status: 400 });
     }
     if (image.bytes.length > 4_000_000) {
       return NextResponse.json({ error: 'The source image is too large to prepare for minting.' }, { status: 400 });
@@ -154,10 +171,14 @@ export async function POST(request: Request) {
     if (metadataUpload.error) throw metadataUpload.error;
 
     const metadataUrl = supabase.storage.from(BUCKET).getPublicUrl(metadataPath).data.publicUrl;
+    const voucherId = voucherIdFor(sessionId, taskId);
+    const voucher = await mintVoucher(wallet, metadataUrl, voucherId);
+
     await stripe.checkout.sessions.update(sessionId, {
       metadata: {
         ...(session.metadata || {}),
         voxelflip_asset_id: assetId,
+        voxelflip_wallet: wallet.toLowerCase(),
         voxelflip_metadata_url: metadataUrl.slice(0, 500),
       },
     });
@@ -169,7 +190,7 @@ export async function POST(request: Request) {
       flowId: session.metadata?.flow_id || null,
       stripeSessionId: sessionId,
       attribution,
-      details: { assetId, format: 'glb' },
+      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher) },
     });
 
     return NextResponse.json({
@@ -179,6 +200,11 @@ export async function POST(request: Request) {
       imageUrl,
       modelUrl,
       name: metadata.name,
+      wallet,
+      voucherId,
+      mintConfigured: Boolean(voucher),
+      signature: voucher?.signature || null,
+      signer: voucher?.signer || null,
     });
   } catch (error) {
     console.error('VoxelFlip NFT preparation failed', error);
