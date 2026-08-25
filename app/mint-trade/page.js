@@ -17,6 +17,7 @@ export default function MintTradePage(){
  const [stage,setStage]=useState('loading');
  const [message,setMessage]=useState('Loading your paid voxel…');
  const [minted,setMinted]=useState(null);
+ const [pendingMint,setPendingMint]=useState(null);
  const [scannerOn,setScannerOn]=useState(true);
  const [scanner,setScanner]=useState(null);
  const [scannerBusy,setScannerBusy]=useState(false);
@@ -39,7 +40,11 @@ export default function MintTradePage(){
     }catch{}
    });
   }
-  try{const saved=JSON.parse(localStorage.getItem(`voxelflip:mint:${sid}`)||'null');if(saved?.tokenId){setMinted(saved);setWallet(saved.owner||'');setStage('done');setMessage(`VoxelFlip #${saved.tokenId} is already minted.`)}}catch{}
+  let confirmed=null;
+  try{confirmed=JSON.parse(localStorage.getItem(`voxelflip:mint:${sid}`)||'null');if(confirmed?.tokenId){setMinted(confirmed);setWallet(confirmed.owner||'');setStage('done');setMessage(`VoxelFlip #${confirmed.tokenId} is already minted.`)}}catch{}
+  if(!confirmed?.tokenId){
+   try{const pending=JSON.parse(localStorage.getItem(`voxelflip:pending:${sid}`)||'null');if(pending?.tokenId&&pending?.hash&&pending?.metadataUrl){setPendingMint(pending);setWallet(pending.owner||'');setStage('ready');setMessage(`VoxelFlip #${pending.tokenId} was already submitted to Base. Resume verification — do not mint it again.`)}}catch{}
+  }
  },[]);
 
  useEffect(()=>{if(!sessionId||!voxel?.asset?.dataUrl||voxel.mesh?.status!=='ready'||voxel.mesh?.taskId||recovering.current)return;recoverTask(voxel)},[sessionId,voxel?.asset?.dataUrl,voxel?.mesh?.status,voxel?.mesh?.taskId]);
@@ -67,22 +72,52 @@ export default function MintTradePage(){
   catch(error){if(error?.code==='NO_WALLET_PROVIDER'&&error?.deepLink){location.href=error.deepLink;return ''}setStage('error');setMessage(error instanceof Error?error.message:'Wallet connection failed.');return ''}
  }
 
+ async function verifySubmitted(submission){
+  setStage('verifying');setMessage(`Verifying VoxelFlip #${submission.tokenId} on Base…`);
+  const txHash=submission.hash||submission.txHash||'';
+  const confirm=await fetch('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId:submission.taskId,tokenId:submission.tokenId,txHash,wallet:submission.owner,metadataUrl:submission.metadataUrl})});
+  const verified=await confirm.json();if(!confirm.ok)throw new Error(verified.error||'The mint was submitted but could not be verified yet.');
+  const finalResult={...submission,hash:txHash,openSeaUrl:verified.openSeaUrl||submission.openSeaUrl||'',explorerUrl:verified.explorerUrl||submission.explorerUrl||''};
+  setMinted(finalResult);setPendingMint(null);setWallet(finalResult.owner||wallet);setStage('done');setMessage(`VoxelFlip #${finalResult.tokenId} is minted and owned by ${short(finalResult.owner)}.`);
+  try{localStorage.setItem(`voxelflip:mint:${sessionId}`,JSON.stringify(finalResult));localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{}
+  return finalResult;
+ }
+
+ async function resumeVerification(){
+  if(!pendingMint)return;
+  try{await verifySubmitted(pendingMint)}catch(error){setStage('error');setMessage(`Your VoxelFlip was already submitted to Base. Verification is still pending: ${error instanceof Error?error.message:'RPC unavailable'}. Do not mint it again; use Resume mint verification.`)}
+ }
+
  async function mint(){
+  if(pendingMint){await resumeVerification();return;}
   if(!voxel?.asset?.dataUrl||voxel.mesh?.status!=='ready'){setStage('error');setMessage('Finish the 3D mesh before minting.');return;}
   let taskId=voxel.mesh?.taskId||'';if(!taskId)taskId=await recoverTask(voxel);if(!taskId)return;
+  let submission=null;
   try{
    setStage('connecting');setMessage('Connect the wallet that should own this VoxelFlip.');
    const connected=await connectVoxelFlipWallet();setWallet(connected.address);
    setStage('preparing');setMessage('Packaging your exact image + GLB into VoxelFlip metadata…');
    const prep=await fetch('/api/creator-pack/nft/prepare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId,image:voxel.asset.dataUrl,name:voxel.asset.name||'your-voxel',idea:voxel.idea||voxel.asset.name||'VoxelPop creation',wallet:connected.address})});
-   const prepared=await prep.json();if(!prep.ok)throw new Error(prepared.error||'Could not prepare this VoxelFlip.');if(!prepared.mintConfigured||!prepared.signature)throw new Error('The secure VoxelFlip mint signer is not configured on this deployment.');
+   const prepared=await prep.json();if(!prep.ok)throw new Error(prepared.error||'Could not prepare this VoxelFlip.');
+
+   if(prepared.existingMint?.tokenId&&prepared.existingMint?.txHash){
+    submission={tokenId:String(prepared.existingMint.tokenId),owner:prepared.existingMint.owner||connected.address,hash:prepared.existingMint.txHash,status:'confirmed',metadataUrl:prepared.metadataUrl,taskId,openSeaUrl:'',explorerUrl:''};
+    setPendingMint(submission);try{localStorage.setItem(`voxelflip:pending:${sessionId}`,JSON.stringify(submission))}catch{}
+    setMessage(`Found your earlier VoxelFlip #${submission.tokenId} on Base. Verifying it instead of minting a duplicate…`);
+    await verifySubmitted(submission);return;
+   }
+
+   if(!prepared.mintConfigured||!prepared.signature)throw new Error('The secure VoxelFlip mint signer is not configured on this deployment.');
    setStage('minting');setMessage('Confirm the Base mint transaction in your wallet.');
    const result=await mintVoxelFlip({metadataUrl:prepared.metadataUrl,voucherId:prepared.voucherId,signature:prepared.signature});if(!result?.tokenId)throw new Error('The mint transaction completed but the token ID could not be read.');
-   setStage('verifying');setMessage('Verifying your new VoxelFlip on Base…');
-   const confirm=await fetch('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId,tokenId:result.tokenId,txHash:result.hash,wallet:result.owner,metadataUrl:prepared.metadataUrl})});
-   const verified=await confirm.json();if(!confirm.ok)throw new Error(verified.error||'The mint was submitted but could not be verified yet.');
-   const finalResult={...result,openSeaUrl:verified.openSeaUrl||result.openSeaUrl,explorerUrl:verified.explorerUrl||result.explorerUrl};setMinted(finalResult);setStage('done');setMessage(`VoxelFlip #${finalResult.tokenId} is minted and owned by ${short(finalResult.owner)}.`);try{localStorage.setItem(`voxelflip:mint:${sessionId}`,JSON.stringify(finalResult))}catch{}
-  }catch(error){if(error?.code==='NO_WALLET_PROVIDER'&&error?.deepLink){location.href=error.deepLink;return}setStage('error');setMessage(error instanceof Error?error.message:'VoxelFlip minting failed.')}
+   submission={...result,metadataUrl:prepared.metadataUrl,taskId};
+   setPendingMint(submission);try{localStorage.setItem(`voxelflip:pending:${sessionId}`,JSON.stringify(submission))}catch{}
+   await verifySubmitted(submission);
+  }catch(error){
+   if(error?.code==='NO_WALLET_PROVIDER'&&error?.deepLink){location.href=error.deepLink;return}
+   if(submission?.tokenId){setPendingMint(submission);setStage('error');setMessage(`Your VoxelFlip #${submission.tokenId} was already submitted to Base, but verification hit an RPC problem: ${error instanceof Error?error.message:'verification unavailable'}. Do not mint again; use Resume mint verification.`);return}
+   setStage('error');setMessage(error instanceof Error?error.message:'VoxelFlip minting failed.');
+  }
  }
 
  async function runScanner(){
@@ -92,14 +127,14 @@ export default function MintTradePage(){
 
  const asset=voxel?.asset;const mesh=voxel?.mesh;const taskId=mesh?.taskId||'';const previewUrl=sessionId&&taskId?`/api/creator-pack/mesh?${new URLSearchParams({sessionId,taskId,preview:'1'}).toString()}`:'';
  const busy=['connecting','preparing','minting','verifying'].includes(stage);
- const mintLabel=stage==='connecting'?'Connecting wallet…':stage==='preparing'?'Preparing NFT…':stage==='minting'?'Confirm mint in wallet…':stage==='verifying'?'Verifying on Base…':'Mint this voxel on Base';
+ const mintLabel=pendingMint?(stage==='verifying'?'Verifying existing mint…':'Resume mint verification'):stage==='connecting'?'Connecting wallet…':stage==='preparing'?'Preparing NFT…':stage==='minting'?'Confirm mint in wallet…':stage==='verifying'?'Verifying on Base…':'Mint this voxel on Base';
 
  return <main className={styles.page}>
   <nav className={styles.nav}><a href="/"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>MINT & TRADE</em></nav>
   <header className={styles.hero}><p>VOXELPOP → VOXELFLIP → MARKET</p><h1>Mint it.<br/><em>Then watch the market.</em></h1><span>Your 3D voxel stays yours. Minting creates the Base NFT; the market bot watches listings, offers and portfolio changes automatically.</span></header>
   <section className={styles.assetCard}>
    <div className={styles.preview}>{previewUrl&&mesh?.status==='ready'?<GeneratedMeshViewer url={previewUrl} label={asset?.name||'Your voxel'}/>:asset?.dataUrl?<img src={asset.dataUrl} alt={asset.name||'Your voxel'}/>:<div className={styles.missing}>Open this page from a paid voxel in My Voxels.</div>}</div>
-   <div className={styles.assetInfo}><small>YOUR PAID VOXEL</small><h2>{(asset?.name||'Your voxel').replaceAll('-',' ')}</h2><div className={styles.statusRow}><span>{mesh?.status==='ready'?'✓ 3D READY':'3D NOT READY'}</span><span>Base mainnet</span></div><p>{message}</p>{!minted&&<button disabled={busy||!asset?.dataUrl||mesh?.status!=='ready'} onClick={mint}>{mintLabel}</button>}{minted&&<div className={styles.minted}><b>✓ VoxelFlip #{minted.tokenId}</b><a href={minted.openSeaUrl} target="_blank" rel="noreferrer">Open / list on OpenSea ↗</a><a href={minted.explorerUrl} target="_blank" rel="noreferrer">Verify transaction ↗</a></div>}</div>
+   <div className={styles.assetInfo}><small>YOUR PAID VOXEL</small><h2>{(asset?.name||'Your voxel').replaceAll('-',' ')}</h2><div className={styles.statusRow}><span>{mesh?.status==='ready'?'✓ 3D READY':'3D NOT READY'}</span><span>Base mainnet</span></div><p>{message}</p>{!minted&&<button disabled={busy||(!pendingMint&&(!asset?.dataUrl||mesh?.status!=='ready'))} onClick={pendingMint?resumeVerification:mint}>{mintLabel}</button>}{minted&&<div className={styles.minted}><b>✓ VoxelFlip #{minted.tokenId}</b><a href={minted.openSeaUrl} target="_blank" rel="noreferrer">Open / list on OpenSea ↗</a><a href={minted.explorerUrl} target="_blank" rel="noreferrer">Verify transaction ↗</a></div>}</div>
   </section>
   <section className={styles.bot}>
    <div className={styles.botHead}><div><small>VOXELFLIP MARKET BOT</small><h2>Automatic market monitor</h2></div><button onClick={()=>setScannerOn(value=>!value)} className={scannerOn?styles.on:styles.off}>{scannerOn?'AUTO SCAN ON':'AUTO SCAN OFF'}</button></div>

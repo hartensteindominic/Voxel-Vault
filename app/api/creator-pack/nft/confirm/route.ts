@@ -9,27 +9,70 @@ export const runtime = 'nodejs';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const ABI = ['function ownerOf(uint256 tokenId) view returns (address)','function tokenURI(uint256 tokenId) view returns (string)'];
+
 function rpcCandidates() {
   const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
-  return Array.from(new Set([configured, 'https://base.llamarpc.com', 'https://mainnet.base.org', 'https://base-rpc.publicnode.com'].filter(Boolean)));
+  // PublicNode's Base endpoint can reject ordinary verification calls as archive
+  // requests unless a provider token is supplied. Do not use it as a fallback.
+  return Array.from(new Set([configured, 'https://mainnet.base.org', 'https://base.llamarpc.com'].filter(Boolean)));
 }
+
+function readableRpcError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error || 'Unknown RPC error');
+}
+
 async function verifyMintOnChain(contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
-  let lastError: unknown = null;
+  const transportErrors: string[] = [];
+  let receiptSeen = false;
+
   for (const rpcUrl of rpcCandidates()) {
     try {
       const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
       const receipt = await provider.getTransactionReceipt(txHash);
-      if (!receipt) throw new Error('The mint transaction is not visible on this RPC yet.');
-      if (receipt.status !== 1) throw new Error('The mint transaction failed.');
+      if (!receipt) {
+        transportErrors.push(`${rpcUrl}: transaction not visible yet`);
+        continue;
+      }
+      receiptSeen = true;
+
+      // These are deterministic validation failures. If an RPC successfully
+      // returned the receipt, do not hide them behind a later transport error.
+      if (receipt.status !== 1) throw new Error('The mint transaction failed on Base.');
       if (receipt.to?.toLowerCase() !== contractAddress.toLowerCase()) throw new Error('The transaction did not mint from the registered VoxelFlip contract.');
-      const contract = new Contract(contractAddress, ABI, provider);
-      const [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
+
+      let owner: string;
+      let uri: string;
+      try {
+        const contract = new Contract(contractAddress, ABI, provider);
+        [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
+      } catch (error) {
+        transportErrors.push(`${rpcUrl}: ${readableRpcError(error)}`);
+        continue;
+      }
+
       if (String(owner).toLowerCase() !== wallet.toLowerCase()) throw new Error('The connected wallet does not own this VoxelFlip token.');
       if (String(uri) !== metadataUrl) throw new Error('The minted token metadata does not match this VoxelPop asset.');
       return;
-    } catch (error) { lastError = error; }
+    } catch (error) {
+      const message = readableRpcError(error);
+      if (
+        message.includes('mint transaction failed on Base') ||
+        message.includes('did not mint from the registered VoxelFlip contract') ||
+        message.includes('does not own this VoxelFlip token') ||
+        message.includes('metadata does not match')
+      ) {
+        throw error;
+      }
+      transportErrors.push(`${rpcUrl}: ${message}`);
+    }
   }
-  throw lastError instanceof Error ? lastError : new Error('Unable to verify the mint on Base right now.');
+
+  if (!receiptSeen) {
+    throw new Error('Your mint transaction was submitted, but Base has not exposed the receipt to our verifier yet. Use Resume mint verification instead of minting again.');
+  }
+  console.warn('VoxelFlip RPC verification exhausted', transportErrors);
+  throw new Error('Your VoxelFlip transaction is on Base, but verification is temporarily unavailable. Use Resume mint verification instead of minting again.');
 }
 
 export async function POST(request: Request) {
