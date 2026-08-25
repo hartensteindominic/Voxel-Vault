@@ -6,6 +6,8 @@ const BROWSER_EVENTS = new Set<VoxelPopEventName>([
   'prompt_started',
   'checkout_clicked',
   'checkout_cancelled',
+  'exit_intent_shown',
+  'exit_intent_cta',
 ]);
 
 export async function POST(request: Request) {
