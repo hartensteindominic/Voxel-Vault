@@ -8,7 +8,9 @@ import {connectVoxelFlipWallet,mintVoxelFlip} from '../../lib/voxelflip';
 import styles from './mint-trade.module.css';
 
 function short(value){return value?`${value.slice(0,6)}…${value.slice(-4)}`:''}
-function isVoucherUsedError(error){const text=String(error?.reason||error?.message||error||'').toLowerCase();return text.includes('voucher already used')||text.includes('voucher is already minted')||text.includes('voucher was already minted')}
+function errorText(error){return String(error?.reason||error?.message||error||'')}
+function isVoucherUsedError(error){const text=errorText(error).toLowerCase();return text.includes('voucher already used')||text.includes('voucher is already minted')||text.includes('voucher was already minted')}
+function isStaleVerificationError(error){const text=errorText(error).toLowerCase();return text.includes('did not mint from the registered voxelflip contract')||text.includes('connected wallet does not own')||text.includes('minted token metadata does not match')||text.includes('mint confirmation details are incomplete')}
 
 export default function MintTradePage(){
  const [sessionId,setSessionId]=useState('');
@@ -87,7 +89,13 @@ export default function MintTradePage(){
 
  async function resumeVerification(){
   if(!pendingMint)return;
-  try{await verifySubmitted(pendingMint)}catch(error){setStage('error');setMessage(`Your VoxelFlip was already submitted to Base. Verification is still pending: ${error instanceof Error?error.message:'RPC unavailable'}. Do not mint it again; use Resume mint verification.`)}
+  try{await verifySubmitted(pendingMint)}catch(error){
+   if(isStaleVerificationError(error)){
+    try{localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{}
+    setPendingMint(null);setRecoverMode(true);setStage('error');setMessage('The saved browser transaction was not the VoxelFlip mint. It has been cleared safely. Click Recover existing mint to find the NFT from its one-time voucher — no new mint will be sent.');return;
+   }
+   setStage('error');setMessage(`Your VoxelFlip was already submitted to Base. Verification is still pending: ${errorText(error)||'RPC unavailable'}. Do not mint it again; use Resume mint verification.`)
+  }
  }
 
  async function mint(){
@@ -112,6 +120,7 @@ export default function MintTradePage(){
    }
 
    if(prepared.voucherUsed){setRecoverMode(true);throw new Error('This voucher is already minted. Recover the existing mint instead of creating another.');}
+   if(recoverMode){throw new Error('Recovery did not find the original mint yet. No new mint transaction was sent. Try Recover existing mint again.');}
    if(!prepared.mintConfigured||!prepared.signature)throw new Error('The secure VoxelFlip mint signer is not configured on this deployment.');
    setRecoverMode(false);setStage('minting');setMessage('Confirm the Base mint transaction in your wallet. Keep this page open; it will recover the NFT automatically after confirmation.');
    const result=await mintVoxelFlip({metadataUrl:prepared.metadataUrl,voucherId:prepared.voucherId,signature:prepared.signature});if(!result?.tokenId)throw new Error('The mint transaction completed but the token ID could not be read.');
@@ -120,9 +129,9 @@ export default function MintTradePage(){
    await verifySubmitted(submission);
   }catch(error){
    if(error?.code==='NO_WALLET_PROVIDER'&&error?.deepLink){location.href=error.deepLink;return}
-   if(submission?.tokenId){setPendingMint(submission);setStage('error');setMessage(`Your VoxelFlip #${submission.tokenId} was already submitted to Base, but verification hit an RPC problem: ${error instanceof Error?error.message:'verification unavailable'}. Do not mint again; use Resume mint verification.`);return}
+   if(submission?.tokenId){setPendingMint(submission);setStage('error');setMessage(`Your VoxelFlip #${submission.tokenId} was already submitted to Base, but verification hit an RPC problem: ${errorText(error)||'verification unavailable'}. Do not mint again; use Resume mint verification.`);return}
    if(isVoucherUsedError(error)){setRecoverMode(true);setStage('error');setMessage('That voucher is already used, which means this voxel was already minted on Base. Click Recover existing mint — VoxelFlip will find the original token instead of sending another transaction.');return}
-   setStage('error');setMessage(error instanceof Error?error.message:'VoxelFlip minting failed.');
+   setStage('error');setMessage(errorText(error)||'VoxelFlip minting failed.');
   }
  }
 
