@@ -1,7 +1,7 @@
 'use client';
 
 import {useMemo,useState} from 'react';
-import {connectVoxelFlipWallet,mintVoxelFlip,VOXELFLIP_CHAIN_NAME,voxelflipConfigured} from '../../../lib/voxelflip';
+import {connectVoxelFlipWallet,mintVoxelFlip,VOXELFLIP_CHAIN_NAME} from '../../../lib/voxelflip';
 import styles from './VoxelFlipPanel.module.css';
 
 type Prepared={ready:boolean;assetId:string;metadataUrl:string;imageUrl:string;modelUrl:string;name:string;wallet:string;voucherId:string;mintConfigured:boolean;signature:string|null};
@@ -28,12 +28,11 @@ export default function VoxelFlipPanel({sessionId,taskId,image,name,idea}:Props)
    if(!response.ok)throw new Error(data.error||'Could not prepare this NFT.');
    setPrepared(data);
    if(!data.mintConfigured)throw new Error('VoxelFlip metadata is ready, but the secure mint signer is not configured on this deployment yet.');
-   if(!voxelflipConfigured())throw new Error('VoxelFlip metadata is ready, but the collection contract is not configured on this deployment yet.');
    setStage('minting');
    const mintedResult=await mintVoxelFlip({metadataUrl:data.metadataUrl,voucherId:data.voucherId,signature:data.signature});
    if(!mintedResult?.tokenId)throw new Error('The wallet transaction completed but the token ID could not be read.');
    setStage('verifying');
-   const confirm=await fetch('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId,tokenId:mintedResult.tokenId,txHash:mintedResult.hash,wallet:mintedResult.owner})});
+   const confirm=await fetch('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId,tokenId:mintedResult.tokenId,txHash:mintedResult.hash,wallet:mintedResult.owner,metadataUrl:data.metadataUrl})});
    const confirmed=await confirm.json();
    if(!confirm.ok)throw new Error(confirmed.error||'The mint was submitted but could not be verified yet.');
    const finalResult={...mintedResult,openSeaUrl:confirmed.openSeaUrl||mintedResult.openSeaUrl,explorerUrl:confirmed.explorerUrl||mintedResult.explorerUrl};
