@@ -69,7 +69,7 @@ export async function GET() {
   else if (!openSeaConfigured) nextStep = 'Finish OpenSea API server configuration.';
   else if (!mintSignerValid) nextStep = 'Finish VoxelFlip mint-signer private-key configuration.';
   else if (baseBalanceChecked && !ownerHasBaseEth) nextStep = 'Move a small amount of ETH to the approved owner wallet on Base for deployment gas.';
-  else if (launchIdentityValid) nextStep = 'Connect the approved owner wallet on /voxelflip/launch and approve one fresh Base deployment transaction.';
+  else if (launchIdentityValid) nextStep = 'On /voxelflip/launch, finish registration of any pending deployment first. Only deploy another contract if no pending contract exists.';
 
   return NextResponse.json({
     approvedLaunch: {
