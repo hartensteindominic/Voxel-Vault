@@ -36,6 +36,8 @@ export async function POST(request: Request) {
         },
       }],
       metadata,
+      consent_collection: { promotions: 'auto' },
+      after_expiration: { recovery: { enabled: true } },
       success_url: `${origin}/pack/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/studio?checkout=cancelled`,
     });
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
       flowId,
       stripeSessionId: session.id,
       attribution,
-      details: { amount_cents: 199, currency: 'usd' },
+      details: { amount_cents: 199, currency: 'usd', recovery_enabled: true },
     });
 
     return NextResponse.json({ url: session.url });
