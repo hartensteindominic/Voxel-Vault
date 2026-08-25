@@ -18,6 +18,7 @@ export const VOXELPOP_EVENT_NAMES = [
   'glb_downloaded',
   'nft_prepared',
   'nft_minted',
+  'nft_imported',
   'opensea_opened',
 ] as const;
 
