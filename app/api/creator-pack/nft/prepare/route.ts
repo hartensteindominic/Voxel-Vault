@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'crypto';
-import { getBytes, keccak256, solidityPackedKeccak256, toUtf8Bytes, Wallet } from 'ethers';
+import { Contract, getBytes, id, JsonRpcProvider, keccak256, solidityPackedKeccak256, toUtf8Bytes, Wallet, zeroPadValue } from 'ethers';
 import { NextResponse } from 'next/server';
+import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
 import { getVoxelPopEntitlement, updateVoxelPopEntitlementMetadata } from '../../../../../lib/voxelpop-entitlement';
 import { attributionFromMetadata, recordVoxelPopEvent } from '../../../../../lib/voxelpop-analytics';
 
@@ -11,6 +12,11 @@ const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const TASK_KEY = 'mesh_task_0';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
+const TRANSFER_TOPIC = id('Transfer(address,address,uint256)');
+const EXISTING_MINT_ABI = [
+  'function ownerOf(uint256 tokenId) view returns (address)',
+  'function tokenURI(uint256 tokenId) view returns (string)',
+];
 
 function safeName(value: unknown) {
   const cleaned = String(value || 'your-voxel').trim().slice(0, 72).replace(/[^a-z0-9 _-]+/gi, '').replace(/\s+/g, ' ');
@@ -33,6 +39,10 @@ function hmacHex(value: string) {
 function voucherIdFor(sessionId: string, taskId: string) {
   return `0x${createHash('sha256').update(`voxelflip:${sessionId}:${taskId}`).digest('hex')}`;
 }
+function rpcCandidates() {
+  const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
+  return Array.from(new Set([configured, 'https://mainnet.base.org', 'https://base.llamarpc.com'].filter(Boolean)));
+}
 async function mintVoucher(wallet: string, metadataUrl: string, voucherId: string) {
   const rawPrivateKey = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY;
   if (!rawPrivateKey) return null;
@@ -41,6 +51,39 @@ async function mintVoucher(wallet: string, metadataUrl: string, voucherId: strin
   const digest = solidityPackedKeccak256(['address', 'bytes32', 'bytes32'], [wallet, uriHash, voucherId]);
   const signature = await signer.signMessage(getBytes(digest));
   return { signature, signer: signer.address };
+}
+
+async function findExistingMint(contractAddress: string, wallet: string, metadataUrl: string) {
+  const walletTopic = zeroPadValue(wallet, 32);
+  for (const rpcUrl of rpcCandidates()) {
+    try {
+      const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
+      const latest = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, latest - 20_000);
+      const logs = await provider.getLogs({
+        address: contractAddress,
+        fromBlock,
+        toBlock: latest,
+        topics: [TRANSFER_TOPIC, null, walletTopic],
+      });
+      if (!logs.length) continue;
+      const contract = new Contract(contractAddress, EXISTING_MINT_ABI, provider);
+      for (const log of logs.slice(-50).reverse()) {
+        const tokenTopic = log.topics?.[3];
+        if (!tokenTopic) continue;
+        const tokenId = BigInt(tokenTopic).toString();
+        try {
+          const [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
+          if (String(owner).toLowerCase() === wallet.toLowerCase() && String(uri) === metadataUrl) {
+            return { tokenId, txHash: log.transactionHash, owner: wallet };
+          }
+        } catch {}
+      }
+    } catch (error) {
+      console.warn('VoxelFlip existing-mint lookup RPC unavailable', rpcUrl, error);
+    }
+  }
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -80,7 +123,10 @@ export async function POST(request: Request) {
     const modelUrl = `${origin}/api/creator-pack/nft/media?${new URLSearchParams({ taskId, kind: 'model', sig: mediaSig }).toString()}`;
     const metadataUrl = `${origin}/api/creator-pack/nft/metadata?${new URLSearchParams({ taskId, name, idea, sig: metadataSig }).toString()}`;
     const voucherId = voucherIdFor(sessionId, taskId);
-    const voucher = await mintVoucher(wallet, metadataUrl, voucherId);
+    const deployment = await getVoxelFlipDeployment();
+    const contractAddress = deployment?.address || '';
+    const existingMint = ADDRESS_RE.test(contractAddress) ? await findExistingMint(contractAddress, wallet, metadataUrl) : null;
+    const voucher = existingMint ? null : await mintVoucher(wallet, metadataUrl, voucherId);
 
     try {
       await updateVoxelPopEntitlementMetadata(entitlement, {
@@ -96,7 +142,7 @@ export async function POST(request: Request) {
     await recordVoxelPopEvent({
       eventName: 'nft_prepared', eventKey: `nft_prepared:${sessionId}:${taskId}`, flowId: entitlement.metadata?.flow_id || null,
       stripeSessionId: entitlement.id, attribution,
-      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher), payment_method: 'stripe' },
+      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher), existingMint: Boolean(existingMint), payment_method: 'stripe' },
     });
 
     return NextResponse.json({
@@ -109,9 +155,10 @@ export async function POST(request: Request) {
       name: `${name} · VoxelFlip`,
       wallet,
       voucherId,
-      mintConfigured: Boolean(voucher),
+      mintConfigured: Boolean(voucher) || Boolean(existingMint),
       signature: voucher?.signature || null,
       signer: voucher?.signer || null,
+      existingMint,
     });
   } catch (error) {
     console.error('VoxelFlip NFT preparation failed', error);
