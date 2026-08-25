@@ -10,7 +10,7 @@ const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
 const APPROVED_VAULT_WALLET = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
 const APPROVED_ROYALTY_BPS = 500;
 const RECOVERY_DEPLOYMENT = {
-  address: '0xbDE448AB9fC16B17F6AE975132A4201cCfc247D3',
+  address: '0xbde448ab9fc16b17f6ae975132a4201ccfc247d3',
   txHash: '0xd269db3bf820f2a6b65d25ca1dd17a1bb2f1619536920137f63b7baccb7715ea',
 };
 
@@ -41,9 +41,6 @@ export async function GET() {
   let deployment = await getVoxelFlipDeployment();
   let deploymentRecoveryError: string | null = null;
 
-  // A Base deployment was confirmed before the launch page could persist its
-  // registration. Re-run the existing guarded registration path here so a normal
-  // preflight refresh can recover it without another blockchain deployment.
   if (!deployment?.address) {
     try {
       await recoverConfirmedDeployment();
@@ -78,9 +75,6 @@ export async function GET() {
   const ownerValid = ADDRESS_RE.test(owner);
   const royaltyReceiverValid = ADDRESS_RE.test(royaltyReceiver);
   const launchIdentityValid = ownerValid && royaltyReceiverValid && receiverValid;
-  // The private key is the authoritative signer configuration. The optional public
-  // address is retained for diagnostics only; registration independently derives
-  // the signer from this same private key and verifies the deployed contract.
   const secretsReady = openSeaConfigured && mintSignerValid;
   const rpcUrl = process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || 'https://mainnet.base.org';
 
