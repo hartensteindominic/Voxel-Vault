@@ -11,7 +11,7 @@ const PRICE_RE = /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const OPENSEA_ACTIONS_URL = 'https://api.opensea.io/api/v2/listings/actions';
 const REQUEST_TIMEOUT_MS = 10_000;
-const MAX_ITEMS = 10;
+const MAX_ITEMS = 25;
 
 type ListingInput = { tokenId: string; priceEth: string };
 
