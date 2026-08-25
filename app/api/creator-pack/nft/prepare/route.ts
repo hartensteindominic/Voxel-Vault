@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'crypto';
-import { Contract, getBytes, id, JsonRpcProvider, keccak256, solidityPackedKeccak256, toUtf8Bytes, Wallet, zeroPadValue } from 'ethers';
+import { Contract, getBytes, id, JsonRpcProvider, keccak256, solidityPackedKeccak256, toUtf8Bytes, Wallet } from 'ethers';
 import { NextResponse } from 'next/server';
 import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
 import { getVoxelPopEntitlement, updateVoxelPopEntitlementMetadata } from '../../../../../lib/voxelpop-entitlement';
@@ -11,9 +11,11 @@ export const maxDuration = 120;
 const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const TASK_KEY = 'mesh_task_0';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
-const TRANSFER_TOPIC = id('Transfer(address,address,uint256)');
+const VOXELFLIP_MINT_TOPIC = id('VoxelFlipMinted(uint256,address,bytes32,string)');
 const EXISTING_MINT_ABI = [
+  'function usedVouchers(bytes32 voucherId) view returns (bool)',
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function tokenURI(uint256 tokenId) view returns (string)',
 ];
@@ -53,41 +55,70 @@ async function mintVoucher(wallet: string, metadataUrl: string, voucherId: strin
   return { signature, signer: signer.address };
 }
 
-async function findExistingMint(contractAddress: string, wallet: string, metadataUrl: string) {
-  const walletTopic = zeroPadValue(wallet, 32);
+async function findVoucherMint(contractAddress: string, wallet: string, voucherId: string, deploymentTxHash: string) {
   for (const rpcUrl of rpcCandidates()) {
     try {
       const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
-      const latest = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, latest - 20_000);
-      const logs = await provider.getLogs({
-        address: contractAddress,
-        fromBlock,
-        toBlock: latest,
-        topics: [TRANSFER_TOPIC, null, walletTopic],
-      });
-      if (!logs.length) return { checked: true, mint: null };
-
       const contract = new Contract(contractAddress, EXISTING_MINT_ABI, provider);
-      let tokenReadSucceeded = false;
-      for (const log of logs.slice(-50).reverse()) {
-        const tokenTopic = log.topics?.[3];
-        if (!tokenTopic) continue;
-        const tokenId = BigInt(tokenTopic).toString();
+      const used = Boolean(await contract.usedVouchers(voucherId));
+      if (!used) return { checked: true, used: false, mint: null };
+
+      const latest = await provider.getBlockNumber();
+      let firstBlock = Math.max(0, latest - 100_000);
+      if (TX_RE.test(deploymentTxHash || '')) {
         try {
-          const [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
-          tokenReadSucceeded = true;
-          if (String(owner).toLowerCase() === wallet.toLowerCase() && String(uri) === metadataUrl) {
-            return { checked: true, mint: { tokenId, txHash: log.transactionHash, owner: wallet } };
-          }
+          const deploymentReceipt = await provider.getTransactionReceipt(deploymentTxHash);
+          if (deploymentReceipt?.blockNumber != null) firstBlock = deploymentReceipt.blockNumber;
         } catch {}
       }
-      if (tokenReadSucceeded) return { checked: true, mint: null };
+
+      let toBlock = latest;
+      while (toBlock >= firstBlock) {
+        const fromBlock = Math.max(firstBlock, toBlock - 4_999);
+        const logs = await provider.getLogs({
+          address: contractAddress,
+          fromBlock,
+          toBlock,
+          topics: [VOXELFLIP_MINT_TOPIC, null, null, voucherId],
+        });
+        if (logs.length) {
+          const log = logs[logs.length - 1];
+          const tokenTopic = log.topics?.[1];
+          const ownerTopic = log.topics?.[2];
+          if (!tokenTopic || !ownerTopic) throw new Error('VoxelFlip mint event was incomplete.');
+          const tokenId = BigInt(tokenTopic).toString();
+          const mintedOwner = `0x${ownerTopic.slice(-40)}`;
+          if (mintedOwner.toLowerCase() !== wallet.toLowerCase()) {
+            return { checked: true, used: true, mint: null, ownerMismatch: mintedOwner };
+          }
+          const [currentOwner, tokenUri] = await Promise.all([
+            contract.ownerOf(tokenId),
+            contract.tokenURI(tokenId),
+          ]);
+          return {
+            checked: true,
+            used: true,
+            mint: {
+              tokenId,
+              txHash: log.transactionHash,
+              owner: String(currentOwner),
+              mintedOwner,
+              metadataUrl: String(tokenUri),
+            },
+          };
+        }
+        if (fromBlock === firstBlock) break;
+        toBlock = fromBlock - 1;
+      }
+
+      // The voucher is indisputably consumed. Never issue a second voucher even
+      // if a public RPC cannot return the historical event right now.
+      return { checked: true, used: true, mint: null };
     } catch (error) {
-      console.warn('VoxelFlip existing-mint lookup RPC unavailable', rpcUrl, error);
+      console.warn('VoxelFlip voucher recovery RPC unavailable', rpcUrl, error);
     }
   }
-  return { checked: false, mint: null };
+  return { checked: false, used: false, mint: null };
 }
 
 export async function POST(request: Request) {
@@ -132,24 +163,41 @@ export async function POST(request: Request) {
 
     let existingMint = null;
     let existingMintChecked = false;
+    let voucherUsed = false;
     if (ADDRESS_RE.test(contractAddress)) {
-      const lookup = await findExistingMint(contractAddress, wallet, metadataUrl);
+      const lookup = await findVoucherMint(contractAddress, wallet, voucherId, deployment?.deploymentTxHash || '');
       existingMintChecked = lookup.checked;
+      voucherUsed = lookup.used;
       existingMint = lookup.mint;
       if (!lookup.checked) {
         return NextResponse.json({
-          error: 'Base verification is temporarily unavailable, so VoxelFlip stopped before sending another mint. This protects you from accidentally minting a duplicate. Try Resume mint verification again once Base RPC is reachable.',
+          error: 'Base verification is temporarily unavailable, so VoxelFlip stopped before sending another mint. This protects you from accidentally minting a duplicate.',
         }, { status: 503 });
+      }
+      if (lookup.ownerMismatch) {
+        return NextResponse.json({
+          error: `This voucher was already minted to ${lookup.ownerMismatch}. VoxelFlip will not issue a duplicate.`,
+          voucherUsed: true,
+        }, { status: 409 });
+      }
+      if (lookup.used && !lookup.mint) {
+        return NextResponse.json({
+          error: 'This voucher is already minted on Base. VoxelFlip stopped before creating a duplicate, but the public RPC could not return the original mint event yet. Use Recover existing mint again rather than minting.',
+          voucherUsed: true,
+        }, { status: 409 });
       }
     }
 
-    const voucher = existingMint ? null : await mintVoucher(wallet, metadataUrl, voucherId);
+    const canonicalMetadataUrl = existingMint?.metadataUrl || metadataUrl;
+    const voucher = voucherUsed ? null : await mintVoucher(wallet, canonicalMetadataUrl, voucherId);
 
     try {
       await updateVoxelPopEntitlementMetadata(entitlement, {
         voxelflip_asset_id: assetId,
         voxelflip_wallet: wallet.toLowerCase(),
-        voxelflip_metadata_url: metadataUrl.slice(0, 500),
+        voxelflip_metadata_url: canonicalMetadataUrl.slice(0, 500),
+        ...(existingMint?.tokenId ? { voxelflip_token_id: String(existingMint.tokenId).slice(0, 80) } : {}),
+        ...(existingMint?.txHash ? { voxelflip_tx_hash: String(existingMint.txHash) } : {}),
       });
     } catch (error) {
       console.warn('VoxelFlip entitlement metadata persistence is unavailable; mint can continue.', error);
@@ -159,19 +207,20 @@ export async function POST(request: Request) {
     await recordVoxelPopEvent({
       eventName: 'nft_prepared', eventKey: `nft_prepared:${sessionId}:${taskId}`, flowId: entitlement.metadata?.flow_id || null,
       stripeSessionId: entitlement.id, attribution,
-      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher), existingMint: Boolean(existingMint), existingMintChecked, payment_method: 'stripe' },
+      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher), voucherUsed, existingMint: Boolean(existingMint), existingMintChecked, payment_method: 'stripe' },
     });
 
     return NextResponse.json({
       ready: true,
       assetId,
-      metadataUrl,
+      metadataUrl: canonicalMetadataUrl,
       imageUrl,
       modelUrl,
       sourcePreviewUrl: remoteImageUrl || null,
       name: `${name} · VoxelFlip`,
       wallet,
       voucherId,
+      voucherUsed,
       mintConfigured: Boolean(voucher) || Boolean(existingMint),
       signature: voucher?.signature || null,
       signer: voucher?.signer || null,
@@ -180,6 +229,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('VoxelFlip NFT preparation failed', error);
-    return NextResponse.json({ error: 'Unable to prepare this 3D voxel for NFT minting right now.' }, { status: 500 });
+    return NextResponse.json({ error: 'Unable to prepare or recover this 3D voxel for NFT minting right now.' }, { status: 500 });
   }
 }
