@@ -7,17 +7,13 @@ import { connectVoxelFlipWallet } from '../../../lib/voxelflip';
 import styles from './launch.module.css';
 
 const APPROVED_OWNER = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
-const EXISTING_CONTRACT = '0xbde448ab9fc16b17f6ae975132a4201ccfc247d3';
-const EXISTING_DEPLOYMENT_TX = '0xd269db3bf820f2a6b65d25ca1dd17a1bb2f1619536920137f63b7baccb7715ea';
 const short = (value: string) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : '';
 
 type Preflight = {
-  approvedLaunch?: { royaltyPercent: number; royaltyBps: number; defaultOwner: string; defaultRoyaltyReceiver: string };
   readyForContractDeployment: boolean;
   readyForMinting: boolean;
   openSeaConfigured: boolean;
   mintSignerValid: boolean;
-  mintSignerMatchesConfiguredAddress: boolean;
   mintSignerAddress: string | null;
   collectionConfigured: boolean;
   collectionAddress: string | null;
@@ -44,30 +40,6 @@ export default function VoxelFlipLaunch() {
 
   useEffect(() => { refresh().catch(() => setError('Could not load VoxelFlip launch status.')); }, []);
 
-  async function registerExisting() {
-    if (busy) return;
-    setStage('registering');
-    setError('');
-    setMessage(`Verifying the existing Base contract ${short(EXISTING_CONTRACT)}…`);
-    try {
-      const response = await fetch('/api/creator-pack/nft/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: EXISTING_CONTRACT, txHash: EXISTING_DEPLOYMENT_TX }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'The existing VoxelFlip contract could not be registered.');
-      const status = await refresh();
-      if (!status.collectionConfigured) throw new Error('The contract verified, but the collection has not appeared in preflight yet. Refresh once more.');
-      setStage('done');
-      setMessage(`VoxelFlip is registered and ready for minting at ${status.collectionAddress || EXISTING_CONTRACT}.`);
-    } catch (err: any) {
-      setStage('error');
-      setError(err instanceof Error ? err.message : 'Existing contract registration failed.');
-      setMessage('');
-    }
-  }
-
   async function connect() {
     setStage('connecting'); setError(''); setMessage('Opening your Base wallet…');
     try {
@@ -90,7 +62,7 @@ export default function VoxelFlipLaunch() {
     try {
       const status = await refresh();
       if (status.collectionConfigured) { setStage('done'); setMessage(`VoxelFlip is already registered at ${status.collectionAddress}.`); return; }
-      if (!status.openSeaConfigured || !status.mintSignerValid || !status.mintSignerAddress) throw new Error(status.nextStep || 'VoxelFlip server configuration is incomplete.');
+      if (!status.readyForContractDeployment || !status.openSeaConfigured || !status.mintSignerValid || !status.mintSignerAddress) throw new Error(status.nextStep || 'VoxelFlip server configuration is incomplete.');
 
       const connected = await connectVoxelFlipWallet();
       if (connected.address.toLowerCase() !== APPROVED_OWNER.toLowerCase()) throw new Error(`Connect the approved Voxel Vault owner wallet ${short(APPROVED_OWNER)}.`);
@@ -99,7 +71,7 @@ export default function VoxelFlipLaunch() {
       if (balance <= BigInt(0)) throw new Error('This wallet has no ETH on Base. Move a small amount of ETH to Base for deployment gas first.');
       setWallet(connected.address); setWalletBalance(formatEther(balance));
 
-      setStage('deploying'); setMessage('MetaMask will show the exact Base gas cost. Approve it only if it looks right.');
+      setStage('deploying'); setMessage('Your wallet will show the exact Base gas cost. Approve it only if it looks right.');
       const signer = await provider.getSigner(connected.address);
       const factory = new ContractFactory(artifact.abi as any, artifact.bytecode, signer);
       const contract = await factory.deploy(
@@ -122,41 +94,31 @@ export default function VoxelFlipLaunch() {
       });
       const registered = await registeredResponse.json();
       if (!registeredResponse.ok) throw new Error(registered.error || 'The contract deployed but automatic VoxelFlip registration failed.');
-      await refresh();
-      setStage('done'); setMessage(`VoxelFlip is live on Base at ${address}. The collection is registered automatically.`);
+      const finalStatus = await refresh();
+      if (!finalStatus.readyForMinting) throw new Error('Deployment registered, but minting is not ready yet. Refresh the page once.');
+      setStage('done'); setMessage(`VoxelFlip is live and ready for minting at ${address}.`);
     } catch (err: any) {
       if (err?.code === 'NO_WALLET_PROVIDER' && err?.deepLink) { window.location.href = err.deepLink; return; }
-      setStage('error'); setError(err instanceof Error ? err.message : 'VoxelFlip deployment failed.');
-      setMessage('');
+      setStage('error'); setError(err instanceof Error ? err.message : 'VoxelFlip deployment failed.'); setMessage('');
     }
   }
 
   const funded = preflight?.baseFunding?.hasEth || (walletBalance ? Number(walletBalance) > 0 : false);
   return <main className={styles.page}>
     <nav><a href="/voxelflip">← VoxelFlip Vault</a><b>VOXELFLIP LAUNCH CONTROL</b></nav>
-    <header><p>BASE MAINNET · OWNER-SIGNED DEPLOYMENT</p><h1>Launch VoxelFlip.</h1><span>One guarded deployment. Your wallet approves the gas. The app verifies and registers everything else automatically.</span></header>
-
-    <section className={styles.card}>
-      <div className={styles.term}><span>COLLECTION</span><b>VoxelFlip by Voxel Vault</b></div>
-      <div className={styles.term}><span>OWNER + ROYALTY WALLET</span><b>{short(APPROVED_OWNER)}</b></div>
-      <div className={styles.term}><span>LAUNCH ROYALTY</span><b>5% · 500 bps</b></div>
-      <div className={styles.term}><span>NETWORK</span><b>Base · chain 8453</b></div>
-    </section>
+    <header><p>BASE MAINNET · OWNER-SIGNED DEPLOYMENT</p><h1>Launch VoxelFlip.</h1><span>One clean deployment from the current verified artifact. The app verifies and registers it automatically.</span></header>
 
     <section className={styles.checks}>
       <div className={preflight?.openSeaConfigured ? styles.ok : styles.no}><i>{preflight?.openSeaConfigured ? '✓' : '×'}</i><span>OpenSea API</span></div>
       <div className={preflight?.mintSignerValid ? styles.ok : styles.no}><i>{preflight?.mintSignerValid ? '✓' : '×'}</i><span>Mint signer</span></div>
       <div className={funded ? styles.ok : styles.no}><i>{funded ? '✓' : '×'}</i><span>Base gas</span><small>{preflight?.baseFunding?.checked ? `${preflight.baseFunding.balanceEth} ETH` : 'checking'}</small></div>
-      <div className={preflight?.collectionConfigured ? styles.ok : styles.pending}><i>{preflight?.collectionConfigured ? '✓' : '·'}</i><span>Collection</span><small>{preflight?.collectionAddress ? short(preflight.collectionAddress) : 'not registered'}</small></div>
+      <div className={preflight?.collectionConfigured ? styles.ok : styles.pending}><i>{preflight?.collectionConfigured ? '✓' : '·'}</i><span>Collection</span><small>{preflight?.collectionAddress ? short(preflight.collectionAddress) : 'not deployed'}</small></div>
     </section>
 
     {!preflight?.collectionConfigured && <section className={styles.actions}>
-      <button className={styles.deploy} disabled={busy} onClick={registerExisting}>{stage === 'registering' ? 'Verifying existing contract…' : 'Finish setup · Use existing contract'}</button>
-      <small>No gas and no new contract. This verifies the successful Base deployment and registers it with VoxelFlip.</small>
       <button className={styles.secondary} disabled={busy} onClick={connect}>{wallet ? `Owner connected · ${short(wallet)}` : 'Connect owner wallet'}</button>
-      {!funded && <a className={styles.bridge} href="https://bridge.base.org" target="_blank" rel="noreferrer">Move ETH to Base ↗</a>}
-      <button className={styles.secondary} disabled={busy || !preflight?.readyForContractDeployment} onClick={deploy}>{stage === 'deploying' ? 'Confirm in wallet…' : 'Deploy a new contract instead'}</button>
-      <small>Only use the new-deployment option if the existing contract fails verification. Your wallet will show the exact Base gas before anything is spent.</small>
+      <button className={styles.deploy} disabled={busy || !preflight?.readyForContractDeployment} onClick={deploy}>{stage === 'deploying' ? 'Confirm in wallet…' : stage === 'registering' ? 'Verifying contract…' : 'Deploy fresh VoxelFlip contract'}</button>
+      <small>This creates one new Base contract and then immediately verifies and registers that exact contract. Your wallet shows the gas before anything is spent.</small>
     </section>}
 
     {preflight?.collectionConfigured && <section className={styles.success}><b>✓ VoxelFlip collection registered</b><span>{preflight.collectionAddress}</span><div><a href={`https://basescan.org/address/${preflight.collectionAddress}`} target="_blank" rel="noreferrer">BaseScan ↗</a><a href="/studio">Create test VoxelFlip →</a></div></section>}
