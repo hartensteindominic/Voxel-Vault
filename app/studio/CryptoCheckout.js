@@ -2,7 +2,7 @@
 
 import {useState} from 'react';
 import {connectVoxelPopCryptoWallet,sendVoxelPopEthPayment} from '../../lib/voxelpop-crypto';
-import styles from './studio.module.css';
+import styles from './crypto.module.css';
 
 const wait=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 
@@ -41,15 +41,15 @@ export default function CryptoCheckout({idea,flowId,attribution}){
   }
  }
 
- return <div className={styles.cryptoBox}>
-  <button type="button" className={styles.cryptoToggle} disabled={busy} onClick={()=>setOpen(v=>!v)}>◇ Pay $1.99 with ETH</button>
-  {open&&<div className={styles.cryptoPanel}>
+ return <div className={styles.box}>
+  <button type="button" className={styles.toggle} disabled={busy} onClick={()=>setOpen(v=>!v)}>◇ Pay $1.99 with ETH</button>
+  {open&&<div className={styles.panel}>
    <div><b>Crypto checkout</b><span>Same voxel · same GLB + image · same VoxelFlip eligibility</span></div>
    <button type="button" disabled={busy} onClick={()=>pay(8453)}>Pay with ETH on Base <small>recommended · low gas</small></button>
    <button type="button" disabled={busy} onClick={()=>pay(1)}>Pay with ETH on Ethereum <small>mainnet · gas may exceed $1.99</small></button>
    <p>Base also uses ETH. If your ETH is only on Ethereum mainnet, the Ethereum option works for checkout; VoxelFlip minting itself is designed for Base to keep NFT gas lower.</p>
   </div>}
-  {message&&<p className={styles.cryptoMessage}>{message}</p>}
-  {error&&<p className={styles.cryptoError}>{error}</p>}
+  {message&&<p className={styles.message}>{message}</p>}
+  {error&&<p className={styles.error}>{error}</p>}
  </div>;
 }
