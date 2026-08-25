@@ -53,7 +53,7 @@ export async function GET() {
   } catch {
     baseBalanceChecked = false;
   }
-  const ownerHasBaseEth = BigInt(ownerBaseBalanceWei) > 0n;
+  const ownerHasBaseEth = BigInt(ownerBaseBalanceWei) > BigInt(0);
 
   let nextStep = 'Review launch configuration.';
   if (collectionConfigured) nextStep = 'Run one paid VoxelPop -> mesh -> VoxelFlip mint -> OpenSea -> import-back test.';
