@@ -4,4 +4,4 @@ This branch-only file intentionally forces a fresh Vercel Preview deployment for
 
 This does not modify `main`, the protected VoxelPop FINAL, or the live production site.
 
-VoxelFlip preview refresh requested for no-gas registration recovery: 2026-08-25 15:32 UTC.
+VoxelFlip preview refresh requested for direct address-only registration verification: 2026-08-25 15:36 UTC.
