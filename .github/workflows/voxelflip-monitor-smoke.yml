@@ -1,0 +1,65 @@
+name: VoxelFlip Monitor Smoke
+
+on:
+  push:
+    branches:
+      - fix/voxelflip-deployment-source-of-truth
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production VoxelFlip config
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --max-time 20 \
+            'https://www.voxelvault.io/api/creator-pack/nft/config' \
+            | tee config.json
+          grep -q '"configured":true' config.json
+          grep -qi 'a00758b05f96ef4409d97c3ffebb6794b2eafbde' config.json
+
+      - name: Probe read-only market monitor
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --max-time 30 \
+            'https://www.voxelvault.io/api/voxelflip/trader?wallet=0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb' \
+            | tee trader.json
+          grep -q '"automaticSigningActive":false' trader.json
+          grep -q '"executionNotice":"Monitoring only.' trader.json
+          grep -qi 'a00758b05f96ef4409d97c3ffebb6794b2eafbde' trader.json
+
+      - name: Print safe summary
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('config.json','utf8'));
+          const trader = JSON.parse(fs.readFileSync('trader.json','utf8'));
+          console.log(JSON.stringify({
+            config: {
+              configured: config.configured,
+              address: config.address,
+              chainName: config.chainName,
+            },
+            monitor: {
+              scanner: trader.scanner,
+              marketDataConfigured: trader.marketDataConfigured,
+              executionMode: trader.executionMode,
+              automaticSigningActive: trader.automaticSigningActive,
+              dedicatedRpcConfigured: trader.dedicatedRpcConfigured,
+              allowlistConfigured: trader.allowlistConfigured,
+              killSwitch: trader.killSwitch,
+              listings: trader.listings,
+              offersReceived: trader.offersReceived,
+              checkedAt: trader.checkedAt || null,
+              sourceHealth: trader.sourceHealth || null,
+            }
+          }, null, 2));
+          NODE
