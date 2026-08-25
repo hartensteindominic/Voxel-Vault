@@ -30,6 +30,7 @@ export default function VoxelFlipAutopilotPage(){
  async function runScan(){if(!ADDRESS_RE.test(wallet)||busy)return;setBusy(true);setError('');try{const q=new URLSearchParams({wallet});if(/^\d+$/.test(tokenId))q.set('tokenId',tokenId);const response=await fetch(`/api/voxelflip/trader?${q}`,{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Autopilot scan failed.');setScanner(data)}catch(e){setError(e instanceof Error?e.message:'Autopilot scan failed.')}finally{setBusy(false)}}
 
  const risk=scanner?.riskPolicy||{};const policy=scanner?.gatewayPolicy||{};const setup=scanner?.setup||{};const execution=scanner?.automaticSigningActive?'RUNNING':scanner?.executionFoundationReady?'FOUNDATION READY':'SETUP';const activity=scanner?.activity||[];
+ const ecologyQuery=new URLSearchParams();if(wallet)ecologyQuery.set('wallet',wallet);if(tokenId)ecologyQuery.set('tokenId',tokenId);if(sessionId)ecologyQuery.set('session_id',sessionId);const ecologyHref=`/voxelflip/ecology${ecologyQuery.toString()?`?${ecologyQuery}`:''}`;
  return <main className={styles.page}>
   <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · AUTOPILOT</em></nav>
   <header className={styles.hero}><p className={styles.eyebrow}>SCAN → SCORE → GATE → EXECUTE → MONITOR</p><h1>Your market bot.<br/><em>With speed bumps.</em></h1><span>This is the trading workspace. Minting is separate. Every opportunity is classified into automatic, one-tap, or manual review before money or inventory can move.</span></header>
@@ -68,10 +69,10 @@ export default function VoxelFlipAutopilotPage(){
    <section className={styles.panel}>
     <div className={styles.panelHead}><div><small>NON-NEGOTIABLE</small><h2>Guardrails</h2></div></div>
     <div className={styles.guardrails}>{(scanner?.protections||['Dedicated trader wallet only','Whitelist-only automatic buys','Grails stay manual','Gas guard','Daily loss circuit breaker','Kill switch']).map((item,i)=><div className={styles.guardrail} key={i}><span>✓</span><p>{item}</p></div>)}</div>
-    <div className={styles.actions}><a href="/studio#my-voxels">Google / My Voxels</a>{sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>Mint page</a>}<a href="https://opensea.io" target="_blank" rel="noreferrer">OpenSea ↗</a></div>
+    <div className={styles.actions}><a href={ecologyHref}>Enter Ecology →</a><a href="/studio#my-voxels">Google / My Voxels</a>{sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>Mint page</a>}<a href="https://opensea.io" target="_blank" rel="noreferrer">OpenSea ↗</a></div>
     <p className={styles.riskText}>Automatic NFT trading can lose money. Limits, allowlists and circuit breakers reduce risk but cannot guarantee profit or prevent every loss. Automatic signing remains off until the separate bounded executor/delegation is actually installed and verified.</p>
    </section>
   </div>
-  <footer className={styles.footer}><a href="/studio">← VoxelPop Studio</a><a href="/studio#my-voxels">My Voxels</a></footer>
+  <footer className={styles.footer}><a href="/studio">← VoxelPop Studio</a><a href={ecologyHref}>Ecology →</a></footer>
  </main>;
 }
