@@ -38,7 +38,7 @@ export default function StudioPage(){
  return <main className={styles.page}>
   <nav><Brand/><span className={styles.price}><i/>$1.99 per 3D asset</span></nav>
   <header>
-   <p className={styles.kicker}>✦ MADE FOR GAME CREATORS</p>
+   <p className={styles.kicker}>✦ FOR ANYTHING YOU CAN IMAGINE</p>
    <h1>Your idea.<br/><em>Built in voxels.</em></h1>
    <p className={styles.lead}>Type absolutely anything. See the voxel style, then create one real 3D asset for only $1.99.</p>
   </header>
