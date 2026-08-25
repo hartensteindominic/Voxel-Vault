@@ -44,9 +44,9 @@ export default function VoxelFlipPanel({sessionId,taskId,image,name,idea}:Props)
   }
  }
 
- return <section className={styles.panel} aria-label="VoxelFlip NFT">
+ return <section id="voxelflip-mint" className={styles.panel} aria-label="VoxelFlip NFT">
   <div className={styles.glow}/>
-  <div className={styles.top}><div><p>OPTIONAL · AFTER YOUR 3D MESH</p><h3>VoxelFlip</h3></div><span>3D NFT · {VOXELFLIP_CHAIN_NAME} → OpenSea</span></div>
+  <div className={styles.top}><div><p>NEXT STEP · OPTIONAL NFT</p><h3>VoxelFlip</h3></div><span>3D NFT · {VOXELFLIP_CHAIN_NAME} → OpenSea</span></div>
   <p className={styles.lead}>Turn the exact GLB you just created into a wallet-owned 3D NFT, then hold it, transfer it, or list it on OpenSea at a price you choose.</p>
   <div className={styles.ladder}><div><b>01</b><strong>$1.99 origin</strong><small>Your VoxelPop creation</small></div><i>→</i><div><b>02</b><strong>Mint 3D NFT</strong><small>Image + GLB metadata</small></div><i>→</i><div><b>03</b><strong>List or trade</strong><small>You choose the ask</small></div><i>→</i><div><b>04</b><strong>Trade up</strong><small>Only if someone values it more</small></div></div>
   {!minted&&<button className={styles.button} disabled={busy} onClick={start}>{buttonText}</button>}
