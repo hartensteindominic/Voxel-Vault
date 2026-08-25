@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import CryptoCheckout from './CryptoCheckout';
 import styles from './studio.module.css';
 
 const examples=[
@@ -47,6 +48,7 @@ export default function StudioPage(){
    <div className={styles.input}><textarea value={idea} onChange={e=>changeIdea(e.target.value)} maxLength={300}/><button onClick={surprise}>✦ Surprise me</button></div>
    <div className={styles.checks}><span>✓ <b>One custom voxel</b></span><span>✓ <b>One-time $1.99 payment</b></span><span>✓ <b>3D GLB + image</b></span></div>
    <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create my voxel · $1.99'}</button>
+   <CryptoCheckout idea={idea} flowId={flowId} attribution={attribution}/>
    <small>No account · One payment, one custom asset</small>{error&&<p className={styles.error}>{error}</p>}
   </section>
   <section className={styles.preview}>
