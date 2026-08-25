@@ -14,17 +14,23 @@ export const metadata = {
   keywords: ['3D voxel generator','custom voxel','GLB generator','3D asset generator','VoxelPop','voxel assets'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
+  icons: {
+    icon: '/voxelpop/voxelpop-logo.png',
+    apple: '/voxelpop/voxelpop-logo.png',
+  },
   openGraph: {
     title: 'VoxelPop | Your Idea, Made 3D for $1.99',
     description: 'Describe what you want and create one custom 3D voxel asset with a downloadable GLB model and source image for $1.99.',
     type: 'website',
     url: SITE_URL,
     siteName: 'VoxelPop',
+    images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'VoxelPop — Your Idea, Made 3D' }],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'VoxelPop | Your Idea, Made 3D for $1.99',
     description: 'One idea in. One custom 3D voxel asset out. GLB + source image, no subscription.',
+    images: ['/voxelpop/voxelpop-logo.png'],
   },
 };
 
