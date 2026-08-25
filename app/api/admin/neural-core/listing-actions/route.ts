@@ -11,6 +11,9 @@ const PRICE_RE = /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const OPENSEA_ACTIONS_URL = 'https://api.opensea.io/api/v2/listings/actions';
 const REQUEST_TIMEOUT_MS = 10_000;
+const MAX_ITEMS = 10;
+
+type ListingInput = { tokenId: string; priceEth: string };
 
 function json(data: any, status = 200) {
   return NextResponse.json(data, {
@@ -87,22 +90,43 @@ async function openSeaListingActions(body: any, apiKey: string) {
   }
 }
 
+function parseItems(body: any): { items: ListingInput[]; error?: string } {
+  const fallbackPrice = String(body?.priceEth || '').trim();
+  const raw = Array.isArray(body?.items) && body.items.length
+    ? body.items
+    : [{ tokenId: body?.tokenId, priceEth: fallbackPrice }];
+
+  if (!raw.length) return { items: [], error: 'Choose at least one VoxelFlip to list.' };
+  if (raw.length > MAX_ITEMS) return { items: [], error: `List up to ${MAX_ITEMS} VoxelFlips at a time. Larger selections can be listed in another batch.` };
+
+  const seen = new Set<string>();
+  const items: ListingInput[] = [];
+  for (const entry of raw) {
+    const tokenId = String(entry?.tokenId ?? '').trim();
+    const priceEth = String(entry?.priceEth ?? fallbackPrice).trim();
+    if (!TOKEN_RE.test(tokenId)) return { items: [], error: 'Every selected VoxelFlip must have a valid token ID.' };
+    if (seen.has(tokenId)) return { items: [], error: `VoxelFlip #${tokenId} was selected more than once.` };
+    if (!PRICE_RE.test(priceEth) || Number(priceEth) <= 0 || Number(priceEth) > 1000) {
+      return { items: [], error: `VoxelFlip #${tokenId} needs a price greater than 0 and no more than 1000 ETH.` };
+    }
+    seen.add(tokenId);
+    items.push({ tokenId, priceEth });
+  }
+  return { items };
+}
+
 export async function POST(request: Request) {
   const auth = await requireNeuralCoreAdmin(request);
   if ('error' in auth) return json({ error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
 
   const body = await request.json().catch(() => ({}));
   const wallet = String(body?.wallet || '').trim().toLowerCase();
-  const tokenId = String(body?.tokenId || '').trim();
-  const priceEth = String(body?.priceEth || '').trim();
   const durationDays = Math.floor(Number(body?.durationDays ?? 30));
   const useCreatorFee = body?.useCreatorFee !== false;
+  const parsed = parseItems(body);
 
-  if (!ADDRESS_RE.test(wallet)) return json({ error: 'Connect the Base wallet that owns this VoxelFlip.' }, 400);
-  if (!TOKEN_RE.test(tokenId)) return json({ error: 'A valid VoxelFlip token ID is required.' }, 400);
-  if (!PRICE_RE.test(priceEth) || Number(priceEth) <= 0 || Number(priceEth) > 1000) {
-    return json({ error: 'Enter a listing price greater than 0 and no more than 1000 ETH.' }, 400);
-  }
+  if (!ADDRESS_RE.test(wallet)) return json({ error: 'Connect the Base wallet that owns these VoxelFlips.' }, 400);
+  if (parsed.error) return json({ error: parsed.error }, 400);
   if (!Number.isFinite(durationDays) || durationDays < 1 || durationDays > 180) {
     return json({ error: 'Listing duration must be between 1 and 180 days.' }, 400);
   }
@@ -111,26 +135,31 @@ export async function POST(request: Request) {
   const contract = String(deployment?.address || '').trim();
   if (!ADDRESS_RE.test(contract)) return json({ error: 'The production VoxelFlip collection is not configured.' }, 503);
 
-  const owner = await verifiedOwner(contract, tokenId);
-  if (!owner) return json({ error: 'Base ownership could not be verified. No listing action was prepared.' }, 503);
-  if (owner !== wallet) return json({ error: 'That wallet does not currently own this VoxelFlip on Base.' }, 403);
+  const ownership = await Promise.all(parsed.items.map(async item => ({
+    tokenId: item.tokenId,
+    owner: await verifiedOwner(contract, item.tokenId),
+  })));
+  const unavailable = ownership.find(item => !item.owner);
+  if (unavailable) return json({ error: `Base ownership for VoxelFlip #${unavailable.tokenId} could not be verified. No listing plan was prepared.` }, 503);
+  const wrongOwner = ownership.find(item => item.owner !== wallet);
+  if (wrongOwner) return json({ error: `The connected wallet does not currently own VoxelFlip #${wrongOwner.tokenId} on Base.` }, 403);
 
   const apiKey = String(process.env.OPENSEA_API_KEY || '').trim();
-  if (!apiKey) return json({ error: 'OpenSea listing automation is waiting for the server-side OpenSea API key.' }, 503);
+  if (!apiKey) return json({ error: 'OpenSea listing preparation is waiting for the server-side OpenSea API key.' }, 503);
 
   const start = new Date();
   const end = new Date(start.getTime() + durationDays * 86_400_000);
   const requestBody = {
     address: wallet,
-    items: [{
+    items: parsed.items.map(item => ({
       chain: 'base',
       contract,
-      token_id: tokenId,
+      token_id: item.tokenId,
       quantity: 1,
-      price: { amount: priceEth, currency: ZERO_ADDRESS },
+      price: { amount: item.priceEth, currency: ZERO_ADDRESS },
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-    }],
+    })),
     use_creator_fee: useCreatorFee,
   };
 
@@ -148,25 +177,33 @@ export async function POST(request: Request) {
       if (!step || typeof step !== 'object') return 'unknown';
       return Object.keys(step)[0] || 'unknown';
     });
+    const listedItems = parsed.items.map(item => ({
+      ...item,
+      owner: wallet,
+      openSeaUrl: `https://opensea.io/item/base/${contract}/${item.tokenId}`,
+    }));
 
     return json({
       prepared: true,
-      previewOnly: true,
+      handoffMode: 'opensea-ui',
       walletSignatureRequired: true,
       automaticSigningActive: false,
+      directWalletExecutionActive: false,
       wallet,
-      owner,
+      owner: wallet,
       contract,
-      tokenId,
-      priceEth,
+      chainId: 8453,
+      chain: 'base',
+      itemCount: listedItems.length,
+      items: listedItems,
       durationDays,
       useCreatorFee,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       actionTypes,
-      steps,
-      openSeaUrl: `https://opensea.io/item/base/${contract}/${tokenId}`,
-      notice: 'These are OpenSea preparation steps only. Nothing is listed until the connected wallet explicitly approves/signs the required actions.',
+      openSeaProfileUrl: `https://opensea.io/${wallet}`,
+      openSeaUrl: listedItems[0]?.openSeaUrl || `https://opensea.io/${wallet}`,
+      notice: 'Ownership and OpenSea listing inputs are verified. Complete the listing on OpenSea and approve the marketplace prompts in your wallet. VoxelPop never receives your private key or signs for you.',
     });
   } catch (error) {
     return json({
