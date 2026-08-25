@@ -7,6 +7,8 @@ import { connectVoxelFlipWallet } from '../../../lib/voxelflip';
 import styles from './launch.module.css';
 
 const APPROVED_OWNER = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
+const RECENT_DEPLOYED_CONTRACT = '0xa00758b05f96ef4409d97c3ffebb6794b2eafbde';
+const PENDING_KEY = 'voxelflipPendingDeployment';
 const short = (value: string) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : '';
 
 type Preflight = {
@@ -22,10 +24,13 @@ type Preflight = {
   nextStep: string;
 };
 
+type PendingDeployment = { address: string; txHash?: string };
+
 export default function VoxelFlipLaunch() {
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [wallet, setWallet] = useState('');
   const [walletBalance, setWalletBalance] = useState('');
+  const [pending, setPending] = useState<PendingDeployment>({ address: RECENT_DEPLOYED_CONTRACT });
   const [stage, setStage] = useState<'idle'|'connecting'|'deploying'|'registering'|'done'|'error'>('idle');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -38,7 +43,54 @@ export default function VoxelFlipLaunch() {
     return data as Preflight;
   }
 
-  useEffect(() => { refresh().catch(() => setError('Could not load VoxelFlip launch status.')); }, []);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(PENDING_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (/^0x[a-fA-F0-9]{40}$/.test(parsed?.address || '')) setPending(parsed);
+      }
+    } catch {}
+    refresh().catch(() => setError('Could not load VoxelFlip launch status.'));
+  }, []);
+
+  function savePending(value: PendingDeployment) {
+    setPending(value);
+    try { window.localStorage.setItem(PENDING_KEY, JSON.stringify(value)); } catch {}
+  }
+
+  function clearPending() {
+    try { window.localStorage.removeItem(PENDING_KEY); } catch {}
+  }
+
+  async function registerDeployment(value: PendingDeployment) {
+    setStage('registering');
+    setError('');
+    setMessage(`Verifying ${short(value.address)} on Base. No gas is required…`);
+    const response = await fetch('/api/creator-pack/nft/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: value.address, txHash: value.txHash || undefined }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'VoxelFlip registration failed.');
+    const finalStatus = await refresh();
+    if (!finalStatus.readyForMinting) throw new Error('Registration succeeded, but mint readiness has not refreshed yet. Refresh once.');
+    clearPending();
+    setStage('done');
+    setMessage(`VoxelFlip is registered and ready for minting at ${finalStatus.collectionAddress || value.address}.`);
+  }
+
+  async function retryRegistration() {
+    if (busy || !pending?.address) return;
+    try {
+      await registerDeployment(pending);
+    } catch (err: any) {
+      setStage('error');
+      setError(err instanceof Error ? err.message : 'VoxelFlip registration failed.');
+      setMessage('');
+    }
+  }
 
   async function connect() {
     setStage('connecting'); setError(''); setMessage('Opening your Base wallet…');
@@ -83,42 +135,41 @@ export default function VoxelFlipLaunch() {
       );
       const deploymentTx = contract.deploymentTransaction();
       if (!deploymentTx?.hash) throw new Error('The deployment transaction was not created.');
+      const predictedAddress = (await contract.getAddress()).toLowerCase();
+      savePending({ address: predictedAddress, txHash: deploymentTx.hash });
       setMessage(`Deployment submitted · ${short(deploymentTx.hash)}. Waiting for Base confirmation…`);
       await contract.waitForDeployment();
-      const address = await contract.getAddress();
-
-      setStage('registering'); setMessage(`Contract confirmed at ${short(address)}. Verifying owner, signer and 5% royalty…`);
-      const registeredResponse = await fetch('/api/creator-pack/nft/register', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, txHash: deploymentTx.hash }),
-      });
-      const registered = await registeredResponse.json();
-      if (!registeredResponse.ok) throw new Error(registered.error || 'The contract deployed but automatic VoxelFlip registration failed.');
-      const finalStatus = await refresh();
-      if (!finalStatus.readyForMinting) throw new Error('Deployment registered, but minting is not ready yet. Refresh the page once.');
-      setStage('done'); setMessage(`VoxelFlip is live and ready for minting at ${address}.`);
+      const address = (await contract.getAddress()).toLowerCase();
+      savePending({ address, txHash: deploymentTx.hash });
+      await registerDeployment({ address, txHash: deploymentTx.hash });
     } catch (err: any) {
       if (err?.code === 'NO_WALLET_PROVIDER' && err?.deepLink) { window.location.href = err.deepLink; return; }
-      setStage('error'); setError(err instanceof Error ? err.message : 'VoxelFlip deployment failed.'); setMessage('');
+      setStage('error');
+      setError(err instanceof Error ? err.message : 'VoxelFlip deployment failed.');
+      setMessage('');
     }
   }
 
   const funded = preflight?.baseFunding?.hasEth || (walletBalance ? Number(walletBalance) > 0 : false);
   return <main className={styles.page}>
     <nav><a href="/voxelflip">← VoxelFlip Vault</a><b>VOXELFLIP LAUNCH CONTROL</b></nav>
-    <header><p>BASE MAINNET · OWNER-SIGNED DEPLOYMENT</p><h1>Launch VoxelFlip.</h1><span>One clean deployment from the current verified artifact. The app verifies and registers it automatically.</span></header>
+    <header><p>BASE MAINNET · OWNER-SIGNED DEPLOYMENT</p><h1>Launch VoxelFlip.</h1><span>Deploy once. If verification needs another attempt, registration can be retried without spending gas again.</span></header>
 
     <section className={styles.checks}>
       <div className={preflight?.openSeaConfigured ? styles.ok : styles.no}><i>{preflight?.openSeaConfigured ? '✓' : '×'}</i><span>OpenSea API</span></div>
       <div className={preflight?.mintSignerValid ? styles.ok : styles.no}><i>{preflight?.mintSignerValid ? '✓' : '×'}</i><span>Mint signer</span></div>
       <div className={funded ? styles.ok : styles.no}><i>{funded ? '✓' : '×'}</i><span>Base gas</span><small>{preflight?.baseFunding?.checked ? `${preflight.baseFunding.balanceEth} ETH` : 'checking'}</small></div>
-      <div className={preflight?.collectionConfigured ? styles.ok : styles.pending}><i>{preflight?.collectionConfigured ? '✓' : '·'}</i><span>Collection</span><small>{preflight?.collectionAddress ? short(preflight.collectionAddress) : 'not deployed'}</small></div>
+      <div className={preflight?.collectionConfigured ? styles.ok : styles.pending}><i>{preflight?.collectionConfigured ? '✓' : '·'}</i><span>Collection</span><small>{preflight?.collectionAddress ? short(preflight.collectionAddress) : 'not registered'}</small></div>
     </section>
 
     {!preflight?.collectionConfigured && <section className={styles.actions}>
+      {pending?.address && <>
+        <button className={styles.deploy} disabled={busy} onClick={retryRegistration}>{stage === 'registering' ? 'Verifying on Base…' : `Finish registration · ${short(pending.address)}`}</button>
+        <small>Use this first. It retries verification of the contract you already deployed and costs no gas.</small>
+      </>}
       <button className={styles.secondary} disabled={busy} onClick={connect}>{wallet ? `Owner connected · ${short(wallet)}` : 'Connect owner wallet'}</button>
-      <button className={styles.deploy} disabled={busy || !preflight?.readyForContractDeployment} onClick={deploy}>{stage === 'deploying' ? 'Confirm in wallet…' : stage === 'registering' ? 'Verifying contract…' : 'Deploy fresh VoxelFlip contract'}</button>
-      <small>This creates one new Base contract and then immediately verifies and registers that exact contract. Your wallet shows the gas before anything is spent.</small>
+      <button className={styles.secondary} disabled={busy || !preflight?.readyForContractDeployment} onClick={deploy}>{stage === 'deploying' ? 'Confirm in wallet…' : 'Deploy another contract only if needed'}</button>
+      <small>A new Base deployment spends gas. Registration retries do not.</small>
     </section>}
 
     {preflight?.collectionConfigured && <section className={styles.success}><b>✓ VoxelFlip collection registered</b><span>{preflight.collectionAddress}</span><div><a href={`https://basescan.org/address/${preflight.collectionAddress}`} target="_blank" rel="noreferrer">BaseScan ↗</a><a href="/studio">Create test VoxelFlip →</a></div></section>}
