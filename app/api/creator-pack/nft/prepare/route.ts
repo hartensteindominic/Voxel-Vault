@@ -11,7 +11,6 @@ export const maxDuration = 120;
 const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const TASK_KEY = 'mesh_task_0';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
 const VOXELFLIP_MINT_TOPIC = id('VoxelFlipMinted(uint256,address,bytes32,string)');
 const EXISTING_MINT_ABI = [
@@ -43,7 +42,12 @@ function voucherIdFor(sessionId: string, taskId: string) {
 }
 function rpcCandidates() {
   const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
-  return Array.from(new Set([configured, 'https://mainnet.base.org', 'https://base.llamarpc.com'].filter(Boolean)));
+  return Array.from(new Set([
+    configured,
+    'https://base.blockscout.com/api/eth-rpc',
+    'https://mainnet.base.org',
+    'https://base.llamarpc.com',
+  ].filter(Boolean)));
 }
 async function mintVoucher(wallet: string, metadataUrl: string, voucherId: string) {
   const rawPrivateKey = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY;
@@ -55,26 +59,23 @@ async function mintVoucher(wallet: string, metadataUrl: string, voucherId: strin
   return { signature, signer: signer.address };
 }
 
-async function findVoucherMint(contractAddress: string, wallet: string, voucherId: string, deploymentTxHash: string) {
+async function findVoucherMint(contractAddress: string, wallet: string, voucherId: string): Promise<any> {
+  let voucherKnownUsed = false;
   for (const rpcUrl of rpcCandidates()) {
     try {
       const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
       const contract = new Contract(contractAddress, EXISTING_MINT_ABI, provider);
       const used = Boolean(await contract.usedVouchers(voucherId));
       if (!used) return { checked: true, used: false, mint: null };
+      voucherKnownUsed = true;
 
+      // The mint happened during the current VoxelFlip launch. Search recent
+      // blocks in small ranges so recovery does not require archive RPC access.
       const latest = await provider.getBlockNumber();
-      let firstBlock = Math.max(0, latest - 100_000);
-      if (TX_RE.test(deploymentTxHash || '')) {
-        try {
-          const deploymentReceipt = await provider.getTransactionReceipt(deploymentTxHash);
-          if (deploymentReceipt?.blockNumber != null) firstBlock = deploymentReceipt.blockNumber;
-        } catch {}
-      }
-
+      const firstBlock = Math.max(0, latest - 20_000);
       let toBlock = latest;
       while (toBlock >= firstBlock) {
-        const fromBlock = Math.max(firstBlock, toBlock - 4_999);
+        const fromBlock = Math.max(firstBlock, toBlock - 1_999);
         const logs = await provider.getLogs({
           address: contractAddress,
           fromBlock,
@@ -110,14 +111,12 @@ async function findVoucherMint(contractAddress: string, wallet: string, voucherI
         if (fromBlock === firstBlock) break;
         toBlock = fromBlock - 1;
       }
-
-      // The voucher is indisputably consumed. Never issue a second voucher even
-      // if a public RPC cannot return the historical event right now.
-      return { checked: true, used: true, mint: null };
     } catch (error) {
       console.warn('VoxelFlip voucher recovery RPC unavailable', rpcUrl, error);
     }
   }
+
+  if (voucherKnownUsed) return { checked: true, used: true, mint: null };
   return { checked: false, used: false, mint: null };
 }
 
@@ -165,13 +164,13 @@ export async function POST(request: Request) {
     let existingMintChecked = false;
     let voucherUsed = false;
     if (ADDRESS_RE.test(contractAddress)) {
-      const lookup = await findVoucherMint(contractAddress, wallet, voucherId, deployment?.deploymentTxHash || '');
+      const lookup = await findVoucherMint(contractAddress, wallet, voucherId);
       existingMintChecked = lookup.checked;
       voucherUsed = lookup.used;
       existingMint = lookup.mint;
       if (!lookup.checked) {
         return NextResponse.json({
-          error: 'Base verification is temporarily unavailable, so VoxelFlip stopped before sending another mint. This protects you from accidentally minting a duplicate.',
+          error: 'Base verification is temporarily unavailable, so VoxelFlip stopped before sending another mint. No transaction was sent. Use Recover existing mint again.',
         }, { status: 503 });
       }
       if (lookup.ownerMismatch) {
@@ -182,7 +181,7 @@ export async function POST(request: Request) {
       }
       if (lookup.used && !lookup.mint) {
         return NextResponse.json({
-          error: 'This voucher is already minted on Base. VoxelFlip stopped before creating a duplicate, but the public RPC could not return the original mint event yet. Use Recover existing mint again rather than minting.',
+          error: 'This voucher is already minted on Base. VoxelFlip blocked a duplicate, but no recovery provider returned the mint event yet. Use Recover existing mint again; do not approve another mint.',
           voucherUsed: true,
         }, { status: 409 });
       }
