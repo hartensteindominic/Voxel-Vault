@@ -70,7 +70,7 @@ export default function VoxelFlipLaunch() {
       if (connected.address.toLowerCase() !== APPROVED_OWNER.toLowerCase()) throw new Error(`Connect the approved Voxel Vault owner wallet ${short(APPROVED_OWNER)}.`);
       const provider = new BrowserProvider(connected.provider);
       const balance = await provider.getBalance(connected.address);
-      if (balance <= 0n) throw new Error('This wallet has no ETH on Base. Move a small amount of ETH to Base for deployment gas first.');
+      if (balance <= BigInt(0)) throw new Error('This wallet has no ETH on Base. Move a small amount of ETH to Base for deployment gas first.');
       setWallet(connected.address); setWalletBalance(formatEther(balance));
 
       setStage('deploying'); setMessage('MetaMask will show the exact Base gas cost. Approve it only if it looks right.');
