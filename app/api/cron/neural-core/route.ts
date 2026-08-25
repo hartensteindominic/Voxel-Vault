@@ -30,9 +30,10 @@ function positive(value: string | undefined, fallback: number) {
 async function maybeSendWhatsAppControl(admin: any, wallet: string, core: any) {
   const table = await controlActionsReady(admin);
   const meta = whatsappCloudReadiness();
+  const verifiedRevenue = Number(core?.ledger?.verifiedIncomeEth);
   const profit = Number(core?.ledger?.realizedProfitEth);
-  if (!table.ready || !meta.outboundReady || !Number.isFinite(profit) || profit <= 0) {
-    return { ready: false, sent: false, reason: !table.ready ? 'control-storage' : !meta.outboundReady ? 'whatsapp-config' : 'no-realized-profit' };
+  if (!table.ready || !meta.outboundReady || !Number.isFinite(verifiedRevenue) || verifiedRevenue <= 0) {
+    return { ready: false, sent: false, reason: !table.ready ? 'control-storage' : !meta.outboundReady ? 'whatsapp-config' : 'no-verified-revenue' };
   }
 
   const minimumProfit = positive(process.env.VOXELFLIP_FACTORY_MIN_REALIZED_PROFIT_ETH, 0.003);
@@ -40,7 +41,7 @@ async function maybeSendWhatsAppControl(admin: any, wallet: string, core: any) {
   const maxReinvest = positive(process.env.VOXELFLIP_FACTORY_MAX_REINVEST_ETH, 0.01);
   const costCoverageComplete = Boolean(core?.ledger?.costCoverageComplete);
 
-  if (costCoverageComplete && profit >= minimumProfit && meta.approvalTemplate) {
+  if (costCoverageComplete && Number.isFinite(profit) && profit >= minimumProfit && meta.approvalTemplate) {
     const proposed = Math.min(maxReinvest, profit * reinvestPercent / 100);
     const profitBucket = Math.floor(profit * 1_000_000);
     const created = await createOrLoadControlAction({
@@ -48,6 +49,7 @@ async function maybeSendWhatsAppControl(admin: any, wallet: string, core: any) {
       wallet,
       actionType: 'reinvest',
       payload: {
+        verifiedRevenueEth: verifiedRevenue,
         realizedProfitEth: profit,
         proposedReinvestEth: proposed,
         reinvestPercent,
@@ -86,12 +88,12 @@ async function maybeSendWhatsAppControl(admin: any, wallet: string, core: any) {
     idempotencyKey: `revenue-started:${wallet.toLowerCase()}`,
     wallet,
     actionType: 'revenue_notice',
-    payload: { realizedProfitEth: profit, costCoverageComplete, source: 'neural-core-cron' },
+    payload: { verifiedRevenueEth: verifiedRevenue, realizedProfitEth: Number.isFinite(profit) ? profit : null, costCoverageComplete, source: 'neural-core-cron' },
     expiresInMinutes: null,
   }, admin);
   if (created.action.status === 'notified') return { ready: true, sent: false, kind: 'revenue', status: 'notified' };
   try {
-    const sent = await sendRevenueStartedWhatsApp(profit);
+    const sent = await sendRevenueStartedWhatsApp(verifiedRevenue);
     await updateControlActionDelivery({ id: created.action.id, status: 'notified', messageId: sent.messageId }, admin);
     return { ready: true, sent: true, kind: 'revenue', status: 'notified' };
   } catch (error) {
