@@ -4,4 +4,4 @@ This branch-only file intentionally forces a fresh Vercel Preview deployment for
 
 This does not modify `main`, the protected VoxelPop FINAL, or the live production site.
 
-VoxelFlip preview refresh requested after making historical receipt verification best-effort: 2026-08-25 15:38 UTC.
+VoxelFlip preview refresh requested after removing Supabase from the critical registration path: 2026-08-25 15:41 UTC.
