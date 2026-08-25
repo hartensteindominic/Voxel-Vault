@@ -1,5 +1,5 @@
 import { stripe } from './stripe-server';
-import { getSupabaseAdmin } from './supabase-admin';
+import { readCryptoPurchase, updateCryptoPurchase } from './voxelpop-crypto-store';
 
 export type VoxelPopEntitlement = {
   id: string;
@@ -28,60 +28,36 @@ export function isCryptoVoxelPopSession(sessionId: string) {
 
 export async function getVoxelPopEntitlement(sessionId: string): Promise<VoxelPopEntitlement | null> {
   if (!sessionId) return null;
-
   if (isCryptoVoxelPopSession(sessionId)) {
-    const { data, error } = await getSupabaseAdmin()
-      .from('voxelpop_crypto_purchases')
-      .select('session_id,wallet,tx_hash,chain_id,status,quote_usd_cents,metadata')
-      .eq('session_id', sessionId)
-      .maybeSingle();
-    if (error || !data || data.status !== 'paid') return null;
-    const metadata = cleanMetadata(data.metadata);
+    const row = await readCryptoPurchase(sessionId);
+    if (!row || row.status !== 'paid') return null;
+    const metadata = cleanMetadata(row.metadata);
     if (metadata.product !== 'voxelpop-3d-asset') return null;
     return {
-      id: data.session_id,
+      id: row.session_id,
       paymentMethod: 'crypto',
       metadata,
-      amountCents: Number(data.quote_usd_cents || 199),
+      amountCents: Number(row.quote_usd_cents || 199),
       currency: 'usd',
-      wallet: data.wallet || null,
-      txHash: data.tx_hash || null,
-      chainId: Number(data.chain_id || 0) || null,
+      wallet: row.wallet || null,
+      txHash: row.tx_hash || null,
+      chainId: Number(row.chain_id || 0) || null,
     };
   }
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     if (session.payment_status !== 'paid' || session.metadata?.product !== 'voxelpop-3d-asset') return null;
-    return {
-      id: session.id,
-      paymentMethod: 'stripe',
-      metadata: cleanMetadata(session.metadata),
-      amountCents: Number(session.amount_total || 0),
-      currency: session.currency || 'usd',
-    };
-  } catch {
-    return null;
-  }
+    return { id: session.id, paymentMethod: 'stripe', metadata: cleanMetadata(session.metadata), amountCents: Number(session.amount_total || 0), currency: session.currency || 'usd' };
+  } catch { return null; }
 }
 
-export async function updateVoxelPopEntitlementMetadata(
-  entitlement: VoxelPopEntitlement,
-  patch: Record<string, string>,
-): Promise<VoxelPopEntitlement> {
+export async function updateVoxelPopEntitlementMetadata(entitlement: VoxelPopEntitlement, patch: Record<string, string>): Promise<VoxelPopEntitlement> {
   const metadata = { ...entitlement.metadata, ...patch };
   if (entitlement.paymentMethod === 'stripe') {
     const updated = await stripe.checkout.sessions.update(entitlement.id, { metadata });
     return { ...entitlement, metadata: cleanMetadata(updated.metadata) };
   }
-
-  const { data, error } = await getSupabaseAdmin()
-    .from('voxelpop_crypto_purchases')
-    .update({ metadata, updated_at: new Date().toISOString() })
-    .eq('session_id', entitlement.id)
-    .eq('status', 'paid')
-    .select('metadata')
-    .single();
-  if (error) throw error;
-  return { ...entitlement, metadata: cleanMetadata(data?.metadata || metadata) };
+  const updated = await updateCryptoPurchase(entitlement.id, { metadata });
+  return { ...entitlement, metadata: cleanMetadata(updated.metadata) };
 }
