@@ -40,6 +40,7 @@ contract VoxelFlipNFT is ERC721, ERC721URIStorage, ERC721Royalty, Ownable {
         royaltyReceiver = initialRoyaltyReceiver;
         royaltyBps = initialRoyaltyBps;
         _contractMetadataURI = initialContractURI;
+        _setDefaultRoyalty(initialRoyaltyReceiver, initialRoyaltyBps);
     }
 
     function mintWithVoucher(string calldata uri, bytes32 voucherId, bytes calldata signature)
@@ -58,7 +59,6 @@ contract VoxelFlipNFT is ERC721, ERC721URIStorage, ERC721Royalty, Ownable {
         tokenId = _nextTokenId++;
         _safeMint(msg.sender, tokenId);
         _setTokenURI(tokenId, uri);
-        if (royaltyBps > 0) _setTokenRoyalty(tokenId, royaltyReceiver, royaltyBps);
         emit VoxelFlipMinted(tokenId, msg.sender, voucherId, uri);
     }
 
@@ -68,11 +68,13 @@ contract VoxelFlipNFT is ERC721, ERC721URIStorage, ERC721Royalty, Ownable {
         emit MintSignerUpdated(signer);
     }
 
+    /// @notice Updates the collection-wide ERC-2981 royalty for existing and future VoxelFlip tokens.
     function setRoyalty(address receiver, uint96 bps) external onlyOwner {
         require(receiver != address(0), "Invalid receiver");
         require(bps <= 1000, "Royalty too high");
         royaltyReceiver = receiver;
         royaltyBps = bps;
+        _setDefaultRoyalty(receiver, bps);
         emit RoyaltyUpdated(receiver, bps);
     }
 
