@@ -16,6 +16,9 @@ export const VOXELPOP_EVENT_NAMES = [
   'mesh_completed',
   'mesh_failed',
   'glb_downloaded',
+  'nft_prepared',
+  'nft_minted',
+  'opensea_opened',
 ] as const;
 
 export type VoxelPopEventName = (typeof VOXELPOP_EVENT_NAMES)[number];
@@ -108,7 +111,7 @@ export async function recordVoxelPopEvent(input: {
     if (error) throw error;
     return true;
   } catch (error) {
-    // Analytics must never break checkout, generation, meshing, or downloads.
+    // Analytics must never break checkout, generation, meshing, downloads, or minting.
     console.error('VoxelPop conversion event failed on primary and fallback stores', input.eventName, error);
     return false;
   }
