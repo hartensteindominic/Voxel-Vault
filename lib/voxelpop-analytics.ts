@@ -6,6 +6,8 @@ export const VOXELPOP_EVENT_NAMES = [
   'checkout_clicked',
   'checkout_started',
   'checkout_cancelled',
+  'checkout_expired',
+  'checkout_recovered',
   'exit_intent_shown',
   'exit_intent_cta',
   'purchase_completed',

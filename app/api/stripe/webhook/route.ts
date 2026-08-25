@@ -6,6 +6,7 @@ import { getCatalogItem } from '../../../../lib/catalog';
 import { submitPhysicalFulfillment } from '../../../../lib/fulfillment';
 import { buildVerifiedRewardRecord } from '../../../../lib/rewards/stripeWebhook.js';
 import { persistRewardEvent } from '../../../../lib/rewards/persistence.js';
+import { attributionFromMetadata, recordVoxelPopEvent } from '../../../../lib/voxelpop-analytics';
 
 const WALLET_RE = /^0x[a-f0-9]{40}$/;
 type ShippingDetails = {
@@ -39,9 +40,41 @@ export async function POST(request: Request) {
     if (eventError) throw eventError;
     eventRecorded = true;
     await supabaseAdmin.from('stripe_events').upsert({ id: event.id, type: event.type, livemode: Boolean(event.livemode) }, { onConflict: 'id', ignoreDuplicates: true });
+
+    if (event.type === 'checkout.session.expired') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.metadata?.product === 'voxelpop-3d-asset') {
+        await recordVoxelPopEvent({
+          eventName: 'checkout_expired',
+          eventKey: `checkout_expired:${session.id}`,
+          flowId: session.metadata?.flow_id || null,
+          stripeSessionId: session.id,
+          stripeEventId: event.id,
+          attribution: attributionFromMetadata(session.metadata),
+          details: {
+            recovery_enabled: Boolean(session.after_expiration?.recovery?.enabled),
+            promotions_opt_in: session.consent?.promotions === 'opt_in',
+          },
+        });
+      }
+    }
+
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       const session = event.data.object as CheckoutSessionWithShipping;
       if (session.payment_status !== 'paid') return NextResponse.json({ received: true });
+
+      if (session.metadata?.product === 'voxelpop-3d-asset' && session.recovered_from) {
+        const recoveredFrom = session.recovered_from;
+        await recordVoxelPopEvent({
+          eventName: 'checkout_recovered',
+          eventKey: `checkout_recovered:${session.id}`,
+          flowId: session.metadata?.flow_id || null,
+          stripeSessionId: session.id,
+          stripeEventId: event.id,
+          attribution: attributionFromMetadata(session.metadata),
+          details: { recovered_from: recoveredFrom },
+        });
+      }
 
       if (session.metadata?.mint_mode === 'physical_nft') {
         const wallet = session.metadata?.wallet?.toLowerCase();
