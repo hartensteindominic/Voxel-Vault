@@ -65,37 +65,38 @@ export default function StudioPage(){
   <nav>
    <Brand/>
    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',justifyContent:'flex-end'}}>
-    <a href="#my-voxels" style={{textDecoration:'none',border:'1px solid rgba(255,255,255,.16)',borderRadius:999,padding:'9px 14px',fontWeight:800,color:'inherit',background:'rgba(255,255,255,.06)'}}>My Voxels{myVoxels.length?` · ${myVoxels.length}`:''}</a>
+    <a href="#my-voxels" style={{textDecoration:'none',border:'1px solid rgba(17,24,39,.08)',borderRadius:999,padding:'9px 14px',fontWeight:800,color:'#111827',background:'#fff',boxShadow:'0 8px 24px rgba(15,23,42,.08)'}}>My Voxels{myVoxels.length?` · ${myVoxels.length}`:''}</a>
     <span className={styles.price}><i/>$1.99 per 3D asset</span>
    </div>
   </nav>
-
-  <section id="my-voxels" style={{maxWidth:980,margin:'22px auto 8px',padding:'22px',border:'1px solid rgba(255,255,255,.14)',borderRadius:24,background:'rgba(10,12,20,.72)',boxShadow:'0 18px 60px rgba(0,0,0,.22)'}}>
-   <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:16}}>
-    <div><small style={{fontWeight:900,letterSpacing:'.14em',opacity:.72}}>MY VOXELS</small><h2 style={{margin:'5px 0 0',fontSize:'clamp(1.55rem,4vw,2.35rem)'}}>Your paid creations</h2></div>
-    <span style={{fontSize:13,opacity:.72}}>Account-style library · Google sync next</span>
-   </div>
-   {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
-    {myVoxels.map(voxel=>{
-     const ready=voxel.meshStatus==='ready';
-     const href=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;
-     return <article key={voxel.sessionId} style={{overflow:'hidden',borderRadius:18,border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.045)'}}>
-      <img src={voxel.image} alt={voxel.name.replaceAll('-',' ')} style={{width:'100%',height:190,display:'block',objectFit:'cover',background:'#111'}}/>
-      <div style={{padding:14}}>
-       <small style={{fontWeight:900,letterSpacing:'.08em',opacity:.65}}>{ready?'3D READY':'PAID VOXEL'}</small>
-       <h3 style={{margin:'5px 0 12px',fontSize:18,textTransform:'capitalize'}}>{voxel.name.replaceAll('-',' ')}</h3>
-       <a href={href} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'11px 12px',borderRadius:12,fontWeight:900,background:'#fff',color:'#111'}}>{ready?'Open 3D voxel':'Continue voxel'}</a>
-      </div>
-     </article>;
-    })}
-   </div>:<div style={{padding:'24px 18px',border:'1px dashed rgba(255,255,255,.18)',borderRadius:16,textAlign:'center',background:'rgba(255,255,255,.025)'}}><b style={{display:'block',fontSize:18,marginBottom:5}}>Your library is ready.</b><span style={{opacity:.72}}>After you create a paid voxel on VoxelPop, it will appear here automatically on this browser.</span></div>}
-  </section>
 
   <header>
    <p className={styles.kicker}>✦ YOUR IDEA, MADE 3D ✦</p>
    <h1>Your idea.<br/><em>Built in voxels.</em></h1>
    <p className={styles.lead}>Type absolutely anything. See the voxel style, then create one real 3D asset for only $1.99.</p>
   </header>
+
+  <section id="my-voxels" style={{maxWidth:980,margin:'14px auto 28px',padding:'24px',border:'1px solid #e5e7eb',borderRadius:24,background:'#fff',color:'#111827',boxShadow:'0 18px 50px rgba(15,23,42,.10)'}}>
+   <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:16}}>
+    <div><small style={{fontWeight:900,letterSpacing:'.14em',color:'#6b7280'}}>MY VOXELS</small><h2 style={{margin:'5px 0 0',fontSize:'clamp(1.55rem,4vw,2.35rem)',color:'#111827'}}>Your paid creations</h2></div>
+    <span style={{fontSize:13,color:'#6b7280'}}>Account-style library · Google sync next</span>
+   </div>
+   {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
+    {myVoxels.map(voxel=>{
+     const ready=voxel.meshStatus==='ready';
+     const href=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;
+     return <article key={voxel.sessionId} style={{overflow:'hidden',borderRadius:18,border:'1px solid #e5e7eb',background:'#f8fafc'}}>
+      <img src={voxel.image} alt={voxel.name.replaceAll('-',' ')} style={{width:'100%',height:190,display:'block',objectFit:'cover',background:'#f3f4f6'}}/>
+      <div style={{padding:14}}>
+       <small style={{fontWeight:900,letterSpacing:'.08em',color:'#6b7280'}}>{ready?'3D READY':'PAID VOXEL'}</small>
+       <h3 style={{margin:'5px 0 12px',fontSize:18,textTransform:'capitalize',color:'#111827'}}>{voxel.name.replaceAll('-',' ')}</h3>
+       <a href={href} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'11px 12px',borderRadius:12,fontWeight:900,background:'#111827',color:'#fff'}}>{ready?'Open 3D voxel':'Continue voxel'}</a>
+      </div>
+     </article>;
+    })}
+   </div>:<div style={{padding:'24px 18px',border:'1px dashed #d1d5db',borderRadius:16,textAlign:'center',background:'#f8fafc'}}><b style={{display:'block',fontSize:18,marginBottom:5,color:'#111827'}}>Your library is ready.</b><span style={{color:'#6b7280'}}>After you create a paid voxel on VoxelPop, it will appear here automatically on this browser.</span></div>}
+  </section>
+
   <section className={styles.card}>
    <div className={styles.step}><span>1</span><div><h2>Describe anything</h2><p>If you can type it, VoxelPop can voxel it.</p></div></div>
    <div className={styles.input}><textarea value={idea} onChange={e=>changeIdea(e.target.value)} maxLength={300}/><button onClick={surprise}>✦ Surprise me</button></div>
