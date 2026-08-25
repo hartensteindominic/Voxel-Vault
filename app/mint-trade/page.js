@@ -109,8 +109,7 @@ export default function MintTradePage(){
    return verifySubmitted(submission);
   }
   if(prepared.voucherUsed){setRecoverMode(true);throw new Error('The voucher is confirmed used, but the original mint event has not indexed yet. No new transaction will be sent.');}
-  if(recoveryOnly){setRecoverMode(false);throw new Error('This voucher is not consumed on Base, so there is no earlier mint to recover.');}
-  return null;
+  setRecoverMode(false);throw new Error('This voucher is not consumed on Base, so there is no earlier mint to recover.');
  }
 
  async function resumeVerification(){
