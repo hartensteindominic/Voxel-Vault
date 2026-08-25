@@ -12,6 +12,7 @@ const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const BUCKET = 'voxelflip-nft';
 const TASK_KEY = 'mesh_task_0';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
 
 function safeName(value: unknown) {
   const cleaned = String(value || 'your-voxel').trim().slice(0, 72).replace(/[^a-z0-9 _-]+/gi, '').replace(/\s+/g, ' ');
@@ -22,6 +23,12 @@ function decodeImage(dataUrl: string) {
   if (!match) return null;
   const type = match[1] === 'jpeg' ? 'jpeg' : 'png';
   return { bytes: Buffer.from(match[2], 'base64'), contentType: type === 'jpeg' ? 'image/jpeg' : 'image/png', extension: type === 'jpeg' ? 'jpg' : 'png' };
+}
+function normalizePrivateKey(value: string) {
+  const trimmed = value.trim();
+  if (PRIVATE_KEY_RE.test(trimmed)) return `0x${trimmed}`;
+  if (/^0X[a-fA-F0-9]{64}$/.test(trimmed)) return `0x${trimmed.slice(2)}`;
+  return trimmed;
 }
 async function ensureBucket() {
   const supabase = getSupabaseAdmin();
@@ -39,9 +46,9 @@ async function ensureBucket() {
 }
 function voucherIdFor(sessionId: string, taskId: string) { return `0x${createHash('sha256').update(`voxelflip:${sessionId}:${taskId}`).digest('hex')}`; }
 async function mintVoucher(wallet: string, metadataUrl: string, voucherId: string) {
-  const privateKey = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY;
-  if (!privateKey) return null;
-  const signer = new Wallet(privateKey);
+  const rawPrivateKey = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY;
+  if (!rawPrivateKey) return null;
+  const signer = new Wallet(normalizePrivateKey(rawPrivateKey));
   const uriHash = keccak256(toUtf8Bytes(metadataUrl));
   const digest = solidityPackedKeccak256(['address', 'bytes32', 'bytes32'], [wallet, uriHash, voucherId]);
   const signature = await signer.signMessage(getBytes(digest));
