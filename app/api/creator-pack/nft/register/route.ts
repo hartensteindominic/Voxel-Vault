@@ -9,6 +9,7 @@ const APPROVED_ROYALTY_BPS = 500;
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
+const ZERO_TX_HASH = `0x${'0'.repeat(64)}`;
 const ABI = [
   'function owner() view returns (address)',
   'function mintSigner() view returns (address)',
@@ -30,7 +31,8 @@ function rpcCandidates() {
   const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
   return Array.from(new Set([
     configured,
-    'https://mainnet-preconf.base.org',
+    'https://base-rpc.publicnode.com',
+    'https://base.llamarpc.com',
     'https://mainnet.base.org',
   ].filter(Boolean)));
 }
@@ -39,23 +41,25 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function resolveCreationTxHash(address: string, suppliedTxHash: string) {
+async function tryResolveCreationTxHash(address: string, suppliedTxHash: string) {
   if (TX_RE.test(suppliedTxHash)) return suppliedTxHash;
-  const response = await fetch(`https://base.blockscout.com/api/v2/addresses/${address.toLowerCase()}`, {
-    cache: 'no-store',
-    headers: { Accept: 'application/json' },
-  });
-  if (!response.ok) throw new Error('Could not recover the Base deployment transaction yet. Retry in a moment.');
-  const data = await response.json();
-  const recovered = String(data?.creation_transaction_hash || '').trim();
-  if (!TX_RE.test(recovered)) throw new Error('Base has not indexed the contract creation transaction yet. Retry in a moment.');
-  return recovered;
+  try {
+    const response = await fetch(`https://base.blockscout.com/api/v2/addresses/${address.toLowerCase()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return '';
+    const data = await response.json();
+    const recovered = String(data?.creation_transaction_hash || '').trim();
+    return TX_RE.test(recovered) ? recovered : '';
+  } catch {
+    return '';
+  }
 }
 
-type ChainRead = {
+type ContractRead = {
   provider: JsonRpcProvider;
-  receipt: any;
-  transaction: any;
+  code: string;
   owner: any;
   mintSigner: any;
   royaltyReceiver: any;
@@ -65,25 +69,14 @@ type ChainRead = {
   royaltyInfo: any;
 };
 
-async function readDeploymentWithRetry(address: string, txHash: string): Promise<ChainRead> {
+async function readContractWithRetry(address: string): Promise<ContractRead> {
   let lastError: unknown = null;
 
   for (const rpcUrl of rpcCandidates()) {
     const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const [receipt, transaction] = await Promise.all([
-          provider.getTransactionReceipt(txHash),
-          provider.getTransaction(txHash),
-        ]);
-        if (!receipt || receipt.status !== 1 || !transaction) throw new Error('The Base deployment transaction is not confirmed on this RPC yet.');
-        if (transaction.to) throw new Error('That transaction is not a contract deployment.');
-        if (transaction.from.toLowerCase() !== APPROVED_OWNER.toLowerCase()) throw new Error('VoxelFlip must be deployed by the approved owner wallet.');
-
-        const createdAddress = receipt.contractAddress || getCreateAddress({ from: transaction.from, nonce: transaction.nonce });
-        if (!createdAddress || createdAddress.toLowerCase() !== address.toLowerCase()) throw new Error('The supplied contract address does not match the deployment transaction.');
-
-        const code = await provider.getCode(address);
+        const code = await provider.getCode(address.toLowerCase());
         if (!code || code === '0x') throw new Error('Contract code is not visible on this RPC yet.');
 
         const contract = new Contract(address.toLowerCase(), ABI, provider);
@@ -97,16 +90,30 @@ async function readDeploymentWithRetry(address: string, txHash: string): Promise
           contract.royaltyInfo(1, BigInt(10000)),
         ]);
 
-        return { provider, receipt, transaction, owner, mintSigner, royaltyReceiver, royaltyBpsRaw, name, symbol, royaltyInfo };
+        return { provider, code, owner, mintSigner, royaltyReceiver, royaltyBpsRaw, name, symbol, royaltyInfo };
       } catch (error) {
         lastError = error;
-        if (attempt < 3) await sleep(1200 * (attempt + 1));
+        if (attempt < 2) await sleep(900 * (attempt + 1));
       }
     }
   }
 
   const detail = lastError instanceof Error ? lastError.message : 'Unknown Base RPC read failure.';
-  throw new Error(`Base verification is temporarily unavailable: ${detail} Retry setup; do not deploy another contract.`);
+  throw new Error(`Base contract verification is temporarily unavailable: ${detail}`);
+}
+
+async function verifyCreationTx(provider: JsonRpcProvider, address: string, txHash: string) {
+  if (!TX_RE.test(txHash)) return { verified: false, blockNumber: null as number | null };
+  const [receipt, transaction] = await Promise.all([
+    provider.getTransactionReceipt(txHash),
+    provider.getTransaction(txHash),
+  ]);
+  if (!receipt || receipt.status !== 1 || !transaction) throw new Error('The Base deployment transaction is not confirmed.');
+  if (transaction.to) throw new Error('That transaction is not a contract deployment.');
+  if (transaction.from.toLowerCase() !== APPROVED_OWNER.toLowerCase()) throw new Error('VoxelFlip must be deployed by the approved owner wallet.');
+  const createdAddress = receipt.contractAddress || getCreateAddress({ from: transaction.from, nonce: transaction.nonce });
+  if (!createdAddress || createdAddress.toLowerCase() !== address.toLowerCase()) throw new Error('The supplied contract address does not match the deployment transaction.');
+  return { verified: true, blockNumber: receipt.blockNumber };
 }
 
 export async function POST(request: Request) {
@@ -133,9 +140,9 @@ export async function POST(request: Request) {
     try { expectedMintSigner = new Wallet(normalizePrivateKey(rawSignerSecret)).address; }
     catch { return NextResponse.json({ error: 'VoxelFlip mint signer configuration is invalid.' }, { status: 503 }); }
 
-    const txHash = await resolveCreationTxHash(address, suppliedTxHash);
-    const chain = await readDeploymentWithRetry(address, txHash);
-    const { provider, receipt, owner, mintSigner, royaltyReceiver, royaltyBpsRaw, name, symbol, royaltyInfo } = chain;
+    const txHash = await tryResolveCreationTxHash(address, suppliedTxHash);
+    const chain = await readContractWithRetry(address);
+    const { provider, owner, mintSigner, royaltyReceiver, royaltyBpsRaw, name, symbol, royaltyInfo } = chain;
 
     const royaltyBps = Number(royaltyBpsRaw);
     if (String(owner).toLowerCase() !== APPROVED_OWNER.toLowerCase()) return NextResponse.json({ error: 'Contract owner does not match the approved Voxel Vault wallet.' }, { status: 400 });
@@ -147,7 +154,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ERC-2981 royalty verification failed.' }, { status: 400 });
     }
 
-    const block = await provider.getBlock(receipt.blockNumber);
+    let deployedAt = new Date().toISOString();
+    let creationVerified = false;
+    if (txHash) {
+      const creation = await verifyCreationTx(provider, address, txHash);
+      creationVerified = creation.verified;
+      if (creation.blockNumber != null) {
+        const block = await provider.getBlock(creation.blockNumber);
+        if (block?.timestamp) deployedAt = new Date(Number(block.timestamp) * 1000).toISOString();
+      }
+    }
+
     const deployment = await saveVoxelFlipDeployment({
       address: address.toLowerCase(),
       chainId: 8453,
@@ -156,13 +173,15 @@ export async function POST(request: Request) {
       mintSigner: String(mintSigner),
       royaltyReceiver: String(royaltyReceiver),
       royaltyBps,
-      deploymentTxHash: txHash,
-      deployedAt: block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : new Date().toISOString(),
+      deploymentTxHash: txHash || ZERO_TX_HASH,
+      deployedAt,
       registeredAt: new Date().toISOString(),
     });
 
     return NextResponse.json({
       registered: true,
+      creationVerified,
+      creationTxRecovered: Boolean(txHash),
       deployment,
       explorerUrl: `https://basescan.org/address/${address}`,
       openSeaUrl: `https://opensea.io/assets/base/${address}`,
@@ -170,7 +189,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('VoxelFlip deployment registration failed', error);
     const message = error instanceof Error ? error.message : 'Unable to register the VoxelFlip deployment.';
-    const retryable = /retry|temporarily|not indexed|not confirmed|not visible/i.test(message);
+    const retryable = /temporarily|not confirmed|not visible|rpc/i.test(message);
     return NextResponse.json({ error: message, retryable }, { status: retryable ? 503 : 500 });
   }
 }
