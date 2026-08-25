@@ -47,7 +47,10 @@ export async function GET() {
   const ownerValid = ADDRESS_RE.test(owner);
   const royaltyReceiverValid = ADDRESS_RE.test(royaltyReceiver);
   const launchIdentityValid = ownerValid && royaltyReceiverValid && receiverValid;
-  const secretsReady = openSeaConfigured && mintSignerValid && mintSignerMatchesConfiguredAddress;
+  // The private key is the authoritative signer configuration. The optional public
+  // address is retained for diagnostics only; registration independently derives
+  // the signer from this same private key and verifies the deployed contract.
+  const secretsReady = openSeaConfigured && mintSignerValid;
   const rpcUrl = process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || 'https://mainnet.base.org';
 
   let ownerBaseBalanceWei = '0';
@@ -66,7 +69,8 @@ export async function GET() {
 
   let nextStep = 'Review launch configuration.';
   if (collectionConfigured) nextStep = 'Run one paid VoxelPop -> mesh -> VoxelFlip mint -> OpenSea -> import-back test.';
-  else if (!secretsReady) nextStep = 'Finish OpenSea API + VoxelFlip mint-signer server configuration.';
+  else if (!openSeaConfigured) nextStep = 'Finish OpenSea API server configuration.';
+  else if (!mintSignerValid) nextStep = 'Finish VoxelFlip mint-signer private-key configuration.';
   else if (baseBalanceChecked && !ownerHasBaseEth) nextStep = 'Move a small amount of ETH to the approved owner wallet on Base for deployment gas.';
   else if (launchIdentityValid) nextStep = 'Connect the approved owner wallet on /voxelflip/launch and approve the Base deployment transaction.';
 
