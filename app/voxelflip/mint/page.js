@@ -3,7 +3,7 @@
 import {useEffect,useRef,useState} from 'react';
 import GeneratedMeshViewer from '../../pack/success/GeneratedMeshViewer';
 import {getSupabaseBrowserAsync} from '../../../lib/supabase-browser';
-import {loadAccountVoxel} from '../../../lib/voxelpop-account';
+import {loadAccountVoxel,saveVoxelToAccount} from '../../../lib/voxelpop-account';
 import {connectVoxelFlipWallet,mintVoxelFlip} from '../../../lib/voxelflip';
 import styles from '../../mint-trade/mint-trade.module.css';
 
@@ -37,11 +37,12 @@ export default function VoxelFlipMintPage(){
 
   getSupabaseBrowserAsync().then(async supabase=>{
    const {data}=await supabase.auth.getSession();const user=data.session?.user;if(!user||local?.asset?.dataUrl)return;
-   try{const record=await loadAccountVoxel(supabase,user,sid);if(record?.payload?.asset?.dataUrl){setVoxel(record.payload);setStage('ready');setMessage(record.payload.mesh?.status==='ready'?'Restored from Google. Ready for VoxelFlip.':'Restored from Google. Finish its 3D mesh first.')}}catch{}
+   try{const record=await loadAccountVoxel(supabase,user,sid);if(record?.payload?.asset?.dataUrl){setVoxel(record.payload);if(record.payload.mint?.tokenId){setMinted(record.payload.mint);setWallet(record.payload.mint.owner||'');setStage('done');setMessage(`VoxelFlip #${record.payload.mint.tokenId} is already minted and confirmed.`)}else{setStage('ready');setMessage(record.payload.mesh?.status==='ready'?'Restored from Google. Ready for VoxelFlip.':'Restored from Google. Finish its 3D mesh first.')}}}catch{}
   }).catch(()=>{});
 
-  let confirmed=null;
-  try{confirmed=JSON.parse(localStorage.getItem(`voxelflip:mint:${sid}`)||'null');if(confirmed?.tokenId){setMinted(confirmed);setWallet(confirmed.owner||'');setStage('done');setMessage(`VoxelFlip #${confirmed.tokenId} is already minted and confirmed.`)}}catch{}
+  let confirmed=local?.mint?.tokenId?local.mint:null;
+  try{const savedMint=JSON.parse(localStorage.getItem(`voxelflip:mint:${sid}`)||'null');if(savedMint?.tokenId)confirmed=savedMint}catch{}
+  if(confirmed?.tokenId){setMinted(confirmed);setWallet(confirmed.owner||'');setStage('done');setMessage(`VoxelFlip #${confirmed.tokenId} is already minted and confirmed.`)}
   if(!confirmed?.tokenId){try{const pending=JSON.parse(localStorage.getItem(`voxelflip:pending:${sid}`)||'null');if(pending?.tokenId&&pending?.hash&&pending?.metadataUrl){setPendingMint(pending);setWallet(pending.owner||'');setStage('ready');setMessage(`A previous Base transaction is saved for VoxelFlip #${pending.tokenId}. Resume verification before doing anything else.`)}}catch{}}
  },[]);
 
@@ -54,7 +55,7 @@ export default function VoxelFlipMintPage(){
  }
  async function verifySubmitted(submission){
   setStage('verifying');setMessage(`Verifying VoxelFlip #${submission.tokenId} on Base…`);
-  const txHash=submission.hash||submission.txHash||'';const confirm=await fetchWithTimeout('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId:submission.taskId,tokenId:submission.tokenId,txHash,wallet:submission.owner,metadataUrl:submission.metadataUrl})});const verified=await confirm.json();if(!confirm.ok)throw new Error(verified.error||'The mint was submitted but could not be verified yet.');const finalResult={...submission,hash:txHash,owner:verified.wallet||submission.owner,openSeaUrl:verified.openSeaUrl||submission.openSeaUrl||'',explorerUrl:verified.explorerUrl||submission.explorerUrl||''};setMinted(finalResult);setPendingMint(null);setRecoverMode(false);setWallet(finalResult.owner||wallet);setStage('done');setMessage(`VoxelFlip #${finalResult.tokenId} is minted and owned by ${short(finalResult.owner)}.`);try{localStorage.setItem(`voxelflip:mint:${sessionId}`,JSON.stringify(finalResult));localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{};return finalResult
+  const txHash=submission.hash||submission.txHash||'';const confirm=await fetchWithTimeout('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId:submission.taskId,tokenId:submission.tokenId,txHash,wallet:submission.owner,metadataUrl:submission.metadataUrl})});const verified=await confirm.json();if(!confirm.ok)throw new Error(verified.error||'The mint was submitted but could not be verified yet.');const finalResult={...submission,hash:txHash,owner:verified.wallet||submission.owner,openSeaUrl:verified.openSeaUrl||submission.openSeaUrl||'',explorerUrl:verified.explorerUrl||submission.explorerUrl||''};const nextVoxel=voxel?.asset?.dataUrl?{...voxel,mint:finalResult,updatedAt:new Date().toISOString()}:null;setMinted(finalResult);if(nextVoxel)setVoxel(nextVoxel);setPendingMint(null);setRecoverMode(false);setWallet(finalResult.owner||wallet);setStage('done');setMessage(`VoxelFlip #${finalResult.tokenId} is minted and owned by ${short(finalResult.owner)}.`);try{localStorage.setItem(`voxelflip:mint:${sessionId}`,JSON.stringify(finalResult));localStorage.removeItem(`voxelflip:pending:${sessionId}`);if(nextVoxel)localStorage.setItem(`voxelpop:${sessionId}`,JSON.stringify(nextVoxel))}catch{};if(nextVoxel){getSupabaseBrowserAsync().then(async supabase=>{const {data}=await supabase.auth.getSession();if(data.session?.user)await saveVoxelToAccount(supabase,data.session.user,sessionId,nextVoxel)}).catch(()=>{})}return finalResult
  }
  async function resumeVerification(){if(!pendingMint)return;try{await verifySubmitted(pendingMint)}catch(error){if(isStaleVerificationError(error)){try{localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{}setPendingMint(null);setRecoverMode(true);setStage('error');setMessage('The saved browser transaction was not the VoxelFlip mint. It was cleared safely. Tap Recover existing mint — no new mint will be sent.');return}setStage('error');setMessage(`Verification is still pending: ${errorText(error)||'Base RPC unavailable'}. Do not mint again.`)}}
  async function mint(){
