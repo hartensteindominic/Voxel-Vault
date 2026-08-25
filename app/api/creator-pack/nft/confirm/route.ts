@@ -1,8 +1,9 @@
-import { Contract, JsonRpcProvider } from 'ethers';
+import { Contract, JsonRpcProvider, formatEther } from 'ethers';
 import { NextResponse } from 'next/server';
 import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
 import { getVoxelPopEntitlement, updateVoxelPopEntitlementMetadata } from '../../../../../lib/voxelpop-entitlement';
 import { attributionFromMetadata, recordVoxelPopEvent } from '../../../../../lib/voxelpop-analytics';
+import { recordVoxelFlipLedgerEntry } from '../../../../../lib/voxelflip-profit-ledger';
 
 export const runtime = 'nodejs';
 
@@ -62,6 +63,15 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
+function bigintValue(value: unknown) {
+  try {
+    if (typeof value === 'bigint') return value;
+    return BigInt(String(value ?? 0));
+  } catch {
+    return BigInt(0);
+  }
+}
+
 async function verifyMintViaRpc(rpcUrl: string, contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
   const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
   let receiptSeen = false;
@@ -82,6 +92,18 @@ async function verifyMintViaRpc(rpcUrl: string, contractAddress: string, tokenId
 
     if (String(owner).toLowerCase() !== wallet.toLowerCase()) throw new Error('The connected wallet does not own this VoxelFlip token.');
     if (String(uri) !== metadataUrl) throw new Error('The minted token metadata does not match this VoxelPop asset.');
+
+    const receiptAny = receipt as any;
+    const gasUsed = bigintValue(receiptAny.gasUsed);
+    const gasPrice = bigintValue(receiptAny.gasPrice ?? receiptAny.effectiveGasPrice);
+    const explicitFee = bigintValue(receiptAny.fee);
+    const feeWei = explicitFee !== BigInt(0) ? explicitFee : gasUsed * gasPrice;
+    const gasPayer = String(receiptAny.from || '').toLowerCase();
+    return {
+      mintFeeEth: Number(formatEther(feeWei)),
+      gasPayer: ADDRESS_RE.test(gasPayer) ? gasPayer : '',
+      costAttributableToOwner: gasPayer === wallet.toLowerCase(),
+    };
   } catch (error) {
     if (error instanceof RpcTransportError || isDeterministicValidationError(error)) throw error;
     throw new RpcTransportError(`${rpcUrl}: ${readableRpcError(error)}`, receiptSeen);
@@ -93,8 +115,7 @@ async function verifyMintViaRpc(rpcUrl: string, contractAddress: string, tokenId
 async function verifyMintOnChain(contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
   const attempts = rpcCandidates().map(rpcUrl => verifyMintViaRpc(rpcUrl, contractAddress, tokenId, txHash, wallet, metadataUrl));
   try {
-    await Promise.any(attempts);
-    return;
+    return await Promise.any(attempts);
   } catch (error) {
     const errors = error instanceof AggregateError ? error.errors : [error];
     const deterministic = errors.find(item => !(item instanceof RpcTransportError));
@@ -129,7 +150,7 @@ export async function POST(request: Request) {
     if (!entitlement) return NextResponse.json({ error: 'A completed VoxelPop purchase is required.' }, { status: 403 });
     if (entitlement.metadata?.mesh_task_0 !== taskId) return NextResponse.json({ error: 'The mint does not match this VoxelPop mesh.' }, { status: 403 });
 
-    await verifyMintOnChain(contractAddress, tokenId, txHash, wallet, metadataUrl);
+    const chainVerification = await verifyMintOnChain(contractAddress, tokenId, txHash, wallet, metadataUrl);
 
     try {
       await withTimeout(updateVoxelPopEntitlementMetadata(entitlement, {
@@ -140,6 +161,29 @@ export async function POST(request: Request) {
       }), OPTIONAL_WRITE_TIMEOUT_MS, 'VoxelFlip entitlement persistence');
     } catch (error) {
       console.warn('VoxelFlip mint confirmed on-chain; optional entitlement persistence is unavailable.', error);
+    }
+
+    if (chainVerification.costAttributableToOwner && chainVerification.mintFeeEth >= 0) {
+      try {
+        await withTimeout(recordVoxelFlipLedgerEntry({
+          wallet,
+          contractAddress,
+          tokenId,
+          sessionId,
+          entryType: 'mint_gas',
+          direction: 'cost',
+          amountEth: chainVerification.mintFeeEth,
+          source: 'base',
+          sourceRef: `base:mint:${txHash.toLowerCase()}`,
+          txHash,
+          settlementStatus: 'verified',
+          metadata: { taskId, gasPayer: chainVerification.gasPayer },
+        }), OPTIONAL_WRITE_TIMEOUT_MS, 'VoxelFlip mint cost ledger');
+      } catch (error) {
+        console.warn('VoxelFlip mint confirmed; mint gas could not be persisted to the profit ledger.', error);
+      }
+    } else if (!chainVerification.costAttributableToOwner) {
+      console.warn('VoxelFlip mint gas payer differs from the owner wallet; cost was not attributed automatically.', { wallet, gasPayer: chainVerification.gasPayer, txHash });
     }
 
     const attribution = attributionFromMetadata(entitlement.metadata);
