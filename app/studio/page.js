@@ -77,9 +77,13 @@ export default function StudioPage(){
   </header>
 
   <section id="my-voxels" style={{maxWidth:980,margin:'14px auto 28px',padding:'24px',border:'1px solid #e5e7eb',borderRadius:24,background:'#fff',color:'#111827',boxShadow:'0 18px 50px rgba(15,23,42,.10)'}}>
-   <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:16}}>
+   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:16}}>
     <div><small style={{fontWeight:900,letterSpacing:'.14em',color:'#6b7280'}}>MY VOXELS</small><h2 style={{margin:'5px 0 0',fontSize:'clamp(1.55rem,4vw,2.35rem)',color:'#111827'}}>Your paid creations</h2></div>
-    <span style={{fontSize:13,color:'#6b7280'}}>Account-style library · Google sync next</span>
+    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid #e5e7eb',borderRadius:14,padding:'10px 12px',background:'#f8fafc'}}>
+     <span aria-hidden="true" style={{width:28,height:28,borderRadius:'50%',display:'grid',placeItems:'center',background:'#fff',border:'1px solid #e5e7eb',fontWeight:900,color:'#2563eb'}}>G</span>
+     <div><b style={{display:'block',fontSize:14,color:'#111827'}}>Continue with Google</b><small style={{color:'#6b7280'}}>Your voxels will follow you across devices.</small></div>
+     <span style={{fontSize:11,fontWeight:900,letterSpacing:'.08em',color:'#6b7280',background:'#fff',border:'1px solid #e5e7eb',borderRadius:999,padding:'5px 8px'}}>COMING NEXT</span>
+    </div>
    </div>
    {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
     {myVoxels.map(voxel=>{
@@ -102,7 +106,7 @@ export default function StudioPage(){
    <div className={styles.input}><textarea value={idea} onChange={e=>changeIdea(e.target.value)} maxLength={300}/><button onClick={surprise}>✦ Surprise me</button></div>
    <div className={styles.checks}><span>✓ <b>One custom voxel</b></span><span>✓ <b>One-time $1.99 payment</b></span><span>✓ <b>3D GLB + image</b></span></div>
    <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create my voxel · $1.99'}</button>
-   <small>Paid creations return to My Voxels on this browser · Google account sync comes next</small>{error&&<p className={styles.error}>{error}</p>}
+   <small>Paid creations return to My Voxels on this browser · Google sign-in and cross-device sync are coming next</small>{error&&<p className={styles.error}>{error}</p>}
   </section>
   <section className={styles.preview}>
    <div className={styles.previewHead}><div><small>STYLE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLES</span></div>
