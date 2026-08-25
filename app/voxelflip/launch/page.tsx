@@ -7,7 +7,7 @@ import { connectVoxelFlipWallet } from '../../../lib/voxelflip';
 import styles from './launch.module.css';
 
 const APPROVED_OWNER = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
-const EXISTING_CONTRACT = '0xbDE448AB9fC16B17F6AE975132A4201cCfc247D3';
+const EXISTING_CONTRACT = '0xbde448ab9fc16b17f6ae975132a4201ccfc247d3';
 const EXISTING_DEPLOYMENT_TX = '0xd269db3bf820f2a6b65d25ca1dd17a1bb2f1619536920137f63b7baccb7715ea';
 const short = (value: string) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : '';
 
