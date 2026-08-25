@@ -66,24 +66,28 @@ async function findExistingMint(contractAddress: string, wallet: string, metadat
         toBlock: latest,
         topics: [TRANSFER_TOPIC, null, walletTopic],
       });
-      if (!logs.length) continue;
+      if (!logs.length) return { checked: true, mint: null };
+
       const contract = new Contract(contractAddress, EXISTING_MINT_ABI, provider);
+      let tokenReadSucceeded = false;
       for (const log of logs.slice(-50).reverse()) {
         const tokenTopic = log.topics?.[3];
         if (!tokenTopic) continue;
         const tokenId = BigInt(tokenTopic).toString();
         try {
           const [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
+          tokenReadSucceeded = true;
           if (String(owner).toLowerCase() === wallet.toLowerCase() && String(uri) === metadataUrl) {
-            return { tokenId, txHash: log.transactionHash, owner: wallet };
+            return { checked: true, mint: { tokenId, txHash: log.transactionHash, owner: wallet } };
           }
         } catch {}
       }
+      if (tokenReadSucceeded) return { checked: true, mint: null };
     } catch (error) {
       console.warn('VoxelFlip existing-mint lookup RPC unavailable', rpcUrl, error);
     }
   }
-  return null;
+  return { checked: false, mint: null };
 }
 
 export async function POST(request: Request) {
@@ -125,7 +129,20 @@ export async function POST(request: Request) {
     const voucherId = voucherIdFor(sessionId, taskId);
     const deployment = await getVoxelFlipDeployment();
     const contractAddress = deployment?.address || '';
-    const existingMint = ADDRESS_RE.test(contractAddress) ? await findExistingMint(contractAddress, wallet, metadataUrl) : null;
+
+    let existingMint = null;
+    let existingMintChecked = false;
+    if (ADDRESS_RE.test(contractAddress)) {
+      const lookup = await findExistingMint(contractAddress, wallet, metadataUrl);
+      existingMintChecked = lookup.checked;
+      existingMint = lookup.mint;
+      if (!lookup.checked) {
+        return NextResponse.json({
+          error: 'Base verification is temporarily unavailable, so VoxelFlip stopped before sending another mint. This protects you from accidentally minting a duplicate. Try Resume mint verification again once Base RPC is reachable.',
+        }, { status: 503 });
+      }
+    }
+
     const voucher = existingMint ? null : await mintVoucher(wallet, metadataUrl, voucherId);
 
     try {
@@ -142,7 +159,7 @@ export async function POST(request: Request) {
     await recordVoxelPopEvent({
       eventName: 'nft_prepared', eventKey: `nft_prepared:${sessionId}:${taskId}`, flowId: entitlement.metadata?.flow_id || null,
       stripeSessionId: entitlement.id, attribution,
-      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher), existingMint: Boolean(existingMint), payment_method: 'stripe' },
+      details: { assetId, format: 'glb', wallet: wallet.toLowerCase(), voucherReady: Boolean(voucher), existingMint: Boolean(existingMint), existingMintChecked, payment_method: 'stripe' },
     });
 
     return NextResponse.json({
@@ -159,6 +176,7 @@ export async function POST(request: Request) {
       signature: voucher?.signature || null,
       signer: voucher?.signer || null,
       existingMint,
+      existingMintChecked,
     });
   } catch (error) {
     console.error('VoxelFlip NFT preparation failed', error);
