@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { formatEther } from 'ethers';
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
+import { createCryptoPurchase } from '../../../../../lib/voxelpop-crypto-store';
 import { cleanAttribution, normalizeFlowId, recordVoxelPopEvent } from '../../../../../lib/voxelpop-analytics';
 
 export const runtime = 'nodejs';
@@ -29,9 +29,7 @@ async function ethUsdMicros() {
 
 export async function POST(request: Request) {
   try {
-    if (!ADDRESS_RE.test(RECEIVER)) {
-      return NextResponse.json({ error: 'Crypto checkout receiver is not configured.' }, { status: 503 });
-    }
+    if (!ADDRESS_RE.test(RECEIVER)) return NextResponse.json({ error: 'Crypto checkout receiver is not configured.' }, { status: 503 });
     const body = await request.json();
     const wallet = typeof body?.wallet === 'string' ? body.wallet.trim() : '';
     const style = typeof body?.style === 'string' ? body.style.slice(0, 30) : 'polished';
@@ -46,19 +44,14 @@ export async function POST(request: Request) {
     const amountWei = (numerator + ethUsd - 1n) / ethUsd;
     const sessionId = `vfc_${randomUUID()}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    const metadata: Record<string, string> = {
-      product: 'voxelpop-3d-asset',
-      style,
-      generations: '0',
-      payment_method: 'crypto',
-    };
+    const metadata: Record<string, string> = { product: 'voxelpop-3d-asset', style, generations: '0', payment_method: 'crypto' };
     if (flowId) metadata.flow_id = flowId;
     if (attribution.source) metadata.utm_source = attribution.source;
     if (attribution.medium) metadata.utm_medium = attribution.medium;
     if (attribution.campaign) metadata.utm_campaign = attribution.campaign;
     if (attribution.content) metadata.utm_content = attribution.content;
 
-    const { error } = await getSupabaseAdmin().from('voxelpop_crypto_purchases').insert({
+    await createCryptoPurchase({
       session_id: sessionId,
       wallet: wallet.toLowerCase(),
       chain_id: chainId,
@@ -68,15 +61,8 @@ export async function POST(request: Request) {
       quote_expires_at: expiresAt,
       metadata,
     });
-    if (error) throw error;
 
-    await recordVoxelPopEvent({
-      eventName: 'checkout_started',
-      eventKey: `crypto_checkout_started:${sessionId}`,
-      flowId,
-      attribution,
-      details: { amount_cents: PRICE_CENTS, currency: 'usd', payment_method: 'crypto', chain_id: chainId },
-    });
+    await recordVoxelPopEvent({ eventName: 'checkout_started', eventKey: `crypto_checkout_started:${sessionId}`, flowId, attribution, details: { amount_cents: PRICE_CENTS, currency: 'usd', payment_method: 'crypto', chain_id: chainId } });
 
     return NextResponse.json({
       sessionId,
