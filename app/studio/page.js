@@ -77,6 +77,10 @@ export default function StudioPage(){
  async function signInGoogle(){
   setAccountStatus('');setAccountBusy(true);
   try{
+   const statusResponse=await fetch('/api/account/status',{cache:'no-store'});
+   const providerStatus=await statusResponse.json().catch(()=>({}));
+   if(!statusResponse.ok||!providerStatus?.supabaseConfigured)throw new Error('Google sign-in still needs the Voxel Vault Supabase public configuration.');
+   if(providerStatus.googleProviderEnabled!==true)throw new Error('Google sign-in is connected to Supabase, but Google is not enabled there yet. In Supabase: Authentication → Providers → Google → Enable, add the Google OAuth Client ID and Secret, save, then tap Continue with Google again.');
    const client=accountClient.current||await getSupabaseBrowserAsync();accountClient.current=client;setAccountReady(true);
    const redirectTo=googleReturnUrl();
    try{localStorage.setItem('voxelpop:google:return','/studio?auth=google#my-voxels')}catch{}
