@@ -11,11 +11,20 @@ const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const ABI = ['function ownerOf(uint256 tokenId) view returns (address)','function tokenURI(uint256 tokenId) view returns (string)'];
 const RECEIPT_TIMEOUT_MS = 4500;
 const CONTRACT_READ_TIMEOUT_MS = 5500;
+const ENTITLEMENT_TIMEOUT_MS = 8000;
+const OPTIONAL_WRITE_TIMEOUT_MS = 5000;
+
+class RpcTransportError extends Error {
+  receiptSeen: boolean;
+  constructor(message: string, receiptSeen: boolean) {
+    super(message);
+    this.name = 'RpcTransportError';
+    this.receiptSeen = receiptSeen;
+  }
+}
 
 function rpcCandidates() {
   const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
-  // Keep multiple independent Base RPCs because public endpoints can rate-limit
-  // or temporarily lag a just-submitted receipt.
   return Array.from(new Set([
     configured,
     'https://base.blockscout.com/api/eth-rpc',
@@ -27,6 +36,16 @@ function rpcCandidates() {
 function readableRpcError(error: unknown) {
   if (error instanceof Error) return error.message;
   return String(error || 'Unknown RPC error');
+}
+
+function isDeterministicValidationError(error: unknown) {
+  const message = readableRpcError(error);
+  return (
+    message.includes('mint transaction failed on Base') ||
+    message.includes('did not mint from the registered VoxelFlip contract') ||
+    message.includes('does not own this VoxelFlip token') ||
+    message.includes('metadata does not match')
+  );
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -43,64 +62,53 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-async function verifyMintOnChain(contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
-  const transportErrors: string[] = [];
+async function verifyMintViaRpc(rpcUrl: string, contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
+  const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
   let receiptSeen = false;
+  try {
+    const receipt = await withTimeout(provider.getTransactionReceipt(txHash), RECEIPT_TIMEOUT_MS, 'transaction receipt lookup');
+    if (!receipt) throw new RpcTransportError(`${rpcUrl}: transaction not visible yet`, false);
+    receiptSeen = true;
 
-  for (const rpcUrl of rpcCandidates()) {
-    const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
-    try {
-      const receipt = await withTimeout(provider.getTransactionReceipt(txHash), RECEIPT_TIMEOUT_MS, 'transaction receipt lookup');
-      if (!receipt) {
-        transportErrors.push(`${rpcUrl}: transaction not visible yet`);
-        continue;
-      }
-      receiptSeen = true;
+    if (receipt.status !== 1) throw new Error('The mint transaction failed on Base.');
+    if (receipt.to?.toLowerCase() !== contractAddress.toLowerCase()) throw new Error('The transaction did not mint from the registered VoxelFlip contract.');
 
-      // These are deterministic validation failures. If an RPC successfully
-      // returned the receipt, do not hide them behind a later transport error.
-      if (receipt.status !== 1) throw new Error('The mint transaction failed on Base.');
-      if (receipt.to?.toLowerCase() !== contractAddress.toLowerCase()) throw new Error('The transaction did not mint from the registered VoxelFlip contract.');
+    const contract = new Contract(contractAddress, ABI, provider);
+    const [owner, uri] = await withTimeout(
+      Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]),
+      CONTRACT_READ_TIMEOUT_MS,
+      'VoxelFlip owner and metadata lookup',
+    );
 
-      let owner: string;
-      let uri: string;
-      try {
-        const contract = new Contract(contractAddress, ABI, provider);
-        [owner, uri] = await withTimeout(
-          Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]),
-          CONTRACT_READ_TIMEOUT_MS,
-          'VoxelFlip owner and metadata lookup',
-        );
-      } catch (error) {
-        transportErrors.push(`${rpcUrl}: ${readableRpcError(error)}`);
-        continue;
-      }
+    if (String(owner).toLowerCase() !== wallet.toLowerCase()) throw new Error('The connected wallet does not own this VoxelFlip token.');
+    if (String(uri) !== metadataUrl) throw new Error('The minted token metadata does not match this VoxelPop asset.');
+  } catch (error) {
+    if (error instanceof RpcTransportError || isDeterministicValidationError(error)) throw error;
+    throw new RpcTransportError(`${rpcUrl}: ${readableRpcError(error)}`, receiptSeen);
+  } finally {
+    provider.destroy();
+  }
+}
 
-      if (String(owner).toLowerCase() !== wallet.toLowerCase()) throw new Error('The connected wallet does not own this VoxelFlip token.');
-      if (String(uri) !== metadataUrl) throw new Error('The minted token metadata does not match this VoxelPop asset.');
-      return;
-    } catch (error) {
-      const message = readableRpcError(error);
-      if (
-        message.includes('mint transaction failed on Base') ||
-        message.includes('did not mint from the registered VoxelFlip contract') ||
-        message.includes('does not own this VoxelFlip token') ||
-        message.includes('metadata does not match')
-      ) {
-        throw error;
-      }
-      transportErrors.push(`${rpcUrl}: ${message}`);
-    } finally {
-      provider.destroy();
+async function verifyMintOnChain(contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
+  const attempts = rpcCandidates().map(rpcUrl => verifyMintViaRpc(rpcUrl, contractAddress, tokenId, txHash, wallet, metadataUrl));
+  try {
+    await Promise.any(attempts);
+    return;
+  } catch (error) {
+    const errors = error instanceof AggregateError ? error.errors : [error];
+    const deterministic = errors.find(item => !(item instanceof RpcTransportError));
+    if (deterministic) throw deterministic;
+
+    const receiptSeen = errors.some(item => item instanceof RpcTransportError && item.receiptSeen);
+    const messages = errors.map(readableRpcError);
+    console.warn('VoxelFlip RPC verification exhausted', messages);
+
+    if (!receiptSeen) {
+      throw new Error('Your mint transaction was submitted, but Base has not exposed the receipt to our verifier yet. Use Resume mint verification instead of minting again.');
     }
+    throw new Error('Your VoxelFlip transaction is on Base, but verification is temporarily unavailable. Use Resume mint verification instead of minting again.');
   }
-
-  if (!receiptSeen) {
-    console.warn('VoxelFlip receipt verification exhausted', transportErrors);
-    throw new Error('Your mint transaction was submitted, but Base has not exposed the receipt to our verifier yet. Use Resume mint verification instead of minting again.');
-  }
-  console.warn('VoxelFlip RPC verification exhausted', transportErrors);
-  throw new Error('Your VoxelFlip transaction is on Base, but verification is temporarily unavailable. Use Resume mint verification instead of minting again.');
 }
 
 export async function POST(request: Request) {
@@ -117,26 +125,33 @@ export async function POST(request: Request) {
     if (!sessionId || !taskId || !/^\d+$/.test(tokenId) || !TX_RE.test(txHash) || !ADDRESS_RE.test(wallet) || !/^https:\/\//i.test(metadataUrl)) return NextResponse.json({ error: 'Mint confirmation details are incomplete.' }, { status: 400 });
     if (!ADDRESS_RE.test(contractAddress)) return NextResponse.json({ error: 'VoxelFlip contract is not configured.' }, { status: 503 });
 
-    const entitlement = await getVoxelPopEntitlement(sessionId);
+    const entitlement = await withTimeout(getVoxelPopEntitlement(sessionId), ENTITLEMENT_TIMEOUT_MS, 'VoxelPop purchase verification');
     if (!entitlement) return NextResponse.json({ error: 'A completed VoxelPop purchase is required.' }, { status: 403 });
     if (entitlement.metadata?.mesh_task_0 !== taskId) return NextResponse.json({ error: 'The mint does not match this VoxelPop mesh.' }, { status: 403 });
+
     await verifyMintOnChain(contractAddress, tokenId, txHash, wallet, metadataUrl);
 
     try {
-      await updateVoxelPopEntitlementMetadata(entitlement, {
+      await withTimeout(updateVoxelPopEntitlementMetadata(entitlement, {
         voxelflip_wallet: wallet.toLowerCase(),
         voxelflip_metadata_url: metadataUrl.slice(0, 500),
         voxelflip_token_id: tokenId.slice(0, 80),
         voxelflip_tx_hash: txHash,
-      });
-    } catch (error) { console.warn('VoxelFlip mint confirmed on-chain; optional entitlement persistence is unavailable.', error); }
+      }), OPTIONAL_WRITE_TIMEOUT_MS, 'VoxelFlip entitlement persistence');
+    } catch (error) {
+      console.warn('VoxelFlip mint confirmed on-chain; optional entitlement persistence is unavailable.', error);
+    }
 
     const attribution = attributionFromMetadata(entitlement.metadata);
-    await recordVoxelPopEvent({
-      eventName: 'nft_minted', eventKey: `nft_minted:${contractAddress.toLowerCase()}:${tokenId}`, flowId: entitlement.metadata?.flow_id || null,
-      stripeSessionId: entitlement.id, attribution,
-      details: { tokenId, wallet: wallet.toLowerCase(), chain: 'Base', payment_method: 'stripe' },
-    });
+    try {
+      await withTimeout(recordVoxelPopEvent({
+        eventName: 'nft_minted', eventKey: `nft_minted:${contractAddress.toLowerCase()}:${tokenId}`, flowId: entitlement.metadata?.flow_id || null,
+        stripeSessionId: entitlement.id, attribution,
+        details: { tokenId, wallet: wallet.toLowerCase(), chain: 'Base', payment_method: 'stripe' },
+      }), OPTIONAL_WRITE_TIMEOUT_MS, 'VoxelFlip mint analytics');
+    } catch (error) {
+      console.warn('VoxelFlip mint confirmed on-chain; optional mint analytics are unavailable.', error);
+    }
 
     return NextResponse.json({
       confirmed: true,
