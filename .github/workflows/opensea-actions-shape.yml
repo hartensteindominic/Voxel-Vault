@@ -1,0 +1,46 @@
+name: OpenSea Listing Action Shape
+
+on:
+  push:
+    branches:
+      - feat/voxelflip-opensea-wallet-listing
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Request temporary OpenSea API key
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail --show-error --silent --max-time 20 -X POST 'https://api.opensea.io/api/v2/auth/keys')
+          key=$(printf '%s' "$response" | jq -r '.api_key // empty')
+          test -n "$key"
+          echo "OPENSEA_TEMP_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Probe listing actions without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          end=$(date -u -d '+30 days' +%Y-%m-%dT%H:%M:%SZ)
+          body=$(jq -nc \
+            --arg wallet '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb' \
+            --arg contract '0xa00758b05f96ef4409d97c3ffebb6794b2eafbde' \
+            --arg start "$start" \
+            --arg end "$end" \
+            '{address:$wallet,items:[{chain:"base",contract:$contract,token_id:"2",quantity:1,price:{amount:"0.015",currency:"0x0000000000000000000000000000000000000000"},start_time:$start,end_time:$end}],use_creator_fee:true}')
+          code=$(curl --show-error --silent --max-time 30 -o response.json -w '%{http_code}' \
+            -X POST 'https://api.opensea.io/api/v2/listings/actions' \
+            -H "x-api-key: $OPENSEA_TEMP_KEY" \
+            -H 'content-type: application/json' \
+            -H 'accept: application/json' \
+            --data "$body")
+          echo "HTTP $code"
+          jq 'if .steps then {steps:.steps} else . end' response.json
+          test "$code" -ge 200 -a "$code" -lt 500
