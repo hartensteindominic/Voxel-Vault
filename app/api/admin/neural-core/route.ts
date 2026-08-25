@@ -13,7 +13,7 @@ function response(data: any, status = 200) {
 
 export async function GET(request: Request) {
   const auth = await requireNeuralCoreAdmin(request);
-  if (!auth.ok) return response({ error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
+  if ('error' in auth) return response({ error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
 
   const url = new URL(request.url);
   let wallet = (url.searchParams.get('wallet') || '').trim();
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const auth = await requireNeuralCoreAdmin(request);
-  if (!auth.ok) return response({ error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
+  if ('error' in auth) return response({ error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
 
   const body = await request.json().catch(() => ({}));
   const action = String(body?.action || 'refresh');
