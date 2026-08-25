@@ -64,7 +64,7 @@ export default function VoxelFlipLaunch() {
     try {
       const status = await refresh();
       if (status.collectionConfigured) { setStage('done'); setMessage(`VoxelFlip is already registered at ${status.collectionAddress}.`); return; }
-      if (!status.openSeaConfigured || !status.mintSignerValid || !status.mintSignerMatchesConfiguredAddress || !status.mintSignerAddress) throw new Error(status.nextStep || 'VoxelFlip server configuration is incomplete.');
+      if (!status.openSeaConfigured || !status.mintSignerValid || !status.mintSignerAddress) throw new Error(status.nextStep || 'VoxelFlip server configuration is incomplete.');
 
       const connected = await connectVoxelFlipWallet();
       if (connected.address.toLowerCase() !== APPROVED_OWNER.toLowerCase()) throw new Error(`Connect the approved Voxel Vault owner wallet ${short(APPROVED_OWNER)}.`);
@@ -119,7 +119,7 @@ export default function VoxelFlipLaunch() {
 
     <section className={styles.checks}>
       <div className={preflight?.openSeaConfigured ? styles.ok : styles.no}><i>{preflight?.openSeaConfigured ? '✓' : '×'}</i><span>OpenSea API</span></div>
-      <div className={preflight?.mintSignerValid && preflight?.mintSignerMatchesConfiguredAddress ? styles.ok : styles.no}><i>{preflight?.mintSignerValid && preflight?.mintSignerMatchesConfiguredAddress ? '✓' : '×'}</i><span>Mint signer</span></div>
+      <div className={preflight?.mintSignerValid ? styles.ok : styles.no}><i>{preflight?.mintSignerValid ? '✓' : '×'}</i><span>Mint signer</span></div>
       <div className={funded ? styles.ok : styles.no}><i>{funded ? '✓' : '×'}</i><span>Base gas</span><small>{preflight?.baseFunding?.checked ? `${preflight.baseFunding.balanceEth} ETH` : 'checking'}</small></div>
       <div className={preflight?.collectionConfigured ? styles.ok : styles.pending}><i>{preflight?.collectionConfigured ? '✓' : '·'}</i><span>Collection</span><small>{preflight?.collectionAddress ? short(preflight.collectionAddress) : 'not deployed'}</small></div>
     </section>
