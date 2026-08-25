@@ -31,7 +31,7 @@ function setupPayload(request: Request, table: any) {
     templates: {
       revenue: {
         env: 'WHATSAPP_REVENUE_TEMPLATE_NAME',
-        body: 'VoxelFlip verified realized profit has started: {{1}} ETH. Open Neural Core for details.',
+        body: 'VoxelFlip verified revenue has started: {{1}} ETH. Open Neural Core for cost and profit details.',
         buttons: [],
       },
       approval: {
