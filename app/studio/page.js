@@ -18,6 +18,19 @@ function track(eventName,flowId,attribution,promptLength){if(!flowId)return;fetc
 function userName(user){return String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||'Google account')}
 function userAvatar(user){return String(user?.user_metadata?.avatar_url||user?.user_metadata?.picture||'')}
 function googleReturnUrl(){const target=new URL('/studio',window.location.origin);target.searchParams.set('auth','google');return target.toString()}
+function readLocalVoxelsWithMints(){
+ const records=readLocalVoxelRecords();if(typeof window==='undefined')return records;
+ return records.map(record=>{
+  if(record.payload?.mint?.tokenId)return record;
+  try{
+   const mint=JSON.parse(window.localStorage.getItem(`voxelflip:mint:${record.sessionId}`)||'null');
+   if(!mint?.tokenId)return record;
+   const updatedAt=new Date().toISOString();const payload={...record.payload,mint,updatedAt};
+   try{window.localStorage.setItem(`voxelpop:${record.sessionId}`,JSON.stringify(payload))}catch{}
+   return {...record,payload,updatedAt};
+  }catch{return record}
+ });
+}
 
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
@@ -36,20 +49,20 @@ export default function StudioPage(){
 
  useEffect(()=>{
   const id=ensureFlowId();const attr=getAttribution();
-  setFlowId(id);setAttribution(attr);setVoxelRecords(readLocalVoxelRecords());track('studio_view',id,attr);
+  setFlowId(id);setAttribution(attr);setVoxelRecords(readLocalVoxelsWithMints());track('studio_view',id,attr);
   const p=new URLSearchParams(window.location.search);if(p.get('checkout')==='cancelled')track('checkout_cancelled',id,attr);
  },[]);
 
  useEffect(()=>{
   let active=true;let subscription=null;
   async function apply(client,next){
-   if(!active)return;setSession(next);
-   if(!next?.user){setVoxelRecords(current=>mergeVoxelRecords(current,readLocalVoxelRecords()));return;}
+   if(!active)return;setSession(next);const local=readLocalVoxelsWithMints();
+   if(!next?.user){setVoxelRecords(current=>mergeVoxelRecords(current,local));return;}
    setAccountBusy(true);
    try{
     const cloud=await syncLocalVoxelsToAccount(client,next.user);
     if(!active)return;
-    setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelRecords()));
+    setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelsWithMints()));
     setAccountStatus(`Google connected. My Voxels is synced for ${userName(next.user)}.`);
     setAccountReady(true);
     if(new URLSearchParams(window.location.search).get('auth')==='google'){
@@ -70,8 +83,8 @@ export default function StudioPage(){
 
  useEffect(()=>{
   const refresh=async()=>{
-   const local=readLocalVoxelRecords();setVoxelRecords(current=>mergeVoxelRecords(current,local));
-   if(session?.user&&accountClient.current){try{const cloud=await syncLocalVoxelsToAccount(accountClient.current,session.user);setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelRecords()))}catch{}}
+   const local=readLocalVoxelsWithMints();setVoxelRecords(current=>mergeVoxelRecords(current,local));
+   if(session?.user&&accountClient.current){try{const cloud=await syncLocalVoxelsToAccount(accountClient.current,session.user);setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelsWithMints()))}catch{}}
   };
   window.addEventListener('focus',refresh);window.addEventListener('storage',refresh);
   return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('storage',refresh)};
@@ -91,7 +104,7 @@ export default function StudioPage(){
    if(error)throw error;
   }catch(e){setAccountReady(false);setAccountStatus(e instanceof Error?e.message:'Could not start Google sign-in.');setAccountBusy(false)}
  }
- async function signOut(){setAccountBusy(true);try{const client=accountClient.current||await getSupabaseBrowserAsync();const {error}=await client.auth.signOut();if(error)throw error;setSession(null);setVoxelRecords(readLocalVoxelRecords());setAccountStatus('Signed out of Google. Your browser copies are still here.')}catch(e){setAccountStatus(e instanceof Error?e.message:'Could not sign out.')}finally{setAccountBusy(false)}}
+ async function signOut(){setAccountBusy(true);try{const client=accountClient.current||await getSupabaseBrowserAsync();const {error}=await client.auth.signOut();if(error)throw error;setSession(null);setVoxelRecords(readLocalVoxelsWithMints());setAccountStatus('Signed out of Google. Your browser copies are still here.')}catch(e){setAccountStatus(e instanceof Error?e.message:'Could not sign out.')}finally{setAccountBusy(false)}}
  function markPromptStarted(value,id=flowId,attr=attribution){if(promptTracked.current||value.trim().length<3||!id)return;promptTracked.current=true;track('prompt_started',id,attr,value.trim().length)}
  function changeIdea(value){setIdea(value);markPromptStarted(value)}
  function surprise(){const value=['Tiny cyberpunk ramen shop','Cute dragon barista','Haunted forest shrine','Space pirate captain'][Math.floor(Math.random()*4)];setIdea(value);markPromptStarted(value)}
@@ -135,14 +148,15 @@ export default function StudioPage(){
    {accountStatus&&<div role="status" style={{margin:'0 0 16px',padding:'10px 12px',borderRadius:12,background:accountReady===false?'#fff7ed':'#f8fafc',border:`1px solid ${accountReady===false?'#fed7aa':'#e5e7eb'}`,fontSize:13,color:accountReady===false?'#9a3412':'#475569'}}>{accountStatus}</div>}
    {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
     {myVoxels.map(voxel=>{
-     const ready=voxel.meshStatus==='ready';
-     const href=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;
+     const ready=voxel.meshStatus==='ready';const minted=voxel.mint?.tokenId?voxel.mint:null;
+     const assetHref=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;const mintHref=`/voxelflip/mint?session_id=${encodeURIComponent(voxel.sessionId)}`;const href=minted?mintHref:assetHref;
      return <article key={voxel.sessionId} style={{overflow:'hidden',borderRadius:18,border:'1px solid #e5e7eb',background:'#f8fafc'}}>
       <img src={voxel.image} alt={voxel.name.replaceAll('-',' ')} style={{width:'100%',height:190,display:'block',objectFit:'cover',background:'#f3f4f6'}}/>
       <div style={{padding:14}}>
-       <small style={{fontWeight:900,letterSpacing:'.08em',color:'#6b7280'}}>{ready?'3D READY':'PAID VOXEL'}</small>
+       <small style={{fontWeight:900,letterSpacing:'.08em',color:minted?'#4d7c0f':'#6b7280'}}>{minted?`VOXELFLIP #${minted.tokenId} · MINTED`:ready?'3D READY':'PAID VOXEL'}</small>
        <h3 style={{margin:'5px 0 12px',fontSize:18,textTransform:'capitalize',color:'#111827'}}>{voxel.name.replaceAll('-',' ')}</h3>
-       <a href={href} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'11px 12px',borderRadius:12,fontWeight:900,background:'#111827',color:'#fff'}}>{ready?'Open 3D voxel':'Continue voxel'}</a>
+       <a href={href} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'11px 12px',borderRadius:12,fontWeight:900,background:minted?'#365314':'#111827',color:'#fff'}}>{minted?`Open minted 3D · #${minted.tokenId}`:ready?'Open 3D voxel':'Continue voxel'}</a>
+       {minted?.openSeaUrl&&<a href={minted.openSeaUrl} target="_blank" rel="noreferrer" style={{display:'block',textAlign:'center',textDecoration:'none',padding:'9px 10px 0',fontSize:13,fontWeight:800,color:'#475569'}}>Open on OpenSea ↗</a>}
       </div>
      </article>;
     })}

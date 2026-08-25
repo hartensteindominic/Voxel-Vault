@@ -3,6 +3,15 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 export type VoxelPayload = {
   asset?: { name?: string; dataUrl?: string } | null;
   mesh?: { status?: string; progress?: number; taskId?: string; modelUrl?: string; error?: string } | null;
+  mint?: {
+    tokenId?: string | number;
+    owner?: string;
+    hash?: string;
+    txHash?: string;
+    metadataUrl?: string;
+    openSeaUrl?: string;
+    explorerUrl?: string;
+  } | null;
   generationsLeft?: number;
   updatedAt?: string;
 };
@@ -67,6 +76,7 @@ export function summarizeVoxel(record: AccountVoxel) {
     name: String(record.payload.asset?.name || 'Your voxel'),
     image: String(record.payload.asset?.dataUrl || ''),
     meshStatus: String(record.payload.mesh?.status || 'idle'),
+    mint: record.payload.mint || null,
   };
 }
 
