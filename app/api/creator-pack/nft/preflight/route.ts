@@ -5,12 +5,21 @@ import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment'
 export const runtime = 'nodejs';
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
 const APPROVED_VAULT_WALLET = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
 const APPROVED_ROYALTY_BPS = 500;
 
+function normalizePrivateKey(value: string) {
+  const trimmed = value.trim();
+  if (PRIVATE_KEY_RE.test(trimmed)) return `0x${trimmed}`;
+  if (/^0X[a-fA-F0-9]{64}$/.test(trimmed)) return `0x${trimmed.slice(2)}`;
+  return trimmed;
+}
+
 export async function GET() {
   const openSeaConfigured = Boolean(process.env.OPENSEA_API_KEY?.trim());
-  const signerSecret = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY?.trim() || '';
+  const rawSignerSecret = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY?.trim() || '';
+  const signerSecret = normalizePrivateKey(rawSignerSecret);
   const configuredSignerAddress = process.env.VOXELFLIP_MINT_SIGNER_ADDRESS?.trim() || '';
   const deployment = await getVoxelFlipDeployment();
   const collectionAddress = deployment?.address || (process.env.NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS?.trim() || '');
@@ -72,7 +81,7 @@ export async function GET() {
     readyForContractDeployment: secretsReady && launchIdentityValid && !collectionConfigured && (!baseBalanceChecked || ownerHasBaseEth),
     readyForMinting: secretsReady && launchIdentityValid && collectionConfigured,
     openSeaConfigured,
-    mintSignerConfigured: Boolean(signerSecret),
+    mintSignerConfigured: Boolean(rawSignerSecret),
     mintSignerValid,
     mintSignerMatchesConfiguredAddress,
     mintSignerAddress: mintSignerValid ? mintSignerAddress : null,
