@@ -83,6 +83,7 @@ export default function NeuralCorePage() {
           return;
         }
         setToken(accessToken);
+        setAuthState('authenticated');
         await loadCore(accessToken);
         const result = client.auth.onAuthStateChange((_event, session) => {
           const next = session?.access_token || '';
