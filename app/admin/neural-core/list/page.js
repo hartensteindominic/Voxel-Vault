@@ -8,6 +8,7 @@ import styles from './listing.module.css';
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TOKEN_RE = /^\d+$/;
+const MAX_BATCH = 25;
 
 function short(value) {
   return value ? `${value.slice(0, 6)}…${value.slice(-4)}` : '—';
@@ -31,7 +32,8 @@ export default function NeuralCoreListingAssistant() {
   const [authState, setAuthState] = useState('loading');
   const [token, setToken] = useState('');
   const [wallet, setWallet] = useState('');
-  const [tokenId, setTokenId] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [manualTokenId, setManualTokenId] = useState('');
   const [priceEth, setPriceEth] = useState('');
   const [durationDays, setDurationDays] = useState('30');
   const [useCreatorFee, setUseCreatorFee] = useState(true);
@@ -46,7 +48,10 @@ export default function NeuralCoreListingAssistant() {
     const initialToken = query.get('tokenId') || '';
     const initialPrice = query.get('price') || '';
     if (ADDRESS_RE.test(initialWallet)) setWallet(initialWallet);
-    if (TOKEN_RE.test(initialToken)) setTokenId(initialToken);
+    if (TOKEN_RE.test(initialToken)) {
+      setManualTokenId(initialToken);
+      setSelectedIds([initialToken]);
+    }
     if (initialPrice) setPriceEth(initialPrice);
   }, []);
 
@@ -62,14 +67,15 @@ export default function NeuralCoreListingAssistant() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Neural Core market data could not be loaded.');
       setCore(data);
-      if (!tokenId && data?.inventory?.items?.[0]?.tokenId) setTokenId(String(data.inventory.items[0].tokenId));
+      const items = Array.isArray(data?.inventory?.items) ? data.inventory.items : [];
+      setSelectedIds(current => current.length ? current : (items[0]?.tokenId ? [String(items[0].tokenId)] : []));
       setPriceEth(current => current || suggestedPrice(data));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Neural Core market data could not be loaded.');
     } finally {
       setBusy(false);
     }
-  }, [tokenId]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,11 +133,43 @@ export default function NeuralCoreListingAssistant() {
     }
   }
 
-  async function prepareListing() {
+  const inventory = core?.inventory?.items || [];
+  const recommendation = core?.recommendation || {};
+  const evidence = recommendation?.evidence || {};
+  const priceBand = useMemo(() => Array.isArray(recommendation?.suggestedPriceBandEth) ? recommendation.suggestedPriceBandEth : null, [recommendation]);
+  const chosenIds = useMemo(() => {
+    if (inventory.length) return selectedIds.filter(id => inventory.some(item => String(item.tokenId) === id));
+    return TOKEN_RE.test(manualTokenId) ? [manualTokenId] : [];
+  }, [inventory, selectedIds, manualTokenId]);
+
+  function toggleToken(id) {
+    const tokenId = String(id);
+    setPrepared(null);
+    setSelectedIds(current => current.includes(tokenId) ? current.filter(value => value !== tokenId) : [...current, tokenId]);
+  }
+
+  function selectAll() {
+    const ids = inventory.map(item => String(item.tokenId)).slice(0, MAX_BATCH);
+    setSelectedIds(ids);
+    setPrepared(null);
+    if (inventory.length > MAX_BATCH) setError(`Selected the first ${MAX_BATCH}. List the remaining VoxelFlips in another batch.`);
+    else setError('');
+  }
+
+  function selectUnlisted() {
+    const ids = inventory.filter(item => !item.listed).map(item => String(item.tokenId)).slice(0, MAX_BATCH);
+    setSelectedIds(ids);
+    setPrepared(null);
+    if (inventory.filter(item => !item.listed).length > MAX_BATCH) setError(`Selected the first ${MAX_BATCH} unlisted VoxelFlips. Use another batch for the rest.`);
+    else setError('');
+  }
+
+  async function listOnOpenSea() {
     setPrepared(null);
     setError('');
-    if (!ADDRESS_RE.test(wallet)) return setError('Connect the wallet that owns this VoxelFlip.');
-    if (!TOKEN_RE.test(tokenId)) return setError('Enter the VoxelFlip token ID.');
+    if (!ADDRESS_RE.test(wallet)) return setError('Connect the wallet that owns these VoxelFlips.');
+    if (!chosenIds.length) return setError('Choose at least one VoxelFlip.');
+    if (chosenIds.length > MAX_BATCH) return setError(`Choose no more than ${MAX_BATCH} VoxelFlips in one batch.`);
     if (!priceEth || Number(priceEth) <= 0) return setError('Enter a listing price greater than 0 ETH.');
 
     setBusy(true);
@@ -142,23 +180,25 @@ export default function NeuralCoreListingAssistant() {
           'content-type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ wallet, tokenId, priceEth, durationDays: Number(durationDays), useCreatorFee }),
+        body: JSON.stringify({
+          wallet,
+          items: chosenIds.map(tokenId => ({ tokenId, priceEth })),
+          durationDays: Number(durationDays),
+          useCreatorFee,
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'OpenSea could not prepare the listing.');
       setPrepared(data);
+
+      const destination = data.itemCount > 1 ? data.openSeaProfileUrl : data.openSeaUrl;
+      if (destination) window.location.assign(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'OpenSea could not prepare the listing.');
     } finally {
       setBusy(false);
     }
   }
-
-  const inventory = core?.inventory?.items || [];
-  const recommendation = core?.recommendation || {};
-  const evidence = recommendation?.evidence || {};
-  const priceBand = useMemo(() => Array.isArray(recommendation?.suggestedPriceBandEth) ? recommendation.suggestedPriceBandEth : null, [recommendation]);
-  const openSeaUrl = prepared?.openSeaUrl || (core?.contract && TOKEN_RE.test(tokenId) ? `https://opensea.io/item/base/${core.contract}/${tokenId}` : '');
 
   if (authState === 'loading') {
     return <main className={styles.page}><section className={styles.locked}><h1>Loading listing assistant…</h1></section></main>;
@@ -183,9 +223,9 @@ export default function NeuralCoreListingAssistant() {
     </nav>
 
     <header className={styles.hero}>
-      <small>PRICE → VERIFY OWNER → PREPARE → WALLET APPROVAL</small>
-      <h1>List with<br/><em>VoxelPop.</em></h1>
-      <p>Neural Core can recommend and prepare the OpenSea listing. Your connected wallet remains the final authority. No server-side private key, no silent sale, no automatic signature.</p>
+      <small>CHOOSE → PRICE → VERIFY OWNER → OPENSEA → YOUR WALLET</small>
+      <h1>List with<br/><em>your signature.</em></h1>
+      <p>Choose one VoxelFlip, several, or all of them. VoxelPop verifies ownership and prepares the listing inputs. OpenSea handles the final marketplace flow and your wallet remains the only signer.</p>
     </header>
 
     <div className={styles.shell}>
@@ -196,11 +236,11 @@ export default function NeuralCoreListingAssistant() {
           <article className={styles.metric}><small>TOP OFFER</small><b>{core?.market?.topOfferEth ? `${number(core.market.topOfferEth)} ETH` : '—'}</b></article>
           <article className={styles.metric}><small>PRICED SALES</small><b>{evidence.independentPricedSales ?? '—'}</b></article>
         </div>
-        <div className={styles.notice} style={{marginTop:12}}>{priceBand ? `Observed price band: ${number(priceBand[0])}–${number(priceBand[1])} ETH. This is evidence-based guidance, not a guaranteed value.` : 'Neural Core does not have enough independent sale evidence to claim a reliable price band yet. You can still choose a manual test asking price.'}</div>
+        <div className={styles.notice} style={{marginTop:12}}>{priceBand ? `Suggested starting price: ${suggestedPrice(core)} ETH from the observed ${number(priceBand[0])}–${number(priceBand[1])} ETH band. This is market guidance, not a guaranteed sale price.` : 'Neural Core does not have enough independent sale evidence for a reliable price band yet. Choose the asking price yourself and review it again on OpenSea.'}</div>
       </section>
 
       <section className={styles.panel}>
-        <div className={styles.panelHead}><div><small>YOUR LISTING</small><h2>Prepare OpenSea actions</h2></div><span className={styles.badge}>AUTO-SIGN · OFF</span></div>
+        <div className={styles.panelHead}><div><small>YOUR LISTING</small><h2>Choose what to list</h2></div><span className={styles.badge}>AUTO-SIGN · OFF</span></div>
         <div className={styles.form}>
           <div className={styles.field}>
             <label>Owner wallet</label>
@@ -208,16 +248,32 @@ export default function NeuralCoreListingAssistant() {
           </div>
           <button className={styles.secondary} type="button" onClick={connectWallet} disabled={busy}>{wallet ? `Reconnect ${short(wallet)}` : 'Connect Base wallet'}</button>
 
-          <div className={styles.field}>
-            <label>VoxelFlip</label>
-            {inventory.length ? <select value={tokenId} onChange={event => {setTokenId(event.target.value);setPrepared(null)}}>
-              <option value="">Choose a VoxelFlip</option>
-              {inventory.map(item => <option key={item.tokenId} value={item.tokenId}>VoxelFlip #{item.tokenId} · {item.listed ? `listed ${item.listingPriceEth || ''}` : 'not listed'}</option>)}
-            </select> : <input inputMode="numeric" value={tokenId} onChange={event => {setTokenId(event.target.value.replace(/\D/g,''));setPrepared(null)}} placeholder="e.g. 2" />}
-          </div>
+          {inventory.length ? <>
+            <div className={styles.selectionHead}>
+              <div><b>{chosenIds.length} selected</b><span>{inventory.length} VoxelFlip{inventory.length === 1 ? '' : 's'} found</span></div>
+              <div className={styles.miniActions}>
+                <button type="button" onClick={selectUnlisted} disabled={busy}>Select unlisted</button>
+                <button type="button" onClick={selectAll} disabled={busy}>Select all</button>
+                <button type="button" onClick={() => {setSelectedIds([]);setPrepared(null)}} disabled={busy}>Clear</button>
+              </div>
+            </div>
+            <div className={styles.inventoryList}>
+              {inventory.map(item => {
+                const id = String(item.tokenId);
+                const checked = selectedIds.includes(id);
+                return <label className={`${styles.inventoryItem} ${checked ? styles.inventorySelected : ''}`} key={id}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleToken(id)} />
+                  <span><b>VoxelFlip #{id}</b><small>{item.listed ? `Already listed${item.listingPriceEth ? ` · ${item.listingPriceEth} ETH` : ''}` : 'Not currently listed'}</small></span>
+                </label>;
+              })}
+            </div>
+          </> : <div className={styles.field}>
+            <label>VoxelFlip token ID</label>
+            <input inputMode="numeric" value={manualTokenId} onChange={event => {setManualTokenId(event.target.value.replace(/\D/g,''));setPrepared(null)}} placeholder="e.g. 2" />
+          </div>}
 
           <div className={styles.field}>
-            <label>Asking price · ETH</label>
+            <label>Asking price · ETH {chosenIds.length > 1 ? '(applied to each selected voxel)' : ''}</label>
             <input inputMode="decimal" value={priceEth} onChange={event => {setPriceEth(event.target.value);setPrepared(null)}} placeholder="0.015" />
           </div>
 
@@ -225,38 +281,34 @@ export default function NeuralCoreListingAssistant() {
             <label>Duration</label>
             <select value={durationDays} onChange={event => {setDurationDays(event.target.value);setPrepared(null)}}>
               <option value="7">7 days</option>
-              <option value="30">30 days</option>
+              <option value="30">30 days · recommended default</option>
               <option value="90">90 days</option>
               <option value="180">180 days</option>
             </select>
           </div>
 
-          <label className={styles.check}><input type="checkbox" checked={useCreatorFee} onChange={event => {setUseCreatorFee(event.target.checked);setPrepared(null)}}/><span>Include optional creator earnings when OpenSea supports them for this collection. This does not guarantee royalty enforcement on every marketplace.</span></label>
+          <label className={styles.check}><input type="checkbox" checked={useCreatorFee} onChange={event => {setUseCreatorFee(event.target.checked);setPrepared(null)}}/><span>Include creator earnings when OpenSea supports them for this collection. Kept ON by default. OpenSea will show the actual fees and proceeds before you complete the listing.</span></label>
+
+          <div className={styles.notice}>No reserve/private buyer is set. Nothing here can sign for you. After ownership is verified, you are sent to OpenSea to review the final marketplace terms and approve the required wallet prompt(s).</div>
 
           <div className={styles.actions}>
-            <button className={styles.primary} type="button" onClick={prepareListing} disabled={busy || !wallet || !tokenId || !priceEth}>{busy ? 'Checking Base + OpenSea…' : 'Prepare listing →'}</button>
-            {openSeaUrl ? <a className={styles.secondary} href={openSeaUrl} target="_blank" rel="noreferrer">Open on OpenSea ↗</a> : <button className={styles.secondary} type="button" disabled>OpenSea</button>}
+            <button className={styles.primary} type="button" onClick={listOnOpenSea} disabled={busy || !wallet || !chosenIds.length || !priceEth}>{busy ? 'Verifying Base + OpenSea…' : chosenIds.length > 1 ? `List ${chosenIds.length} on OpenSea →` : 'List on OpenSea →'}</button>
+            <Link className={styles.secondary} href="/admin/neural-core">Back to Neural Core</Link>
           </div>
         </div>
         {error && <div className={styles.error} style={{marginTop:14}}>{error}</div>}
       </section>
 
       {prepared && <section className={styles.panel}>
-        <div className={styles.panelHead}><div><small>PREPARED</small><h2>OpenSea accepted the listing plan.</h2></div><span className={styles.badge}>NOT LISTED YET</span></div>
-        <div className={styles.success}>VoxelFlip #{prepared.tokenId} is confirmed as owned by {short(prepared.owner)}. Price: {prepared.priceEth} ETH for {prepared.durationDays} days. Nothing has been signed or published yet.</div>
+        <div className={styles.panelHead}><div><small>VERIFIED PLAN</small><h2>Ready for your OpenSea approval.</h2></div><span className={styles.badge}>YOUR WALLET SIGNS</span></div>
+        <div className={styles.success}>{prepared.itemCount} VoxelFlip{prepared.itemCount === 1 ? '' : 's'} verified as owned by {short(prepared.owner)}. Asking price: {prepared.items?.[0]?.priceEth} ETH each for {prepared.durationDays} days. Creator earnings: {prepared.useCreatorFee ? 'ON' : 'OFF'}.</div>
         <div className={styles.steps}>
-          {(prepared.actionTypes || []).map((type, index) => <div className={styles.step} key={`${type}-${index}`}><b>{String(index + 1).padStart(2,'0')} · {type}</b><span>wallet action</span></div>)}
-          {!prepared.actionTypes?.length && <div className={styles.step}><b>OpenSea returned no executable steps.</b><span>retry safely</span></div>}
-        </div>
-        <div className={styles.notice} style={{marginTop:14}}>The next engineering step is executing these official actions in your wallet from VoxelPop. Until that parser is verified against the live OpenSea action shape, finish on OpenSea rather than signing an unverified payload.</div>
-        <div className={styles.actions} style={{marginTop:14}}>
-          <a className={styles.primary} href={prepared.openSeaUrl} target="_blank" rel="noreferrer">Finish on OpenSea ↗</a>
-          <Link className={styles.secondary} href="/admin/neural-core">Back to Neural Core</Link>
+          {(prepared.items || []).map(item => <a className={styles.stepLink} key={item.tokenId} href={item.openSeaUrl} target="_blank" rel="noreferrer"><b>VoxelFlip #{item.tokenId}</b><span>Open on OpenSea ↗</span></a>)}
         </div>
       </section>}
 
       <section className={styles.panel}>
-        <div className={styles.notice}>Safety rule: the Listing Assistant may price, verify ownership and prepare official OpenSea actions. It may not sign, list, transfer or spend without a wallet approval path that has been separately verified.</div>
+        <div className={styles.notice}>Safety rule: VoxelPop may recommend prices, verify ownership, and request official OpenSea listing preparation. OpenSea and your connected wallet perform the final approval/signature. Your owner private key is never stored by VoxelPop.</div>
       </section>
     </div>
   </main>;
