@@ -15,7 +15,8 @@
     "test:release": "npm run test:rewards && npm run test:universal && npm run test:media && npm run test:mobile && npm run test:collection && npm run test:commerce && npm run build",
     "chain:compile": "hardhat compile",
     "chain:deploy:sepolia": "hardhat run scripts/deploy-sepolia.js --network sepolia",
-    "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet"
+    "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet",
+    "chain:deploy:voxelflip-base": "hardhat run scripts/deploy-voxelflip-base.js --network base"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
