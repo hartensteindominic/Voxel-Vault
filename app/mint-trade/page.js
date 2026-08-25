@@ -95,7 +95,7 @@ export default function MintTradePage(){
  const mintLabel=stage==='connecting'?'Connecting wallet…':stage==='preparing'?'Preparing NFT…':stage==='minting'?'Confirm mint in wallet…':stage==='verifying'?'Verifying on Base…':'Mint this voxel on Base';
 
  return <main className={styles.page}>
-  <nav className={styles.nav}><a href="/">VoxelPop</a><span>MINT & TRADE</span></nav>
+  <nav className={styles.nav}><a href="/"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>MINT & TRADE</em></nav>
   <header className={styles.hero}><p>VOXELPOP → VOXELFLIP → MARKET</p><h1>Mint it.<br/><em>Then watch the market.</em></h1><span>Your 3D voxel stays yours. Minting creates the Base NFT; the market bot watches listings, offers and portfolio changes automatically.</span></header>
   <section className={styles.assetCard}>
    <div className={styles.preview}>{previewUrl&&mesh?.status==='ready'?<GeneratedMeshViewer url={previewUrl} label={asset?.name||'Your voxel'}/>:asset?.dataUrl?<img src={asset.dataUrl} alt={asset.name||'Your voxel'}/>:<div className={styles.missing}>Open this page from a paid voxel in My Voxels.</div>}</div>
@@ -103,7 +103,7 @@ export default function MintTradePage(){
   </section>
   <section className={styles.bot}>
    <div className={styles.botHead}><div><small>VOXELFLIP MARKET BOT</small><h2>Automatic market monitor</h2></div><button onClick={()=>setScannerOn(value=>!value)} className={scannerOn?styles.on:styles.off}>{scannerOn?'AUTO SCAN ON':'AUTO SCAN OFF'}</button></div>
-   <div className={styles.mode}><div><b>Market scanning</b><span>{wallet?(scanner?.scanner==='live'?'LIVE · refreshes every 30 sec':scanner?.scanner==='configuration-needed'?'OPENSea KEY NEEDED':'CONNECTING…'):'CONNECT WALLET'}</span></div><div><b>Trade execution</b><span>APPROVAL REQUIRED</span></div><div><b>Collection</b><span>VoxelFlip · Base</span></div></div>
+   <div className={styles.mode}><div><b>Market scanning</b><span>{wallet?(scanner?.scanner==='live'?'LIVE · refreshes every 30 sec':scanner?.scanner==='configuration-needed'?'OPENSEA KEY NEEDED':'CONNECTING…'):'CONNECT WALLET'}</span></div><div><b>Trade execution</b><span>APPROVAL REQUIRED</span></div><div><b>Collection</b><span>VoxelFlip · Base</span></div></div>
    {!wallet?<button className={styles.connect} onClick={connect}>Connect wallet & start bot monitoring</button>:<div className={styles.walletLine}><b>{short(wallet)}</b><button onClick={runScanner} disabled={scannerBusy}>{scannerBusy?'Refreshing…':'Refresh now'}</button></div>}
    <div className={styles.stats}><article><small>ACTIVE LISTINGS</small><b>{scanner?.listings??'—'}</b></article><article><small>OFFERS RECEIVED</small><b>{scanner?.offersReceived??'—'}</b></article><article><small>PORTFOLIO</small><b>{scanner?.portfolio?'LIVE':'—'}</b></article><article><small>EXECUTION</small><b>APPROVAL</b></article></div>
    {scanner&&!scanner.marketDataConfigured&&<div className={styles.notice}>Automatic scanner code is active, but the production server still needs <b>OPENSEA_API_KEY</b> to pull live marketplace data.</div>}
