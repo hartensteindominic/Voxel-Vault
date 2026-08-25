@@ -58,6 +58,7 @@ export default function VoxelFlipAutopilotPage(){
  const openSeaHref=scanner?.openSeaUrl||'https://opensea.io';
  const listed=scanner?.tokenListed===true?'LISTED':scanner?.tokenListed===false?'NOT LISTED':'—';
  const marketReady=scanner?.marketDataConfigured===true;
+ const factoryQuery=new URLSearchParams();if(wallet)factoryQuery.set('wallet',wallet);if(tokenId)factoryQuery.set('tokenId',tokenId);if(sessionId)factoryQuery.set('session_id',sessionId);const factoryHref=`/voxelflip/factory${factoryQuery.toString()?`?${factoryQuery}`:''}`;
 
  return <main className={styles.page}>
   <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · AUTOPILOT</em></nav>
@@ -92,18 +93,19 @@ export default function VoxelFlipAutopilotPage(){
    </section>
 
    <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>WHAT YOU CAN DO NOW</small><h2>Watch it or sell manually.</h2></div><span className={styles.status}>AUTOPILOT TRADING · COMING SOON</span></div>
+    <div className={styles.panelHead}><div><small>WHAT YOU CAN DO NOW</small><h2>Watch it, sell manually, or inspect Factory.</h2></div><span className={styles.status}>AUTOPILOT TRADING · COMING SOON</span></div>
     <div className={styles.notice}>Automatic signing is OFF. Nothing on this page can spend ETH or list your NFT without you.</div>
     <div className={styles.actions}>
+     <a href={factoryHref}>Open Factory loop →</a>
      <a href={openSeaHref} target="_blank" rel="noreferrer">List manually on OpenSea ↗</a>
      <a href={openSeaHref} target="_blank" rel="noreferrer">Open {tokenId?`VoxelFlip #${tokenId}`:'VoxelFlip'} ↗</a>
      <a href="/studio#my-voxels">My Voxels</a>
      {sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>Open minted 3D</a>}
     </div>
-    <p className={styles.riskText}>Next development phase: a separately tested bounded executor with explicit spending limits and approvals. It is not active here.</p>
+    <p className={styles.riskText}>Factory can observe settled external sales and enforce conservative reserve/reinvestment rules. Spending, minting, and listing stay approval-gated until a bounded executor is installed and tested.</p>
    </section>
   </div>
 
-  <footer className={styles.footer}><a href="/studio#my-voxels">← My Voxels</a><a href={openSeaHref} target="_blank" rel="noreferrer">OpenSea ↗</a></footer>
+  <footer className={styles.footer}><a href="/studio#my-voxels">← My Voxels</a><a href={factoryHref}>Factory →</a><a href={openSeaHref} target="_blank" rel="noreferrer">OpenSea ↗</a></footer>
  </main>;
 }
