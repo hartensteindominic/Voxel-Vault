@@ -7,10 +7,15 @@ import {loadAccountVoxel} from '../../../lib/voxelpop-account';
 import {connectVoxelFlipWallet,mintVoxelFlip} from '../../../lib/voxelflip';
 import styles from '../../mint-trade/mint-trade.module.css';
 
+const VERIFY_REQUEST_TIMEOUT_MS=35000;
 function short(value){return value?`${value.slice(0,6)}…${value.slice(-4)}`:''}
 function errorText(error){return String(error?.reason||error?.message||error||'')}
 function isVoucherUsedError(error){const text=errorText(error).toLowerCase();return text.includes('voucher already used')||text.includes('voucher is already minted')||text.includes('voucher was already minted')}
 function isStaleVerificationError(error){const text=errorText(error).toLowerCase();return text.includes('did not mint from the registered voxelflip contract')||text.includes('connected wallet does not own')||text.includes('minted token metadata does not match')||text.includes('mint confirmation details are incomplete')}
+async function fetchWithTimeout(url,options,timeoutMs=VERIFY_REQUEST_TIMEOUT_MS){
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
+ try{return await fetch(url,{...options,signal:controller.signal})}catch(error){if(error?.name==='AbortError')throw new Error('Base verification took too long. Your mint is saved. Tap Resume mint verification; do not mint again.');throw error}finally{clearTimeout(timer)}
+}
 
 export default function VoxelFlipMintPage(){
  const [sessionId,setSessionId]=useState('');
@@ -49,7 +54,7 @@ export default function VoxelFlipMintPage(){
  }
  async function verifySubmitted(submission){
   setStage('verifying');setMessage(`Verifying VoxelFlip #${submission.tokenId} on Base…`);
-  const txHash=submission.hash||submission.txHash||'';const confirm=await fetch('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId:submission.taskId,tokenId:submission.tokenId,txHash,wallet:submission.owner,metadataUrl:submission.metadataUrl})});const verified=await confirm.json();if(!confirm.ok)throw new Error(verified.error||'The mint was submitted but could not be verified yet.');const finalResult={...submission,hash:txHash,owner:verified.wallet||submission.owner,openSeaUrl:verified.openSeaUrl||submission.openSeaUrl||'',explorerUrl:verified.explorerUrl||submission.explorerUrl||''};setMinted(finalResult);setPendingMint(null);setRecoverMode(false);setWallet(finalResult.owner||wallet);setStage('done');setMessage(`VoxelFlip #${finalResult.tokenId} is minted and owned by ${short(finalResult.owner)}.`);try{localStorage.setItem(`voxelflip:mint:${sessionId}`,JSON.stringify(finalResult));localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{};return finalResult
+  const txHash=submission.hash||submission.txHash||'';const confirm=await fetchWithTimeout('/api/creator-pack/nft/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,taskId:submission.taskId,tokenId:submission.tokenId,txHash,wallet:submission.owner,metadataUrl:submission.metadataUrl})});const verified=await confirm.json();if(!confirm.ok)throw new Error(verified.error||'The mint was submitted but could not be verified yet.');const finalResult={...submission,hash:txHash,owner:verified.wallet||submission.owner,openSeaUrl:verified.openSeaUrl||submission.openSeaUrl||'',explorerUrl:verified.explorerUrl||submission.explorerUrl||''};setMinted(finalResult);setPendingMint(null);setRecoverMode(false);setWallet(finalResult.owner||wallet);setStage('done');setMessage(`VoxelFlip #${finalResult.tokenId} is minted and owned by ${short(finalResult.owner)}.`);try{localStorage.setItem(`voxelflip:mint:${sessionId}`,JSON.stringify(finalResult));localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{};return finalResult
  }
  async function resumeVerification(){if(!pendingMint)return;try{await verifySubmitted(pendingMint)}catch(error){if(isStaleVerificationError(error)){try{localStorage.removeItem(`voxelflip:pending:${sessionId}`)}catch{}setPendingMint(null);setRecoverMode(true);setStage('error');setMessage('The saved browser transaction was not the VoxelFlip mint. It was cleared safely. Tap Recover existing mint — no new mint will be sent.');return}setStage('error');setMessage(`Verification is still pending: ${errorText(error)||'Base RPC unavailable'}. Do not mint again.`)}}
  async function mint(){
