@@ -292,6 +292,7 @@ export default function NeuralCorePage() {
           <article><b>AUTO-MINT</b><span>OFF</span><p>No on-chain mint is signed automatically.</p></article>
         </div>
         <div className={styles.actions}>
+          <Link href={wallet ? `/admin/neural-core/list?wallet=${encodeURIComponent(wallet)}` : '/admin/neural-core/list'}>List on OpenSea →</Link>
           <Link href="/voxelflip/factory">Factory loop →</Link>
           <Link href="/voxelflip/autopilot">Autopilot monitor →</Link>
           <Link href="/studio#my-voxels">My Voxels →</Link>
