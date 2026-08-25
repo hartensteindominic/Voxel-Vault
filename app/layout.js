@@ -1,4 +1,5 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
+import VoxelPopHelpWidget from './components/VoxelPopHelpWidget';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <WalletIdentityProvider>{children}</WalletIdentityProvider>
+        <VoxelPopHelpWidget />
       </body>
     </html>
   );
