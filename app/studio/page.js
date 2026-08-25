@@ -17,7 +17,7 @@ function ensureFlowId(){let id=sessionStorage.getItem(flowStorageKey)||'';if(!/^
 function track(eventName,flowId,attribution,promptLength){if(!flowId)return;fetch('/api/creator-pack/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventName,flowId,attribution,promptLength}),keepalive:true}).catch(()=>{})}
 function userName(user){return String(user?.user_metadata?.full_name||user?.user_metadata?.name||user?.email||'Google account')}
 function userAvatar(user){return String(user?.user_metadata?.avatar_url||user?.user_metadata?.picture||'')}
-function googleReturnUrl(){const target=new URL('/studio',window.location.origin);target.searchParams.set('auth','google');target.hash='my-voxels';return target.toString()}
+function googleReturnUrl(){const target=new URL('/studio',window.location.origin);target.searchParams.set('auth','google');return target.toString()}
 
 export default function StudioPage(){
  const [idea,setIdea]=useState('Enchanted ruins');
@@ -52,7 +52,10 @@ export default function StudioPage(){
     setVoxelRecords(mergeVoxelRecords(cloud,readLocalVoxelRecords()));
     setAccountStatus(`Google connected. My Voxels is synced for ${userName(next.user)}.`);
     setAccountReady(true);
-    if(new URLSearchParams(window.location.search).get('auth')==='google')document.getElementById('my-voxels')?.scrollIntoView({behavior:'smooth',block:'start'});
+    if(new URLSearchParams(window.location.search).get('auth')==='google'){
+     window.history.replaceState({},'', '/studio#my-voxels');
+     document.getElementById('my-voxels')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
    }catch(e){if(active)setAccountStatus(e instanceof Error?e.message:'Google account connected, but My Voxels could not sync.');}
    finally{if(active)setAccountBusy(false)}
   }
@@ -83,7 +86,7 @@ export default function StudioPage(){
    if(providerStatus.googleProviderEnabled!==true)throw new Error('Google sign-in is connected to Supabase, but Google is not enabled there yet. In Supabase: Authentication → Providers → Google → Enable, add the Google OAuth Client ID and Secret, save, then tap Continue with Google again.');
    const client=accountClient.current||await getSupabaseBrowserAsync();accountClient.current=client;setAccountReady(true);
    const redirectTo=googleReturnUrl();
-   try{localStorage.setItem('voxelpop:google:return','/studio?auth=google#my-voxels')}catch{}
+   try{localStorage.setItem('voxelpop:google:return','/studio?auth=google')}catch{}
    const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo}});
    if(error)throw error;
   }catch(e){setAccountReady(false);setAccountStatus(e instanceof Error?e.message:'Could not start Google sign-in.');setAccountBusy(false)}
