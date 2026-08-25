@@ -38,13 +38,19 @@ for(const required of [
  'app/admin/neural-core/page.js',
  'app/admin/neural-core/list/page.js',
  'app/admin/neural-core/setup/page.js',
+ 'app/admin/neural-core/whatsapp/page.js',
  'app/api/voxelflip/trader/route.ts',
  'app/api/voxelflip/factory/route.ts',
  'app/api/admin/neural-core/route.ts',
  'app/api/admin/neural-core/listing-actions/route.ts',
  'app/api/admin/neural-core/setup/route.ts',
+ 'app/api/admin/neural-core/whatsapp/route.ts',
+ 'app/api/whatsapp/webhook/route.ts',
  'app/api/cron/neural-core/route.ts',
  'app/api/creator-pack/nft/confirm/route.ts',
+ 'lib/whatsapp-cloud.ts',
+ 'lib/voxelflip-control-actions.ts',
+ 'supabase/migrations/013_voxelflip_whatsapp_control.sql',
 ]){
  if(!fs.existsSync(path.join(root,required)))failures.push(`Missing critical VoxelPop/VoxelFlip route: ${required}`);
 }
@@ -57,10 +63,16 @@ const criticalSources=[
  'app/admin/neural-core/page.js',
  'app/admin/neural-core/list/page.js',
  'app/admin/neural-core/setup/page.js',
+ 'app/admin/neural-core/whatsapp/page.js',
  'app/api/admin/neural-core/route.ts',
  'app/api/admin/neural-core/listing-actions/route.ts',
  'app/api/admin/neural-core/setup/route.ts',
+ 'app/api/admin/neural-core/whatsapp/route.ts',
+ 'app/api/whatsapp/webhook/route.ts',
+ 'app/api/cron/neural-core/route.ts',
  'lib/voxelflip-neural-core.ts',
+ 'lib/whatsapp-cloud.ts',
+ 'lib/voxelflip-control-actions.ts',
 ];
 for(const rel of criticalSources){
  const text=fs.readFileSync(path.join(root,rel),'utf8');
@@ -78,6 +90,18 @@ if(!listingApi.includes('6352211e'))failures.push('Listing Assistant must verify
 const setupApi=fs.readFileSync(path.join(root,'app/api/admin/neural-core/setup/route.ts'),'utf8');
 if(!setupApi.includes('requireNeuralCoreAdmin'))failures.push('Neural Core setup status is missing server-side admin authentication.');
 if(!setupApi.includes('voxelflip_profit_ledger')||!setupApi.includes('voxelflip_neural_memory'))failures.push('Neural Core setup must verify both private database tables.');
+const whatsappAdminApi=fs.readFileSync(path.join(root,'app/api/admin/neural-core/whatsapp/route.ts'),'utf8');
+if(!whatsappAdminApi.includes('requireNeuralCoreAdmin'))failures.push('WhatsApp control setup API is missing server-side admin authentication.');
+const whatsappWebhook=fs.readFileSync(path.join(root,'app/api/whatsapp/webhook/route.ts'),'utf8');
+if(!whatsappWebhook.includes('whatsappWebhookSignatureValid'))failures.push('WhatsApp webhook must verify Meta x-hub-signature-256 before processing controls.');
+if(!whatsappWebhook.includes('whatsappSenderAuthorized'))failures.push('WhatsApp webhook must restrict controls to the configured approver phone.');
+if(!whatsappWebhook.includes('decideControlAction'))failures.push('WhatsApp webhook must use single-use stored control decisions.');
+if(/eth_sendTransaction|eth_signTypedData|personal_sign|signTypedData\s*\(/.test(whatsappWebhook))failures.push('WhatsApp webhook may not sign or broadcast blockchain actions.');
+const whatsappLib=fs.readFileSync(path.join(root,'lib/whatsapp-cloud.ts'),'utf8');
+if(!whatsappLib.includes('WHATSAPP_APPROVER_NUMBER'))failures.push('WhatsApp approver number must come from server environment configuration.');
+if(/7163593694/.test(whatsappLib)||/7163593694/.test(whatsappWebhook))failures.push('A personal phone number was hardcoded into the public repository.');
+const controlMigration=fs.readFileSync(path.join(root,'supabase/migrations/013_voxelflip_whatsapp_control.sql'),'utf8');
+if(!controlMigration.includes('revoke all on table public.voxelflip_control_actions from anon, authenticated'))failures.push('WhatsApp control actions must remain server-only.');
 const listingPage=fs.readFileSync(path.join(root,'app/admin/neural-core/list/page.js'),'utf8');
 if(/eth_sendTransaction|eth_signTypedData|personal_sign|signTypedData\s*\(/.test(listingPage))failures.push('Listing Assistant may not sign or broadcast wallet actions until the live OpenSea action parser is separately verified.');
 const adminAuth=fs.readFileSync(path.join(root,'lib/neural-core-auth.ts'),'utf8');
@@ -96,4 +120,4 @@ if(failures.length){
  for(const failure of failures)console.error(`- ${failure}`);
  process.exit(1);
 }
-console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core routes exist, admin auth, ownership and database readiness checks are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
+console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core/WhatsApp routes exist, admin auth, ownership, webhook signatures and private database controls are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
