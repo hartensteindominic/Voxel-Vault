@@ -9,12 +9,19 @@ export const runtime = 'nodejs';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const ABI = ['function ownerOf(uint256 tokenId) view returns (address)','function tokenURI(uint256 tokenId) view returns (string)'];
+const RECEIPT_TIMEOUT_MS = 4500;
+const CONTRACT_READ_TIMEOUT_MS = 5500;
 
 function rpcCandidates() {
   const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
-  // PublicNode's Base endpoint can reject ordinary verification calls as archive
-  // requests unless a provider token is supplied. Do not use it as a fallback.
-  return Array.from(new Set([configured, 'https://mainnet.base.org', 'https://base.llamarpc.com'].filter(Boolean)));
+  // Keep multiple independent Base RPCs because public endpoints can rate-limit
+  // or temporarily lag a just-submitted receipt.
+  return Array.from(new Set([
+    configured,
+    'https://base.blockscout.com/api/eth-rpc',
+    'https://mainnet.base.org',
+    'https://base.llamarpc.com',
+  ].filter(Boolean)));
 }
 
 function readableRpcError(error: unknown) {
@@ -22,14 +29,28 @@ function readableRpcError(error: unknown) {
   return String(error || 'Unknown RPC error');
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function verifyMintOnChain(contractAddress: string, tokenId: string, txHash: string, wallet: string, metadataUrl: string) {
   const transportErrors: string[] = [];
   let receiptSeen = false;
 
   for (const rpcUrl of rpcCandidates()) {
+    const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
     try {
-      const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
-      const receipt = await provider.getTransactionReceipt(txHash);
+      const receipt = await withTimeout(provider.getTransactionReceipt(txHash), RECEIPT_TIMEOUT_MS, 'transaction receipt lookup');
       if (!receipt) {
         transportErrors.push(`${rpcUrl}: transaction not visible yet`);
         continue;
@@ -45,7 +66,11 @@ async function verifyMintOnChain(contractAddress: string, tokenId: string, txHas
       let uri: string;
       try {
         const contract = new Contract(contractAddress, ABI, provider);
-        [owner, uri] = await Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]);
+        [owner, uri] = await withTimeout(
+          Promise.all([contract.ownerOf(tokenId), contract.tokenURI(tokenId)]),
+          CONTRACT_READ_TIMEOUT_MS,
+          'VoxelFlip owner and metadata lookup',
+        );
       } catch (error) {
         transportErrors.push(`${rpcUrl}: ${readableRpcError(error)}`);
         continue;
@@ -65,10 +90,13 @@ async function verifyMintOnChain(contractAddress: string, tokenId: string, txHas
         throw error;
       }
       transportErrors.push(`${rpcUrl}: ${message}`);
+    } finally {
+      provider.destroy();
     }
   }
 
   if (!receiptSeen) {
+    console.warn('VoxelFlip receipt verification exhausted', transportErrors);
     throw new Error('Your mint transaction was submitted, but Base has not exposed the receipt to our verifier yet. Use Resume mint verification instead of minting again.');
   }
   console.warn('VoxelFlip RPC verification exhausted', transportErrors);
