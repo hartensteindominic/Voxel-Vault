@@ -35,8 +35,11 @@ for(const required of [
  'app/voxelflip/mint/page.js',
  'app/voxelflip/autopilot/page.js',
  'app/voxelflip/factory/page.js',
+ 'app/admin/neural-core/page.js',
  'app/api/voxelflip/trader/route.ts',
  'app/api/voxelflip/factory/route.ts',
+ 'app/api/admin/neural-core/route.ts',
+ 'app/api/cron/neural-core/route.ts',
  'app/api/creator-pack/nft/confirm/route.ts',
 ]){
  if(!fs.existsSync(path.join(root,required)))failures.push(`Missing critical VoxelPop/VoxelFlip route: ${required}`);
@@ -47,15 +50,29 @@ const criticalSources=[
  'app/voxelflip/factory/page.js',
  'app/api/voxelflip/trader/route.ts',
  'app/api/voxelflip/factory/route.ts',
+ 'app/admin/neural-core/page.js',
+ 'app/api/admin/neural-core/route.ts',
+ 'lib/voxelflip-neural-core.ts',
 ];
 for(const rel of criticalSources){
  const text=fs.readFileSync(path.join(root,rel),'utf8');
- if(/automaticSigningActive\s*=\s*true/.test(text))failures.push(`${rel} enables automatic signing directly.`);
- if(/automaticFactoryActive\s*=\s*true/.test(text))failures.push(`${rel} enables the Factory directly.`);
+ if(/automaticSigningActive\s*[:=]\s*true/.test(text))failures.push(`${rel} enables automatic signing directly.`);
+ if(/automaticFactoryActive\s*[:=]\s*true/.test(text))failures.push(`${rel} enables the Factory directly.`);
+ if(/automaticListingActive\s*[:=]\s*true/.test(text))failures.push(`${rel} enables automatic listing directly.`);
+ if(/automaticBuyingActive\s*[:=]\s*true/.test(text))failures.push(`${rel} enables automatic buying directly.`);
 }
+
+const adminApi=fs.readFileSync(path.join(root,'app/api/admin/neural-core/route.ts'),'utf8');
+if(!adminApi.includes('requireNeuralCoreAdmin'))failures.push('Neural Core admin API is missing server-side admin authentication.');
+const adminAuth=fs.readFileSync(path.join(root,'lib/neural-core-auth.ts'),'utf8');
+if(!adminAuth.includes('NEURAL_CORE_ADMIN_EMAILS')&&!adminAuth.includes('NEURAL_CORE_ADMIN_USER_IDS'))failures.push('Neural Core admin auth has no explicit allowlist.');
 
 const sitemap=fs.readFileSync(path.join(root,'app/sitemap.js'),'utf8');
 if(sitemap.includes("'/marketplace'")||sitemap.includes('CATALOG_SIZE'))failures.push('Sitemap still advertises the legacy marketplace/catalog instead of the VoxelPop launch surface.');
+if(sitemap.includes('/admin/neural-core'))failures.push('Private Neural Core route must not appear in the sitemap.');
+
+const robots=fs.readFileSync(path.join(root,'app/robots.js'),'utf8');
+if(!robots.includes("'/admin/'")||!robots.includes("'/api/admin/'"))failures.push('robots.js must disallow private Neural Core surfaces.');
 
 console.log(`Route audit: ${publicPages.length} public page files, ${apiRoutes.length} API route files.`);
 if(failures.length){
@@ -63,4 +80,4 @@ if(failures.length){
  for(const failure of failures)console.error(`- ${failure}`);
  process.exit(1);
 }
-console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip routes exist, automatic signing remains disabled, and sitemap is current.');
+console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core routes exist, admin auth is present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
