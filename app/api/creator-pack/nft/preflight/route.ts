@@ -1,5 +1,6 @@
-import { Wallet } from 'ethers';
+import { formatEther, JsonRpcProvider, Wallet } from 'ethers';
 import { NextResponse } from 'next/server';
+import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +12,8 @@ export async function GET() {
   const openSeaConfigured = Boolean(process.env.OPENSEA_API_KEY?.trim());
   const signerSecret = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY?.trim() || '';
   const configuredSignerAddress = process.env.VOXELFLIP_MINT_SIGNER_ADDRESS?.trim() || '';
-  const collectionAddress = process.env.NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS?.trim() || '';
+  const deployment = await getVoxelFlipDeployment();
+  const collectionAddress = deployment?.address || (process.env.NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS?.trim() || '');
   const receiver = (process.env.VOXELPOP_CRYPTO_RECEIVER || APPROVED_VAULT_WALLET).trim();
   const royaltyReceiver = (process.env.VOXELFLIP_ROYALTY_RECEIVER || APPROVED_VAULT_WALLET).trim();
   const owner = (process.env.MULTISIG_OWNER || APPROVED_VAULT_WALLET).trim();
@@ -37,6 +39,27 @@ export async function GET() {
   const royaltyReceiverValid = ADDRESS_RE.test(royaltyReceiver);
   const launchIdentityValid = ownerValid && royaltyReceiverValid && receiverValid;
   const secretsReady = openSeaConfigured && mintSignerValid && mintSignerMatchesConfiguredAddress;
+  const rpcUrl = process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || 'https://mainnet.base.org';
+
+  let ownerBaseBalanceWei = '0';
+  let ownerBaseBalanceEth = '0';
+  let baseBalanceChecked = false;
+  try {
+    const provider = new JsonRpcProvider(rpcUrl, 8453);
+    const balance = await provider.getBalance(APPROVED_VAULT_WALLET);
+    ownerBaseBalanceWei = balance.toString();
+    ownerBaseBalanceEth = formatEther(balance);
+    baseBalanceChecked = true;
+  } catch {
+    baseBalanceChecked = false;
+  }
+  const ownerHasBaseEth = BigInt(ownerBaseBalanceWei) > 0n;
+
+  let nextStep = 'Review launch configuration.';
+  if (collectionConfigured) nextStep = 'Run one paid VoxelPop -> mesh -> VoxelFlip mint -> OpenSea -> import-back test.';
+  else if (!secretsReady) nextStep = 'Finish OpenSea API + VoxelFlip mint-signer server configuration.';
+  else if (baseBalanceChecked && !ownerHasBaseEth) nextStep = 'Move a small amount of ETH to the approved owner wallet on Base for deployment gas.';
+  else if (launchIdentityValid) nextStep = 'Connect the approved owner wallet on /voxelflip/launch and approve the Base deployment transaction.';
 
   return NextResponse.json({
     approvedLaunch: {
@@ -46,7 +69,7 @@ export async function GET() {
       defaultRoyaltyReceiver: APPROVED_VAULT_WALLET,
       creatorEarningsEnforcement: 'optional-v1',
     },
-    readyForContractDeployment: secretsReady && launchIdentityValid,
+    readyForContractDeployment: secretsReady && launchIdentityValid && !collectionConfigured && (!baseBalanceChecked || ownerHasBaseEth),
     readyForMinting: secretsReady && launchIdentityValid && collectionConfigured,
     openSeaConfigured,
     mintSignerConfigured: Boolean(signerSecret),
@@ -61,13 +84,18 @@ export async function GET() {
     royaltyReceiver: royaltyReceiverValid ? royaltyReceiver : null,
     collectionConfigured,
     collectionAddress: collectionConfigured ? collectionAddress : null,
+    deploymentTxHash: deployment?.deploymentTxHash || null,
+    baseFunding: {
+      checked: baseBalanceChecked,
+      hasEth: ownerHasBaseEth,
+      balanceWei: ownerBaseBalanceWei,
+      balanceEth: ownerBaseBalanceEth,
+    },
     chain: {
-      id: process.env.NEXT_PUBLIC_VOXELFLIP_CHAIN_ID || '0x2105',
-      name: process.env.NEXT_PUBLIC_VOXELFLIP_CHAIN_NAME || 'Base',
+      id: '0x2105',
+      name: 'Base',
       rpcConfigured: Boolean(process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL),
     },
-    nextStep: collectionConfigured
-      ? 'Run one paid VoxelPop -> mesh -> VoxelFlip mint -> OpenSea -> import-back test.'
-      : 'Deploy VoxelFlipNFT to Base, then configure NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS with the deployed address.',
+    nextStep,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
