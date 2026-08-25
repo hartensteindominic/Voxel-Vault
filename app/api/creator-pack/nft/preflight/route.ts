@@ -1,7 +1,6 @@
 import { formatEther, JsonRpcProvider, Wallet } from 'ethers';
 import { NextResponse } from 'next/server';
 import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
-import { POST as registerVoxelFlipDeployment } from '../register/route';
 
 export const runtime = 'nodejs';
 
@@ -9,10 +8,6 @@ const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const PRIVATE_KEY_RE = /^[a-fA-F0-9]{64}$/;
 const APPROVED_VAULT_WALLET = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
 const APPROVED_ROYALTY_BPS = 500;
-const RECOVERY_DEPLOYMENT = {
-  address: '0xbde448ab9fc16b17f6ae975132a4201ccfc247d3',
-  txHash: '0xd269db3bf820f2a6b65d25ca1dd17a1bb2f1619536920137f63b7baccb7715ea',
-};
 
 function normalizePrivateKey(value: string) {
   const trimmed = value.trim();
@@ -21,35 +16,12 @@ function normalizePrivateKey(value: string) {
   return trimmed;
 }
 
-async function recoverConfirmedDeployment() {
-  const request = new Request('http://internal.voxelflip/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(RECOVERY_DEPLOYMENT),
-  });
-  const response = await registerVoxelFlipDeployment(request);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error || 'Confirmed VoxelFlip deployment could not be registered.');
-  return body;
-}
-
 export async function GET() {
   const openSeaConfigured = Boolean(process.env.OPENSEA_API_KEY?.trim());
   const rawSignerSecret = process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY?.trim() || '';
   const signerSecret = normalizePrivateKey(rawSignerSecret);
   const configuredSignerAddress = process.env.VOXELFLIP_MINT_SIGNER_ADDRESS?.trim() || '';
-  let deployment = await getVoxelFlipDeployment();
-  let deploymentRecoveryError: string | null = null;
-
-  if (!deployment?.address) {
-    try {
-      await recoverConfirmedDeployment();
-      deployment = await getVoxelFlipDeployment({ bypassCache: true });
-    } catch (error) {
-      deploymentRecoveryError = error instanceof Error ? error.message : 'VoxelFlip deployment recovery failed.';
-    }
-  }
-
+  const deployment = await getVoxelFlipDeployment();
   const collectionAddress = deployment?.address || (process.env.NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS?.trim() || '');
   const receiver = (process.env.VOXELPOP_CRYPTO_RECEIVER || APPROVED_VAULT_WALLET).trim();
   const royaltyReceiver = (process.env.VOXELFLIP_ROYALTY_RECEIVER || APPROVED_VAULT_WALLET).trim();
@@ -94,11 +66,10 @@ export async function GET() {
 
   let nextStep = 'Review launch configuration.';
   if (collectionConfigured) nextStep = 'Run one paid VoxelPop -> mesh -> VoxelFlip mint -> OpenSea -> import-back test.';
-  else if (deploymentRecoveryError) nextStep = `Existing Base deployment needs registration attention: ${deploymentRecoveryError}`;
   else if (!openSeaConfigured) nextStep = 'Finish OpenSea API server configuration.';
   else if (!mintSignerValid) nextStep = 'Finish VoxelFlip mint-signer private-key configuration.';
   else if (baseBalanceChecked && !ownerHasBaseEth) nextStep = 'Move a small amount of ETH to the approved owner wallet on Base for deployment gas.';
-  else if (launchIdentityValid) nextStep = 'The confirmed Base deployment is being recovered; do not deploy another contract.';
+  else if (launchIdentityValid) nextStep = 'Connect the approved owner wallet on /voxelflip/launch and approve one fresh Base deployment transaction.';
 
   return NextResponse.json({
     approvedLaunch: {
@@ -108,7 +79,7 @@ export async function GET() {
       defaultRoyaltyReceiver: APPROVED_VAULT_WALLET,
       creatorEarningsEnforcement: 'optional-v1',
     },
-    readyForContractDeployment: false,
+    readyForContractDeployment: secretsReady && launchIdentityValid && !collectionConfigured && (!baseBalanceChecked || ownerHasBaseEth),
     readyForMinting: secretsReady && launchIdentityValid && collectionConfigured,
     openSeaConfigured,
     mintSignerConfigured: Boolean(rawSignerSecret),
@@ -124,7 +95,6 @@ export async function GET() {
     collectionConfigured,
     collectionAddress: collectionConfigured ? collectionAddress : null,
     deploymentTxHash: deployment?.deploymentTxHash || null,
-    deploymentRecoveryError,
     baseFunding: {
       checked: baseBalanceChecked,
       hasEth: ownerHasBaseEth,
