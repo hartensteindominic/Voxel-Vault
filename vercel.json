@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
+  "buildCommand": "npm run test:routes && npm run build",
   "regions": ["iad1"],
   "crons": [
     { "path": "/api/cron/catalog-3d", "schedule": "* * * * *" }
