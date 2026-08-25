@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       if (session.payment_status !== 'paid') return NextResponse.json({ received: true });
 
       if (session.metadata?.product === 'voxelpop-3d-asset' && session.recovered_from) {
-        const recoveredFrom = typeof session.recovered_from === 'string' ? session.recovered_from : session.recovered_from.id;
+        const recoveredFrom = session.recovered_from;
         await recordVoxelPopEvent({
           eventName: 'checkout_recovered',
           eventKey: `checkout_recovered:${session.id}`,
