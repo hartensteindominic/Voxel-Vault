@@ -37,10 +37,12 @@ for(const required of [
  'app/voxelflip/factory/page.js',
  'app/admin/neural-core/page.js',
  'app/admin/neural-core/list/page.js',
+ 'app/admin/neural-core/setup/page.js',
  'app/api/voxelflip/trader/route.ts',
  'app/api/voxelflip/factory/route.ts',
  'app/api/admin/neural-core/route.ts',
  'app/api/admin/neural-core/listing-actions/route.ts',
+ 'app/api/admin/neural-core/setup/route.ts',
  'app/api/cron/neural-core/route.ts',
  'app/api/creator-pack/nft/confirm/route.ts',
 ]){
@@ -54,8 +56,10 @@ const criticalSources=[
  'app/api/voxelflip/factory/route.ts',
  'app/admin/neural-core/page.js',
  'app/admin/neural-core/list/page.js',
+ 'app/admin/neural-core/setup/page.js',
  'app/api/admin/neural-core/route.ts',
  'app/api/admin/neural-core/listing-actions/route.ts',
+ 'app/api/admin/neural-core/setup/route.ts',
  'lib/voxelflip-neural-core.ts',
 ];
 for(const rel of criticalSources){
@@ -71,6 +75,9 @@ if(!adminApi.includes('requireNeuralCoreAdmin'))failures.push('Neural Core admin
 const listingApi=fs.readFileSync(path.join(root,'app/api/admin/neural-core/listing-actions/route.ts'),'utf8');
 if(!listingApi.includes('requireNeuralCoreAdmin'))failures.push('Listing Assistant API is missing server-side admin authentication.');
 if(!listingApi.includes('6352211e'))failures.push('Listing Assistant must verify ERC-721 ownerOf on Base before preparing a listing.');
+const setupApi=fs.readFileSync(path.join(root,'app/api/admin/neural-core/setup/route.ts'),'utf8');
+if(!setupApi.includes('requireNeuralCoreAdmin'))failures.push('Neural Core setup status is missing server-side admin authentication.');
+if(!setupApi.includes('voxelflip_profit_ledger')||!setupApi.includes('voxelflip_neural_memory'))failures.push('Neural Core setup must verify both private database tables.');
 const listingPage=fs.readFileSync(path.join(root,'app/admin/neural-core/list/page.js'),'utf8');
 if(/eth_sendTransaction|eth_signTypedData|personal_sign|signTypedData\s*\(/.test(listingPage))failures.push('Listing Assistant may not sign or broadcast wallet actions until the live OpenSea action parser is separately verified.');
 const adminAuth=fs.readFileSync(path.join(root,'lib/neural-core-auth.ts'),'utf8');
@@ -89,4 +96,4 @@ if(failures.length){
  for(const failure of failures)console.error(`- ${failure}`);
  process.exit(1);
 }
-console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core routes exist, admin auth and ownership checks are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
+console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core routes exist, admin auth, ownership and database readiness checks are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
