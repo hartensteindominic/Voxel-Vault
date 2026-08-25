@@ -2,15 +2,35 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+function publicKey() {
+  const direct = [
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+    process.env.SUPABASE_ANON_KEY,
+  ].map(value => value?.trim() || '').find(Boolean);
+  if (direct) return direct;
+  try {
+    const parsed = JSON.parse(process.env.SUPABASE_PUBLISHABLE_KEYS || '{}');
+    if (typeof parsed?.default === 'string') return parsed.default.trim();
+    const value = Object.values(parsed || {}).find(item => typeof item === 'string');
+    return typeof value === 'string' ? value.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  if (!url || !anonKey) {
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const key = publicKey();
+  if (!url || !key) {
     return NextResponse.json({
       supabaseConfigured: false,
       googleProviderEnabled: false,
       accountStorage: 'unknown',
-      nextStep: 'Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.',
+      publicUrlConfigured: Boolean(url),
+      publishableKeyConfigured: Boolean(key),
+      nextStep: 'Configure a Supabase project URL plus a browser-safe publishable key (preferred) or legacy anon key in Vercel.',
     });
   }
 
@@ -18,7 +38,7 @@ export async function GET() {
   let providerCheck = 'unavailable';
   try {
     const response = await fetch(`${url.replace(/\/$/, '')}/auth/v1/settings`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      headers: { apikey: key },
       cache: 'no-store',
     });
     if (response.ok) {
@@ -37,10 +57,11 @@ export async function GET() {
     supabaseConfigured: true,
     googleProviderEnabled,
     providerCheck,
+    keyType: key.startsWith('sb_publishable_') ? 'publishable' : 'anon',
     accountStorage: 'vault_profiles.avatar_style.voxelpop_library',
-    redirectUrl: 'https://www.voxelvault.io/?auth=google',
+    redirectUrl: 'https://www.voxelvault.io/studio?auth=google#my-voxels',
     nextStep: googleProviderEnabled
-      ? 'Google OAuth is ready for a browser sign-in test.'
-      : 'Enable the Google provider in Supabase Auth and add the Google OAuth client ID and secret.',
-  });
+      ? 'Google OAuth is ready for phone and desktop sign-in.'
+      : 'Enable the Google provider in Supabase Auth and allow https://www.voxelvault.io/studio?auth=google as a redirect.',
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }
