@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       contract.royaltyBps(),
       contract.name(),
       contract.symbol(),
-      contract.royaltyInfo(1, 10_000n),
+      contract.royaltyInfo(1, BigInt(10000)),
     ]);
     const royaltyBps = Number(royaltyBpsRaw);
     if (String(owner).toLowerCase() !== APPROVED_OWNER.toLowerCase()) return NextResponse.json({ error: 'Contract owner does not match the approved Voxel Vault wallet.' }, { status: 400 });
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     if (String(royaltyReceiver).toLowerCase() !== APPROVED_OWNER.toLowerCase()) return NextResponse.json({ error: 'Royalty receiver does not match the approved Voxel Vault wallet.' }, { status: 400 });
     if (royaltyBps !== APPROVED_ROYALTY_BPS) return NextResponse.json({ error: 'VoxelFlip launch royalty must be exactly 5% (500 bps).' }, { status: 400 });
     if (String(name) !== 'VoxelFlip by Voxel Vault' || String(symbol) !== 'VFLIP') return NextResponse.json({ error: 'The deployed contract is not the expected VoxelFlip collection.' }, { status: 400 });
-    if (String(royaltyInfo?.[0] || '').toLowerCase() !== APPROVED_OWNER.toLowerCase() || BigInt(royaltyInfo?.[1] || 0) !== 500n) {
+    if (String(royaltyInfo?.[0] || '').toLowerCase() !== APPROVED_OWNER.toLowerCase() || BigInt(royaltyInfo?.[1] || 0) !== BigInt(500)) {
       return NextResponse.json({ error: 'ERC-2981 royalty verification failed.' }, { status: 400 });
     }
 
