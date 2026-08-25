@@ -2,7 +2,7 @@
 
 import {useMemo,useState} from 'react';
 import {connectVoxelFlipWallet,mintVoxelFlip,VOXELFLIP_CHAIN_NAME,voxelflipConfigured} from '../../../lib/voxelflip';
-import styles from './success.module.css';
+import styles from './VoxelFlipPanel.module.css';
 
 type Prepared={ready:boolean;assetId:string;metadataUrl:string;imageUrl:string;modelUrl:string;name:string;wallet:string;voucherId:string;mintConfigured:boolean;signature:string|null};
 type Minted={tokenId:string;owner:string;hash:string;explorerUrl:string;openSeaUrl:string};
@@ -56,27 +56,27 @@ export default function VoxelFlipPanel({sessionId,taskId,image,name,idea}:Props)
   }
  }
 
- return <section className={styles.flipPanel} aria-label="VoxelFlip NFT">
-  <div className={styles.flipGlow}/>
-  <div className={styles.flipTop}>
+ return <section className={styles.panel} aria-label="VoxelFlip NFT">
+  <div className={styles.glow}/>
+  <div className={styles.top}>
    <div><p>OPTIONAL · AFTER YOUR 3D MESH</p><h3>VoxelFlip</h3></div>
    <span>3D NFT · {VOXELFLIP_CHAIN_NAME} → OpenSea</span>
   </div>
-  <p className={styles.flipLead}>Turn the exact GLB you just created into a wallet-owned 3D NFT, then hold it, transfer it, or list it on OpenSea at a price you choose.</p>
-  <div className={styles.flipLadder}>
+  <p className={styles.lead}>Turn the exact GLB you just created into a wallet-owned 3D NFT, then hold it, transfer it, or list it on OpenSea at a price you choose.</p>
+  <div className={styles.ladder}>
    <div><b>01</b><strong>$1.99 origin</strong><small>Your VoxelPop creation</small></div><i>→</i>
    <div><b>02</b><strong>Mint 3D NFT</strong><small>Image + GLB metadata</small></div><i>→</i>
    <div><b>03</b><strong>List or trade</strong><small>You choose the ask</small></div><i>→</i>
    <div><b>04</b><strong>Trade up</strong><small>Only if someone values it more</small></div>
   </div>
-  {!minted&&<button className={styles.flipButton} disabled={busy} onClick={start}>{buttonText}</button>}
-  {prepared&&!minted&&<div className={styles.flipPrepared}><span>✓ 3D NFT package ready</span><a href={prepared.metadataUrl} target="_blank" rel="noreferrer">View metadata</a></div>}
-  {message&&<div className={`${styles.flipMessage} ${stage==='error'?styles.flipMessageError:''}`}>{message}</div>}
-  {minted&&<div className={styles.flipSuccess}>
+  {!minted&&<button className={styles.button} disabled={busy} onClick={start}>{buttonText}</button>}
+  {prepared&&!minted&&<div className={styles.prepared}><span>✓ 3D NFT package ready</span><a href={prepared.metadataUrl} target="_blank" rel="noreferrer">View metadata</a></div>}
+  {message&&<div className={`${styles.message} ${stage==='error'?styles.messageError:''}`}>{message}</div>}
+  {minted&&<div className={styles.success}>
    <div><span>MINTED</span><b>VoxelFlip #{minted.tokenId}</b><small>{minted.owner.slice(0,6)}…{minted.owner.slice(-4)}</small></div>
-   <a className={styles.flipOpenSea} href={minted.openSeaUrl} target="_blank" rel="noreferrer">Open on OpenSea ↗</a>
-   <a className={styles.flipExplorer} href={minted.explorerUrl} target="_blank" rel="noreferrer">View transaction</a>
+   <a className={styles.openSea} href={minted.openSeaUrl} target="_blank" rel="noreferrer">Open on OpenSea ↗</a>
+   <a className={styles.explorer} href={minted.explorerUrl} target="_blank" rel="noreferrer">View transaction</a>
   </div>}
-  <div className={styles.flipFine}>A higher resale is never guaranteed. The seller receives sale proceeds minus applicable marketplace and creator fees. Voxel Vault can receive creator earnings where they are configured and honored by the marketplace.</div>
+  <div className={styles.fine}>A higher resale is never guaranteed. The seller receives sale proceeds minus applicable marketplace and creator fees. Voxel Vault can receive creator earnings where they are configured and honored by the marketplace.</div>
  </section>;
 }
