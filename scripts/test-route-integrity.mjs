@@ -48,6 +48,7 @@ for(const required of [
  'app/api/whatsapp/webhook/route.ts',
  'app/api/cron/neural-core/route.ts',
  'app/api/creator-pack/nft/confirm/route.ts',
+ 'lib/voxelflip-deployment.ts',
  'lib/whatsapp-cloud.ts',
  'lib/voxelflip-control-actions.ts',
  'supabase/migrations/013_voxelflip_whatsapp_control.sql',
@@ -81,6 +82,12 @@ for(const rel of criticalSources){
  if(/automaticListingActive\s*[:=]\s*true/.test(text))failures.push(`${rel} enables automatic listing directly.`);
  if(/automaticBuyingActive\s*[:=]\s*true/.test(text))failures.push(`${rel} enables automatic buying directly.`);
 }
+
+const deploymentSource=fs.readFileSync(path.join(root,'lib/voxelflip-deployment.ts'),'utf8');
+if(!deploymentSource.includes('0xa00758b05f96ef4409d97c3ffebb6794b2eafbde'))failures.push('VoxelFlip production deployment is not pinned to the reviewed Base contract.');
+if(!deploymentSource.includes('matchesVerifiedProduction'))failures.push('VoxelFlip stored deployment metadata is not gated against the reviewed production deployment.');
+if(!deploymentSource.includes('Ignoring untrusted VoxelFlip deployment.json'))failures.push('VoxelFlip deployment resolver does not fail closed on a conflicting stored deployment.');
+if(/return\s+envFallback\s*\(/.test(deploymentSource)||/envFallback\s*\(\)\s*\|\|/.test(deploymentSource))failures.push('VoxelFlip production contract may not be selected from a mutable environment fallback.');
 
 const adminApi=fs.readFileSync(path.join(root,'app/api/admin/neural-core/route.ts'),'utf8');
 if(!adminApi.includes('requireNeuralCoreAdmin'))failures.push('Neural Core admin API is missing server-side admin authentication.');
@@ -120,4 +127,4 @@ if(failures.length){
  for(const failure of failures)console.error(`- ${failure}`);
  process.exit(1);
 }
-console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core/WhatsApp routes exist, admin auth, ownership, webhook signatures and private database controls are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
+console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core/WhatsApp routes exist, the production deployment is pinned, admin auth, ownership, webhook signatures and private database controls are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
