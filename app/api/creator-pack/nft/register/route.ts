@@ -31,9 +31,9 @@ function rpcCandidates() {
   const configured = (process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || '').trim();
   return Array.from(new Set([
     configured,
-    'https://base-rpc.publicnode.com',
     'https://base.llamarpc.com',
     'https://mainnet.base.org',
+    'https://base-rpc.publicnode.com',
   ].filter(Boolean)));
 }
 
@@ -102,18 +102,56 @@ async function readContractWithRetry(address: string): Promise<ContractRead> {
   throw new Error(`Base contract verification is temporarily unavailable: ${detail}`);
 }
 
-async function verifyCreationTx(provider: JsonRpcProvider, address: string, txHash: string) {
-  if (!TX_RE.test(txHash)) return { verified: false, blockNumber: null as number | null };
-  const [receipt, transaction] = await Promise.all([
-    provider.getTransactionReceipt(txHash),
-    provider.getTransaction(txHash),
-  ]);
-  if (!receipt || receipt.status !== 1 || !transaction) throw new Error('The Base deployment transaction is not confirmed.');
-  if (transaction.to) throw new Error('That transaction is not a contract deployment.');
-  if (transaction.from.toLowerCase() !== APPROVED_OWNER.toLowerCase()) throw new Error('VoxelFlip must be deployed by the approved owner wallet.');
-  const createdAddress = receipt.contractAddress || getCreateAddress({ from: transaction.from, nonce: transaction.nonce });
-  if (!createdAddress || createdAddress.toLowerCase() !== address.toLowerCase()) throw new Error('The supplied contract address does not match the deployment transaction.');
-  return { verified: true, blockNumber: receipt.blockNumber };
+type CreationAudit = {
+  verified: boolean;
+  blockNumber: number | null;
+  provider: JsonRpcProvider | null;
+  auditError: string | null;
+};
+
+async function verifyCreationTxBestEffort(address: string, txHash: string): Promise<CreationAudit> {
+  if (!TX_RE.test(txHash)) {
+    return { verified: false, blockNumber: null, provider: null, auditError: null };
+  }
+
+  let lastError: unknown = null;
+
+  for (const rpcUrl of rpcCandidates()) {
+    const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
+    let receipt: any = null;
+    let transaction: any = null;
+
+    try {
+      [receipt, transaction] = await Promise.all([
+        provider.getTransactionReceipt(txHash),
+        provider.getTransaction(txHash),
+      ]);
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
+
+    // A provider that cannot see historical transaction data is not allowed to
+    // block registration after the live contract has already passed every identity check.
+    if (!receipt || !transaction) continue;
+
+    // If a provider does return the transaction, these are definitive provenance checks.
+    if (receipt.status !== 1) throw new Error('The Base deployment transaction failed.');
+    if (transaction.to) throw new Error('That transaction is not a contract deployment.');
+    if (transaction.from.toLowerCase() !== APPROVED_OWNER.toLowerCase()) {
+      throw new Error('VoxelFlip must be deployed by the approved owner wallet.');
+    }
+
+    const createdAddress = receipt.contractAddress || getCreateAddress({ from: transaction.from, nonce: transaction.nonce });
+    if (!createdAddress || createdAddress.toLowerCase() !== address.toLowerCase()) {
+      throw new Error('The supplied contract address does not match the deployment transaction.');
+    }
+
+    return { verified: true, blockNumber: receipt.blockNumber, provider, auditError: null };
+  }
+
+  const auditError = lastError instanceof Error ? lastError.message : 'Historical transaction receipt is not available from the current RPC providers.';
+  return { verified: false, blockNumber: null, provider: null, auditError };
 }
 
 export async function POST(request: Request) {
@@ -142,7 +180,7 @@ export async function POST(request: Request) {
 
     const txHash = await tryResolveCreationTxHash(address, suppliedTxHash);
     const chain = await readContractWithRetry(address);
-    const { provider, owner, mintSigner, royaltyReceiver, royaltyBpsRaw, name, symbol, royaltyInfo } = chain;
+    const { owner, mintSigner, royaltyReceiver, royaltyBpsRaw, name, symbol, royaltyInfo } = chain;
 
     const royaltyBps = Number(royaltyBpsRaw);
     if (String(owner).toLowerCase() !== APPROVED_OWNER.toLowerCase()) return NextResponse.json({ error: 'Contract owner does not match the approved Voxel Vault wallet.' }, { status: 400 });
@@ -154,14 +192,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ERC-2981 royalty verification failed.' }, { status: 400 });
     }
 
+    // The live contract has now passed every identity and royalty check. Historical
+    // receipt verification is useful audit metadata, but an archive-limited RPC must
+    // not strand an otherwise valid deployment.
+    const creation = await verifyCreationTxBestEffort(address, txHash);
     let deployedAt = new Date().toISOString();
-    let creationVerified = false;
-    if (txHash) {
-      const creation = await verifyCreationTx(provider, address, txHash);
-      creationVerified = creation.verified;
-      if (creation.blockNumber != null) {
-        const block = await provider.getBlock(creation.blockNumber);
+    if (creation.verified && creation.blockNumber != null && creation.provider) {
+      try {
+        const block = await creation.provider.getBlock(creation.blockNumber);
         if (block?.timestamp) deployedAt = new Date(Number(block.timestamp) * 1000).toISOString();
+      } catch {
+        // Timestamp is non-critical metadata; registration can still complete.
       }
     }
 
@@ -180,8 +221,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       registered: true,
-      creationVerified,
+      liveContractVerified: true,
+      creationVerified: creation.verified,
       creationTxRecovered: Boolean(txHash),
+      creationAuditWarning: creation.verified ? null : creation.auditError,
       deployment,
       explorerUrl: `https://basescan.org/address/${address}`,
       openSeaUrl: `https://opensea.io/assets/base/${address}`,
