@@ -23,6 +23,7 @@ export default function EcologyPage(){
  const [tokenId,setTokenId]=useState('');
  const [sessionId,setSessionId]=useState('');
  const [scanner,setScanner]=useState(null);
+ const [factory,setFactory]=useState(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
 
@@ -48,30 +49,39 @@ export default function EcologyPage(){
   setBusy(true);setError('');
   try{
    const q=new URLSearchParams({wallet});if(/^\d+$/.test(tokenId))q.set('tokenId',tokenId);
-   const response=await fetch(`/api/voxelflip/trader?${q}`,{cache:'no-store'});
-   const data=await response.json();if(!response.ok)throw new Error(data.error||'Ecology readiness scan failed.');setScanner(data);
+   const [traderResponse,factoryResponse]=await Promise.all([
+    fetch(`/api/voxelflip/trader?${q}`,{cache:'no-store'}),
+    fetch(`/api/voxelflip/factory?wallet=${encodeURIComponent(wallet)}`,{cache:'no-store'}),
+   ]);
+   const [traderData,factoryData]=await Promise.all([traderResponse.json(),factoryResponse.json()]);
+   if(!traderResponse.ok)throw new Error(traderData.error||'Ecology market scan failed.');
+   setScanner(traderData);
+   if(factoryResponse.ok)setFactory(factoryData);
+   else setFactory(null);
   }catch(e){setError(e instanceof Error?e.message:'Ecology readiness scan failed.')}
   finally{setBusy(false)}
  }
 
  const foundationReady=Boolean(scanner?.executionFoundationReady);
  const autonomyLive=Boolean(scanner?.automaticSigningActive);
- const genomeReady=foundationReady;
- const performanceLedgerReady=false;
- const birthReady=autonomyLive&&performanceLedgerReady;
+ const performanceLedgerReady=Boolean(factory?.readiness?.profitLedger);
+ const profitCycleReady=Boolean(factory?.readiness?.profitCycle);
+ const genomeReady=foundationReady&&performanceLedgerReady;
+ const birthReady=autonomyLive&&profitCycleReady;
  const ecologyReady=birthReady;
  const stageState=useMemo(()=>({
   autonomy:autonomyLive?'LIVE':foundationReady?'READY':'LOCKED',
-  fitness:performanceLedgerReady?'LIVE':'LOCKED',
+  fitness:performanceLedgerReady?'READY':'LOCKED',
   genome:genomeReady?'READY':'LOCKED',
   birth:birthReady?'LIVE':'LOCKED',
   ecology:ecologyReady?'LIVE':'LOCKED',
   species:ecologyReady?'READY':'LOCKED',
   civilization:ecologyReady?'READY':'LOCKED',
- }),[autonomyLive,foundationReady,genomeReady,birthReady,ecologyReady]);
+ }),[autonomyLive,foundationReady,performanceLedgerReady,profitCycleReady,genomeReady,birthReady,ecologyReady]);
 
  const query=new URLSearchParams();if(wallet)query.set('wallet',wallet);if(tokenId)query.set('tokenId',tokenId);if(sessionId)query.set('session_id',sessionId);
  const autopilotHref=`/voxelflip/autopilot${query.toString()?`?${query}`:''}`;
+ const factoryHref=`/voxelflip/factory${query.toString()?`?${query}`:''}`;
 
  return <main className={styles.page}>
   <nav className={styles.nav}>
@@ -80,10 +90,10 @@ export default function EcologyPage(){
   </nav>
 
   <header className={styles.hero}>
-   <p className={styles.eyebrow}>AUTOPILOT → FITNESS → GENOME → BIRTH → ECOLOGY → SPECIES</p>
-   <h1>The bot learns.<br/><em>The species begins.</em></h1>
-   <p>Ecology is the layer after Autopilot: a staged architecture for verified performance DNA, bounded reproduction, specialization and agent-to-agent economic services.</p>
-   <div className={styles.heroActions}><a href={autopilotHref}>← Autopilot</a><button onClick={ADDRESS_RE.test(wallet)?refresh:connect} disabled={busy}>{busy?'Checking…':wallet?'Refresh organism state':'Connect Base wallet'}</button></div>
+   <p className={styles.eyebrow}>AUTOPILOT → FACTORY LEDGER → FITNESS → GENOME → BIRTH → ECOLOGY</p>
+   <h1>The bot learns.<br/><em>The species waits.</em></h1>
+   <p>Ecology is future architecture after monitoring and Factory accounting. Analysis agents may learn from verified results, but automatic signing, reproduction and agent-to-agent spending remain locked.</p>
+   <div className={styles.heroActions}><a href={autopilotHref}>← Autopilot</a><button onClick={ADDRESS_RE.test(wallet)?refresh:connect} disabled={busy}>{busy?'Checking…':wallet?'Refresh readiness':'Connect Base wallet'}</button></div>
   </header>
 
   <div className={styles.shell}>
@@ -92,11 +102,11 @@ export default function EcologyPage(){
     <div className={styles.identity}>
      <div><small>OWNER / WATCH WALLET</small><b>{short(wallet)}</b></div>
      <div><small>VOXELFLIP</small><b>{tokenId?`#${tokenId}`:'Not selected'}</b></div>
-     <div><small>MARKET SCANNER</small><b>{scanner?.scanner==='live'?'LIVE':scanner?'SETUP':'—'}</b></div>
+     <div><small>PROFIT LEDGER</small><b>{performanceLedgerReady?'READY':'WAIT'}</b></div>
      <div><small>AUTOMATIC SIGNING</small><b>{autonomyLive?'ACTIVE':'OFF'}</b></div>
     </div>
     {error&&<div className={styles.notice}>{error}</div>}
-    <div className={styles.notice}>{autonomyLive?'Bounded automatic execution is active. Ecology still requires a verified performance ledger before any birth or self-modification can unlock.':'Ecology is intentionally gated. The current Autopilot can monitor and classify opportunities, but automatic signing remains off until a bounded executor/delegation is actually installed and verified.'}</div>
+    <div className={styles.notice}>{autonomyLive?'A bounded executor is reporting active. Ecology still requires verified realized profit and separate reproduction rules before any birth or self-modification can unlock.':performanceLedgerReady?'The Factory ledger is available, but Ecology stays locked: automatic signing is OFF and complete realized-profit coverage is required before future birth logic.':'Ecology is intentionally gated. Apply the Factory ledger migration and complete verified cost coverage before performance can become economic DNA.'}</div>
    </section>
 
    <section className={styles.timeline}>
@@ -107,7 +117,7 @@ export default function EcologyPage(){
    </section>
 
    <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>ECONOMIC DNA</small><h2>What becomes inheritable</h2></div><span className={styles.protocol}>VERSIONED · AUDITABLE · BOUNDED</span></div>
+    <div className={styles.panelHead}><div><small>ECONOMIC DNA</small><h2>What could become inheritable</h2></div><span className={styles.protocol}>VERSIONED · AUDITABLE · BOUNDED</span></div>
     <div className={styles.dnaGrid}>
      <div><small>RISK TOLERANCE</small><b>Position + loss limits</b><span>Never inherited above protocol caps.</span></div>
      <div><small>LIQUIDITY BIAS</small><b>Depth preference</b><span>How much market depth an agent requires.</span></div>
@@ -119,12 +129,12 @@ export default function EcologyPage(){
    </section>
 
    <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>THE ORGANISM MARKET</small><h2>Agents become useful to each other</h2></div>{badge('LOCKED')}</div>
+    <div className={styles.panelHead}><div><small>THE ORGANISM MARKET</small><h2>Agents can become useful before they can spend.</h2></div>{badge('LOCKED')}</div>
     <div className={styles.roles}>
-     <article><span>SCOUT</span><h3>Finds markets</h3><p>Discovers unusual liquidity, offer velocity and opportunity clusters.</p><strong>SELLS → SIGNALS</strong></article>
-     <article><span>SENTINEL</span><h3>Scores risk</h3><p>Independently checks collection quality, concentration and downside.</p><strong>SELLS → RISK SCORES</strong></article>
-     <article><span>EXECUTOR</span><h3>Routes trades</h3><p>Optimizes gas, slippage, transaction timing and bounded execution.</p><strong>SELLS → EXECUTION</strong></article>
-     <article><span>EXIT</span><h3>Knows when to leave</h3><p>Models edge decay, inventory pressure and optimal liquidation windows.</p><strong>SELLS → EXIT INTELLIGENCE</strong></article>
+     <article><span>SCOUT</span><h3>Finds markets</h3><p>Discovers unusual liquidity, offer velocity and opportunity clusters.</p><strong>OUTPUT → SIGNALS</strong></article>
+     <article><span>PRICER / SENTINEL</span><h3>Scores price + risk</h3><p>Checks collection quality, concentration, downside and live pricing context.</p><strong>OUTPUT → PRICE + RISK</strong></article>
+     <article><span>MAKER</span><h3>Drafts the next voxel</h3><p>Uses verified profit constraints to propose a next candidate without minting it.</p><strong>OUTPUT → CANDIDATE</strong></article>
+     <article><span>EXECUTOR</span><h3>Future bounded action</h3><p>Mint/list execution stays locked until explicit permissions, limits and approvals are independently verified.</p><strong>OUTPUT → APPROVAL REQUEST</strong></article>
     </div>
    </section>
 
@@ -132,22 +142,22 @@ export default function EcologyPage(){
     <div className={styles.panelHead}><div><small>NATURAL SELECTION</small><h2>Survival is economic, not cosmetic</h2></div></div>
     <div className={styles.flow}>
      <div><b>1</b><span>Verified performance</span></div><i>→</i>
-     <div><b>2</b><span>Reputation + service demand</span></div><i>→</i>
+     <div><b>2</b><span>Reputation + demand</span></div><i>→</i>
      <div><b>3</b><span>Bounded mutation</span></div><i>→</i>
-     <div><b>4</b><span>Descendant survival</span></div><i>→</i>
+     <div><b>4</b><span>Approved descendants</span></div><i>→</i>
      <div><b>5</b><span>Species formation</span></div>
     </div>
-    <p className={styles.disclaimer}>No profit, valuation, birth, royalty or survival outcome is guaranteed. Ecology should only unlock from verified settled activity and explicit protocol rules. It must never bypass wallet permissions, spending limits, allowlists, loss breakers or the kill switch.</p>
+    <p className={styles.disclaimer}>No profit, valuation, birth, royalty or survival outcome is guaranteed. Ecology must only unlock from verified settled activity and explicit protocol rules. It must never bypass wallet permissions, spending limits, allowlists, loss breakers or the kill switch.</p>
    </section>
 
    <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>NEXT BUILD</small><h2>The first real Ecology primitive</h2></div><span className={styles.protocol}>FOUNDATION</span></div>
+    <div className={styles.panelHead}><div><small>NEXT BUILD</small><h2>The real prerequisites</h2></div><span className={styles.protocol}>FOUNDATION</span></div>
     <div className={styles.nextBuild}>
-     <div><b>01</b><h3>Performance ledger</h3><p>Record settled opportunities and realized outcomes with enough provenance to distinguish live performance from simulation.</p></div>
-     <div><b>02</b><h3>Genome encoder</h3><p>Convert approved strategy parameters into a stable, versioned DNA schema with hard mutation bounds.</p></div>
-     <div><b>03</b><h3>Signal marketplace</h3><p>Let specialist agents quote tiny fees for useful information before enabling reproduction or autonomous service purchasing.</p></div>
+     <div><b>01</b><h3>Complete ledger coverage</h3><p>The Factory ledger exists in code; production must have its migration and verified sale-fee/production-cost coverage before net profit can be trusted.</p></div>
+     <div><b>02</b><h3>Generation queue</h3><p>Let Maker draft candidates under inventory and reinvestment limits without spending or minting.</p></div>
+     <div><b>03</b><h3>Bounded approvals</h3><p>Only after testing should an executor accept tightly scoped mint/list approvals. Automatic signing remains a separate future decision.</p></div>
     </div>
-    <div className={styles.actions}><a href={autopilotHref}>Back to Autopilot</a>{sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>Mint</a>}<a href="/studio#my-voxels">My Voxels</a></div>
+    <div className={styles.actions}><a href={factoryHref}>Open Factory</a><a href={autopilotHref}>Back to Autopilot</a>{sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>Mint page</a>}<a href="/studio#my-voxels">My Voxels</a></div>
    </section>
   </div>
 
