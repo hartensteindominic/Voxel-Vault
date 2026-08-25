@@ -1,5 +1,7 @@
 # Voxel Vault deployment trigger
 
-This file intentionally triggers a fresh Vercel production deployment from `main` after the verified collectible-pipeline hardening release.
+This branch-only file intentionally forces a fresh Vercel Preview deployment for `experiment/voxelflip-opensea` so the Preview runtime re-reads the current Vercel Preview environment variables.
 
-Verified baseline: durable background model prebuild, persistent model storage, stable model delivery, iPhone-friendly loading, simplified storefront copy, and fail-closed checkout safety.
+This does not modify `main`, the protected VoxelPop FINAL, or the live production site.
+
+VoxelFlip preview refresh requested: 2026-08-25 09:30 UTC.
