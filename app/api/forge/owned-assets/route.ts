@@ -1,0 +1,180 @@
+import { NextResponse } from 'next/server';
+import { Contract, JsonRpcProvider, getAddress, id, zeroPadValue } from 'ethers';
+import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const OPENSEA = 'https://api.opensea.io/api/v2';
+const TIMEOUT_MS = 8_000;
+const MAX_SCAN_BLOCKS = 160_000;
+const LOG_CHUNK = 8_000;
+const MAX_TOKENS = 50;
+const TRANSFER_TOPIC = id('Transfer(address,address,uint256)');
+
+const ERC721_ABI = [
+  'function ownerOf(uint256 tokenId) view returns (address)',
+  'function tokenURI(uint256 tokenId) view returns (string)',
+];
+
+function normalizeAddress(value: unknown) {
+  try { return getAddress(String(value || '')); } catch { return ''; }
+}
+
+function tokenIdOf(value: any) {
+  const raw = value?.identifier ?? value?.token_id ?? value?.tokenId ?? '';
+  const tokenId = String(raw || '').trim();
+  return /^\d+$/.test(tokenId) ? tokenId : '';
+}
+
+function contractAddressOf(value: any) {
+  return normalizeAddress(value?.contract || value?.contract_address || value?.contractAddress || value?.nft_contract || '');
+}
+
+function metadataFields(value: any) {
+  return {
+    name: String(value?.name || value?.title || '').trim(),
+    description: String(value?.description || '').trim(),
+    imageUrl: String(value?.display_image_url || value?.image_url || value?.image || '').trim(),
+    animationUrl: String(value?.display_animation_url || value?.animation_url || value?.animation || '').trim(),
+    metadataUrl: String(value?.metadata_url || value?.metadataUrl || '').trim(),
+    openSeaUrl: String(value?.opensea_url || value?.openseaUrl || '').trim(),
+  };
+}
+
+async function timedJson(url: string, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { ...init, cache: 'no-store', signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, data, error: response.ok ? '' : String(data?.detail || data?.error || `HTTP ${response.status}`) };
+  } catch (error) {
+    return { ok: false, status: 0, data: null, error: error instanceof Error ? error.message : 'request failed' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function openSeaOwned(wallet: string, contractAddress: string, apiKey: string) {
+  if (!apiKey) return { available: false, items: [] as any[], error: 'OpenSea API key not configured.' };
+  const items: any[] = [];
+  let cursor = '';
+  for (let page = 0; page < 5 && items.length < MAX_TOKENS; page += 1) {
+    const query = new URLSearchParams({ limit: '50' });
+    if (cursor) query.set('next', cursor);
+    const response = await timedJson(`${OPENSEA}/chain/base/account/${wallet}/nfts?${query.toString()}`, {
+      headers: { 'x-api-key': apiKey, accept: 'application/json' },
+    });
+    if (!response.ok) return { available: false, items: [] as any[], error: response.error || 'OpenSea wallet lookup failed.' };
+    const pageItems = Array.isArray(response.data?.nfts) ? response.data.nfts : [];
+    for (const item of pageItems) {
+      if (contractAddressOf(item).toLowerCase() !== contractAddress.toLowerCase()) continue;
+      const tokenId = tokenIdOf(item);
+      if (!tokenId) continue;
+      items.push({ tokenId, ...metadataFields(item) });
+      if (items.length >= MAX_TOKENS) break;
+    }
+    cursor = String(response.data?.next || '').trim();
+    if (!cursor) break;
+  }
+  return { available: true, items, error: '' };
+}
+
+async function onchainTokenIds(provider: JsonRpcProvider, wallet: string, contractAddress: string, deploymentTxHash: string) {
+  const latest = await provider.getBlockNumber();
+  const deploymentReceipt = await provider.getTransactionReceipt(deploymentTxHash).catch(() => null);
+  const deploymentBlock = Number(deploymentReceipt?.blockNumber || Math.max(0, latest - MAX_SCAN_BLOCKS));
+  const from = Math.max(deploymentBlock, latest - MAX_SCAN_BLOCKS);
+  const toTopic = zeroPadValue(wallet, 32);
+  const found = new Set<string>();
+
+  for (let start = from; start <= latest; start += LOG_CHUNK) {
+    const end = Math.min(latest, start + LOG_CHUNK - 1);
+    const logs = await provider.getLogs({
+      address: contractAddress,
+      fromBlock: start,
+      toBlock: end,
+      topics: [TRANSFER_TOPIC, null, toTopic],
+    });
+    for (const log of logs) {
+      const topic = log.topics?.[3];
+      if (!topic) continue;
+      try { found.add(BigInt(topic).toString()); } catch {}
+      if (found.size >= MAX_TOKENS) break;
+    }
+    if (found.size >= MAX_TOKENS) break;
+  }
+  return Array.from(found);
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const walletRaw = (url.searchParams.get('wallet') || '').trim();
+  if (!ADDRESS_RE.test(walletRaw)) return NextResponse.json({ error: 'Connect a valid wallet first.' }, { status: 400 });
+
+  const wallet = getAddress(walletRaw);
+  const deployment = await getVoxelFlipDeployment();
+  const contractAddress = normalizeAddress(deployment?.address);
+  if (!contractAddress || Number(deployment?.chainId) !== 8453) {
+    return NextResponse.json({ error: 'The reviewed production VoxelFlip deployment is unavailable.' }, { status: 503 });
+  }
+
+  const rpc = String(process.env.VOXELFLIP_RPC_URL || process.env.NEXT_PUBLIC_VOXELFLIP_RPC_URL || 'https://mainnet.base.org').trim();
+  const provider = new JsonRpcProvider(rpc, 8453, { staticNetwork: true });
+  const nft = new Contract(contractAddress, ERC721_ABI, provider);
+  const apiKey = String(process.env.OPENSEA_API_KEY || '').trim();
+
+  try {
+    const openSea = await openSeaOwned(wallet, contractAddress, apiKey);
+    let tokenIds = openSea.items.map(item => item.tokenId);
+    let source = 'opensea+base';
+    let sourceWarning = openSea.available ? '' : openSea.error;
+
+    if (!tokenIds.length) {
+      tokenIds = await onchainTokenIds(provider, wallet, contractAddress, deployment.deploymentTxHash);
+      source = 'base';
+      if (!openSea.available) sourceWarning = `${sourceWarning} Falling back to direct Base ownership reads.`.trim();
+    }
+
+    const openSeaById = new Map(openSea.items.map(item => [item.tokenId, item]));
+    const verified: any[] = [];
+    for (const tokenId of tokenIds.slice(0, MAX_TOKENS)) {
+      try {
+        const [owner, tokenURI] = await Promise.all([nft.ownerOf(tokenId), nft.tokenURI(tokenId)]);
+        if (getAddress(owner) !== wallet) continue;
+        const market = openSeaById.get(tokenId) || {};
+        verified.push({
+          tokenId,
+          contract: contractAddress,
+          owner: wallet,
+          tokenURI: String(tokenURI || ''),
+          name: market.name || `VoxelFlip #${tokenId}`,
+          description: market.description || '',
+          imageUrl: market.imageUrl || '',
+          animationUrl: market.animationUrl || '',
+          metadataUrl: market.metadataUrl || '',
+          openSeaUrl: market.openSeaUrl || `https://opensea.io/assets/base/${contractAddress}/${tokenId}`,
+        });
+      } catch {}
+    }
+
+    verified.sort((a, b) => Number(a.tokenId) - Number(b.tokenId));
+    return NextResponse.json({
+      wallet,
+      chainId: 8453,
+      chain: 'base',
+      contract: contractAddress,
+      source,
+      sourceWarning: sourceWarning || null,
+      count: verified.length,
+      nfts: verified,
+      safety: 'Read-only production scan. No approval, transfer, burn, listing, or signature is requested.',
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not read owned VoxelFlips.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+  } finally {
+    provider.destroy();
+  }
+}
