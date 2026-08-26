@@ -1,0 +1,47 @@
+name: Export Profit Engine Bytecode
+
+on:
+  push:
+    branches:
+      - feature/solo-base-profit-engine-v1
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/solo-base-profit-engine-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run chain:compile
+      - name: Export exact creation bytecode
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const artifact = require('./artifacts/contracts/BaseArbExecutor.sol/BaseArbExecutor.json');
+          const bytecode = artifact.bytecode;
+          if (!/^0x[0-9a-fA-F]+$/.test(bytecode) || bytecode.length < 1000) throw new Error('Invalid BaseArbExecutor bytecode');
+          fs.mkdirSync('public/profit-engine', { recursive: true });
+          fs.writeFileSync('public/profit-engine/executor-bytecode.txt', bytecode + '\n');
+          fs.writeFileSync('public/profit-engine/executor-bytecode.sha256.txt', crypto.createHash('sha256').update(bytecode).digest('hex') + '\n');
+          console.log('BaseArbExecutor creation bytecode chars:', bytecode.length);
+          console.log('BaseArbExecutor creation bytecode sha256:', crypto.createHash('sha256').update(bytecode).digest('hex'));
+          NODE
+      - name: Commit generated deployment bytecode
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/profit-engine/executor-bytecode.txt public/profit-engine/executor-bytecode.sha256.txt
+          if git diff --cached --quiet; then
+            echo "Bytecode already current"
+            exit 0
+          fi
+          git commit -m "Pin compiled BaseArbExecutor deployment bytecode"
+          git push origin HEAD:feature/solo-base-profit-engine-v1
