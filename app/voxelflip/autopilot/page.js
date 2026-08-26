@@ -58,6 +58,7 @@ export default function VoxelFlipAutopilotPage(){
  const listed=scanner?.tokenListed===true?'LISTED':scanner?.tokenListed===false?'NOT LISTED':'—';
  const marketReady=scanner?.marketDataConfigured===true;
  const factoryQuery=new URLSearchParams();if(wallet)factoryQuery.set('wallet',wallet);if(tokenId)factoryQuery.set('tokenId',tokenId);if(sessionId)factoryQuery.set('session_id',sessionId);const factoryHref=`/voxelflip/factory${factoryQuery.toString()?`?${factoryQuery}`:''}`;
+ const forgeQuery=new URLSearchParams();if(wallet)forgeQuery.set('wallet',wallet);if(tokenId)forgeQuery.set('tokenId',tokenId);const forgeHref=`/forge${forgeQuery.toString()?`?${forgeQuery}`:''}`;
 
  return <main className={styles.page}>
   <nav className={styles.nav}>
@@ -113,6 +114,7 @@ export default function VoxelFlipAutopilotPage(){
      <a className={styles.primary} href={openSeaHref} target="_blank" rel="noreferrer">LIST ON OPENSEA ↗</a>
      <a href={openSeaHref} target="_blank" rel="noreferrer">VIEW NFT ↗</a>
      {sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>OPEN 3D</a>}
+     <a href={forgeHref}>THE FORGE</a>
      <a href={factoryHref}>SALES & PROFIT</a>
      <a href="/studio#my-voxels">MY VOXELS</a>
     </div>
