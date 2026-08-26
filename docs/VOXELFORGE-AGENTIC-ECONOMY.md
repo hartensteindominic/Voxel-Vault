@@ -85,7 +85,11 @@ Initial version is read/prepare-first. Execution remains permission gated.
 
 `GET /api/forge/v1/config`
 
-Returns chain, collection address, Forge version, fee configuration, supported wallet modes, current recipe version, and proof capability.
+Returns chain, collection address, Forge version, fee configuration, supported wallet modes, current recipe version, proof capability, and authorization discovery.
+
+`GET /api/forge/v1/authorization`
+
+Returns the read-only EIP-712 ForgeIntent schema, planned EIP-7702/4337 execution model, required execution checks, and default session-policy template. It does not create a delegation or request a signature.
 
 `POST /api/forge/v1/verify`
 
@@ -119,9 +123,19 @@ Available only after delegated authorization has been verified. It may execute o
 
 Every state-changing request must be idempotent and replay protected.
 
-## Phase 4 — ForgeIntent authorization standard
+## Phase 4 — EIP-7702 + ForgeIntent authorization standard
 
 Agents never receive a blank-check wallet permission.
+
+### EIP-7702 facts that shape the design
+
+EIP-7702 delegates executable account code to an EOA through a type-0x04 transaction. The delegation is persistent until the account explicitly changes or clears it; it is not merely a one-transaction temporary upgrade. The delegated code therefore has to be treated as durable account security infrastructure.
+
+The authorization-list delegation update is processed independently from later call execution. A later execution failure must not be assumed to erase the delegation. Revocation and delegate safety are therefore first-class requirements.
+
+EIP-7702 does not itself define a VoxelForge session-key permission system. Session keys, function scoping, rate limits, spend ceilings, expiry, and revocation must be implemented and enforced by reviewed delegated-account logic or a compatible smart-account/module architecture.
+
+### ForgeIntent
 
 A Forge intent must commit to at least:
 
@@ -131,18 +145,23 @@ A Forge intent must commit to at least:
 - parent metadata hashes
 - descendant `recipeHash`
 - Forge contract/router address
+- exact allowed Forge function selector
 - maximum Forge fee
 - allowed fee token
+- maximum native call value
 - maximum gas spend
+- session/policy hash
 - deadline
 - nonce
 - chain ID
 - intent ID / idempotency key
 
+Use EIP-712 typed structured signing for the ForgeIntent. The verifying router/delegate must enforce exactly the values that were signed; downstream agent text, prompts, and UI state are never authority.
+
 Recommended authorization model:
 
 1. Human manually signs a one-time Forge intent; or
-2. Human grants a restricted smart-account/session permission with explicit limits; then
+2. Human deliberately installs/uses reviewed smart-account or EIP-7702 delegate logic and grants a restricted session permission; then
 3. Agent submits only intents satisfying those limits.
 
 ### Mandatory session-policy controls
@@ -151,11 +170,14 @@ Recommended authorization model:
 - function-selector allowlist
 - no arbitrary external calls
 - per-Forge spend cap
+- native call-value cap
+- gas-cost cap
 - daily/weekly spend cap
 - maximum number of forges
 - expiration time
 - optional allowed parent rarity/classes
 - optional minimum wallet balance reserve
+- nonce/replay controls
 - emergency revoke
 - owner key remains ultimate authority
 
@@ -167,7 +189,41 @@ Recommended capability levels:
 
 There is no unrestricted autonomous mode.
 
-## Phase 5 — AgentKit / A2A adapter
+## Phase 5 — Sovereign agent identity and DID layer
+
+Agent identity is useful for reputation, auditability, and cross-app discovery, but identity must remain separate from authorization.
+
+An agent DID/passport may bind:
+
+- public signing/attestation key
+- agent software/version identifier
+- declared capabilities
+- operator/owner relationship where appropriate
+- attested runtime identity
+- historical successful/failed Forge intents
+- revocation/status information
+
+A valid DID never grants wallet authority by itself. Wallet execution authority comes only from the active smart-account/delegate/session policy plus a valid ForgeIntent.
+
+This separation prevents an authenticated or reputable agent from becoming automatically authorized to spend.
+
+## Phase 6 — TEE / verifiable execution layer
+
+TEEs can materially improve isolation of signing material, policy state, and sensitive agent execution, but they are not a substitute for contract-level authorization and should not be described as making an AI prompt-injection immune.
+
+A hostile prompt or compromised upstream tool can still cause a model to propose unsafe actions. The security design therefore assumes agent output can be adversarial and constrains execution cryptographically.
+
+Recommended TEE progression:
+
+1. Keep owner keys outside the model context entirely.
+2. If a service-side session key is introduced, isolate it in a hardware-backed/attested execution environment.
+3. Bind attestations to exact agent/policy software measurements where useful.
+4. Require the onchain delegate/router to reject any transaction outside the user-approved policy even if the TEE or model requests it.
+5. Support immediate session-key and delegate revocation.
+
+The TEE is defense in depth. The onchain permission policy is the final security boundary.
+
+## Phase 7 — AgentKit / A2A adapter
 
 Implement a dedicated VoxelForge AgentKit action provider after Forge V1 execution is stable.
 
@@ -182,11 +238,13 @@ Actions:
 
 `forge_execute_intent` must fail closed unless a current bounded authorization is present.
 
-Start on Base Sepolia. Promote to Base mainnet only after contract tests, replay tests, spending-limit tests, wallet-revocation tests, and atomic-revert tests pass.
+Start on Base Sepolia. Promote to Base mainnet only after contract tests, replay tests, spending-limit tests, wallet-revocation tests, delegation-clearing tests, delegate-upgrade tests, and atomic-revert tests pass.
 
 A2A integrations should exchange signed/typed Forge intents and quotes, not raw private keys and not unrestricted transaction calldata.
 
-## Phase 6 — Verifiable gene editing
+MCP can expose tools/context for agent interoperability, but MCP messages are not authorization. x402 or similar machine-payment rails may be used for explicit API-service payments; they are separate from NFT/Forge wallet permissions.
+
+## Phase 8 — Verifiable gene editing
 
 Do not make the core business depend on one proof vendor.
 
@@ -203,7 +261,7 @@ Progression:
 
 The proof layer certifies execution integrity. It does not claim that rarity guarantees profit, future price, or investment returns.
 
-## Phase 7 — Social-native Forge
+## Phase 9 — Social-native Forge
 
 Prioritize Farcaster Mini Apps for transaction-capable social onboarding.
 
@@ -219,7 +277,7 @@ Flow:
 
 X and other social networks can act as discovery/command surfaces, but execution should deep-link into a wallet-capable signed session unless the platform exposes an equivalently secure transaction interface.
 
-## Phase 8 — Machine-economy monetization
+## Phase 10 — Machine-economy monetization
 
 Revenue should come from useful actions, not churn.
 
@@ -258,20 +316,31 @@ Do not hard-code an immutable 80/20 split into the first Forge contract. Use a r
 
 Any future protocol-owned liquidity or asset purchases must be publicly disclosed and economically justified. They must not be designed or marketed as an automatic mechanism to manufacture a higher floor price or artificial trading activity.
 
+## Cross-chain expansion
+
+Cross-chain splicing is a later interoperability layer, not a V1 requirement.
+
+Never attempt to make one atomic transaction synchronously mutate NFT state on unrelated chains without a verified messaging/settlement design. Cross-chain Forge should use explicit lock/burn/mint or canonical messaging semantics, finality rules, replay domains, timeouts, and failure recovery.
+
+The first production Forge stays on Base. Cross-chain adapters can be added only after the Base invariant is stable and audited.
+
 ## Security invariants
 
 The following are non-negotiable:
 
-1. No production private key is ever exposed to the browser, agent prompt, model, or API response.
+1. No production private key is ever exposed to the browser, agent prompt, model, MCP message, DID document, or API response.
 2. No external agent can request arbitrary contract calls through VoxelForge.
 3. Ownership is verified onchain immediately before intent execution.
 4. Parent token set and `recipeHash` are immutable once authorized.
-5. Fee maximum is signed/permissioned before execution.
+5. Fee, call-value, and gas maxima are signed/permissioned before execution.
 6. Nonces and intent IDs prevent replay and duplicate Forge execution.
 7. The operation is atomic: fee + consume parents + mint descendant all succeed or all revert.
 8. A revoked/expired session cannot execute.
-9. Human owners can always revoke delegated agent authority.
+9. Human owners can always revoke delegated agent authority and clear/replace delegated code.
 10. Automated listing/trading, if ever added, is a separate permission scope from forging.
+11. DID identity never substitutes for wallet authorization.
+12. TEE attestation never substitutes for onchain policy validation.
+13. A reverted call is never assumed to have removed a previously installed EIP-7702 delegation.
 
 ## Immediate developer backlog
 
@@ -281,21 +350,27 @@ P0 — implement `recipeHash`, deterministic DNA engine, and preview locking.
 
 P0 — build contract/unit tests for ownership, duplicate parents, replay, fee bounds, and atomic revert.
 
-P1 — implement `/api/forge/v1/config`, `/verify`, `/preview`, and `/quote` as the first agent-compatible read surface.
+P1 — maintain `/api/forge/v1/config`, `/verify`, `/preview`, `/quote`, and `/authorization` as the first agent-compatible read surface.
 
-P1 — define EIP-712 `ForgeIntent` and idempotent intent persistence.
+P1 — implement EIP-712 `ForgeIntent` construction/validation and idempotent intent persistence.
+
+P1 — design reviewed delegate/router contract with explicit EIP-7702 persistence/revocation semantics.
 
 P1 — add Base Sepolia execution harness.
 
-P2 — implement bounded delegated execution using a smart-account/session-permission architecture.
+P2 — implement bounded delegated execution using the reviewed delegate/session-permission architecture.
 
 P2 — build Coinbase AgentKit action provider.
 
 P2 — build Farcaster Mini App.
 
-P3 — add provider-neutral verifiable-compute proof adapter.
+P3 — add DID/reputation registry only where it improves cross-agent trust and auditability.
+
+P3 — add provider-neutral TEE/verifiable-compute proof adapter.
 
 P3 — add x402/premium agent analytics once genuine external demand exists.
+
+P4 — evaluate cross-chain adapters only after Base Forge is stable.
 
 ## Definition of the future product
 
