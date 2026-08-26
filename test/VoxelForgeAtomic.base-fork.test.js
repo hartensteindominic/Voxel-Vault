@@ -14,6 +14,7 @@ const BASE_RPC_CANDIDATES = [
 const PARENT_ABI = [
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function tokenURI(uint256 tokenId) view returns (string)',
+  'function transferFrom(address from,address to,uint256 tokenId)',
   'function setApprovalForAll(address operator,bool approved)',
   'function isApprovedForAll(address owner,address operator) view returns (bool)',
   'function burn(uint256 tokenId)',
@@ -65,7 +66,7 @@ async function deploymentBlock() {
   return receipt.blockNumber;
 }
 
-async function discoverHolderWithThreeTokens(parent) {
+async function discoverThreeLiveTokens(parent) {
   const fromBlock = await deploymentBlock();
   const latest = await ethers.provider.getBlockNumber();
   const transferTopic = ethers.id('Transfer(address,address,uint256)');
@@ -88,28 +89,38 @@ async function discoverHolderWithThreeTokens(parent) {
     }
   }
 
-  const zero = ethers.ZeroAddress.toLowerCase();
-  const candidates = new Map();
-  for (const [tokenId, owner] of latestOwnerByToken.entries()) {
-    if (owner.toLowerCase() === zero) continue;
-    const list = candidates.get(owner.toLowerCase()) || [];
-    list.push(BigInt(tokenId));
-    candidates.set(owner.toLowerCase(), list);
+  const eoaTokens = [];
+  const otherTokens = [];
+  for (const [tokenIdText, loggedOwner] of latestOwnerByToken.entries()) {
+    if (loggedOwner === ethers.ZeroAddress) continue;
+    const tokenId = BigInt(tokenIdText);
+    try {
+      const currentOwner = ethers.getAddress(await parent.ownerOf(tokenId));
+      if (currentOwner !== loggedOwner) continue;
+      const code = await ethers.provider.getCode(currentOwner);
+      const item = { tokenId, owner: currentOwner };
+      if (code === '0x') eoaTokens.push(item);
+      else otherTokens.push(item);
+    } catch {}
   }
 
-  for (const [ownerLower, tokenIds] of candidates.entries()) {
-    if (tokenIds.length < 3) continue;
-    const confirmed = [];
-    for (const tokenId of tokenIds) {
-      try {
-        const currentOwner = await parent.ownerOf(tokenId);
-        if (currentOwner.toLowerCase() === ownerLower) confirmed.push(tokenId);
-      } catch {}
-      if (confirmed.length === 3) return { holder: ethers.getAddress(ownerLower), tokenIds: confirmed };
-    }
+  const selected = [...eoaTokens, ...otherTokens].slice(0, 3);
+  if (selected.length < 3) {
+    throw new Error(`Only ${selected.length} live VoxelFlip token(s) were discoverable; three are required to prove 3-to-1 Forge compatibility.`);
   }
+  return selected;
+}
 
-  throw new Error('No current VoxelFlip holder with at least three tokens was discoverable on the fork.');
+async function consolidateLiveTokensOnFork(parent, selected, destination) {
+  for (const { tokenId, owner } of selected) {
+    if (owner.toLowerCase() === destination.toLowerCase()) continue;
+    await network.provider.request({ method: 'hardhat_impersonateAccount', params: [owner] });
+    await network.provider.send('hardhat_setBalance', [owner, '0x56BC75E2D63100000']); // fork-only test balance
+    const sourceSigner = await ethers.getSigner(owner);
+    await (await parent.connect(sourceSigner).transferFrom(owner, destination, tokenId)).wait();
+    expect(await parent.ownerOf(tokenId)).to.equal(destination);
+    await network.provider.request({ method: 'hardhat_stopImpersonatingAccount', params: [owner] });
+  }
 }
 
 describe('VoxelForgeAtomic live Base fork', function () {
@@ -118,13 +129,13 @@ describe('VoxelForgeAtomic live Base fork', function () {
   it('proves the deployed VoxelFlip supports atomic transfer -> token-owner burn -> descendant mint', async function () {
     await resetToWorkingBaseFork();
 
-    const [owner, forgeSigner, feeRecipient] = await ethers.getSigners();
+    const [holder, owner, forgeSigner, feeRecipient] = await ethers.getSigners();
     const parent = new ethers.Contract(LIVE_VOXELFLIP, PARENT_ABI, ethers.provider);
-    const { holder, tokenIds } = await discoverHolderWithThreeTokens(parent);
+    const selected = await discoverThreeLiveTokens(parent);
+    const tokenIds = selected.map((item) => item.tokenId);
 
-    await network.provider.request({ method: 'hardhat_impersonateAccount', params: [holder] });
-    await network.provider.send('hardhat_setBalance', [holder, '0x56BC75E2D63100000']); // 100 ETH on fork only.
-    const holderSigner = await ethers.getSigner(holder);
+    // Consolidation happens only in the local fork. It never submits a transaction to Base mainnet.
+    await consolidateLiveTokensOnFork(parent, selected, holder.address);
 
     const Forge = await ethers.getContractFactory('VoxelForgeAtomic');
     const forge = await Forge.deploy(
@@ -136,16 +147,16 @@ describe('VoxelForgeAtomic live Base fork', function () {
     );
     await forge.waitForDeployment();
 
-    const parentAsHolder = parent.connect(holderSigner);
+    const parentAsHolder = parent.connect(holder);
     await (await parentAsHolder.setApprovalForAll(await forge.getAddress(), true)).wait();
-    expect(await parent.isApprovedForAll(holder, await forge.getAddress())).to.equal(true);
+    expect(await parent.isApprovedForAll(holder.address, await forge.getAddress())).to.equal(true);
 
     const uris = await Promise.all(tokenIds.map((tokenId) => parent.tokenURI(tokenId)));
     const latest = await ethers.provider.getBlock('latest');
     const descendantURI = 'ipfs://voxelforge-fork-proof/descendant.json';
     const feeWei = ethers.parseEther('0.002');
     const voucher = {
-      account: holder,
+      account: holder.address,
       parentTokenId0: tokenIds[0],
       parentTokenId1: tokenIds[1],
       parentTokenId2: tokenIds[2],
@@ -172,21 +183,19 @@ describe('VoxelForgeAtomic live Base fork', function () {
     );
 
     await expect(
-      forge.connect(holderSigner).forge(voucher, descendantURI, signature, { value: feeWei })
+      forge.connect(holder).forge(voucher, descendantURI, signature, { value: feeWei })
     ).to.emit(forge, 'Forged');
 
     for (const tokenId of tokenIds) {
       await expect(parent.ownerOf(tokenId)).to.be.reverted;
     }
 
-    expect(await forge.ownerOf(1n)).to.equal(holder);
+    expect(await forge.ownerOf(1n)).to.equal(holder.address);
     expect(await forge.tokenURI(1n)).to.equal(descendantURI);
     expect(await ethers.provider.getBalance(await forge.getAddress())).to.equal(feeWei);
 
     const lineage = await forge.lineageOf(1n);
     expect([...lineage[0]]).to.deep.equal(tokenIds);
     expect(lineage[2]).to.equal(voucher.recipeHash);
-
-    await network.provider.request({ method: 'hardhat_stopImpersonatingAccount', params: [holder] });
   });
 });
