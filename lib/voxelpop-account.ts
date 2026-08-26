@@ -41,10 +41,29 @@ function timestamp(value: unknown) {
 
 function meshIsReady(payload: VoxelPayload) {
   const mesh = payload.mesh;
+  const status = String(mesh?.status || '').toLowerCase();
   return Boolean(
-    String(mesh?.status || '').toLowerCase() === 'ready' ||
-    String(mesh?.modelUrl || '').trim()
+    status === 'ready' ||
+    status === 'succeeded' ||
+    status === 'completed' ||
+    String(mesh?.modelUrl || '').trim() ||
+    Number(mesh?.progress || 0) >= 100
   );
+}
+
+function normalizeRecord(record: AccountVoxel): AccountVoxel {
+  if (!meshIsReady(record.payload)) return record;
+  return {
+    ...record,
+    payload: {
+      ...record.payload,
+      mesh: {
+        ...(record.payload.mesh || {}),
+        status: 'ready',
+        progress: 100,
+      },
+    },
+  };
 }
 
 function mintIsConfirmed(payload: VoxelPayload) {
@@ -58,7 +77,10 @@ function mergeSameAsset(previous: AccountVoxel, incoming: AccountVoxel) {
 
   const newerMeshReady = meshIsReady(newer.payload);
   const olderMeshReady = meshIsReady(older.payload);
-  const mesh = newerMeshReady || !olderMeshReady ? newer.payload.mesh : older.payload.mesh;
+  const chosenMesh = newerMeshReady || !olderMeshReady ? newer.payload.mesh : older.payload.mesh;
+  const mesh = meshIsReady({ mesh: chosenMesh })
+    ? { ...(chosenMesh || {}), status: 'ready', progress: 100 }
+    : chosenMesh;
 
   const newerMinted = mintIsConfirmed(newer.payload);
   const olderMinted = mintIsConfirmed(older.payload);
@@ -78,8 +100,9 @@ function mergeSameAsset(previous: AccountVoxel, incoming: AccountVoxel) {
 export function mergeVoxelRecords(...groups: AccountVoxel[][]) {
   const map = new Map<string, AccountVoxel>();
   for (const group of groups) {
-    for (const record of group) {
-      if (!validRecord(record)) continue;
+    for (const rawRecord of group) {
+      if (!validRecord(rawRecord)) continue;
+      const record = normalizeRecord(rawRecord);
       const previous = map.get(record.sessionId);
       if (!previous) {
         map.set(record.sessionId, record);
@@ -109,7 +132,7 @@ export function readLocalVoxelRecords(): AccountVoxel[] {
       try {
         const parsed = JSON.parse(window.localStorage.getItem(key) || '{}') as VoxelPayload;
         if (!parsed?.asset?.dataUrl) continue;
-        found.push({ sessionId, payload: parsed, updatedAt: parsed.updatedAt || new Date(0).toISOString() });
+        found.push(normalizeRecord({ sessionId, payload: parsed, updatedAt: parsed.updatedAt || new Date(0).toISOString() }));
       } catch {}
     }
   } catch {}
@@ -117,12 +140,13 @@ export function readLocalVoxelRecords(): AccountVoxel[] {
 }
 
 export function summarizeVoxel(record: AccountVoxel) {
+  const normalized = normalizeRecord(record);
   return {
-    sessionId: record.sessionId,
-    name: String(record.payload.asset?.name || 'Your voxel'),
-    image: String(record.payload.asset?.dataUrl || ''),
-    meshStatus: String(record.payload.mesh?.status || 'idle'),
-    mint: record.payload.mint || null,
+    sessionId: normalized.sessionId,
+    name: String(normalized.payload.asset?.name || 'Your voxel'),
+    image: String(normalized.payload.asset?.dataUrl || ''),
+    meshStatus: String(normalized.payload.mesh?.status || 'idle'),
+    mint: normalized.payload.mint || null,
   };
 }
 
@@ -147,7 +171,7 @@ async function readProfile(supabase: SupabaseClient, user: User) {
 
 function profileLibrary(profile: any): AccountVoxel[] {
   const raw = profile?.avatar_style?.voxelpop_library;
-  return Array.isArray(raw) ? raw.filter(validRecord) : [];
+  return Array.isArray(raw) ? raw.filter(validRecord).map(normalizeRecord) : [];
 }
 
 async function writeProfileLibrary(supabase: SupabaseClient, user: User, profile: any, library: AccountVoxel[]) {
