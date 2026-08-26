@@ -121,73 +121,27 @@ contract VoxelForgeAtomic is ERC721, ERC721URIStorage, ERC721Royalty, Ownable, P
         whenNotPaused
         returns (uint256 descendantTokenId)
     {
-        if (voucher.account != msg.sender) revert InvalidForgeAccount();
-        if (
-            voucher.parentTokenId0 == voucher.parentTokenId1
-                || voucher.parentTokenId0 == voucher.parentTokenId2
-                || voucher.parentTokenId1 == voucher.parentTokenId2
-        ) revert DuplicateParent();
-        if (block.timestamp > voucher.deadline) revert VoucherExpired();
-        if (usedVouchers[voucher.voucherId]) revert VoucherAlreadyUsed();
-        if (msg.value != voucher.feeWei) revert IncorrectForgeFee();
-        if (voucher.recipeHash == bytes32(0)) revert InvalidRecipe();
-        if (keccak256(bytes(descendantURI)) != voucher.descendantUriHash) revert InvalidDescendantURI();
+        _validateVoucher(voucher, descendantURI, signature);
 
-        bytes32 digest = _hashTypedDataV4(_voucherStructHash(voucher));
-        if (digest.recover(signature) != forgeSigner) revert InvalidForgeSignature();
+        // Verify every parent before the first parent transfer.
+        _verifyParent(voucher.account, voucher.parentTokenId0, voucher.parentMetadataHash0);
+        _verifyParent(voucher.account, voucher.parentTokenId1, voucher.parentMetadataHash1);
+        _verifyParent(voucher.account, voucher.parentTokenId2, voucher.parentMetadataHash2);
 
-        uint256[3] memory parentTokenIds = [
-            voucher.parentTokenId0,
-            voucher.parentTokenId1,
-            voucher.parentTokenId2
-        ];
-        bytes32[3] memory parentMetadataHashes = [
-            voucher.parentMetadataHash0,
-            voucher.parentMetadataHash1,
-            voucher.parentMetadataHash2
-        ];
-
-        // Verify every parent before the first state-changing parent transfer.
-        for (uint256 i = 0; i < 3; i++) {
-            uint256 tokenId = parentTokenIds[i];
-            if (parentCollection.ownerOf(tokenId) != msg.sender) revert ParentNotOwned(tokenId);
-            if (keccak256(bytes(parentCollection.tokenURI(tokenId))) != parentMetadataHashes[i]) {
-                revert ParentMetadataChanged(tokenId);
-            }
-        }
-
-        // Mark before external calls. Any later revert restores this value automatically.
+        // Mark before external calls. Any later revert restores this automatically.
         usedVouchers[voucher.voucherId] = true;
 
-        // The Forge contract becomes each token's owner before invoking the parent's owner-only burn.
-        // If the second/third transfer or burn fails, EVM atomicity restores all earlier parents.
-        for (uint256 i = 0; i < 3; i++) {
-            uint256 tokenId = parentTokenIds[i];
-            parentCollection.transferFrom(msg.sender, address(this), tokenId);
-            if (parentCollection.ownerOf(tokenId) != address(this)) revert ParentTransferFailed(tokenId);
-            parentCollection.burn(tokenId);
-        }
+        // The Forge becomes owner before invoking the parent's owner-only burn.
+        // If a later transfer/burn/mint fails, EVM atomicity restores every earlier step.
+        _consumeParent(voucher.account, voucher.parentTokenId0);
+        _consumeParent(voucher.account, voucher.parentTokenId1);
+        _consumeParent(voucher.account, voucher.parentTokenId2);
 
         descendantTokenId = _nextTokenId++;
-        _safeMint(msg.sender, descendantTokenId);
+        _safeMint(voucher.account, descendantTokenId);
         _setTokenURI(descendantTokenId, descendantURI);
-        _lineage[descendantTokenId] = Lineage({
-            parentTokenIds: parentTokenIds,
-            parentMetadataHashes: parentMetadataHashes,
-            recipeHash: voucher.recipeHash,
-            voucherId: voucher.voucherId
-        });
-
-        emit Forged(
-            descendantTokenId,
-            msg.sender,
-            voucher.recipeHash,
-            voucher.parentTokenId0,
-            voucher.parentTokenId1,
-            voucher.parentTokenId2,
-            voucher.voucherId,
-            voucher.feeWei
-        );
+        _storeLineage(descendantTokenId, voucher);
+        _emitForged(descendantTokenId, voucher);
     }
 
     function voucherDigest(ForgeVoucher calldata voucher) external view returns (bytes32) {
@@ -252,6 +206,64 @@ contract VoxelForgeAtomic is ERC721, ERC721URIStorage, ERC721Royalty, Ownable, P
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function _validateVoucher(ForgeVoucher calldata voucher, string calldata descendantURI, bytes calldata signature)
+        internal
+        view
+    {
+        if (voucher.account != msg.sender) revert InvalidForgeAccount();
+        if (
+            voucher.parentTokenId0 == voucher.parentTokenId1
+                || voucher.parentTokenId0 == voucher.parentTokenId2
+                || voucher.parentTokenId1 == voucher.parentTokenId2
+        ) revert DuplicateParent();
+        if (block.timestamp > voucher.deadline) revert VoucherExpired();
+        if (usedVouchers[voucher.voucherId]) revert VoucherAlreadyUsed();
+        if (msg.value != voucher.feeWei) revert IncorrectForgeFee();
+        if (voucher.recipeHash == bytes32(0)) revert InvalidRecipe();
+        if (keccak256(bytes(descendantURI)) != voucher.descendantUriHash) revert InvalidDescendantURI();
+
+        bytes32 digest = _hashTypedDataV4(_voucherStructHash(voucher));
+        if (digest.recover(signature) != forgeSigner) revert InvalidForgeSignature();
+    }
+
+    function _verifyParent(address account, uint256 tokenId, bytes32 metadataHash) internal view {
+        if (parentCollection.ownerOf(tokenId) != account) revert ParentNotOwned(tokenId);
+        if (keccak256(bytes(parentCollection.tokenURI(tokenId))) != metadataHash) {
+            revert ParentMetadataChanged(tokenId);
+        }
+    }
+
+    function _consumeParent(address account, uint256 tokenId) internal {
+        parentCollection.transferFrom(account, address(this), tokenId);
+        if (parentCollection.ownerOf(tokenId) != address(this)) revert ParentTransferFailed(tokenId);
+        parentCollection.burn(tokenId);
+    }
+
+    function _storeLineage(uint256 descendantTokenId, ForgeVoucher calldata voucher) internal {
+        Lineage storage lineage = _lineage[descendantTokenId];
+        lineage.parentTokenIds[0] = voucher.parentTokenId0;
+        lineage.parentTokenIds[1] = voucher.parentTokenId1;
+        lineage.parentTokenIds[2] = voucher.parentTokenId2;
+        lineage.parentMetadataHashes[0] = voucher.parentMetadataHash0;
+        lineage.parentMetadataHashes[1] = voucher.parentMetadataHash1;
+        lineage.parentMetadataHashes[2] = voucher.parentMetadataHash2;
+        lineage.recipeHash = voucher.recipeHash;
+        lineage.voucherId = voucher.voucherId;
+    }
+
+    function _emitForged(uint256 descendantTokenId, ForgeVoucher calldata voucher) internal {
+        emit Forged(
+            descendantTokenId,
+            voucher.account,
+            voucher.recipeHash,
+            voucher.parentTokenId0,
+            voucher.parentTokenId1,
+            voucher.parentTokenId2,
+            voucher.voucherId,
+            voucher.feeWei
+        );
     }
 
     function _voucherStructHash(ForgeVoucher calldata voucher) internal pure returns (bytes32) {
