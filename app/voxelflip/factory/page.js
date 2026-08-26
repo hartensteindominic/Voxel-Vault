@@ -48,20 +48,21 @@ export default function VoxelFlipFactoryPage(){
 
  const policy=factory?.policy||{};
  const observed=factory?.observed||{};
- const readiness=factory?.readiness||{};
  const ledger=factory?.ledger||{};
  const agents=factory?.agents||[];
  const factoryQuery=new URLSearchParams();
  if(wallet)factoryQuery.set('wallet',wallet);if(tokenId)factoryQuery.set('tokenId',tokenId);if(sessionId)factoryQuery.set('session_id',sessionId);
  const autopilotHref=`/voxelflip/autopilot${factoryQuery.toString()?`?${factoryQuery}`:''}`;
+ const forgeQuery=new URLSearchParams();if(wallet)forgeQuery.set('wallet',wallet);if(tokenId)forgeQuery.set('tokenId',tokenId);const forgeHref=`/forge${forgeQuery.toString()?`?${forgeQuery}`:''}`;
+ const mintHref=sessionId?`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`:'/studio#my-voxels';
 
  return <main className={styles.page}>
-  <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · FACTORY</em></nav>
+  <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · FORGE LAUNCHPAD</em></nav>
 
   <header className={styles.hero}>
-   <p className={styles.eyebrow}>SELL → LEDGER → RESERVE → REINVEST → DRAFT → APPROVE → MINT → LIST → REPEAT</p>
-   <h1>The voxel<br/><em>factory loop.</em></h1>
-   <span>Factory compounds only verified realized profit. Scout, Pricer, Risk and Maker can think continuously, but spending, minting, listing and signing stay approval-gated.</span>
+   <p className={styles.eyebrow}>MAKE → MINT → FORGE → POST · THEN CREATE MORE FORGES</p>
+   <h1>The voxel<br/><em>forge launchpad.</em></h1>
+   <span>Keep the creator loop simple while the launchpad supplies reusable Forge infrastructure underneath it. Spending, minting, listing and signing remain approval-gated.</span>
   </header>
 
   <div className={styles.shell}>
@@ -120,24 +121,25 @@ export default function VoxelFlipFactoryPage(){
    </section>
 
    <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>READINESS</small><h2>What exists before self-looping.</h2></div></div>
+    <div className={styles.panelHead}><div><small>FORGE LAUNCHPAD V1</small><h2>Deploy the machine, not another one-off collection.</h2></div><span className={styles.status}>CONTRACT TESTS · GREEN</span></div>
     <div className={styles.activity}>
-     <div className={styles.event}><b>{readiness.openSea?'READY':'WAIT'}</b><span>OpenSea sale monitoring</span></div>
-     <div className={styles.event}><b>{readiness.productionRpc?'READY':'WAIT'}</b><span>Production Base RPC</span></div>
-     <div className={styles.event}><b>{readiness.profitLedger?'READY':'WAIT'}</b><span>Server-owned cost/profit ledger schema</span></div>
-     <div className={styles.event}><b>{readiness.profitCycle?'READY':'WAIT'}</b><span>Complete verified costs + realized-profit threshold</span></div>
-     <div className={styles.event}><b>{readiness.generationFactory?'READY':'WAIT'}</b><span>Internal factory generation queue</span></div>
-     <div className={styles.event}><b>{readiness.boundedExecutor?'READY':'WAIT'}</b><span>Bounded mint/list executor</span></div>
+     <div className={styles.event}><b>IMPL</b><span>One clone-safe Forge implementation contains the 3→1 Common → Rare → Legendary burn/mint logic and linear merge-price curve.</span></div>
+     <div className={styles.event}><b>CLONE</b><span>ForgeFactory creates EIP-1167 minimal-proxy Forges so each creator gets an independent collection without redeploying the full implementation.</span></div>
+     <div className={styles.event}><b>FEES</b><span>Factory deploy fee is collected up front. Each new clone permanently stores the platform merge-fee split configured when it was created.</span></div>
+     <div className={styles.event}><b>SAFE</b><span>OpenZeppelin is pinned to 5.4.0 and clone initialization uses one typed config struct instead of enabling viaIR globally.</span></div>
     </div>
+    <div className={styles.notice}>Bonding-curve behavior, batching and fee splits are tested as contract behavior. They are not treated as guaranteed profit, guaranteed resale value or guaranteed gas savings.</div>
     <div className={styles.actions}>
-     <a href={autopilotHref}>← Autopilot monitor</a>
-     <a href="/studio">Create next voxel</a>
-     <a href="/studio#my-voxels">My Voxels</a>
+     <a className={styles.primary} href="/studio">MAKE</a>
+     <a href={mintHref}>MINT</a>
+     <a href={forgeHref}>FORGE</a>
+     <a href={autopilotHref}>POST / LIST</a>
+     <a href="/studio#my-voxels">MY VOXELS</a>
     </div>
-    <p className={styles.riskText}>Factory is a compounding workflow, not a profit guarantee. It stops whenever verified net profit, cost coverage, inventory capacity or execution safety is missing.</p>
+    <p className={styles.riskText}>This remains the Base Sepolia/testnet launchpad branch. The production VoxelFlip contract and main branch are not replaced by these launchpad contracts.</p>
    </section>
   </div>
 
-  <footer className={styles.footer}><a href={autopilotHref}>← Autopilot</a><a href="/studio#my-voxels">My Voxels</a></footer>
+  <footer className={styles.footer}><a href="/studio">MAKE</a><a href={mintHref}>MINT</a><a href={forgeHref}>FORGE</a><a href={autopilotHref}>POST →</a></footer>
  </main>;
 }
