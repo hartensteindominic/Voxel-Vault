@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Contract, JsonRpcProvider, getAddress, isAddress, parseEther } from 'ethers';
 import { NextResponse } from 'next/server';
 import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
@@ -11,6 +12,8 @@ const BASE_CHAIN_ID = 8453;
 const LAUNCH_FEE = parseEther('0.001');
 const LAUNCH_ROYALTY_BPS = 500;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
+const EXPECTED_RUNTIME_SHA256 = 'f35b3b6f8dec6705e612f179f39f44e1c7650ea7743b6034800e99adc066ed56';
+const EXPECTED_RUNTIME_BYTES = 11727;
 const FORGE_ABI = [
   'function owner() view returns (address)',
   'function forgeSigner() view returns (address)',
@@ -46,6 +49,13 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs = 6_000): Promise<T
   }
 }
 
+function runtimeSha256(code: string) {
+  if (!/^0x[0-9a-fA-F]+$/.test(code)) return '';
+  const bytes = Buffer.from(code.slice(2), 'hex');
+  if (bytes.length !== EXPECTED_RUNTIME_BYTES) return '';
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 type VerifiedDeployment = {
   forgeSigner: string;
   treasury: string;
@@ -56,7 +66,7 @@ type VerifiedDeployment = {
 
 async function verifyAcrossBaseProviders(params: {
   address: string;
-  txHash: string;
+  txHash?: string;
   approvedOwner: string;
   parentCollection: string;
   expectedSigner: string;
@@ -67,29 +77,26 @@ async function verifyAcrossBaseProviders(params: {
     const provider = new JsonRpcProvider(url, BASE_CHAIN_ID, { staticNetwork: true });
     try {
       await withTimeout(provider.getBlockNumber(), 4_000);
+      const code = await withTimeout(provider.getCode(params.address), 8_000);
+      if (!code || code === '0x') throw new Error('No contract bytecode exists at the submitted Base address.');
+      if (runtimeSha256(code) !== EXPECTED_RUNTIME_SHA256) {
+        throw new Error('The Base address does not contain the reviewed VoxelForgeRevenue runtime bytecode.');
+      }
 
-      const [receipt, tx, code] = await withTimeout(Promise.all([
-        provider.getTransactionReceipt(params.txHash),
-        provider.getTransaction(params.txHash),
-        provider.getCode(params.address),
-      ]), 10_000);
-
-      if (!receipt || receipt.status !== 1 || !receipt.contractAddress) {
-        throw new Error('The Base deployment transaction is not confirmed successfully.');
-      }
-      if (getAddress(receipt.contractAddress) !== params.address) {
-        throw new Error('Deployment transaction does not match the submitted Forge address.');
-      }
-      if (!tx || getAddress(tx.from) !== params.approvedOwner) {
-        throw new Error('The Forge was not deployed by the reviewed owner wallet.');
-      }
-      if (!code || code === '0x') {
-        throw new Error('No contract bytecode exists at the submitted Base address.');
+      let deployedAt = '';
+      if (params.txHash) {
+        const [receipt, tx] = await withTimeout(Promise.all([
+          provider.getTransactionReceipt(params.txHash),
+          provider.getTransaction(params.txHash),
+        ]), 10_000);
+        if (!receipt || receipt.status !== 1 || !receipt.contractAddress) throw new Error('The Base deployment transaction is not confirmed successfully.');
+        if (getAddress(receipt.contractAddress) !== params.address) throw new Error('Deployment transaction does not match the submitted Forge address.');
+        if (!tx || getAddress(tx.from) !== params.approvedOwner) throw new Error('The Forge was not deployed by the reviewed owner wallet.');
+        const block = await withTimeout(provider.getBlock(receipt.blockNumber), 6_000).catch(() => null);
+        deployedAt = block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : '';
       }
 
       const forge = new Contract(params.address, FORGE_ABI, provider);
-      // Read getters individually. Some public Base RPCs intermittently fail one
-      // eth_call while accepting others; a failed provider is retried as a whole.
       const owner = getAddress(await withTimeout(forge.owner(), 6_000));
       const forgeSigner = getAddress(await withTimeout(forge.forgeSigner(), 6_000));
       const treasury = getAddress(await withTimeout(forge.treasury(), 6_000));
@@ -106,14 +113,7 @@ async function verifyAcrossBaseProviders(params: {
       if (!parentApproved) throw new Error('The reviewed VoxelFlip Base collection is not approved as a parent collection.');
       if (paused) throw new Error('The newly deployed production Forge is unexpectedly paused.');
 
-      const block = await withTimeout(provider.getBlock(receipt.blockNumber), 6_000).catch(() => null);
-      return {
-        forgeSigner,
-        treasury,
-        feeWei,
-        royaltyBps,
-        deployedAt: block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : '',
-      };
+      return { forgeSigner, treasury, feeWei, royaltyBps, deployedAt };
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error || 'Base verification failed.');
     } finally {
@@ -129,9 +129,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const walletRaw = String(body?.wallet || '').trim();
     const addressRaw = String(body?.address || '').trim();
-    const txHash = String(body?.txHash || '').trim();
-    if (!isAddress(walletRaw) || !isAddress(addressRaw) || !TX_RE.test(txHash)) {
-      return NextResponse.json({ error: 'A valid owner wallet, deployed contract address, and deployment transaction hash are required.' }, { status: 400 });
+    const txHashRaw = String(body?.txHash || '').trim();
+    if (!isAddress(walletRaw) || !isAddress(addressRaw) || (txHashRaw && !TX_RE.test(txHashRaw))) {
+      return NextResponse.json({ error: 'A valid owner wallet and deployed Base contract address are required.' }, { status: 400 });
     }
 
     const wallet = getAddress(walletRaw);
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
     const expectedSigner = getAddress(revenueForgeSigningWallet().address);
     const verified = await verifyAcrossBaseProviders({
       address,
-      txHash,
+      txHash: txHashRaw || undefined,
       approvedOwner,
       parentCollection: getAddress(parent.address),
       expectedSigner,
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
       chainId: 8453,
       network: 'base',
       address,
-      deploymentTxHash: txHash,
+      deploymentTxHash: txHashRaw,
       owner: approvedOwner,
       forgeSigner: verified.forgeSigner,
       treasury: verified.treasury,
