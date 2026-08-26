@@ -11,6 +11,8 @@ const IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-image';
 const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
 const MAX_SIGNATURE_AGE_MS = 10 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 12_000;
+const RPC_CALL_TIMEOUT_MS = 4_500;
+const VERIFY_PARENT_BUDGET_MS = 16_000;
 const ERC721_ABI = [
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function tokenURI(uint256 tokenId) view returns (string)',
@@ -27,6 +29,20 @@ function ipfsToHttp(value: string) {
   if (value.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${value.slice(7)}`;
   if (value.startsWith('ar://')) return `https://arweave.net/${value.slice(5)}`;
   return value;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 async function timedFetch(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -78,14 +94,17 @@ async function verifyParentAcrossProviders(wallet: string, parent: ParentInput):
   if (!/^\d+$/.test(tokenId)) throw new Error('Every fusion parent needs a valid token ID.');
 
   const pool = providers();
+  const deadline = Date.now() + VERIFY_PARENT_BUDGET_MS;
   let lastError = '';
   try {
     for (const provider of pool) {
+      if (Date.now() >= deadline) break;
       try {
+        const timeoutForCall = () => Math.max(750, Math.min(RPC_CALL_TIMEOUT_MS, deadline - Date.now()));
         const nft = new Contract(contractAddress, ERC721_ABI, provider);
-        const owner = getAddress(await nft.ownerOf(tokenId));
+        const owner = getAddress(await withTimeout(nft.ownerOf(tokenId), timeoutForCall(), `Base owner lookup for #${tokenId}`));
         if (owner !== wallet) throw new Error(`Connected wallet does not own ${contractAddress} #${tokenId}.`);
-        const tokenURI = clean(await nft.tokenURI(tokenId), 200_000);
+        const tokenURI = clean(await withTimeout(nft.tokenURI(tokenId), timeoutForCall(), `Base tokenURI lookup for #${tokenId}`), 200_000);
         if (!tokenURI) throw new Error(`Parent #${tokenId} has no tokenURI.`);
         const metadata: any = await metadataFromTokenURI(tokenURI);
         const image = ipfsToHttp(clean(metadata?.image || metadata?.image_url || metadata?.thumbnail || '', 4_000_000));
@@ -101,12 +120,13 @@ async function verifyParentAcrossProviders(wallet: string, parent: ParentInput):
         };
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error || 'Base verification failed');
+        if (lastError.startsWith('Connected wallet does not own ')) break;
       }
     }
   } finally {
     for (const provider of pool) provider.destroy();
   }
-  throw new Error(lastError || `Could not verify parent NFT #${tokenId} on Base.`);
+  throw new Error(lastError || `Could not verify parent NFT #${tokenId} on Base before the verification deadline.`);
 }
 
 function canonicalParents(parents: ParentInput[]) {
@@ -176,6 +196,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'concept') {
+      ticketSecret();
       const nonce = clean(body?.nonce, 200);
       const signature = clean(body?.signature, 5000);
       const issuedAt = Number(body?.issuedAt || 0);
@@ -186,8 +207,7 @@ export async function POST(request: Request) {
       const recovered = getAddress(verifyMessage(message, signature));
       if (recovered !== wallet) return NextResponse.json({ error: 'The visual-fusion signature does not match the connected wallet.' }, { status: 401 });
 
-      const verified: VerifiedParent[] = [];
-      for (const parent of parents) verified.push(await verifyParentAcrossProviders(wallet, parent));
+      const verified = await Promise.all(parents.map(parent => verifyParentAcrossProviders(wallet, parent)));
 
       const created = await meshyJson(IMAGE_ENDPOINT, {
         method: 'POST',
@@ -205,12 +225,13 @@ export async function POST(request: Request) {
         stage: 'concept',
         conceptTaskId,
         ticket: makeTicket(wallet, conceptTaskId, parentIds),
-        parents: verified.map(({ contract, tokenId, name, image }) => ({ contract, tokenId, name, image })),
+        parents: verified.map(({ contract, tokenId, name }) => ({ contract, tokenId, name })),
         safety: 'Off-chain generation only. This signature cannot transfer NFTs or spend ETH.',
       }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     if (action === 'mesh') {
+      ticketSecret();
       const conceptTaskId = clean(body?.conceptTaskId, 200);
       const ticket = clean(body?.ticket, 200);
       if (!conceptTaskId || !validTicket(wallet, conceptTaskId, parentIds, ticket)) {
@@ -233,6 +254,7 @@ export async function POST(request: Request) {
           image_enhancement: false,
           remove_lighting: true,
           target_formats: ['glb'],
+          auto_size: true,
           alpha_thumbnail: true,
           multi_view_thumbnails: true,
         }),
