@@ -30,3 +30,4 @@ jobs:
       - run: npm run chain:compile
       - run: npm run test:forge
       - run: npm run test:solo-vault
+      - run: npm run test:forge-launchpad
