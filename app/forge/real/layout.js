@@ -27,7 +27,7 @@ export default function RealForgeLayout({children}){
   },[]);
 
   if(!ready){
-    return <main style={{minHeight:'100vh',background:'#070809',color:'#f7f7f3',display:'grid',placeItems:'center',fontFamily:'Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif,padding:24}}>
+    return <main style={{minHeight:'100vh',background:'#070809',color:'#f7f7f3',display:'grid',placeItems:'center',fontFamily:'Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',padding:24}}>
       <div style={{textAlign:'center',maxWidth:420}}>
         <div style={{color:'#c8ff54',fontSize:11,fontWeight:900,letterSpacing:'.14em'}}>MY VOXELS</div>
         <h1 style={{fontSize:34,margin:'12px 0 8px'}}>Loading your full library…</h1>
