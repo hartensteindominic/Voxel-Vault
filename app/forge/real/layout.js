@@ -11,6 +11,10 @@ function writeRecords(records){
   }
 }
 
+function focusedSessionId(){
+  try{return String(new URLSearchParams(window.location.search).get('focus_session')||'').trim()}catch{return ''}
+}
+
 export default function RealForgeLayout({children}){
   const [ready,setReady]=useState(false);
   const [signedIn,setSignedIn]=useState(null);
@@ -21,6 +25,30 @@ export default function RealForgeLayout({children}){
     let active=true;
     async function sync(){
       let current=readLocalVoxelRecords();
+      const focusSession=focusedSessionId();
+
+      // Critical cross-browser handoff: when MetaMask opens its own browser,
+      // Safari/ChatGPT localStorage does not come with it. The focus_session URL
+      // identifies the already-paid creation, so restore that one from Stripe +
+      // Meshy before loading the rest of My Voxels. This is read-only.
+      if(focusSession){
+        try{
+          const response=await fetch(`/api/forge/session-asset?${new URLSearchParams({sessionId:focusSession})}`,{cache:'no-store'});
+          const recovered=await response.json().catch(()=>({}));
+          if(response.ok&&recovered?.record?.sessionId){
+            current=mergeVoxelRecords(current,[recovered.record]);
+            writeRecords(current);
+            if(active)setAccountMessage(recovered.ready
+              ?'Recovered the exact paid 3D voxel you sent to Forge.'
+              :'Recovered the paid voxel, but its 3D mesh is not finished yet.');
+          }else if(active){
+            setAccountMessage(String(recovered.error||'Could not restore the focused paid voxel.'));
+          }
+        }catch(error){
+          if(active)setAccountMessage(error instanceof Error?error.message:'Could not restore the focused paid voxel.');
+        }
+      }
+
       try{
         const alternate=await loadAlternateHostVoxels();
         if(alternate.length)current=mergeVoxelRecords(current,alternate);
@@ -38,8 +66,8 @@ export default function RealForgeLayout({children}){
             current=mergeVoxelRecords(current,recovered.records);
             writeRecords(current);
             try{await syncLocalVoxelsToAccount(supabase,session.user)}catch{}
-            if(active&&recovered.records.length)setAccountMessage(`Recovered ${recovered.records.length} paid VoxelPop creation${recovered.records.length===1?'':'s'} from your account.`);
-          }else if(active&&response.status!==401){
+            if(active&&recovered.records.length&&!focusSession)setAccountMessage(`Recovered ${recovered.records.length} paid VoxelPop creation${recovered.records.length===1?'':'s'} from your account.`);
+          }else if(active&&response.status!==401&&!focusSession){
             setAccountMessage(String(recovered.error||''));
           }
         }
@@ -58,8 +86,9 @@ export default function RealForgeLayout({children}){
     setAccountBusy(true);setAccountMessage('Opening Google sign-in…');
     try{
       const supabase=await getSupabaseBrowserAsync();
-      const redirectTo=new URL('/forge/real',window.location.origin).toString();
-      const {error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo}});
+      const redirectTo=new URL(window.location.href);
+      redirectTo.hash='';
+      const {error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:redirectTo.toString()}});
       if(error)throw error;
     }catch(error){
       setAccountMessage(error instanceof Error?error.message:'Could not start Google recovery.');
@@ -72,17 +101,17 @@ export default function RealForgeLayout({children}){
       <div style={{textAlign:'center',maxWidth:460}}>
         <div style={{color:'#c8ff54',fontSize:11,fontWeight:900,letterSpacing:'.14em'}}>MY VOXELS</div>
         <h1 style={{fontSize:34,margin:'12px 0 8px'}}>Recovering your full library…</h1>
-        <p style={{color:'#8d8f98',fontSize:13,lineHeight:1.6,margin:0}}>Checking browser storage, your other VoxelVault hostname, and—when Google is connected—your paid VoxelPop server records.</p>
+        <p style={{color:'#8d8f98',fontSize:13,lineHeight:1.6,margin:0}}>Checking the focused paid voxel, browser storage, the other VoxelVault hostname, and your Google-backed library.</p>
       </div>
     </main>;
   }
 
   return <>
     {signedIn===false&&<div style={{position:'relative',zIndex:30,background:'#111318',borderBottom:'1px solid rgba(255,255,255,.10)',color:'#f7f7f3',padding:'12px 18px',display:'flex',alignItems:'center',justifyContent:'center',gap:14,flexWrap:'wrap',fontFamily:'Inter,ui-sans-serif,system-ui,sans-serif'}}>
-      <span style={{fontSize:13,lineHeight:1.45}}><b style={{color:'#c8ff54'}}>Missing a paid 3D voxel?</b> Recover creations saved in a different browser with the Google account used for VoxelPop.</span>
+      <span style={{fontSize:13,lineHeight:1.45}}><b style={{color:'#c8ff54'}}>Missing another paid 3D voxel?</b> Recover older creations with the Google account used for VoxelPop.</span>
       <button type="button" onClick={recoverWithGoogle} disabled={accountBusy} style={{border:0,borderRadius:999,padding:'9px 14px',background:'#c8ff54',color:'#0a0b0d',fontWeight:900,cursor:accountBusy?'wait':'pointer'}}>{accountBusy?'OPENING…':'RECOVER WITH GOOGLE'}</button>
     </div>}
-    {accountMessage&&<div style={{position:'relative',zIndex:29,background:'#0d0f12',color:'#aeb4bd',textAlign:'center',padding:'8px 16px',font: '700 12px/1.4 Inter,ui-sans-serif,system-ui,sans-serif',borderBottom:'1px solid rgba(255,255,255,.06)'}}>{accountMessage}</div>}
+    {accountMessage&&<div style={{position:'relative',zIndex:29,background:'#0d0f12',color:'#aeb4bd',textAlign:'center',padding:'8px 16px',font:'700 12px/1.4 Inter,ui-sans-serif,system-ui,sans-serif',borderBottom:'1px solid rgba(255,255,255,.06)'}}>{accountMessage}</div>}
     {children}
   </>;
 }
