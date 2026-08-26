@@ -45,7 +45,8 @@ describe('VoxelForgeRevenue', function () {
   }
 
   async function signedRequest({ forge, forgeSigner, customer, parent, fee, overrides = {} }) {
-    const uri = overrides.uri || 'ipfs://voxel-forge/descendant-1.json';
+    const { uri: overrideUri, ...requestOverrides } = overrides;
+    const uri = overrideUri || 'ipfs://voxel-forge/descendant-1.json';
     const chainId = Number((await ethers.provider.getNetwork()).chainId);
     const request = {
       account: customer.address,
@@ -59,7 +60,7 @@ describe('VoxelForgeRevenue', function () {
       feeWei: fee,
       requestId: ethers.hexlify(ethers.randomBytes(32)),
       deadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
-      ...overrides,
+      ...requestOverrides,
     };
     const domain = {
       name: 'VoxelForgeRevenue',
@@ -134,10 +135,7 @@ describe('VoxelForgeRevenue', function () {
 
   it('rejects duplicate parents even with a valid Forge signature', async function () {
     const ctx = await deploy();
-    const duplicate = {
-      parentTokenId1: 1n,
-    };
-    const { request, uri, signature } = await signedRequest({ ...ctx, overrides: duplicate });
+    const { request, uri, signature } = await signedRequest({ ...ctx, overrides: { parentTokenId1: 1n } });
     await expect(
       ctx.forge.connect(ctx.customer).forge(request, uri, signature, { value: ctx.fee })
     ).to.be.revertedWith('Choose three different parents');
