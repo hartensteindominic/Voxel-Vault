@@ -16,6 +16,8 @@ const OPENSEA_SIGNED_ZONE = '0x000056f7000000ece9003ca63978907a00ffd100';
 const OPENSEA_ACTIONS_URL = 'https://api.opensea.io/api/v2/listings/actions';
 const OPENSEA_POST_URL = 'https://api.opensea.io/api/v2/orders/base/seaport/listings';
 const REQUEST_TIMEOUT_MS = 12_000;
+const WEI_PER_ETH = BigInt('1000000000000000000');
+const MAX_PRICE_WEI = BigInt(1000) * WEI_PER_ETH;
 
 function json(data: any, status = 200) {
   return NextResponse.json(data, {
@@ -77,8 +79,7 @@ async function verifiedOwner(contract: string, tokenId: string) {
 function ethToWei(value: string) {
   if (!PRICE_RE.test(value)) return null;
   const [whole, fraction = ''] = value.split('.');
-  const wei = BigInt(whole) * 10n ** 18n + BigInt((fraction + '0'.repeat(18)).slice(0, 18));
-  return wei;
+  return BigInt(whole) * WEI_PER_ETH + BigInt((fraction + '0'.repeat(18)).slice(0, 18));
 }
 
 function cleanOrderComponents(value: any) {
@@ -158,8 +159,8 @@ function validateOrderComponents(components: any, wallet: string, contract: stri
   if (String(offered.startAmount) !== '1' || String(offered.endAmount) !== '1') return 'The listing order quantity must be one NFT.';
   if (!Array.isArray(components.consideration) || !components.consideration.length) return 'The listing order does not contain a sale price.';
 
-  let startTotal = 0n;
-  let endTotal = 0n;
+  let startTotal = BigInt(0);
+  let endTotal = BigInt(0);
   try {
     for (const item of components.consideration) {
       if (Number(item.itemType) !== 0 || normalizeAddress(item.token) !== normalizeAddress(ZERO_ADDRESS)) {
@@ -172,8 +173,8 @@ function validateOrderComponents(components: any, wallet: string, contract: stri
   } catch {
     return 'The listing price returned by OpenSea is invalid.';
   }
-  if (startTotal <= 0n || endTotal <= 0n) return 'The listing price must be greater than zero.';
-  if (startTotal > 1000n * 10n ** 18n || endTotal > 1000n * 10n ** 18n) return 'The listing price is outside the allowed range.';
+  if (startTotal <= BigInt(0) || endTotal <= BigInt(0)) return 'The listing price must be greater than zero.';
+  if (startTotal > MAX_PRICE_WEI || endTotal > MAX_PRICE_WEI) return 'The listing price is outside the allowed range.';
   if (expectedPriceWei != null && (startTotal !== expectedPriceWei || endTotal !== expectedPriceWei)) {
     return 'OpenSea returned a listing price different from the price you entered.';
   }
@@ -227,7 +228,7 @@ export async function POST(request: Request) {
     const priceWei = ethToWei(priceEth);
     const durationDays = Math.floor(Number(body?.durationDays ?? 30));
     const useCreatorFee = body?.useCreatorFee !== false;
-    if (priceWei == null || priceWei <= 0n || priceWei > 1000n * 10n ** 18n) return json({ error: 'Enter a valid listing price greater than 0 and no more than 1000 ETH.' }, 400);
+    if (priceWei == null || priceWei <= BigInt(0) || priceWei > MAX_PRICE_WEI) return json({ error: 'Enter a valid listing price greater than 0 and no more than 1000 ETH.' }, 400);
     if (!Number.isFinite(durationDays) || durationDays < 1 || durationDays > 180) return json({ error: 'Listing duration must be between 1 and 180 days.' }, 400);
 
     const start = new Date();
