@@ -118,64 +118,50 @@ export default function StudioPage(){
    const d=await r.json(); if(!r.ok||!d.url) throw new Error(d.error||'Checkout unavailable'); location.href=d.url;
   }catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}
  }
+
  return <main className={styles.page}>
-  <nav>
+  <nav className={styles.nav}>
    <Brand/>
-   <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',justifyContent:'flex-end'}}>
-    <a href="#my-voxels" style={{textDecoration:'none',border:'1px solid rgba(17,24,39,.08)',borderRadius:999,padding:'9px 14px',fontWeight:800,color:'#111827',background:'#fff',boxShadow:'0 8px 24px rgba(15,23,42,.08)'}}>My Voxels{myVoxels.length?` · ${myVoxels.length}`:''}</a>
-    <span className={styles.price}><i/>$1.99 per 3D asset</span>
-   </div>
+   <div className={styles.navActions}><a href="#my-voxels">MY VOXELS{myVoxels.length?` · ${myVoxels.length}`:''}</a><span>$1.99</span></div>
   </nav>
 
-  <header>
-   <p className={styles.kicker}>✦ YOUR IDEA, MADE 3D ✦</p>
-   <h1>Your idea.<br/><em>Built in voxels.</em></h1>
-   <p className={styles.lead}>Type absolutely anything. See the voxel style, then create one real 3D asset for only $1.99.</p>
-  </header>
+  <section className={styles.shell}>
+   <header className={styles.hero}>
+    <p>3D VOXEL MAKER</p>
+    <h1>Describe it.<br/><em>Make it 3D.</em></h1>
+    <span>One idea → one downloadable 3D voxel.</span>
+   </header>
 
-  <section id="my-voxels" style={{maxWidth:980,margin:'14px auto 28px',padding:'24px',border:'1px solid #e5e7eb',borderRadius:24,background:'#fff',color:'#111827',boxShadow:'0 18px 50px rgba(15,23,42,.10)',scrollMarginTop:20}}>
-   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:16}}>
-    <div><small style={{fontWeight:900,letterSpacing:'.14em',color:'#6b7280'}}>MY VOXELS · PHONE + DESKTOP</small><h2 style={{margin:'5px 0 0',fontSize:'clamp(1.55rem,4vw,2.35rem)',color:'#111827'}}>Your paid creations</h2></div>
-    {session?.user?<div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',border:'1px solid #dbeafe',borderRadius:14,padding:'10px 12px',background:'#eff6ff'}}>
-      {userAvatar(session.user)?<img src={userAvatar(session.user)} alt="Google profile" style={{width:32,height:32,borderRadius:'50%'}}/>:<span aria-hidden="true" style={{width:32,height:32,borderRadius:'50%',display:'grid',placeItems:'center',background:'#fff',border:'1px solid #bfdbfe',fontWeight:900,color:'#2563eb'}}>G</span>}
-      <div><b style={{display:'block',fontSize:14,color:'#111827'}}>Google connected</b><small style={{color:'#475569'}}>{userName(session.user)}</small></div>
-      <button type="button" onClick={signOut} disabled={accountBusy} style={{border:'1px solid #cbd5e1',borderRadius:10,padding:'7px 10px',background:'#fff',color:'#334155',fontWeight:800,cursor:'pointer'}}>Sign out</button>
-     </div>:<button type="button" onClick={signInGoogle} disabled={accountBusy} style={{display:'flex',alignItems:'center',gap:10,border:'1px solid #d1d5db',borderRadius:14,padding:'10px 14px',background:'#fff',color:'#111827',boxShadow:'0 6px 18px rgba(15,23,42,.08)',fontWeight:900,cursor:accountBusy?'wait':'pointer'}}>
-      <span aria-hidden="true" style={{width:28,height:28,borderRadius:'50%',display:'grid',placeItems:'center',background:'#fff',border:'1px solid #e5e7eb',fontWeight:900,color:'#2563eb'}}>G</span>
-      {accountBusy?'Connecting…':'Continue with Google'}
-     </button>}
-   </div>
-   {accountStatus&&<div role="status" style={{margin:'0 0 16px',padding:'10px 12px',borderRadius:12,background:accountReady===false?'#fff7ed':'#f8fafc',border:`1px solid ${accountReady===false?'#fed7aa':'#e5e7eb'}`,fontSize:13,color:accountReady===false?'#9a3412':'#475569'}}>{accountStatus}</div>}
-   {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
-    {myVoxels.map(voxel=>{
+   <section className={styles.createCard}>
+    <label htmlFor="voxel-idea">What should we make?</label>
+    <textarea id="voxel-idea" value={idea} onChange={e=>changeIdea(e.target.value)} maxLength={300}/>
+    <div className={styles.createRow}><button type="button" className={styles.random} onClick={surprise}>RANDOM</button><button className={styles.create} onClick={create} disabled={busy}>{busy?'OPENING…':'CREATE · $1.99'}</button></div>
+    <small>Includes the image + downloadable 3D GLB. One-time payment.</small>
+    {error&&<p className={styles.error}>{error}</p>}
+   </section>
+
+   <section className={styles.accountCard}>
+    <div><small>SAVE ACROSS DEVICES</small><b>{session?.user?'Google connected':'Keep your voxels'}</b><span>{session?.user?userName(session.user):'Use Google to see paid voxels on phone + desktop.'}</span></div>
+    {session?.user?<div className={styles.accountActions}>{userAvatar(session.user)&&<img src={userAvatar(session.user)} alt="Google profile"/>}<button type="button" onClick={signOut} disabled={accountBusy}>SIGN OUT</button></div>:<button type="button" className={styles.google} onClick={signInGoogle} disabled={accountBusy}><span>G</span>{accountBusy?'CONNECTING…':'CONTINUE WITH GOOGLE'}</button>}
+   </section>
+   {accountStatus&&<div className={`${styles.accountStatus} ${accountReady===false?styles.accountError:''}`}>{accountStatus}</div>}
+
+   <section id="my-voxels" className={styles.library}>
+    <div className={styles.sectionHead}><div><small>MY VOXELS</small><h2>Your creations</h2></div><span>{myVoxels.length}</span></div>
+    {myVoxels.length>0?<div className={styles.voxelGrid}>{myVoxels.map(voxel=>{
      const ready=voxel.meshStatus==='ready';const minted=voxel.mint?.tokenId?voxel.mint:null;
      const assetHref=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;const mintHref=`/voxelflip/mint?session_id=${encodeURIComponent(voxel.sessionId)}`;const href=minted?mintHref:assetHref;
-     return <article key={voxel.sessionId} style={{overflow:'hidden',borderRadius:18,border:'1px solid #e5e7eb',background:'#f8fafc'}}>
-      <img src={voxel.image} alt={voxel.name.replaceAll('-',' ')} style={{width:'100%',height:190,display:'block',objectFit:'cover',background:'#f3f4f6'}}/>
-      <div style={{padding:14}}>
-       <small style={{fontWeight:900,letterSpacing:'.08em',color:minted?'#4d7c0f':'#6b7280'}}>{minted?`VOXELFLIP #${minted.tokenId} · MINTED`:ready?'3D READY':'PAID VOXEL'}</small>
-       <h3 style={{margin:'5px 0 12px',fontSize:18,textTransform:'capitalize',color:'#111827'}}>{voxel.name.replaceAll('-',' ')}</h3>
-       <a href={href} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'11px 12px',borderRadius:12,fontWeight:900,background:minted?'#365314':'#111827',color:'#fff'}}>{minted?`Open minted 3D · #${minted.tokenId}`:ready?'Open 3D voxel':'Continue voxel'}</a>
-       {minted?.openSeaUrl&&<a href={minted.openSeaUrl} target="_blank" rel="noreferrer" style={{display:'block',textAlign:'center',textDecoration:'none',padding:'9px 10px 0',fontSize:13,fontWeight:800,color:'#475569'}}>Open on OpenSea ↗</a>}
-      </div>
+     return <article className={styles.voxelCard} key={voxel.sessionId}>
+      <img src={voxel.image} alt={voxel.name.replaceAll('-',' ')}/>
+      <div><small>{minted?`VOXELFLIP #${minted.tokenId}`:ready?'3D READY':'PAID'}</small><b>{voxel.name.replaceAll('-',' ')}</b><a href={href}>{minted?'OPEN NFT':ready?'OPEN 3D':'CONTINUE'}</a>{minted?.openSeaUrl&&<a className={styles.openSea} href={minted.openSeaUrl} target="_blank" rel="noreferrer">OPENSEA ↗</a>}</div>
      </article>;
-    })}
-   </div>:<div style={{padding:'24px 18px',border:'1px dashed #d1d5db',borderRadius:16,textAlign:'center',background:'#f8fafc'}}><b style={{display:'block',fontSize:18,marginBottom:5,color:'#111827'}}>Your library is ready.</b><span style={{color:'#6b7280'}}>{session?.user?'Paid voxels saved to this Google account will appear here on every device.':'Continue with Google to make My Voxels follow you from your computer to your phone.'}</span></div>}
-  </section>
+    })}</div>:<div className={styles.empty}>{session?.user?'Your paid voxels will appear here.':'Connect Google or create your first voxel.'}</div>}
+   </section>
 
-  <section className={styles.card}>
-   <div className={styles.step}><span>1</span><div><h2>Describe anything</h2><p>If you can type it, VoxelPop can voxel it.</p></div></div>
-   <div className={styles.input}><textarea value={idea} onChange={e=>changeIdea(e.target.value)} maxLength={300}/><button onClick={surprise}>✦ Surprise me</button></div>
-   <div className={styles.checks}><span>✓ <b>One custom voxel</b></span><span>✓ <b>One-time $1.99 payment</b></span><span>✓ <b>3D GLB + image</b></span></div>
-   <button className={styles.cta} onClick={create} disabled={busy}>✦ {busy?'Opening checkout…':'Create my voxel · $1.99'}</button>
-   <small>{session?.user?'Signed in · paid creations sync to My Voxels across devices':'Sign in with Google above to keep paid creations in My Voxels across devices'}</small>{error&&<p className={styles.error}>{error}</p>}
+   <section className={styles.examples}>
+    <div className={styles.sectionHead}><div><small>EXAMPLES</small><h2>Anything works</h2></div></div>
+    <div>{examples.map(([src,name])=><figure key={src}><img src={src} alt={name}/><figcaption>{name}</figcaption></figure>)}</div>
+   </section>
   </section>
-  <section className={styles.preview}>
-   <div className={styles.previewHead}><div><small>STYLE PREVIEW</small><h2>{idea||'Your idea'}</h2></div><span>● EXAMPLES</span></div>
-   <div className={styles.gallery}>{examples.map(([src,name],i)=><figure key={src}><b>0{i+1}</b><img src={src} alt={name}/><figcaption>{name}</figcaption></figure>)}</div>
-   <div className={styles.empty}>{myVoxels.length?'✦ Your paid voxels are saved in My Voxels above.':'✦ Your paid voxel will appear in My Voxels after checkout.'}</div>
-  </section>
-  <section className={styles.facts}><div><b>Anything</b><span>prompted into voxels</span></div><div><b>1 voxel</b><span>created after payment</span></div><div><b>Real 3D</b><span>rotate, zoom & move</span></div><div><b>$1.99</b><span>one-time, per asset</span></div></section>
-  <footer><Brand/><p>One idea. One payment.<br/>One voxel you own.</p></footer>
  </main>
 }
