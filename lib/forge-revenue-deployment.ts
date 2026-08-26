@@ -7,6 +7,17 @@ const CONFIG_PATH = 'forge/revenue-deployment.json';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 
+// This deployment reached the persistence step only after the production
+// registration route had verified its Base runtime shape, EIP-712 domain,
+// owner, treasury, protected signer, launch fee, royalty, approved VoxelFlip
+// parent collection, pause state and interface support. Pin it in reviewed code
+// so production does not depend on optional Supabase admin credentials.
+const VERIFIED_PRODUCTION_ADDRESS = '0x34d7E9d8Cae07B61eb1f0c1dABD4876F2429cd3D';
+const VERIFIED_OWNER = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
+const VERIFIED_PARENT_COLLECTION = '0xa00758b05f96ef4409d97c3ffebb6794b2eafbde';
+const VERIFIED_FORGE_FEE_WEI = '1000000000000000'; // 0.001 ETH
+const VERIFIED_ROYALTY_BPS = 500;
+
 export type RevenueForgeDeployment = {
   chainId: 8453;
   network: 'base';
@@ -40,6 +51,23 @@ export function revenueForgeSigningWallet() {
     .update('VoxelForgeRevenue:v1')
     .digest('hex');
   return new Wallet(`0x${derivedHex}`);
+}
+
+function verifiedProductionFallback(): RevenueForgeDeployment {
+  return {
+    chainId: 8453,
+    network: 'base',
+    address: getAddress(VERIFIED_PRODUCTION_ADDRESS),
+    deploymentTxHash: '',
+    owner: getAddress(VERIFIED_OWNER),
+    forgeSigner: getAddress(revenueForgeSigningWallet().address),
+    treasury: getAddress(VERIFIED_OWNER),
+    parentCollection: getAddress(VERIFIED_PARENT_COLLECTION),
+    forgeFeeWei: VERIFIED_FORGE_FEE_WEI,
+    royaltyBps: VERIFIED_ROYALTY_BPS,
+    deployedAt: '',
+    registeredAt: '',
+  };
 }
 
 function validDeployment(value: any): value is RevenueForgeDeployment {
@@ -78,6 +106,20 @@ function normalizeDeployment(value: RevenueForgeDeployment): RevenueForgeDeploym
   };
 }
 
+function matchesVerifiedProduction(value: RevenueForgeDeployment) {
+  const expected = verifiedProductionFallback();
+  const actual = normalizeDeployment(value);
+  return (
+    actual.address === expected.address
+    && actual.owner === expected.owner
+    && actual.forgeSigner === expected.forgeSigner
+    && actual.treasury === expected.treasury
+    && actual.parentCollection === expected.parentCollection
+    && actual.forgeFeeWei === expected.forgeFeeWei
+    && actual.royaltyBps === expected.royaltyBps
+  );
+}
+
 async function ensureBucket() {
   const supabase = getSupabaseAdmin();
   const listed = await supabase.storage.listBuckets();
@@ -90,39 +132,59 @@ async function ensureBucket() {
 }
 
 export async function getRevenueForgeDeployment(): Promise<RevenueForgeDeployment | null> {
+  const fallback = verifiedProductionFallback();
   const envAddress = String(process.env.VOXELFORGE_REVENUE_ADDRESS || process.env.NEXT_PUBLIC_VOXELFORGE_REVENUE_ADDRESS || '').trim();
-  if (isAddress(envAddress)) {
-    try {
-      const supabase = await ensureBucket();
-      const downloaded = await supabase.storage.from(SYSTEM_BUCKET).download(CONFIG_PATH);
-      if (!downloaded.error && downloaded.data) {
-        const parsed = JSON.parse(await downloaded.data.text());
-        if (validDeployment(parsed) && getAddress(parsed.address) === getAddress(envAddress)) return normalizeDeployment(parsed);
-      }
-    } catch {}
+  if (isAddress(envAddress) && getAddress(envAddress) !== fallback.address) {
+    console.warn('Ignoring stale revenue Forge environment override; production is pinned to the reviewed Base deployment.', {
+      configuredAddress: getAddress(envAddress),
+      productionAddress: fallback.address,
+    });
   }
 
   try {
     const supabase = await ensureBucket();
     const downloaded = await supabase.storage.from(SYSTEM_BUCKET).download(CONFIG_PATH);
-    if (downloaded.error || !downloaded.data) return null;
-    const parsed = JSON.parse(await downloaded.data.text());
-    return validDeployment(parsed) ? normalizeDeployment(parsed) : null;
-  } catch {
-    return null;
+    if (!downloaded.error && downloaded.data) {
+      const parsed = JSON.parse(await downloaded.data.text());
+      if (validDeployment(parsed) && matchesVerifiedProduction(parsed)) {
+        const stored = normalizeDeployment(parsed);
+        return {
+          ...fallback,
+          deploymentTxHash: stored.deploymentTxHash || fallback.deploymentTxHash,
+          deployedAt: stored.deployedAt || fallback.deployedAt,
+          registeredAt: stored.registeredAt || fallback.registeredAt,
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('Revenue Forge deployment storage is unavailable; using the reviewed production deployment.', error);
   }
+
+  return fallback;
 }
 
 export async function saveRevenueForgeDeployment(value: RevenueForgeDeployment) {
   if (!validDeployment(value)) throw new Error('Invalid revenue Forge deployment record.');
   const normalized = normalizeDeployment(value);
-  const supabase = await ensureBucket();
-  const body = JSON.stringify(normalized, null, 2);
-  const uploaded = await supabase.storage.from(SYSTEM_BUCKET).upload(CONFIG_PATH, body, {
-    contentType: 'application/json',
-    cacheControl: '0',
-    upsert: true,
-  });
-  if (uploaded.error) throw uploaded.error;
+  if (!matchesVerifiedProduction(normalized)) {
+    throw new Error('Revenue Forge deployment does not match the reviewed Base production deployment.');
+  }
+
+  try {
+    const supabase = await ensureBucket();
+    const body = JSON.stringify(normalized, null, 2);
+    const uploaded = await supabase.storage.from(SYSTEM_BUCKET).upload(CONFIG_PATH, body, {
+      contentType: 'application/json',
+      cacheControl: '0',
+      upsert: true,
+    });
+    if (uploaded.error) throw uploaded.error;
+  } catch (error) {
+    // Persistence is optional because the deployment itself is now pinned in
+    // reviewed code. Do not turn missing Supabase admin credentials into a
+    // customer-facing activation failure.
+    console.warn('Revenue Forge deployment verified but optional Supabase persistence is unavailable.', error);
+  }
+
   return normalized;
 }
