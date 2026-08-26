@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'contracts/**'
+      - 'test/**'
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'package.json'
@@ -11,9 +12,11 @@ on:
   pull_request:
     paths:
       - 'contracts/**'
+      - 'test/**'
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'package.json'
+      - '.github/workflows/contracts.yml'
 
 jobs:
   compile:
@@ -25,3 +28,10 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run chain:compile
+      - run: npm run chain:test:forge
+      - name: Upload production Forge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxel-forge-revenue-artifact
+          path: artifacts/contracts/VoxelForgeRevenue.sol/VoxelForgeRevenue.json
+          if-no-files-found: error
