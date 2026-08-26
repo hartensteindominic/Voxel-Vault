@@ -34,3 +34,11 @@ jobs:
       - run: npm run test:solo-vault
       - run: npm run test:forge-launchpad
       - run: npm run test:forge-launchpad-bootstrap
+      - name: Export reviewed launchpad build inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-launchpad-build-inputs
+          retention-days: 1
+          path: |
+            package-lock.json
+            artifacts/contracts/launchpad/ForgeLaunchpadBootstrap.sol/ForgeLaunchpadBootstrap.json
