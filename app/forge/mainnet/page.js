@@ -129,6 +129,7 @@ export default function MainnetForgePage(){
 
       <section className={styles.panel}>
         <div className={styles.safety} style={{background:'rgba(255,183,77,.08)',borderColor:'rgba(255,183,77,.26)'}}><b style={{color:'#ffcf76'}}>REAL MONEY MODE</b><span>This page uses Base mainnet ETH, not Sepolia test ETH. Nothing is paid until MetaMask displays a transaction and you approve it.</span></div>
+        <div className={styles.safety} style={{marginTop:12,background:'rgba(190,255,55,.06)',borderColor:'rgba(190,255,55,.22)'}}><b>HOW FORGE REVENUE WORKS</b><span>A customer who completes a Forge pays the live contract fee (launch target: 0.001 ETH). That ETH accrues inside the Forge contract and can be withdrawn only by the Forge owner to the configured treasury. Forging from your own owner wallet is useful as a test, but it is not new outside revenue. The 5% ERC-2981 royalty is a royalty request for marketplaces that honor it; secondary-sale royalty payment is not guaranteed.</span></div>
         <div className={styles.row}><div><small>CONNECTED WALLET</small><b>{wallet||'Not connected'}</b></div><button onClick={connect} disabled={busy}>{wallet?'RECONNECT':'CONNECT METAMASK'}</button></div>
         <button className={styles.primary} onClick={()=>wallet?loadAssets():connect()} disabled={busy}>{busy?'WORKING…':wallet?'LOAD VERIFIED VOXELFLIP NFTS':'CONNECT TO START'}</button>
         {status&&<div className={styles.notice}><b>STATUS</b><span>{status}</span></div>}
