@@ -37,28 +37,94 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs = 6_000): Promise<T
   try {
     return await Promise.race([
       promise,
-      new Promise<T>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Base RPC timed out.')), timeoutMs); }),
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Base RPC timed out.')), timeoutMs);
+      }),
     ]);
   } finally {
     if (timer) clearTimeout(timer);
   }
 }
 
-async function providerForBase() {
+type VerifiedDeployment = {
+  forgeSigner: string;
+  treasury: string;
+  feeWei: bigint;
+  royaltyBps: number;
+  deployedAt: string;
+};
+
+async function verifyAcrossBaseProviders(params: {
+  address: string;
+  txHash: string;
+  approvedOwner: string;
+  parentCollection: string;
+  expectedSigner: string;
+}): Promise<VerifiedDeployment> {
+  let lastError = 'No Base RPC completed the verification.';
+
   for (const url of rpcCandidates()) {
     const provider = new JsonRpcProvider(url, BASE_CHAIN_ID, { staticNetwork: true });
     try {
       await withTimeout(provider.getBlockNumber(), 4_000);
-      return provider;
-    } catch {
+
+      const [receipt, tx, code] = await withTimeout(Promise.all([
+        provider.getTransactionReceipt(params.txHash),
+        provider.getTransaction(params.txHash),
+        provider.getCode(params.address),
+      ]), 10_000);
+
+      if (!receipt || receipt.status !== 1 || !receipt.contractAddress) {
+        throw new Error('The Base deployment transaction is not confirmed successfully.');
+      }
+      if (getAddress(receipt.contractAddress) !== params.address) {
+        throw new Error('Deployment transaction does not match the submitted Forge address.');
+      }
+      if (!tx || getAddress(tx.from) !== params.approvedOwner) {
+        throw new Error('The Forge was not deployed by the reviewed owner wallet.');
+      }
+      if (!code || code === '0x') {
+        throw new Error('No contract bytecode exists at the submitted Base address.');
+      }
+
+      const forge = new Contract(params.address, FORGE_ABI, provider);
+      // Read getters individually. Some public Base RPCs intermittently fail one
+      // eth_call while accepting others; a failed provider is retried as a whole.
+      const owner = getAddress(await withTimeout(forge.owner(), 6_000));
+      const forgeSigner = getAddress(await withTimeout(forge.forgeSigner(), 6_000));
+      const treasury = getAddress(await withTimeout(forge.treasury(), 6_000));
+      const feeWei = BigInt(await withTimeout(forge.forgeFee(), 6_000));
+      const royaltyBps = Number(await withTimeout(forge.royaltyBps(), 6_000));
+      const parentApproved = Boolean(await withTimeout(forge.approvedParentCollections(params.parentCollection), 6_000));
+      const paused = Boolean(await withTimeout(forge.paused(), 6_000));
+
+      if (owner !== params.approvedOwner) throw new Error('Production Forge owner does not match the reviewed VoxelFlip owner.');
+      if (treasury !== params.approvedOwner) throw new Error('Production Forge treasury does not match the reviewed owner wallet.');
+      if (forgeSigner !== params.expectedSigner) throw new Error('Production Forge signer does not match the protected Forge signer.');
+      if (feeWei !== LAUNCH_FEE) throw new Error('Production Forge launch fee is not 0.001 ETH.');
+      if (royaltyBps !== LAUNCH_ROYALTY_BPS) throw new Error('Production Forge royalty is not the reviewed 500 bps.');
+      if (!parentApproved) throw new Error('The reviewed VoxelFlip Base collection is not approved as a parent collection.');
+      if (paused) throw new Error('The newly deployed production Forge is unexpectedly paused.');
+
+      const block = await withTimeout(provider.getBlock(receipt.blockNumber), 6_000).catch(() => null);
+      return {
+        forgeSigner,
+        treasury,
+        feeWei,
+        royaltyBps,
+        deployedAt: block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : '',
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error || 'Base verification failed.');
+    } finally {
       provider.destroy();
     }
   }
-  throw new Error('No Base RPC is available to verify the deployment.');
+
+  throw new Error(`Could not verify the existing Base Forge yet. ${lastError}`);
 }
 
 export async function POST(request: Request) {
-  let provider: JsonRpcProvider | null = null;
   try {
     const body = await request.json();
     const walletRaw = String(body?.wallet || '').trim();
@@ -76,51 +142,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Only the reviewed VoxelFlip owner wallet can register the production revenue Forge.' }, { status: 403 });
     }
 
-    provider = await providerForBase();
-    const [receipt, tx] = await withTimeout(Promise.all([
-      provider.getTransactionReceipt(txHash),
-      provider.getTransaction(txHash),
-    ]), 8_000);
-    if (!receipt || receipt.status !== 1 || !receipt.contractAddress) throw new Error('The Base deployment transaction is not confirmed successfully.');
-    if (getAddress(receipt.contractAddress) !== address) throw new Error('Deployment transaction does not match the submitted Forge address.');
-    if (!tx || getAddress(tx.from) !== approvedOwner) throw new Error('The Forge was not deployed by the reviewed owner wallet.');
+    const expectedSigner = getAddress(revenueForgeSigningWallet().address);
+    const verified = await verifyAcrossBaseProviders({
+      address,
+      txHash,
+      approvedOwner,
+      parentCollection: getAddress(parent.address),
+      expectedSigner,
+    });
 
-    const code = await withTimeout(provider.getCode(address));
-    if (!code || code === '0x') throw new Error('No contract bytecode exists at the submitted Base address.');
-
-    const forge = new Contract(address, FORGE_ABI, provider);
-    const [owner, forgeSigner, treasury, feeWei, royaltyBps, parentApproved, paused] = await withTimeout(Promise.all([
-      forge.owner(),
-      forge.forgeSigner(),
-      forge.treasury(),
-      forge.forgeFee(),
-      forge.royaltyBps(),
-      forge.approvedParentCollections(parent.address),
-      forge.paused(),
-    ]), 8_000);
-
-    const expectedSigner = revenueForgeSigningWallet().address;
-    if (getAddress(owner) !== approvedOwner) throw new Error('Production Forge owner does not match the reviewed VoxelFlip owner.');
-    if (getAddress(treasury) !== approvedOwner) throw new Error('Production Forge treasury does not match the reviewed owner wallet.');
-    if (getAddress(forgeSigner) !== getAddress(expectedSigner)) throw new Error('Production Forge signer does not match the protected server-derived signer.');
-    if (BigInt(feeWei) !== LAUNCH_FEE) throw new Error('Production Forge launch fee is not 0.001 ETH.');
-    if (Number(royaltyBps) !== LAUNCH_ROYALTY_BPS) throw new Error('Production Forge royalty is not the reviewed 500 bps.');
-    if (!parentApproved) throw new Error('The reviewed VoxelFlip Base collection is not approved as a parent collection.');
-    if (paused) throw new Error('The newly deployed production Forge is unexpectedly paused.');
-
-    const block = await withTimeout(provider.getBlock(receipt.blockNumber)).catch(() => null);
     const record = await saveRevenueForgeDeployment({
       chainId: 8453,
       network: 'base',
       address,
       deploymentTxHash: txHash,
       owner: approvedOwner,
-      forgeSigner: getAddress(forgeSigner),
-      treasury: getAddress(treasury),
+      forgeSigner: verified.forgeSigner,
+      treasury: verified.treasury,
       parentCollection: getAddress(parent.address),
-      forgeFeeWei: BigInt(feeWei).toString(),
-      royaltyBps: Number(royaltyBps),
-      deployedAt: block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : '',
+      forgeFeeWei: verified.feeWei.toString(),
+      royaltyBps: verified.royaltyBps,
+      deployedAt: verified.deployedAt,
       registeredAt: new Date().toISOString(),
     });
 
@@ -128,7 +170,5 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Revenue Forge registration failed', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not verify/register the Base revenue Forge.' }, { status: 400 });
-  } finally {
-    provider?.destroy();
   }
 }
