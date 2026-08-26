@@ -5,6 +5,11 @@ on:
     branches:
       - experiment/voxelflip-forge-v1
     paths:
+      - 'contracts/VoxelForgeAtomic.sol'
+      - 'contracts/mocks/MockVoxelFlipParent.sol'
+      - 'contracts/mocks/VoxelForgeTestDeployer.sol'
+      - 'hardhat.config.js'
+      - 'package.json'
       - '.github/workflows/forge-web-artifacts.yml'
 
 permissions:
@@ -26,6 +31,7 @@ jobs:
           mkdir -p forge-web-artifacts
           cp artifacts/contracts/VoxelForgeAtomic.sol/VoxelForgeAtomic.json forge-web-artifacts/VoxelForgeAtomic.json
           cp artifacts/contracts/mocks/MockVoxelFlipParent.sol/MockVoxelFlipParent.json forge-web-artifacts/MockVoxelFlipParent.json
+          cp artifacts/contracts/mocks/VoxelForgeTestDeployer.sol/VoxelForgeTestDeployer.json forge-web-artifacts/VoxelForgeTestDeployer.json
       - uses: actions/upload-artifact@v4
         with:
           name: voxelforge-web-artifacts
