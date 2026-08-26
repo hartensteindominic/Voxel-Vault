@@ -23,7 +23,7 @@ on:
       - '.github/workflows/contracts.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   compile-and-test:
@@ -33,32 +33,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: npm run chain:compile
       - run: node scripts/export-forge-launchpad-browser-artifact.js
+      - name: Verify committed browser artifact
+        run: git diff --exit-code -- lib/forge-launchpad-bootstrap-artifact.js
       - run: npm run test:forge
       - run: npm run test:solo-vault
       - run: npm run test:forge-launchpad
       - run: npm run test:forge-launchpad-bootstrap
-      - name: Export reviewed launchpad build inputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: forge-launchpad-build-inputs
-          retention-days: 1
-          path: |
-            package-lock.json
-            lib/forge-launchpad-bootstrap-artifact.js
-            artifacts/contracts/launchpad/ForgeLaunchpadBootstrap.sol/ForgeLaunchpadBootstrap.json
-      - name: Commit regenerated lockfile and browser artifact
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          if git diff --quiet -- package-lock.json lib/forge-launchpad-bootstrap-artifact.js; then
-            echo 'Generated files already match.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package-lock.json lib/forge-launchpad-bootstrap-artifact.js
-          git commit -m 'Refresh Forge launchpad generated inputs'
-          git push origin HEAD:${GITHUB_REF_NAME}
