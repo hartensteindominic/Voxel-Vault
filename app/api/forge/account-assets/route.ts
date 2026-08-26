@@ -7,9 +7,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
-const MAX_STRIPE_PAGES = 5;
-const MAX_MATCHES = 30;
+const MAX_STRIPE_PAGES = 50;
+const MAX_MATCHES = 100;
 const PROVIDER_TIMEOUT_MS = 7_000;
+const RECOVERY_BUDGET_MS = 42_000;
+const MESH_CONCURRENCY = 6;
 
 function bearerToken(request: Request) {
   const header = request.headers.get('authorization') || '';
@@ -19,6 +21,11 @@ function bearerToken(request: Request) {
 
 function normalizeEmail(value: unknown) {
   return String(value || '').trim().toLowerCase();
+}
+
+function addEmail(set: Set<string>, value: unknown) {
+  const email = normalizeEmail(value);
+  if (email && email.includes('@')) set.add(email);
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -35,53 +42,112 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
-async function sessionEmail(session: any) {
-  const inline = normalizeEmail(session?.customer_details?.email || session?.customer_email || '');
-  if (inline) return inline;
-  try {
-    const full = await stripe.checkout.sessions.retrieve(String(session.id));
-    return normalizeEmail(full.customer_details?.email || full.customer_email || '');
-  } catch {
-    return '';
-  }
+function inlineSessionEmails(session: any) {
+  const emails = new Set<string>();
+  addEmail(emails, session?.customer_details?.email);
+  addEmail(emails, session?.customer_email);
+  addEmail(emails, session?.customer?.email);
+  addEmail(emails, session?.payment_intent?.receipt_email);
+  addEmail(emails, session?.payment_intent?.latest_charge?.billing_details?.email);
+  return emails;
 }
 
-async function matchingPaidSessions(email: string) {
+async function expandedSessionEmails(sessionId: string) {
+  const emails = new Set<string>();
+  try {
+    const full: any = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['customer', 'payment_intent.latest_charge'],
+    });
+    for (const email of inlineSessionEmails(full)) emails.add(email);
+  } catch {}
+  return emails;
+}
+
+async function sessionIdentityMatch(session: any, userId: string, email: string) {
+  const linkedUserId = String(session?.metadata?.voxelpop_user_id || '').trim();
+  if (linkedUserId && linkedUserId === userId) return { matched: true, source: 'verified-user-id' };
+
+  const inline = inlineSessionEmails(session);
+  if (inline.has(email)) return { matched: true, source: 'checkout-email' };
+
+  const expanded = await expandedSessionEmails(String(session.id || ''));
+  if (expanded.has(email)) return { matched: true, source: 'payment-email' };
+
+  return { matched: false, source: '' };
+}
+
+type RecoveryDiagnostics = {
+  pagesScanned: number;
+  checkoutSessionsScanned: number;
+  paidVoxelSessionsScanned: number;
+  identityCandidatesChecked: number;
+  matchedByUserId: number;
+  matchedByEmail: number;
+  stoppedByTimeBudget: boolean;
+};
+
+async function matchingPaidSessions(userId: string, email: string) {
   const matches: any[] = [];
   let startingAfter = '';
+  const startedAt = Date.now();
+  const diagnostics: RecoveryDiagnostics = {
+    pagesScanned: 0,
+    checkoutSessionsScanned: 0,
+    paidVoxelSessionsScanned: 0,
+    identityCandidatesChecked: 0,
+    matchedByUserId: 0,
+    matchedByEmail: 0,
+    stoppedByTimeBudget: false,
+  };
 
   for (let page = 0; page < MAX_STRIPE_PAGES && matches.length < MAX_MATCHES; page += 1) {
+    if (Date.now() - startedAt > RECOVERY_BUDGET_MS) {
+      diagnostics.stoppedByTimeBudget = true;
+      break;
+    }
+
     const listed = await stripe.checkout.sessions.list({
       limit: 100,
       status: 'complete',
       ...(startingAfter ? { starting_after: startingAfter } : {}),
     });
 
+    diagnostics.pagesScanned += 1;
+    diagnostics.checkoutSessionsScanned += listed.data.length;
+
     const candidates = listed.data.filter(session => (
       session.payment_status === 'paid'
       && session.metadata?.product === 'voxelpop-3d-asset'
       && Boolean(session.metadata?.mesh_task_0)
     ));
+    diagnostics.paidVoxelSessionsScanned += candidates.length;
 
     for (const session of candidates) {
       if (matches.length >= MAX_MATCHES) break;
-      const paidEmail = await sessionEmail(session);
-      if (paidEmail && paidEmail === email) matches.push(session);
+      if (Date.now() - startedAt > RECOVERY_BUDGET_MS) {
+        diagnostics.stoppedByTimeBudget = true;
+        break;
+      }
+      diagnostics.identityCandidatesChecked += 1;
+      const identity = await sessionIdentityMatch(session, userId, email);
+      if (!identity.matched) continue;
+      matches.push(session);
+      if (identity.source === 'verified-user-id') diagnostics.matchedByUserId += 1;
+      else diagnostics.matchedByEmail += 1;
     }
 
-    if (!listed.has_more || !listed.data.length) break;
+    if (diagnostics.stoppedByTimeBudget || !listed.has_more || !listed.data.length) break;
     startingAfter = String(listed.data[listed.data.length - 1]?.id || '');
     if (!startingAfter) break;
   }
 
-  return matches;
+  return { matches, diagnostics };
 }
 
 async function meshRecord(session: any, apiKey: string) {
   const taskId = String(session.metadata?.mesh_task_0 || '').trim();
   if (!taskId) return null;
 
-  let data: any = null;
   let status = 'unknown';
   let modelUrl = '';
   let thumbnailUrl = '';
@@ -94,7 +160,7 @@ async function meshRecord(session: any, apiKey: string) {
         headers: { Authorization: `Bearer ${apiKey}` },
         cache: 'no-store',
       }), PROVIDER_TIMEOUT_MS);
-      data = await response.json().catch(() => ({}));
+      const data: any = await response.json().catch(() => ({}));
       if (response.ok) {
         const providerStatus = String(data?.status || '').toUpperCase();
         modelUrl = typeof data?.model_urls?.glb === 'string' ? data.model_urls.glb : '';
@@ -121,16 +187,16 @@ async function meshRecord(session: any, apiKey: string) {
   const owner = String(session.metadata?.voxelflip_wallet || '').trim();
   const txHash = String(session.metadata?.voxelflip_tx_hash || '').trim();
   const metadataUrl = String(session.metadata?.voxelflip_metadata_url || '').trim();
+  const contract = String(session.metadata?.voxelflip_contract || '').trim();
 
-  // Use the same authenticated paid-session mesh proxy for the GLB so a recovered
-  // library record does not depend on a temporary third-party model URL.
   const stableModelUrl = status === 'ready'
     ? `/api/creator-pack/mesh?${new URLSearchParams({ sessionId, taskId, preview: '1' }).toString()}`
     : '';
+  const updatedAt = new Date(Number(session.created || 0) * 1000 || Date.now()).toISOString();
 
   return {
     sessionId,
-    updatedAt: new Date(Number(session.created || 0) * 1000 || Date.now()).toISOString(),
+    updatedAt,
     payload: {
       asset: {
         name,
@@ -150,13 +216,29 @@ async function meshRecord(session: any, apiKey: string) {
           hash: txHash,
           txHash,
           metadataUrl,
+          ...(contract ? { contract, contractAddress: contract } : {}),
         },
       } : {}),
       generationsLeft: 0,
       idea,
-      updatedAt: new Date(Number(session.created || 0) * 1000 || Date.now()).toISOString(),
+      updatedAt,
     },
   };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  async function run() {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length || 1) }, () => run()));
+  return results;
 }
 
 export async function GET(request: Request) {
@@ -178,14 +260,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const sessions = await matchingPaidSessions(email);
+    const { matches: sessions, diagnostics } = await matchingPaidSessions(user.id, email);
     const apiKey = String(process.env.MESHY_API_KEY || '').trim();
-    const records = (await Promise.all(sessions.map(session => meshRecord(session, apiKey)))).filter(Boolean);
+    const records = (await mapWithConcurrency(sessions, MESH_CONCURRENCY, session => meshRecord(session, apiKey))).filter(Boolean);
+    const nonMintedReady = records.filter((record: any) => record?.payload?.mesh?.status === 'ready' && !record?.payload?.mint?.tokenId).length;
+    const minted = records.filter((record: any) => Boolean(record?.payload?.mint?.tokenId)).length;
+
     return NextResponse.json({
       recovered: records.length,
+      nonMintedReady,
+      minted,
       records,
       signedIn: true,
       meshStatusRefreshed: Boolean(apiKey),
+      diagnostics,
       safety: 'Read-only account recovery. This does not mint, transfer, approve, list, burn, or sign any NFT transaction.',
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
