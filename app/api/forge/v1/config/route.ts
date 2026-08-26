@@ -38,7 +38,9 @@ export async function GET(request: Request) {
         verifyParents: true,
         previewDescendant: true,
         quote: true,
+        prepareVoucherDraft: true,
         authorizationDiscovery: true,
+        signForgeVoucher: false,
         createIntent: false,
         executeIntent: false,
         delegatedExecution: false,
@@ -48,6 +50,7 @@ export async function GET(request: Request) {
       },
       safety: {
         executionEnabled: false,
+        signingEnabled: false,
         arbitraryCallsAllowed: false,
         privateKeysAccepted: false,
         parentCount: 3,
@@ -60,9 +63,10 @@ export async function GET(request: Request) {
         verify: `${origin}/api/forge/v1/verify`,
         preview: `${origin}/api/forge/v1/preview`,
         quote: `${origin}/api/forge/v1/quote`,
+        prepare: `${origin}/api/forge/v1/prepare`,
         authorization: `${origin}/api/forge/v1/authorization`,
       },
-      notice: 'VoxelForge agent discovery and authorization-schema discovery are live in read-only mode. State-changing execution and EIP-7702 delegation remain disabled until the atomic 3-to-1 Forge path and delegate contract are reviewed and deployed.',
+      notice: 'VoxelForge verification, deterministic preview, quote, voucher-draft preparation, and authorization-schema discovery are live in read-only mode. Voucher signing, state-changing execution, and EIP-7702 delegation remain disabled until the atomic 3-to-1 Forge path is proven against deployed VoxelFlip bytecode and the Forge contract is reviewed and deployed.',
     });
   } catch (error) {
     console.error('VoxelForge config failed', error);
