@@ -78,7 +78,11 @@ function displayAsset(asset){
     animationUrl:ipfsToHttp(asset.animationUrl||parsed.animation_url||parsed.animationUrl||''),
   };
 }
-async function loadMy3DVoxels(){
+function meshReady(payload){
+  const mesh=payload?.mesh||{};
+  return String(mesh.status||'').toLowerCase()==='ready'||Boolean(String(mesh.modelUrl||'').trim())||Number(mesh.progress||0)>=100;
+}
+async function loadMyVoxels(){
   const local=readLocalVoxelRecords();
   let cloud=[];
   try{
@@ -86,23 +90,25 @@ async function loadMy3DVoxels(){
     const {data}=await supabase.auth.getSession();
     if(data.session?.user)cloud=await loadAccountVoxels(supabase,data.session.user);
   }catch{}
-  return mergeVoxelRecords(cloud,local)
-    .filter(record=>String(record.payload?.mesh?.status||'').toLowerCase()==='ready')
-    .map(record=>{
-      const payload=record.payload||{};
-      const mint=payload.mint||{};
-      return {
-        key:`library:${record.sessionId}`,
-        sessionId:record.sessionId,
-        tokenId:mint.tokenId==null?'':String(mint.tokenId),
-        name:String(payload.asset?.name||'Your voxel').replaceAll('-',' '),
-        imageUrl:String(payload.asset?.dataUrl||''),
-        animationUrl:String(payload.mesh?.modelUrl||''),
-        mintOwner:String(mint.owner||''),
-        openSeaUrl:String(mint.openSeaUrl||''),
-        library3d:true,
-      };
-    });
+  return mergeVoxelRecords(cloud,local).map(record=>{
+    const payload=record.payload||{};
+    const mint=payload.mint||{};
+    const ready=meshReady(payload);
+    return {
+      key:`library:${record.sessionId}`,
+      sessionId:record.sessionId,
+      tokenId:mint.tokenId==null?'':String(mint.tokenId),
+      name:String(payload.asset?.name||'Your voxel').replaceAll('-',' '),
+      imageUrl:String(payload.asset?.dataUrl||''),
+      animationUrl:String(payload.mesh?.modelUrl||''),
+      mintOwner:String(mint.owner||''),
+      openSeaUrl:String(mint.openSeaUrl||''),
+      libraryRecord:true,
+      library3d:ready,
+      meshStatus:String(payload.mesh?.status||'idle'),
+      meshProgress:Number(payload.mesh?.progress||0),
+    };
+  });
 }
 function mergeLibraryAndChain(library,chainAssets){
   const chainByToken=new Map(chainAssets.map(asset=>[String(asset.tokenId),displayAsset({...asset,key:`nft:${asset.tokenId}`,selectable:true})]));
@@ -110,10 +116,31 @@ function mergeLibraryAndChain(library,chainAssets){
   for(const item of library){
     const chain=item.tokenId?chainByToken.get(String(item.tokenId)):null;
     if(chain){
-      const joined={...chain,key:`nft:${chain.tokenId}`,name:item.name||chain.name,imageUrl:item.imageUrl||chain.imageUrl,animationUrl:item.animationUrl||chain.animationUrl,sessionId:item.sessionId,library3d:true,selectable:true};
-      merged.set(joined.key,joined);chainByToken.delete(String(item.tokenId));
+      const joined={
+        ...chain,
+        key:`nft:${chain.tokenId}`,
+        name:item.name||chain.name,
+        imageUrl:item.imageUrl||chain.imageUrl,
+        animationUrl:item.animationUrl||chain.animationUrl,
+        sessionId:item.sessionId,
+        libraryRecord:true,
+        library3d:item.library3d||Boolean(chain.animationUrl),
+        meshStatus:item.meshStatus,
+        meshProgress:item.meshProgress,
+        selectable:true,
+      };
+      merged.set(joined.key,joined);
+      chainByToken.delete(String(item.tokenId));
     }else{
-      merged.set(item.key,{...item,selectable:false,tokenURI:'',contract:'',description:'3D-ready VoxelPop asset. Link or recover its Base VoxelFlip NFT before using it as a Forge parent.'});
+      merged.set(item.key,{
+        ...item,
+        selectable:false,
+        tokenURI:'',
+        contract:'',
+        description:item.library3d
+          ?'3D-ready VoxelPop asset. Link or recover its Base VoxelFlip NFT before using it as a Forge parent.'
+          :'Saved VoxelPop asset. Finish its 3D mesh before minting or forging.',
+      });
     }
   }
   for(const chain of chainByToken.values())merged.set(chain.key,chain);
@@ -173,7 +200,8 @@ export default function RealVoxelForgePage(){
 
   const selected=useMemo(()=>selectedIds.map(id=>assets.find(asset=>asset.key===id)).filter(Boolean),[selectedIds,assets]);
   const selectableCount=useMemo(()=>assets.filter(asset=>asset.selectable).length,[assets]);
-  const libraryCount=useMemo(()=>assets.filter(asset=>asset.library3d).length,[assets]);
+  const savedCount=useMemo(()=>assets.filter(asset=>asset.libraryRecord).length,[assets]);
+  const readyCount=useMemo(()=>assets.filter(asset=>asset.libraryRecord&&asset.library3d).length,[assets]);
   const stage=rare?5:imported.length===3?4:selected.length===3?3:assets.length?2:wallet?1:0;
 
   async function connect(){
@@ -182,23 +210,38 @@ export default function RealVoxelForgePage(){
       const injected=await discoverMetaMaskProvider();
       if(!injected){const deepLink=getMetaMaskDeepLink(window.location.href);const noProvider=new Error('Open this page inside MetaMask Mobile or another injected wallet.');noProvider.deepLink=deepLink;throw noProvider;}
       const accounts=await injected.request({method:'eth_requestAccounts'});if(!accounts?.[0])throw new Error('Wallet connection was cancelled.');
-      const address=getAddress(accounts[0]);setProvider(injected);setWallet(address);setStatus('Wallet connected. Step 1: load My Voxels and verify this wallet’s real VoxelFlip NFTs on Base. This scan is read-only.');
+      const address=getAddress(accounts[0]);setProvider(injected);setWallet(address);setStatus('Wallet connected. Step 1: load My Voxels first, then verify this wallet’s real VoxelFlip NFTs on Base. The scan is read-only.');
     }catch(e){if(e?.deepLink){window.location.href=e.deepLink;return}setError(errorText(e));setStatus('')}
     finally{setBusy(false)}
   }
 
   async function scanAssets(){
-    setBusy(true);setError('');setAssets([]);setSelectedIds([]);setImported([]);setRare(null);setCloneVerified(false);
+    setBusy(true);setError('');setAssets([]);setSelectedIds([]);setImported([]);setRare(null);setCloneVerified(false);setScanInfo(null);
     try{
       if(!wallet)throw new Error('Connect MetaMask first.');
-      setStatus('Loading your 3D-ready My Voxels and independently verifying your production VoxelFlip NFTs on Base. No transaction is being requested.');
-      const libraryPromise=loadMy3DVoxels();
-      const response=await fetch(`/api/forge/owned-assets?${new URLSearchParams({wallet})}`,{cache:'no-store'});const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Could not scan your VoxelFlip NFTs.');
-      const library=await libraryPromise;const chain=Array.isArray(data.nfts)?data.nfts.map(displayAsset):[];const combined=mergeLibraryAndChain(library,chain);const eligible=combined.filter(asset=>asset.selectable).length;
-      setAssets(combined);setScanInfo({...data,libraryCount:library.length,eligibleCount:eligible,totalShown:combined.length});
-      if(eligible>=3)setStatus(`Showing ${combined.length} 3D/NFT asset${combined.length===1?'':'s'}; ${eligible} confirmed wallet-owned VoxelFlip NFTs are selectable. Step 2: choose exactly 3.`);
-      else setStatus(`Showing ${combined.length} of your 3D/NFT asset${combined.length===1?'':'s'}. ${eligible} confirmed VoxelFlip NFT${eligible===1?' is':'s are'} selectable; 3 are required for the Forge test.`);
+      setStatus('Loading your saved My Voxels first…');
+      const library=await loadMyVoxels();
+      const localDisplay=mergeLibraryAndChain(library,[]);
+      setAssets(localDisplay);
+      setScanInfo({libraryLoaded:true,libraryCount:library.length,eligibleCount:0,totalShown:localDisplay.length,sourceWarning:null});
+      setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'}. Now checking Base ownership; your library stays visible even if that scan is slow.`);
+
+      try{
+        const response=await fetch(`/api/forge/owned-assets?${new URLSearchParams({wallet})}`,{cache:'no-store'});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Could not scan your VoxelFlip NFTs.');
+        const chain=Array.isArray(data.nfts)?data.nfts.map(displayAsset):[];
+        const combined=mergeLibraryAndChain(library,chain);
+        const eligible=combined.filter(asset=>asset.selectable).length;
+        const ready=combined.filter(asset=>asset.libraryRecord&&asset.library3d).length;
+        setAssets(combined);
+        setScanInfo({...data,libraryLoaded:true,libraryCount:library.length,readyCount:ready,eligibleCount:eligible,totalShown:combined.length});
+        if(eligible>=3)setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'} (${ready} 3D ready) and verified ${eligible} wallet-owned VoxelFlip NFTs. Step 2: choose exactly 3 REAL BASE NFT cards.`);
+        else setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'} (${ready} 3D ready). ${eligible} confirmed VoxelFlip NFT${eligible===1?' is':'s are'} selectable; 3 are required for the Forge test.`);
+      }catch(scanError){
+        setScanInfo(current=>({...current,sourceWarning:`Base NFT verification is temporarily unavailable: ${errorText(scanError)} Your saved My Voxels are still shown below.`}));
+        setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'}. Base NFT verification did not finish, but it no longer hides your library.`);
+      }
     }catch(e){setError(errorText(e));setStatus('')}
     finally{setBusy(false)}
   }
@@ -249,17 +292,17 @@ export default function RealVoxelForgePage(){
   return <main className={styles.page}>
     <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>REAL VOXELS → TEST FORGE</em></nav>
     <div className={styles.shell}>
-      <header className={styles.hero}><p>GUIDED REAL-ASSET LINEAGE TEST</p><h1>Pick 3 real voxels.<br/><em>Forge a Rare.</em></h1><span>This live-domain selector shows your 3D-ready My Voxels library plus your verified Base VoxelFlip NFTs. Only confirmed wallet-owned VoxelFlip NFTs can be selected for the 3→1 test; unlinked 3D voxels remain visible and are marked for mint/recovery.</span></header>
-      <div className={styles.steps}>{[['1','SCAN'],['2','SELECT 3'],['3','IMPORT COPIES'],['4','SIGN + FORGE'],['5','RARE READY']].map(([number,label],index)=><div key={number} className={`${styles.step} ${stage===index?styles.active:''} ${stage>index?styles.done:''}`}><small>{stage>index?'✓':number}</small><b>{label}</b></div>)}</div>
+      <header className={styles.hero}><p>GUIDED REAL-ASSET LINEAGE TEST</p><h1>Pick 3 real voxels.<br/><em>Forge a Rare.</em></h1><span>This selector shows your full saved My Voxels library first, then verifies Base VoxelFlip ownership. Non-minted voxels no longer disappear. Only confirmed wallet-owned VoxelFlip NFTs can be selected for the 3→1 test.</span></header>
+      <div className={styles.steps}>{[['1','LOAD'],['2','SELECT 3'],['3','IMPORT COPIES'],['4','SIGN + FORGE'],['5','RARE READY']].map(([number,label],index)=><div key={number} className={`${styles.step} ${stage===index?styles.active:''} ${stage>index?styles.done:''}`}><small>{stage>index?'✓':number}</small><b>{label}</b></div>)}</div>
       <section className={styles.panel}>
         <div className={styles.row}><div><small>WALLET</small><b>{wallet?short(wallet):'Not connected'}</b>{balanceEth&&<span>{Number(balanceEth).toFixed(5)} Base Sepolia ETH</span>}</div><button onClick={connect} disabled={busy}>{wallet?'RECONNECT':'CONNECT METAMASK'}</button></div>
         <div className={styles.safety}><b>Your Base mainnet NFTs are read-only here.</b><span>The browser never calls approve, transferFrom, safeTransferFrom, burn, list, or sign against the production VoxelFlip contract. The only write contract used below is your Base Sepolia Forge clone.</span></div>
-        <div className={styles.sectionHead}><small>STEP 1 · LOAD MY 3D VOXELS + VERIFY NFTS</small><h2>See the whole library.</h2><p>We load 3D-ready My Voxels from this browser and your signed-in Google-backed VoxelPop library, then independently verify which VoxelFlip NFTs this wallet actually owns on Base.</p></div>
-        <button className={styles.primary} onClick={wallet?scanAssets:connect} disabled={busy}>{busy?'CHECKING…':wallet?'LOAD ALL MY 3D VOXELS':'CONNECT METAMASK'}</button>
+        <div className={styles.sectionHead}><small>STEP 1 · LOAD MY VOXELS + VERIFY NFTS</small><h2>Show everything first.</h2><p>We load every saved My Voxel from this browser and your signed-in Google-backed VoxelPop library before checking the blockchain. A temporary Base/OpenSea problem can no longer hide your local voxels.</p></div>
+        <button className={styles.primary} onClick={wallet?scanAssets:connect} disabled={busy}>{busy?'LOADING…':wallet?'LOAD ALL MY VOXELS':'CONNECT METAMASK'}</button>
         {scanInfo?.sourceWarning&&<div className={styles.notice}><b>SCAN NOTE</b><span>{scanInfo.sourceWarning}</span></div>}
-        {scanInfo&&<div className={styles.notice}><b>MY VOXELS + PRODUCTION COLLECTION · READ ONLY</b><span>{libraryCount} 3D-ready My Voxel{libraryCount===1?'':'s'} found · {selectableCount} confirmed wallet-owned VoxelFlip NFT{selectableCount===1?'':'s'} selectable · Base chain 8453.</span></div>}
-        {assets.length>0&&<><div className={styles.sectionHead}><small>STEP 2 · CHOOSE EXACTLY 3 CONFIRMED NFTS</small><h2>Pick the three parents.</h2><p>All of your 3D-ready voxels stay visible. Cards marked REAL BASE NFT can be selected. A 3D-ready voxel marked MINT / RECOVER FIRST is not yet safely linked to a confirmed wallet-owned VoxelFlip, so it cannot be used as a parent yet.</p></div><div className={styles.assetGrid}>{assets.map(asset=>{const chosen=selectedIds.includes(asset.key);const label=asset.selectable?`REAL BASE NFT · #${asset.tokenId}`:'3D READY · MINT / RECOVER FIRST';const detail=asset.selectable?(asset.animationUrl?'3D-ready + NFT verified':'NFT verified on Base'):'Visible in My Voxels, but no confirmed wallet-owned VoxelFlip is linked yet.';return <button key={asset.key} type="button" className={`${styles.asset} ${chosen?styles.selected:''} ${!asset.selectable?styles.unavailable:''}`} onClick={()=>toggle(asset.key)} disabled={imported.length>0||!asset.selectable}><span className={styles.check}>{chosen?'✓':asset.selectable?'+':'!'}</span>{asset.imageUrl?<img src={asset.imageUrl} alt={asset.name}/>:<div className={styles.placeholder}>{asset.selectable?`VOXELFLIP #${asset.tokenId}`:'3D VOXEL'}</div>}<div className={styles.assetBody}><small>{label}</small><b>{asset.name}</b><span>{detail}</span></div></button>})}</div><div className={styles.selectionBar}><div><b>{selected.length} / 3 selected</b><span>{selected.length===3?'Ready to verify your test Forge.':selectableCount>=3?'Choose three cards marked REAL BASE NFT.':'You can see all 3D voxels, but you need 3 confirmed Base VoxelFlip NFTs to continue.'}</span></div>{selected.length>0&&imported.length===0&&<button className={styles.secondary} onClick={()=>setSelectedIds([])}>CLEAR SELECTION</button>}</div></>}
-        {scanInfo&&selectableCount<3&&<div className={styles.notice}><b>YOU NEED 3 CONFIRMED VOXELFLIP NFTS</b><span>Your library is now visible, but only {selectableCount} asset{selectableCount===1?' is':'s are'} currently verified as wallet-owned VoxelFlip NFT{selectableCount===1?'':'s'}. Use My Voxels to mint or recover the remaining 3D assets, then return and load again.</span></div>}
+        {scanInfo&&<div className={styles.notice}><b>MY VOXELS + PRODUCTION COLLECTION · READ ONLY</b><span>{savedCount} saved My Voxel{savedCount===1?'':'s'} shown · {readyCount} 3D ready · {selectableCount} confirmed wallet-owned VoxelFlip NFT{selectableCount===1?'':'s'} selectable.</span></div>}
+        {assets.length>0&&<><div className={styles.sectionHead}><small>STEP 2 · REVIEW LIBRARY / CHOOSE 3 NFTS</small><h2>Your saved voxels stay visible.</h2><p>A card can be selected only after Base confirms that this wallet owns its VoxelFlip NFT. Non-minted 3D voxels are intentionally shown but not selectable yet.</p></div><div className={styles.assetGrid}>{assets.map(asset=>{const chosen=selectedIds.includes(asset.key);const label=asset.selectable?`REAL BASE NFT · #${asset.tokenId}`:asset.library3d?'3D READY · MINT / RECOVER FIRST':'3D NOT READY';const detail=asset.selectable?(asset.animationUrl?'3D-ready + NFT verified':'NFT verified on Base'):asset.library3d?'This 3D voxel is saved. It still needs its Base VoxelFlip mint linked before Forge selection.':`Saved in My Voxels · mesh status ${asset.meshStatus||'idle'}.`;return <button key={asset.key} type="button" className={`${styles.asset} ${chosen?styles.selected:''} ${!asset.selectable?styles.unavailable:''}`} onClick={()=>toggle(asset.key)} disabled={imported.length>0||!asset.selectable}><span className={styles.check}>{chosen?'✓':asset.selectable?'+':'!'}</span>{asset.imageUrl?<img src={asset.imageUrl} alt={asset.name}/>:<div className={styles.placeholder}>{asset.selectable?`VOXELFLIP #${asset.tokenId}`:'MY VOXEL'}</div>}<div className={styles.assetBody}><small>{label}</small><b>{asset.name}</b><span>{detail}</span></div></button>})}</div><div className={styles.selectionBar}><div><b>{selected.length} / 3 selected</b><span>{selected.length===3?'Ready to verify your test Forge.':selectableCount>=3?'Choose three cards marked REAL BASE NFT.':'Your full library is visible; you still need 3 confirmed Base VoxelFlip NFTs to run the Forge test.'}</span></div>{selected.length>0&&imported.length===0&&<button className={styles.secondary} onClick={()=>setSelectedIds([])}>CLEAR SELECTION</button>}</div></>}
+        {scanInfo&&selectableCount<3&&<div className={styles.notice}><b>FORGE NEEDS 3 CONFIRMED NFTS</b><span>Non-minted 3D voxels should now remain visible. They cannot be used as Forge parents until their Base VoxelFlip mint is confirmed/recovered. No automatic mint is performed here.</span></div>}
         {selected.length===3&&<><div className={styles.sectionHead}><small>STEP 3 · VERIFY TEST FORGE</small><h2>Review the destination before anything is written.</h2><p>This is your already-deployed Base Sepolia creator Forge. MetaMask may switch networks here, but verifying it does not spend ETH.</p></div><div className={styles.inputRow}><input value={cloneAddress} onChange={e=>{setCloneAddress(e.target.value);setCloneVerified(false)}} placeholder="Base Sepolia Forge clone 0x…" autoCapitalize="off" autoCorrect="off" spellCheck="false"/><button className={styles.secondary} onClick={verifyClone} disabled={busy}>{cloneVerified?'✓ VERIFIED':'VERIFY FORGE'}</button></div><div className={styles.review}>{selected.map((asset,index)=><article key={asset.key}><small>PARENT {index+1}</small><b>{asset.name}</b><span>Production VoxelFlip #{asset.tokenId}<br/>{short(asset.contract)}</span></article>)}</div>{cloneVerified&&<button className={styles.primary} onClick={importSelected} disabled={busy||imported.length===3}>{imported.length===3?'3 TEST COPIES IMPORTED':busy?'WAITING FOR METAMASK…':'IMPORT 3 METADATA COPIES TO SEPOLIA'}</button>}<p className={styles.fine}>Import means minting three separate Common NFTs inside the test Forge with the same tokenURI metadata. It does not move the production NFTs.</p></>}
         {status&&<div className={styles.notice}><b>STATUS</b><span>{status}</span></div>}{error&&<div className={styles.error}>{error}</div>}
       </section>
