@@ -18,13 +18,14 @@ export async function GET() {
     return NextResponse.json({
       chainId: 8453,
       network: 'base',
+      requiredOwner: parent.owner,
       forgeSigner: signer.address,
       parentCollection: parent.address,
       feeWei: LAUNCH_FEE_WEI.toString(),
       feeEth: '0.001',
       royaltyBps: LAUNCH_ROYALTY_BPS,
       existingDeployment: existing,
-      safety: 'Owner and treasury are set to the wallet that approves the Base deployment transaction. The Forge signer is a separate server-derived address; its private key is never sent to the browser.',
+      safety: 'Only the reviewed VoxelFlip owner wallet may deploy/register this production Forge. That wallet is also the treasury. The Forge signer is a distinct server-derived address whose private key never reaches the browser.',
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Forge deployment config failed', error);
