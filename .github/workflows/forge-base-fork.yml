@@ -1,0 +1,26 @@
+name: VoxelForge Live Base Fork
+
+on:
+  push:
+    branches:
+      - experiment/voxelflip-forge-v1
+    paths:
+      - 'contracts/VoxelForgeAtomic.sol'
+      - 'test/VoxelForgeAtomic.base-fork.test.js'
+      - 'package.json'
+      - '.github/workflows/forge-base-fork.yml'
+  workflow_dispatch:
+
+jobs:
+  prove-live-burn-path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run chain:compile
+      - name: Prove live VoxelFlip burn compatibility on Base fork
+        run: npm run test:forge:fork
