@@ -55,6 +55,7 @@ export default function VoxelFlipFactoryPage(){
  const autopilotHref=`/voxelflip/autopilot${factoryQuery.toString()?`?${factoryQuery}`:''}`;
  const forgeQuery=new URLSearchParams();if(wallet)forgeQuery.set('wallet',wallet);if(tokenId)forgeQuery.set('tokenId',tokenId);const forgeHref=`/forge${forgeQuery.toString()?`?${forgeQuery}`:''}`;
  const mintHref=sessionId?`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`:'/studio#my-voxels';
+ const launchHref=`/forge/launch${wallet?`?wallet=${encodeURIComponent(wallet)}`:''}`;
 
  return <main className={styles.page}>
   <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · FORGE LAUNCHPAD</em></nav>
@@ -130,7 +131,8 @@ export default function VoxelFlipFactoryPage(){
     </div>
     <div className={styles.notice}>Bonding-curve behavior, batching and fee splits are tested as contract behavior. They are not treated as guaranteed profit, guaranteed resale value or guaranteed gas savings.</div>
     <div className={styles.actions}>
-     <a className={styles.primary} href="/studio">MAKE</a>
+     <a className={styles.primary} href={launchHref}>DEPLOY ON BASE SEPOLIA</a>
+     <a href="/studio">MAKE</a>
      <a href={mintHref}>MINT</a>
      <a href={forgeHref}>FORGE</a>
      <a href={autopilotHref}>POST / LIST</a>
