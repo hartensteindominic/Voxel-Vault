@@ -39,13 +39,59 @@ function timestamp(value: unknown) {
   return Number.isFinite(date) ? date : 0;
 }
 
+function meshIsReady(payload: VoxelPayload) {
+  const mesh = payload.mesh;
+  return Boolean(
+    String(mesh?.status || '').toLowerCase() === 'ready' ||
+    String(mesh?.modelUrl || '').trim()
+  );
+}
+
+function mintIsConfirmed(payload: VoxelPayload) {
+  return payload.mint?.tokenId !== undefined && payload.mint?.tokenId !== null && String(payload.mint.tokenId) !== '';
+}
+
+function mergeSameAsset(previous: AccountVoxel, incoming: AccountVoxel) {
+  const incomingIsNewer = timestamp(incoming.updatedAt) >= timestamp(previous.updatedAt);
+  const newer = incomingIsNewer ? incoming : previous;
+  const older = incomingIsNewer ? previous : incoming;
+
+  const newerMeshReady = meshIsReady(newer.payload);
+  const olderMeshReady = meshIsReady(older.payload);
+  const mesh = newerMeshReady || !olderMeshReady ? newer.payload.mesh : older.payload.mesh;
+
+  const newerMinted = mintIsConfirmed(newer.payload);
+  const olderMinted = mintIsConfirmed(older.payload);
+  const mint = newerMinted || !olderMinted ? newer.payload.mint : older.payload.mint;
+
+  return {
+    ...newer,
+    payload: {
+      ...newer.payload,
+      mesh,
+      mint,
+      updatedAt: newer.payload.updatedAt || newer.updatedAt,
+    },
+  } satisfies AccountVoxel;
+}
+
 export function mergeVoxelRecords(...groups: AccountVoxel[][]) {
   const map = new Map<string, AccountVoxel>();
   for (const group of groups) {
     for (const record of group) {
       if (!validRecord(record)) continue;
       const previous = map.get(record.sessionId);
-      if (!previous || timestamp(record.updatedAt) >= timestamp(previous.updatedAt)) map.set(record.sessionId, record);
+      if (!previous) {
+        map.set(record.sessionId, record);
+        continue;
+      }
+
+      const sameAsset = previous.payload.asset?.dataUrl === record.payload.asset?.dataUrl;
+      if (sameAsset) {
+        map.set(record.sessionId, mergeSameAsset(previous, record));
+      } else if (timestamp(record.updatedAt) >= timestamp(previous.updatedAt)) {
+        map.set(record.sessionId, record);
+      }
     }
   }
   return Array.from(map.values()).sort((a, b) => timestamp(b.updatedAt) - timestamp(a.updatedAt));
