@@ -114,17 +114,17 @@ describe('Forge launchpad', function () {
 
   it('locks the standalone implementation against direct initialization', async function () {
     await expect(
-      implementation.initialize(
-        'Bad',
-        'BAD',
-        platformOwner.address,
-        platformTreasury.address,
-        creatorTreasury.address,
-        forgeSigner.address,
-        1500,
-        basePrice,
-        priceIncrement
-      )
+      implementation.initialize({
+        name: 'Bad',
+        symbol: 'BAD',
+        initialOwner: platformOwner.address,
+        platformTreasury: platformTreasury.address,
+        creatorTreasury: creatorTreasury.address,
+        forgeSigner: forgeSigner.address,
+        platformBps: 1500,
+        basePriceWei: basePrice,
+        priceIncrementWei: priceIncrement,
+      })
     ).to.be.revertedWithCustomError(implementation, 'InvalidInitialization');
   });
 
