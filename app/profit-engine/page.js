@@ -86,27 +86,25 @@ export default function ProfitEnginePage(){
       const args=[Number(op.params.uniFee),Boolean(op.params.aeroStable),BigInt(op.params.minUsdcOut),BigInt(op.params.minWethOut),BigInt(op.params.minProfitWei),BigInt(deadline)];
       const fn=contract.getFunction(op.method);
       setStatus('Running the exact atomic transaction as a no-spend simulation…');
-      await fn.staticCall(...args,{value:BigInt(op.inputWei)});
+      const simulatedGross=BigInt(await fn.staticCall(...args,{value:BigInt(op.inputWei)}));
       const gas=await fn.estimateGas(...args,{value:BigInt(op.inputWei)});
       const feeData=await browserProvider.getFeeData();
       const feePerGas=feeData.maxFeePerGas||feeData.gasPrice||0n;
       const estimatedWalletGas=gas*feePerGas;
-      const gross=BigInt(op.grossProfitWei);
       const target=BigInt(op.targetProfitWei);
-      if(gross-estimatedWalletGas<target)throw new Error('Trade blocked: fresh wallet gas estimate removes the required net profit.');
-      setStatus(`Simulation passed. MetaMask will show one atomic Base transaction using ${op.inputEth} ETH. If the profit floor disappears, the transaction reverts.`);
+      if(simulatedGross-estimatedWalletGas<target)throw new Error('Trade blocked: the fresh atomic simulation plus wallet gas estimate no longer clears your net-profit target.');
+      setStatus(`Simulation passed with ${prettyEth(simulatedGross)} ETH gross spread. MetaMask will show one atomic Base transaction using ${op.inputEth} ETH. If the profit floor disappears, the transaction reverts.`);
       const sent=await fn(...args,{value:BigInt(op.inputWei),gasLimit:(gas*120n)/100n});
       setTx({hash:sent.hash,pending:true});setStatus('Transaction submitted. Waiting for Base confirmation…');
       const receipt=await sent.wait();
       if(!receipt||receipt.status!==1)throw new Error('Atomic arbitrage transaction failed.');
       const iface=new Interface(EXECUTOR_ABI);let event=null;
       for(const log of receipt.logs||[]){try{const parsed=iface.parseLog(log);if(parsed?.name==='ArbitrageExecuted'){event=parsed;break}}catch{}}
-      const grossProfit=event?event.args.grossProfitWei.toString():op.grossProfitWei;
+      const grossProfit=event?event.args.grossProfitWei.toString():simulatedGross.toString();
       const actualGas=(receipt.gasUsed||0n)*(receipt.gasPrice||feePerGas||0n);
       const net=BigInt(grossProfit)-actualGas;
       setTx({hash:receipt.hash||sent.hash,pending:false,grossProfitWei:grossProfit,gasWei:actualGas.toString(),netWei:net.toString()});
-      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH.`);
-      await runScan();
+      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Scan again for the next opportunity.`);
     }catch(e){setError(errText(e));setStatus('')}finally{setBusy(false)}
   }
 
