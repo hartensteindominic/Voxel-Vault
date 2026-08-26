@@ -134,6 +134,7 @@ async function verifyAcrossBaseProviders(params: {
       const domainContract = getAddress(domain[4]);
       const nextTokenId = BigInt(await withTimeout(forge.nextTokenId(), 6_000));
       const totalForges = BigInt(await withTimeout(forge.totalForges(), 6_000));
+      const one = BigInt(1);
 
       if (owner !== params.approvedOwner) throw new Error('Production Forge owner does not match the reviewed VoxelFlip owner.');
       if (treasury !== params.approvedOwner) throw new Error('Production Forge treasury does not match the reviewed owner wallet.');
@@ -150,7 +151,7 @@ async function verifyAcrossBaseProviders(params: {
       if (domainName !== 'VoxelForgeRevenue' || domainVersion !== '1' || domainChainId !== BigInt(BASE_CHAIN_ID) || domainContract !== params.address) {
         throw new Error('Forge EIP-712 domain does not match this Base deployment.');
       }
-      if (nextTokenId < 1n || totalForges !== nextTokenId - 1n) throw new Error('Forge token/forge counters are inconsistent.');
+      if (nextTokenId < one || totalForges !== nextTokenId - one) throw new Error('Forge token/forge counters are inconsistent.');
 
       return { forgeSigner, treasury, feeWei, royaltyBps, deployedAt };
     } catch (error) {
