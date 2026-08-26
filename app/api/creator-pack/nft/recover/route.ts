@@ -160,7 +160,7 @@ export async function POST(request: Request) {
     for (const rpcUrl of rpcCandidates()) {
       if (Date.now() >= deadline) break;
       try {
-        const result = await recoverViaRpc(rpcUrl, contractAddress, wallet, voucherId, String(deployment?.deploymentTxHash || ''), known, deadline);
+        const result: any = await recoverViaRpc(rpcUrl, contractAddress, wallet, voucherId, String(deployment?.deploymentTxHash || ''), known, deadline);
         checked = checked || result.checked;
         voucherUsed = voucherUsed || result.used;
         if (result.ownerMismatch) {
