@@ -7,9 +7,14 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const MESH_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
-const MAX_STRIPE_PAGES = 5;
-const MAX_MATCHES = 30;
+const MAX_STRIPE_PAGES = 50;
+const MAX_MATCHES = 100;
+const MAX_ANALYTICS_EVENTS = 2_000;
+const MAX_ANALYTICS_SESSIONS = 500;
 const PROVIDER_TIMEOUT_MS = 7_000;
+const RECOVERY_BUDGET_MS = 44_000;
+const MESH_CONCURRENCY = 6;
+const STRIPE_CONCURRENCY = 8;
 
 function bearerToken(request: Request) {
   const header = request.headers.get('authorization') || '';
@@ -19,6 +24,11 @@ function bearerToken(request: Request) {
 
 function normalizeEmail(value: unknown) {
   return String(value || '').trim().toLowerCase();
+}
+
+function addEmail(set: Set<string>, value: unknown) {
+  const email = normalizeEmail(value);
+  if (email && email.includes('@')) set.add(email);
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -35,41 +45,191 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
-async function sessionEmail(session: any) {
-  const inline = normalizeEmail(session?.customer_details?.email || session?.customer_email || '');
-  if (inline) return inline;
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  async function run() {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length || 1) }, () => run()));
+  return results;
+}
+
+function inlineSessionEmails(session: any) {
+  const emails = new Set<string>();
+  addEmail(emails, session?.customer_details?.email);
+  addEmail(emails, session?.customer_email);
+  addEmail(emails, session?.customer?.email);
+  addEmail(emails, session?.payment_intent?.receipt_email);
+  addEmail(emails, session?.payment_intent?.latest_charge?.billing_details?.email);
+  return emails;
+}
+
+async function retrieveExpandedSession(sessionId: string) {
   try {
-    const full = await stripe.checkout.sessions.retrieve(String(session.id));
-    return normalizeEmail(full.customer_details?.email || full.customer_email || '');
+    return await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['customer', 'payment_intent.latest_charge'],
+    }) as any;
   } catch {
-    return '';
+    return null;
   }
 }
 
-async function matchingPaidSessions(email: string) {
+async function sessionIdentityMatch(session: any, userId: string, email: string) {
+  const linkedUserId = String(session?.metadata?.voxelpop_user_id || '').trim();
+  if (linkedUserId && linkedUserId === userId) return { matched: true, source: 'verified-user-id', session };
+
+  const inline = inlineSessionEmails(session);
+  if (inline.has(email)) return { matched: true, source: 'checkout-email', session };
+
+  const expanded = await retrieveExpandedSession(String(session?.id || ''));
+  if (!expanded) return { matched: false, source: '', session };
+  const expandedLinkedUserId = String(expanded?.metadata?.voxelpop_user_id || '').trim();
+  if (expandedLinkedUserId && expandedLinkedUserId === userId) return { matched: true, source: 'verified-user-id', session: expanded };
+  if (inlineSessionEmails(expanded).has(email)) return { matched: true, source: 'payment-email', session: expanded };
+
+  return { matched: false, source: '', session: expanded };
+}
+
+async function backfillUserLink(session: any, userId: string) {
+  if (!session?.id || String(session?.metadata?.voxelpop_user_id || '').trim() === userId) return;
+  try {
+    await stripe.checkout.sessions.update(String(session.id), {
+      metadata: { ...(session.metadata || {}), voxelpop_user_id: userId },
+    });
+  } catch {}
+}
+
+type RecoveryDiagnostics = {
+  analyticsEventsRead: number;
+  analyticsSessionIds: number;
+  analyticsSessionsRetrieved: number;
+  analyticsMatches: number;
+  pagesScanned: number;
+  checkoutSessionsScanned: number;
+  paidVoxelSessionsScanned: number;
+  identityCandidatesChecked: number;
+  matchedByUserId: number;
+  matchedByEmail: number;
+  stoppedByTimeBudget: boolean;
+};
+
+async function analyticsCompletedSessionIds(admin: ReturnType<typeof getSupabaseAdmin>) {
+  try {
+    const { data, error } = await admin
+      .from('voxelpop_conversion_events')
+      .select('stripe_session_id,created_at')
+      .in('event_name', ['mesh_completed', 'glb_downloaded'])
+      .not('stripe_session_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(MAX_ANALYTICS_EVENTS);
+    if (error || !Array.isArray(data)) return { ids: [] as string[], eventsRead: 0 };
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (const row of data) {
+      const id = String((row as any)?.stripe_session_id || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+      if (ids.length >= MAX_ANALYTICS_SESSIONS) break;
+    }
+    return { ids, eventsRead: data.length };
+  } catch {
+    return { ids: [] as string[], eventsRead: 0 };
+  }
+}
+
+async function matchesFromAnalytics(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  email: string,
+  startedAt: number,
+  diagnostics: RecoveryDiagnostics,
+) {
+  const analytics = await analyticsCompletedSessionIds(admin);
+  diagnostics.analyticsEventsRead = analytics.eventsRead;
+  diagnostics.analyticsSessionIds = analytics.ids.length;
+
+  const sessions = await mapWithConcurrency(analytics.ids, STRIPE_CONCURRENCY, async sessionId => {
+    if (Date.now() - startedAt > RECOVERY_BUDGET_MS) return null;
+    return retrieveExpandedSession(sessionId);
+  });
+
+  const matches: any[] = [];
+  for (const raw of sessions) {
+    if (!raw || matches.length >= MAX_MATCHES) continue;
+    diagnostics.analyticsSessionsRetrieved += 1;
+    if (raw.payment_status !== 'paid' || raw.metadata?.product !== 'voxelpop-3d-asset' || !raw.metadata?.mesh_task_0) continue;
+    diagnostics.identityCandidatesChecked += 1;
+    const identity = await sessionIdentityMatch(raw, userId, email);
+    if (!identity.matched) continue;
+    const matchedSession = identity.session || raw;
+    matches.push(matchedSession);
+    diagnostics.analyticsMatches += 1;
+    if (identity.source === 'verified-user-id') diagnostics.matchedByUserId += 1;
+    else diagnostics.matchedByEmail += 1;
+    if (identity.source !== 'verified-user-id') await backfillUserLink(matchedSession, userId);
+  }
+
+  return matches;
+}
+
+async function matchesFromStripeHistory(
+  userId: string,
+  email: string,
+  startedAt: number,
+  diagnostics: RecoveryDiagnostics,
+  alreadyMatched: Set<string>,
+) {
   const matches: any[] = [];
   let startingAfter = '';
 
-  for (let page = 0; page < MAX_STRIPE_PAGES && matches.length < MAX_MATCHES; page += 1) {
+  for (let page = 0; page < MAX_STRIPE_PAGES && matches.length + alreadyMatched.size < MAX_MATCHES; page += 1) {
+    if (Date.now() - startedAt > RECOVERY_BUDGET_MS) {
+      diagnostics.stoppedByTimeBudget = true;
+      break;
+    }
+
     const listed = await stripe.checkout.sessions.list({
       limit: 100,
       status: 'complete',
       ...(startingAfter ? { starting_after: startingAfter } : {}),
     });
 
+    diagnostics.pagesScanned += 1;
+    diagnostics.checkoutSessionsScanned += listed.data.length;
+
     const candidates = listed.data.filter(session => (
       session.payment_status === 'paid'
       && session.metadata?.product === 'voxelpop-3d-asset'
       && Boolean(session.metadata?.mesh_task_0)
+      && !alreadyMatched.has(String(session.id))
     ));
+    diagnostics.paidVoxelSessionsScanned += candidates.length;
 
     for (const session of candidates) {
-      if (matches.length >= MAX_MATCHES) break;
-      const paidEmail = await sessionEmail(session);
-      if (paidEmail && paidEmail === email) matches.push(session);
+      if (matches.length + alreadyMatched.size >= MAX_MATCHES) break;
+      if (Date.now() - startedAt > RECOVERY_BUDGET_MS) {
+        diagnostics.stoppedByTimeBudget = true;
+        break;
+      }
+      diagnostics.identityCandidatesChecked += 1;
+      const identity = await sessionIdentityMatch(session, userId, email);
+      if (!identity.matched) continue;
+      const matchedSession = identity.session || session;
+      matches.push(matchedSession);
+      alreadyMatched.add(String(matchedSession.id));
+      if (identity.source === 'verified-user-id') diagnostics.matchedByUserId += 1;
+      else diagnostics.matchedByEmail += 1;
+      if (identity.source !== 'verified-user-id') await backfillUserLink(matchedSession, userId);
     }
 
-    if (!listed.has_more || !listed.data.length) break;
+    if (diagnostics.stoppedByTimeBudget || !listed.has_more || !listed.data.length) break;
     startingAfter = String(listed.data[listed.data.length - 1]?.id || '');
     if (!startingAfter) break;
   }
@@ -77,11 +237,41 @@ async function matchingPaidSessions(email: string) {
   return matches;
 }
 
+async function matchingPaidSessions(admin: ReturnType<typeof getSupabaseAdmin>, userId: string, email: string) {
+  const startedAt = Date.now();
+  const diagnostics: RecoveryDiagnostics = {
+    analyticsEventsRead: 0,
+    analyticsSessionIds: 0,
+    analyticsSessionsRetrieved: 0,
+    analyticsMatches: 0,
+    pagesScanned: 0,
+    checkoutSessionsScanned: 0,
+    paidVoxelSessionsScanned: 0,
+    identityCandidatesChecked: 0,
+    matchedByUserId: 0,
+    matchedByEmail: 0,
+    stoppedByTimeBudget: false,
+  };
+
+  const analyticsMatches = await matchesFromAnalytics(admin, userId, email, startedAt, diagnostics);
+  const ids = new Set(analyticsMatches.map(session => String(session.id)));
+
+  let historyMatches: any[] = [];
+  if (ids.size < MAX_MATCHES && Date.now() - startedAt <= RECOVERY_BUDGET_MS) {
+    historyMatches = await matchesFromStripeHistory(userId, email, startedAt, diagnostics, ids);
+  } else if (Date.now() - startedAt > RECOVERY_BUDGET_MS) {
+    diagnostics.stoppedByTimeBudget = true;
+  }
+
+  const merged = new Map<string, any>();
+  for (const session of [...analyticsMatches, ...historyMatches]) merged.set(String(session.id), session);
+  return { matches: Array.from(merged.values()), diagnostics };
+}
+
 async function meshRecord(session: any, apiKey: string) {
   const taskId = String(session.metadata?.mesh_task_0 || '').trim();
   if (!taskId) return null;
 
-  let data: any = null;
   let status = 'unknown';
   let modelUrl = '';
   let thumbnailUrl = '';
@@ -94,7 +284,7 @@ async function meshRecord(session: any, apiKey: string) {
         headers: { Authorization: `Bearer ${apiKey}` },
         cache: 'no-store',
       }), PROVIDER_TIMEOUT_MS);
-      data = await response.json().catch(() => ({}));
+      const data: any = await response.json().catch(() => ({}));
       if (response.ok) {
         const providerStatus = String(data?.status || '').toUpperCase();
         modelUrl = typeof data?.model_urls?.glb === 'string' ? data.model_urls.glb : '';
@@ -121,16 +311,16 @@ async function meshRecord(session: any, apiKey: string) {
   const owner = String(session.metadata?.voxelflip_wallet || '').trim();
   const txHash = String(session.metadata?.voxelflip_tx_hash || '').trim();
   const metadataUrl = String(session.metadata?.voxelflip_metadata_url || '').trim();
+  const contract = String(session.metadata?.voxelflip_contract || '').trim();
 
-  // Use the same authenticated paid-session mesh proxy for the GLB so a recovered
-  // library record does not depend on a temporary third-party model URL.
   const stableModelUrl = status === 'ready'
     ? `/api/creator-pack/mesh?${new URLSearchParams({ sessionId, taskId, preview: '1' }).toString()}`
     : '';
+  const updatedAt = new Date(Number(session.created || 0) * 1000 || Date.now()).toISOString();
 
   return {
     sessionId,
-    updatedAt: new Date(Number(session.created || 0) * 1000 || Date.now()).toISOString(),
+    updatedAt,
     payload: {
       asset: {
         name,
@@ -150,11 +340,12 @@ async function meshRecord(session: any, apiKey: string) {
           hash: txHash,
           txHash,
           metadataUrl,
+          ...(contract ? { contract, contractAddress: contract } : {}),
         },
       } : {}),
       generationsLeft: 0,
       idea,
-      updatedAt: new Date(Number(session.created || 0) * 1000 || Date.now()).toISOString(),
+      updatedAt,
     },
   };
 }
@@ -178,14 +369,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const sessions = await matchingPaidSessions(email);
+    const { matches: sessions, diagnostics } = await matchingPaidSessions(admin, user.id, email);
     const apiKey = String(process.env.MESHY_API_KEY || '').trim();
-    const records = (await Promise.all(sessions.map(session => meshRecord(session, apiKey)))).filter(Boolean);
+    const records = (await mapWithConcurrency(sessions, MESH_CONCURRENCY, session => meshRecord(session, apiKey))).filter(Boolean);
+    const nonMintedReady = records.filter((record: any) => record?.payload?.mesh?.status === 'ready' && !record?.payload?.mint?.tokenId).length;
+    const minted = records.filter((record: any) => Boolean(record?.payload?.mint?.tokenId)).length;
+
     return NextResponse.json({
       recovered: records.length,
+      nonMintedReady,
+      minted,
       records,
       signedIn: true,
       meshStatusRefreshed: Boolean(apiKey),
+      diagnostics,
       safety: 'Read-only account recovery. This does not mint, transfer, approve, list, burn, or sign any NFT transaction.',
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
