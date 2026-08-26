@@ -196,7 +196,7 @@ function descendantMetadata(selected,clone){
 async function ensureBaseSepolia(provider){
   let chainId=String(await provider.request({method:'eth_chainId'})||'').toLowerCase();
   if(chainId===BASE_SEPOLIA_CHAIN_ID)return chainId;
-  try{await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:BASE_SEPOLIA_CHAIN_ID}]});
+  try{await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:BASE_SEPOLIA_CHAIN_ID}]});}
   catch(error){
     if(error?.code===4001)throw new Error('Base Sepolia network switch was cancelled in MetaMask.');
     if(error?.code!==4902)throw new Error(error?.message||'Please switch MetaMask to Base Sepolia.');
