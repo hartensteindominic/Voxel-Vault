@@ -12,8 +12,8 @@ const UNISWAP_QUOTER_V2 = getAddress('0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a
 const AERODROME_ROUTER = getAddress('0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43');
 const AERODROME_FACTORY = getAddress('0x420DD381b31aEf6683db6B902084cB0FFECe40Da');
 const UNI_FEE_TIERS = [100, 500, 3000, 10000];
-const ESTIMATED_EXECUTOR_GAS = 520_000n;
-const L1_DATA_FEE_BUFFER_WEI = 20_000_000_000_000n; // conservative extra Base/L1-data buffer
+const ESTIMATED_EXECUTOR_GAS = BigInt(520000);
+const L1_DATA_FEE_BUFFER_WEI = BigInt('20000000000000'); // conservative extra Base/L1-data buffer
 
 const UNI_QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)',
@@ -78,7 +78,7 @@ async function quoteUni(provider: JsonRpcProvider, tokenIn: string, tokenOut: st
         `Uniswap ${fee} quote`
       );
       const amountOut = BigInt(result[0]);
-      if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
+      if (amountOut > BigInt(0) && (!best || amountOut > best.amountOut)) {
         best = { venue: 'Uniswap V3', amountOut, fee, quoteGas: BigInt(result[3] || 0) };
       }
     } catch {
@@ -100,7 +100,7 @@ async function quoteAero(provider: JsonRpcProvider, tokenIn: string, tokenOut: s
         `Aerodrome ${stable ? 'stable' : 'volatile'} quote`
       );
       const amountOut = BigInt(amounts?.[amounts.length - 1] || 0);
-      if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
+      if (amountOut > BigInt(0) && (!best || amountOut > best.amountOut)) {
         best = { venue: 'Aerodrome', amountOut, stable };
       }
     } catch {
@@ -111,7 +111,7 @@ async function quoteAero(provider: JsonRpcProvider, tokenIn: string, tokenOut: s
 }
 
 function applySlippage(amount: bigint, bps: number) {
-  return (amount * BigInt(10_000 - bps)) / 10_000n;
+  return (amount * BigInt(10_000 - bps)) / BigInt(10_000);
 }
 
 function serializeQuote(quote: Quote, outputDecimals: number) {
@@ -173,7 +173,7 @@ async function scanOnProvider(provider: JsonRpcProvider, inputWei: bigint, targe
   const feeData = await withTimeout(provider.getFeeData(), 4_000, 'Base fee data');
   const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || parseUnits('0.02', 'gwei');
   const gasBudgetWei = gasPrice * ESTIMATED_EXECUTOR_GAS + L1_DATA_FEE_BUFFER_WEI;
-  const targetProfitWei = (inputWei * BigInt(targetBps)) / 10_000n;
+  const targetProfitWei = (inputWei * BigInt(targetBps)) / BigInt(10_000);
   const opportunities: Opportunity[] = [];
 
   const uniFirst = await quoteUni(provider, WETH, USDC, inputWei);
