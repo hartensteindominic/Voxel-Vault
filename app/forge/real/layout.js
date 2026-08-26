@@ -4,6 +4,7 @@ import {useEffect,useState} from 'react';
 import {loadAlternateHostVoxels} from '../../../lib/voxelpop-cross-host';
 import {getSupabaseBrowserAsync} from '../../../lib/supabase-browser';
 import {mergeVoxelRecords,readLocalVoxelRecords,syncLocalVoxelsToAccount} from '../../../lib/voxelpop-account';
+import ForgePassport from './ForgePassport';
 
 function writeRecords(records){
   for(const record of records){
@@ -100,9 +101,6 @@ export default function RealForgeLayout({children}){
       let current=readLocalVoxelRecords();
       const focusSession=focusedSessionId();
 
-      // Cross-browser handoff: the paid session URL survives Safari/ChatGPT ->
-      // MetaMask even when localStorage does not. Restore this exact paid asset
-      // from Stripe + Meshy and make a finished server mesh authoritative.
       if(focusSession){
         try{
           const response=await fetch(`/api/forge/session-asset?${new URLSearchParams({sessionId:focusSession})}`,{cache:'no-store'});
@@ -191,5 +189,6 @@ export default function RealForgeLayout({children}){
     {accountMessage&&<div style={{position:'relative',zIndex:29,background:'#0d0f12',color:'#aeb4bd',textAlign:'center',padding:'8px 16px',font:'700 12px/1.4 Inter,ui-sans-serif,system-ui,sans-serif',borderBottom:'1px solid rgba(255,255,255,.06)'}}>{accountMessage}</div>}
     {lastRecovery?.diagnostics&&<div style={{position:'relative',zIndex:28,background:'#0b0c0f',color:'#747b86',textAlign:'center',padding:'6px 14px',font:'600 11px/1.4 Inter,ui-sans-serif,system-ui,sans-serif',borderBottom:'1px solid rgba(255,255,255,.04)'}}>History scan: {lastRecovery.diagnostics.checkoutSessionsScanned||0} checkout sessions · {lastRecovery.diagnostics.paidVoxelSessionsScanned||0} paid 3D candidates · {lastRecovery.diagnostics.identityCandidatesChecked||0} identity checks.</div>}
     {children}
+    <ForgePassport />
   </>;
 }
