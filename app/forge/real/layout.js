@@ -15,6 +15,47 @@ function focusedSessionId(){
   try{return String(new URLSearchParams(window.location.search).get('focus_session')||'').trim()}catch{return ''}
 }
 
+function meshReady(payload){
+  const mesh=payload?.mesh||{};
+  const status=String(mesh.status||'').toLowerCase();
+  return ['ready','succeeded','completed'].includes(status)||Boolean(String(mesh.modelUrl||'').trim())||Number(mesh.progress||0)>=100;
+}
+
+function usefulAsset(asset){
+  const image=String(asset?.dataUrl||'');
+  return Boolean(image&&!image.endsWith('/voxelpop/voxelpop-logo.png'));
+}
+
+function mergePaidRecovery(current,recovered){
+  const map=new Map(current.map(record=>[record.sessionId,record]));
+  for(const server of recovered||[]){
+    if(!server?.sessionId||!server?.payload)continue;
+    const existing=map.get(server.sessionId);
+    if(!existing){map.set(server.sessionId,server);continue}
+
+    const serverReady=meshReady(server.payload);
+    const existingReady=meshReady(existing.payload);
+    const asset=usefulAsset(existing.payload?.asset)?existing.payload.asset:server.payload.asset;
+    const mesh=serverReady||!existingReady?server.payload.mesh:existing.payload.mesh;
+    const mint=server.payload?.mint?.tokenId?server.payload.mint:existing.payload?.mint;
+    const updatedAt=new Date().toISOString();
+    map.set(server.sessionId,{
+      sessionId:server.sessionId,
+      updatedAt,
+      payload:{
+        ...existing.payload,
+        ...server.payload,
+        asset,
+        mesh,
+        ...(mint?{mint}:{}),
+        idea:existing.payload?.idea||server.payload?.idea||'',
+        updatedAt,
+      },
+    });
+  }
+  return Array.from(map.values());
+}
+
 export default function RealForgeLayout({children}){
   const [ready,setReady]=useState(false);
   const [signedIn,setSignedIn]=useState(null);
@@ -35,7 +76,7 @@ export default function RealForgeLayout({children}){
       const recovered=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(recovered.error||'Could not recover paid VoxelPop assets.');
       const records=Array.isArray(recovered.records)?recovered.records:[];
-      let current=mergeVoxelRecords(readLocalVoxelRecords(),records);
+      const current=mergePaidRecovery(readLocalVoxelRecords(),records);
       writeRecords(current);
       try{await syncLocalVoxelsToAccount(supabase,session.user)}catch{}
       setLastRecovery(recovered);
@@ -44,7 +85,7 @@ export default function RealForgeLayout({children}){
       const total=Number(recovered.recovered||records.length||0);
       const stopped=recovered?.diagnostics?.stoppedByTimeBudget===true;
       setAccountMessage(`Recovered ${total} paid creation${total===1?'':'s'} · ${nonMinted} finished non-minted 3D · ${minted} minted${stopped?' · history scan reached its time limit; tap Refresh again to retry':''}.`);
-      return {records,signedIn:true,recovered};
+      return {records:current,signedIn:true,recovered};
     }catch(error){
       setAccountMessage(error instanceof Error?error.message:'Could not recover paid VoxelPop assets.');
       return {records:[],signedIn:true,error};
@@ -59,16 +100,15 @@ export default function RealForgeLayout({children}){
       let current=readLocalVoxelRecords();
       const focusSession=focusedSessionId();
 
-      // Critical cross-browser handoff: when MetaMask opens its own browser,
-      // Safari/ChatGPT localStorage does not come with it. The focus_session URL
-      // identifies the already-paid creation, so restore that one from Stripe +
-      // Meshy before loading the rest of My Voxels. This is read-only.
+      // Cross-browser handoff: the paid session URL survives Safari/ChatGPT ->
+      // MetaMask even when localStorage does not. Restore this exact paid asset
+      // from Stripe + Meshy and make a finished server mesh authoritative.
       if(focusSession){
         try{
           const response=await fetch(`/api/forge/session-asset?${new URLSearchParams({sessionId:focusSession})}`,{cache:'no-store'});
           const recovered=await response.json().catch(()=>({}));
           if(response.ok&&recovered?.record?.sessionId){
-            current=mergeVoxelRecords(current,[recovered.record]);
+            current=mergePaidRecovery(current,[recovered.record]);
             writeRecords(current);
             if(active)setAccountMessage(recovered.ready
               ?'Recovered the exact paid 3D voxel you sent to Forge.'
@@ -90,7 +130,7 @@ export default function RealForgeLayout({children}){
       try{
         const result=await recoverAccountAssets({quiet:true});
         if(active&&result?.records?.length){
-          current=mergeVoxelRecords(current,result.records);
+          current=mergePaidRecovery(current,result.records);
           writeRecords(current);
           if(!focusSession){
             const recovered=result.recovered||{};
@@ -126,8 +166,6 @@ export default function RealForgeLayout({children}){
 
   async function refreshPaid(){
     await recoverAccountAssets({quiet:false});
-    // The child Forge page reads the merged local library when LOAD ALL MY VOXELS is tapped.
-    // Do not force a reload here because that would unnecessarily reconnect the wallet.
   }
 
   if(!ready){
