@@ -2,13 +2,26 @@ require('@nomicfoundation/hardhat-toolbox');
 require('dotenv').config();
 
 const deployerKey = process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [];
+const standardSolidity = {
+  version: '0.8.26',
+  settings: {
+    evmVersion: 'cancun',
+    optimizer: { enabled: true, runs: 200 },
+  },
+};
 
 module.exports = {
   solidity: {
-    version: '0.8.26',
-    settings: {
-      evmVersion: 'cancun',
-      optimizer: { enabled: true, runs: 200 },
+    compilers: [standardSolidity],
+    overrides: {
+      'contracts/VoxelForgeRevenue.sol': {
+        version: '0.8.26',
+        settings: {
+          evmVersion: 'cancun',
+          optimizer: { enabled: true, runs: 200 },
+          viaIR: true,
+        },
+      },
     },
   },
   networks: {
