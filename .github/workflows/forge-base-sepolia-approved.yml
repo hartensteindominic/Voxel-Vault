@@ -1,0 +1,83 @@
+name: Approved Base Sepolia Atomic Forge
+
+on:
+  push:
+    branches:
+      - experiment/voxelflip-forge-v1
+    paths:
+      - '.github/workflows/forge-base-sepolia-approved.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-and-smoke:
+    if: github.ref == 'refs/heads/experiment/voxelflip-forge-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOYER_PRIVATE_KEY: ${{ secrets.BASE_SEPOLIA_DEPLOYER_PRIVATE_KEY }}
+      BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+      ENABLE_FORGE_TESTNET_DEPLOY: 'true'
+      ENABLE_FORGE_TESTNET_SMOKE: 'true'
+      FORGE_TEST_ROYALTY_BPS: '500'
+      FORGE_TEST_FEE_WEI: '1000000000000'
+
+    steps:
+      - name: Checkout approved Forge branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Require dedicated Base Sepolia deployer
+        shell: bash
+        run: |
+          if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
+            echo "::error::Missing repository secret BASE_SEPOLIA_DEPLOYER_PRIVATE_KEY. No deployment transaction was sent."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Compile Atomic Forge
+        run: npm run chain:compile
+
+      - name: Verify Base Sepolia deployer funding
+        shell: bash
+        run: |
+          node <<'NODE'
+          const { ethers } = require('ethers');
+          (async () => {
+            const rpc = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
+            const provider = new ethers.JsonRpcProvider(rpc, 84532, { staticNetwork: true });
+            const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
+            const network = await provider.getNetwork();
+            if (network.chainId !== 84532n) throw new Error(`Refusing deployment: expected Base Sepolia 84532, got ${network.chainId}`);
+            const balance = await provider.getBalance(wallet.address);
+            console.log('Base Sepolia deployer:', wallet.address);
+            console.log('Base Sepolia balance:', ethers.formatEther(balance), 'ETH');
+            if (balance === 0n) throw new Error('Dedicated Base Sepolia deployer has zero test ETH. No deployment transaction was sent.');
+            provider.destroy();
+          })().catch((error) => {
+            console.error(error.message || error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Deploy disposable parent and Atomic Forge on Base Sepolia
+        run: npm run chain:deploy:forge:base-sepolia
+
+      - name: Execute real Base Sepolia 3-to-1 Forge smoke test
+        run: npm run test:forge:base-sepolia
+
+      - name: Publish public testnet deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxelforge-base-sepolia-deployment
+          path: deployed-forge-base-sepolia.json
+          if-no-files-found: error
+          retention-days: 30
