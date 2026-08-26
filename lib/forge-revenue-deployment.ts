@@ -36,8 +36,6 @@ export function revenueForgeSigningWallet() {
   const mintSignerSeed = String(process.env.VOXELFLIP_MINT_SIGNER_PRIVATE_KEY || '').trim();
   if (!mintSignerSeed) throw new Error('No server signing seed is configured for the Base revenue Forge.');
 
-  // Derive a distinct Forge-only EOA from the existing protected server signing seed.
-  // The derived key is never returned to the client, stored in Supabase, or committed.
   const derivedHex = createHmac('sha256', normalizePrivateKey(mintSignerSeed))
     .update('VoxelForgeRevenue:v1')
     .digest('hex');
@@ -45,12 +43,13 @@ export function revenueForgeSigningWallet() {
 }
 
 function validDeployment(value: any): value is RevenueForgeDeployment {
+  const txHash = String(value?.deploymentTxHash || '');
   return Boolean(
     value
     && Number(value.chainId) === 8453
     && String(value.network || '').toLowerCase() === 'base'
     && ADDRESS_RE.test(String(value.address || ''))
-    && TX_RE.test(String(value.deploymentTxHash || ''))
+    && (!txHash || TX_RE.test(txHash))
     && ADDRESS_RE.test(String(value.owner || ''))
     && ADDRESS_RE.test(String(value.forgeSigner || ''))
     && ADDRESS_RE.test(String(value.treasury || ''))
@@ -67,7 +66,7 @@ function normalizeDeployment(value: RevenueForgeDeployment): RevenueForgeDeploym
     chainId: 8453,
     network: 'base',
     address: getAddress(value.address),
-    deploymentTxHash: String(value.deploymentTxHash),
+    deploymentTxHash: String(value.deploymentTxHash || ''),
     owner: getAddress(value.owner),
     forgeSigner: getAddress(value.forgeSigner),
     treasury: getAddress(value.treasury),
