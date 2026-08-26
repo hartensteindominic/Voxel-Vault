@@ -11,9 +11,16 @@ contract MockVoxelFlipParent is ERC721, ERC721URIStorage {
     constructor() ERC721("Mock VoxelFlip", "MVF") {}
 
     function mint(address recipient, string calldata uri) external returns (uint256 tokenId) {
-        tokenId = _nextTokenId++;
-        _safeMint(recipient, tokenId);
-        _setTokenURI(tokenId, uri);
+        tokenId = _mintWithUri(recipient, uri);
+    }
+
+    function mintThree(address recipient, string[3] calldata uris)
+        external
+        returns (uint256[3] memory tokenIds)
+    {
+        for (uint256 i = 0; i < 3; i++) {
+            tokenIds[i] = _mintWithUri(recipient, uris[i]);
+        }
     }
 
     function setTokenURIForTest(uint256 tokenId, string calldata uri) external {
@@ -29,6 +36,12 @@ contract MockVoxelFlipParent is ERC721, ERC721URIStorage {
         require(ownerOf(tokenId) == msg.sender, "Not owner");
         require(tokenId != failBurnTokenId, "Forced burn failure");
         _burn(tokenId);
+    }
+
+    function _mintWithUri(address recipient, string memory uri) internal returns (uint256 tokenId) {
+        tokenId = _nextTokenId++;
+        _safeMint(recipient, tokenId);
+        _setTokenURI(tokenId, uri);
     }
 
     function supportsInterface(bytes4 interfaceId)
