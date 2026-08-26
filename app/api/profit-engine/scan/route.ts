@@ -13,7 +13,7 @@ const AERODROME_ROUTER = getAddress('0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43'
 const AERODROME_FACTORY = getAddress('0x420DD381b31aEf6683db6B902084cB0FFECe40Da');
 const UNI_FEE_TIERS = [100, 500, 3000, 10000];
 const ESTIMATED_EXECUTOR_GAS = BigInt(520000);
-const L1_DATA_FEE_BUFFER_WEI = BigInt('20000000000000'); // conservative extra Base/L1-data buffer
+const L1_DATA_FEE_BUFFER_WEI = BigInt('20000000000000');
 
 const UNI_QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)',
@@ -51,6 +51,14 @@ function rpcCandidates() {
     'https://base.blockscout.com/api/eth-rpc',
     'https://base.llamarpc.com',
   ].filter(Boolean)));
+}
+
+function safeRpcLabel(value: string) {
+  try {
+    return new URL(value).hostname || 'Base RPC';
+  } catch {
+    return 'Base RPC';
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -130,7 +138,6 @@ function serializeOpportunity(op: Opportunity) {
   const netAfterGas = grossProfit - op.gasBudgetWei;
   const requiredGross = op.gasBudgetWei + op.targetProfitWei;
   const passes = grossProfit >= requiredGross;
-  const firstOutDecimals = 6;
   const minFirstOut = applySlippage(op.first.amountOut, op.slippageBps);
   const minFinalOut = applySlippage(op.finalOut, op.slippageBps);
 
@@ -141,7 +148,7 @@ function serializeOpportunity(op: Opportunity) {
     method: op.method,
     inputWei: op.input.toString(),
     inputEth: formatEther(op.input),
-    first: serializeQuote(op.first, firstOutDecimals),
+    first: serializeQuote(op.first, 6),
     second: serializeQuote(op.second, 18),
     finalWei: op.finalOut.toString(),
     finalEth: formatEther(op.finalOut),
@@ -258,7 +265,7 @@ export async function POST(request: Request) {
       best: profitable[0] || null,
       opportunities: serialized,
       scannedAt: new Date().toISOString(),
-      rpcSource: usedRpc.replace(/\?.*$/, ''),
+      rpcSource: safeRpcLabel(usedRpc),
       contracts: {
         weth: WETH,
         usdc: USDC,
