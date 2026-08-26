@@ -12,6 +12,23 @@ module.exports = {
     },
   },
   networks: {
+    hardhat: {
+      // Base is not one of Hardhat's built-in mainnet histories. Fork tests can
+      // otherwise fail before executing contract bytecode with "No known hardfork".
+      // These low activation blocks are intentionally test-only: the production
+      // VoxelFlip deployment is far newer than Cancun, so every forked block we
+      // execute is evaluated with the expected modern EVM rules.
+      chains: {
+        8453: {
+          hardforkHistory: {
+            berlin: 1,
+            london: 2,
+            shanghai: 3,
+            cancun: 4,
+          },
+        },
+      },
+    },
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || '',
       accounts: deployerKey,
