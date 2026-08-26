@@ -2,7 +2,6 @@ const { expect } = require('chai');
 const { ethers, network } = require('hardhat');
 
 const LIVE_VOXELFLIP = '0xa00758b05f96ef4409d97c3ffebb6794b2eafbde';
-const DEPLOYMENT_TX = '0xc2f198a3730169bc5c61f0a1251301f16d40441c022b6cc30e9cf06bb8ea31bb';
 const BASE_RPC_CANDIDATES = [
   process.env.BASE_FORK_URL,
   process.env.VOXELFLIP_RPC_URL,
@@ -17,6 +16,9 @@ const PARENT_ABI = [
   'function transferFrom(address from,address to,uint256 tokenId)',
   'function setApprovalForAll(address operator,bool approved)',
   'function isApprovedForAll(address owner,address operator) view returns (bool)',
+  'function mintSigner() view returns (address)',
+  'function mintWithVoucher(string uri,bytes32 voucherId,bytes signature) returns (uint256)',
+  'function usedVouchers(bytes32 voucherId) view returns (bool)',
   'function burn(uint256 tokenId)',
   'event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)',
 ];
@@ -60,82 +62,90 @@ async function resetToWorkingBaseFork() {
   throw lastError || new Error('No Base fork RPC was available.');
 }
 
-async function deploymentBlock() {
-  const receipt = await ethers.provider.getTransactionReceipt(DEPLOYMENT_TX);
-  if (!receipt || !receipt.blockNumber) throw new Error('Could not locate the live VoxelFlip deployment block.');
-  return receipt.blockNumber;
-}
-
-async function discoverThreeLiveTokens(parent) {
-  const fromBlock = await deploymentBlock();
-  const latest = await ethers.provider.getBlockNumber();
-  const transferTopic = ethers.id('Transfer(address,address,uint256)');
-  const latestOwnerByToken = new Map();
-  const chunk = 1_500;
-
-  for (let start = fromBlock; start <= latest; start += chunk) {
-    const end = Math.min(latest, start + chunk - 1);
-    const logs = await ethers.provider.getLogs({
-      address: LIVE_VOXELFLIP,
-      fromBlock: start,
-      toBlock: end,
-      topics: [transferTopic],
-    });
-    for (const log of logs) {
-      if (!log.topics || log.topics.length < 4) continue;
-      const to = ethers.getAddress(`0x${log.topics[2].slice(-40)}`);
-      const tokenId = BigInt(log.topics[3]);
-      latestOwnerByToken.set(tokenId.toString(), to);
-    }
+async function replaceMintSignerStorageOnFork(parent, replacementSigner) {
+  let currentSigner;
+  try {
+    currentSigner = ethers.getAddress(await parent.mintSigner());
+  } catch (error) {
+    throw new Error(`The deployed VoxelFlip does not expose mintSigner(): ${error?.shortMessage || error?.message || error}`);
   }
 
-  const eoaTokens = [];
-  const otherTokens = [];
-  for (const [tokenIdText, loggedOwner] of latestOwnerByToken.entries()) {
-    if (loggedOwner === ethers.ZeroAddress) continue;
-    const tokenId = BigInt(tokenIdText);
+  const currentNeedle = currentSigner.slice(2).toLowerCase();
+  const replacement = replacementSigner.slice(2).toLowerCase();
+
+  for (let slot = 0n; slot < 96n; slot++) {
+    const original = await ethers.provider.getStorage(LIVE_VOXELFLIP, slot);
+    const word = original.slice(2).padStart(64, '0');
+    const index = word.toLowerCase().indexOf(currentNeedle);
+    if (index < 0) continue;
+
+    const patched = `0x${word.slice(0, index)}${replacement}${word.slice(index + 40)}`;
+    await network.provider.send('hardhat_setStorageAt', [LIVE_VOXELFLIP, ethers.toBeHex(slot), patched]);
+    await network.provider.send('evm_mine');
+
     try {
-      const currentOwner = ethers.getAddress(await parent.ownerOf(tokenId));
-      if (currentOwner !== loggedOwner) continue;
-      const code = await ethers.provider.getCode(currentOwner);
-      const item = { tokenId, owner: currentOwner };
-      if (code === '0x') eoaTokens.push(item);
-      else otherTokens.push(item);
+      if (ethers.getAddress(await parent.mintSigner()) === replacementSigner) return slot;
     } catch {}
+
+    await network.provider.send('hardhat_setStorageAt', [LIVE_VOXELFLIP, ethers.toBeHex(slot), original]);
+    await network.provider.send('evm_mine');
   }
 
-  const selected = [...eoaTokens, ...otherTokens].slice(0, 3);
-  if (selected.length < 3) {
-    throw new Error(`Only ${selected.length} live VoxelFlip token(s) were discoverable; three are required to prove 3-to-1 Forge compatibility.`);
-  }
-  return selected;
+  throw new Error(`Could not locate mutable mintSigner storage for ${currentSigner} in the deployed VoxelFlip.`);
 }
 
-async function consolidateLiveTokensOnFork(parent, selected, destination) {
-  for (const { tokenId, owner } of selected) {
-    if (owner.toLowerCase() === destination.toLowerCase()) continue;
-    await network.provider.request({ method: 'hardhat_impersonateAccount', params: [owner] });
-    await network.provider.send('hardhat_setBalance', [owner, '0x56BC75E2D63100000']); // fork-only test balance
-    const sourceSigner = await ethers.getSigner(owner);
-    await (await parent.connect(sourceSigner).transferFrom(owner, destination, tokenId)).wait();
-    expect(await parent.ownerOf(tokenId)).to.equal(destination);
-    await network.provider.request({ method: 'hardhat_stopImpersonatingAccount', params: [owner] });
+function mintedTokenId(receipt) {
+  const transferTopic = ethers.id('Transfer(address,address,uint256)').toLowerCase();
+  const zeroTopic = ethers.zeroPadValue(ethers.ZeroAddress, 32).toLowerCase();
+  for (const log of receipt.logs || []) {
+    if (String(log.address).toLowerCase() !== LIVE_VOXELFLIP.toLowerCase()) continue;
+    if (log.topics?.[0]?.toLowerCase() !== transferTopic) continue;
+    if (log.topics?.[1]?.toLowerCase() !== zeroTopic) continue;
+    if (log.topics.length < 4) continue;
+    return BigInt(log.topics[3]);
   }
+  throw new Error('Synthetic VoxelFlip mint did not emit a readable ERC-721 Transfer mint event.');
+}
+
+async function mintThreeParentsThroughDeployedBytecode(parent, holder, voucherSigner) {
+  await replaceMintSignerStorageOnFork(parent, voucherSigner.address);
+  expect(ethers.getAddress(await parent.mintSigner())).to.equal(voucherSigner.address);
+
+  const tokenIds = [];
+  for (let i = 0; i < 3; i++) {
+    const uri = `ipfs://voxelforge-live-bytecode-proof/parent-${i + 1}.json`;
+    const voucherId = hashText(`voxelforge-live-bytecode-proof:${i + 1}:${holder.address}`);
+    const uriHash = ethers.keccak256(ethers.toUtf8Bytes(uri));
+    const digest = ethers.solidityPackedKeccak256(
+      ['address', 'bytes32', 'bytes32'],
+      [holder.address, uriHash, voucherId]
+    );
+    const signature = await voucherSigner.signMessage(ethers.getBytes(digest));
+
+    expect(await parent.usedVouchers(voucherId)).to.equal(false);
+    const tx = await parent.connect(holder).mintWithVoucher(uri, voucherId, signature);
+    const receipt = await tx.wait();
+    const tokenId = mintedTokenId(receipt);
+    expect(await parent.ownerOf(tokenId)).to.equal(holder.address);
+    expect(await parent.tokenURI(tokenId)).to.equal(uri);
+    expect(await parent.usedVouchers(voucherId)).to.equal(true);
+    tokenIds.push(tokenId);
+  }
+  return tokenIds;
 }
 
 describe('VoxelForgeAtomic live Base fork', function () {
   this.timeout(180_000);
 
-  it('proves the deployed VoxelFlip supports atomic transfer -> token-owner burn -> descendant mint', async function () {
+  it('proves the deployed VoxelFlip bytecode supports atomic transfer -> token-owner burn -> descendant mint', async function () {
     await resetToWorkingBaseFork();
 
-    const [holder, owner, forgeSigner, feeRecipient] = await ethers.getSigners();
+    const [holder, owner, voucherSigner, forgeSigner, feeRecipient] = await ethers.getSigners();
     const parent = new ethers.Contract(LIVE_VOXELFLIP, PARENT_ABI, ethers.provider);
-    const selected = await discoverThreeLiveTokens(parent);
-    const tokenIds = selected.map((item) => item.tokenId);
 
-    // Consolidation happens only in the local fork. It never submits a transaction to Base mainnet.
-    await consolidateLiveTokensOnFork(parent, selected, holder.address);
+    // Production currently has no live parents to consume. These three are minted only inside
+    // the disposable Hardhat fork through the real deployed mintWithVoucher bytecode.
+    const tokenIds = await mintThreeParentsThroughDeployedBytecode(parent, holder, voucherSigner);
 
     const Forge = await ethers.getContractFactory('VoxelForgeAtomic');
     const forge = await Forge.deploy(
