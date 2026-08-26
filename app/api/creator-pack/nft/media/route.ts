@@ -31,35 +31,23 @@ export async function GET(request: Request) {
   const taskId = (url.searchParams.get('taskId') || '').trim();
   const kind = url.searchParams.get('kind') === 'image' ? 'image' : 'model';
   const sig = (url.searchParams.get('sig') || '').trim();
-  if (!taskId || !validSignature(sig, hmacHex(`media:${taskId}`))) {
-    return NextResponse.json({ error: 'Invalid VoxelFlip media link.' }, { status: 403 });
-  }
+  if (!taskId || !validSignature(sig, hmacHex(`media:${taskId}`))) return NextResponse.json({ error: 'Invalid VoxelFlip media link.' }, { status: 403 });
 
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) return NextResponse.json({ error: '3D media is not configured.' }, { status: 503 });
-
-  const taskResponse = await fetch(`${MESH_ENDPOINT}/${encodeURIComponent(taskId)}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  });
+  const taskResponse = await fetch(`${MESH_ENDPOINT}/${encodeURIComponent(taskId)}`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: 'no-store' });
   const data = await taskResponse.json().catch(() => ({}));
-  if (!taskResponse.ok || String(data?.status || '').toUpperCase() !== 'SUCCEEDED') {
-    return NextResponse.json({ error: 'VoxelFlip media is not ready.' }, { status: 409 });
-  }
-
+  if (!taskResponse.ok || String(data?.status || '').toUpperCase() !== 'SUCCEEDED') return NextResponse.json({ error: 'VoxelFlip media is not ready.' }, { status: 409 });
   const remoteUrl = kind === 'model'
     ? (typeof data?.model_urls?.glb === 'string' ? data.model_urls.glb : '')
     : (typeof data?.alpha_thumbnail_url === 'string' ? data.alpha_thumbnail_url : (typeof data?.thumbnail_url === 'string' ? data.thumbnail_url : ''));
   if (!remoteUrl) return NextResponse.json({ error: 'VoxelFlip media is unavailable.' }, { status: 404 });
-
   const mediaResponse = await fetch(remoteUrl, { cache: 'no-store' });
   if (!mediaResponse.ok || !mediaResponse.body) return NextResponse.json({ error: 'VoxelFlip media could not be loaded.' }, { status: 502 });
-
-  const contentType = kind === 'model' ? 'model/gltf-binary' : (mediaResponse.headers.get('content-type') || 'image/png');
   return new NextResponse(mediaResponse.body, {
     status: 200,
     headers: {
-      'Content-Type': contentType,
+      'Content-Type': kind === 'model' ? 'model/gltf-binary' : (mediaResponse.headers.get('content-type') || 'image/png'),
       'Cache-Control': 'public, max-age=86400, s-maxage=86400',
       'Content-Disposition': `inline; filename="voxelflip.${kind === 'model' ? 'glb' : 'png'}"`,
     },

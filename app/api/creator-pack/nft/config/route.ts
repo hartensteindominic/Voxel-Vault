@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const deployment = await getVoxelFlipDeployment();

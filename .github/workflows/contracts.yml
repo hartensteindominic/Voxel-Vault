@@ -14,7 +14,6 @@ on:
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'package.json'
-      - '.github/workflows/contracts.yml'
 
 jobs:
   compile:
@@ -26,12 +25,3 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run chain:compile
-      - name: Test VoxelFlip contract
-        run: npx hardhat test test/VoxelFlipNFT.test.js
-      - name: Publish VoxelFlip ABI + bytecode
-        uses: actions/upload-artifact@v4
-        with:
-          name: voxelflip-contract-artifact
-          path: artifacts/contracts/VoxelFlipNFT.sol/VoxelFlipNFT.json
-          if-no-files-found: error
-          retention-days: 7

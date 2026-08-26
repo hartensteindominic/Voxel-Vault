@@ -1,16 +1,16 @@
-import { CATALOG_SIZE } from '../lib/catalog';
-
 export default function sitemap() {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://voxel-vault.vercel.app').replace(/\/$/, '');
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
   const now = new Date();
-
-  const routes = ['/', '/marketplace'];
-  const catalogRoutes = Array.from({ length: Math.min(CATALOG_SIZE, 1000) }, (_, index) => `/asset/${index + 1}`);
-
-  return [...routes, ...catalogRoutes].map((path) => ({
-    url: `${base}${path}`,
+  const routes = [
+    { path: '/', changeFrequency: 'daily', priority: 1 },
+    { path: '/studio', changeFrequency: 'daily', priority: 0.9 },
+    { path: '/privacy', changeFrequency: 'monthly', priority: 0.3 },
+    { path: '/terms', changeFrequency: 'monthly', priority: 0.3 },
+  ];
+  return routes.map((route) => ({
+    url: `${base}${route.path}`,
     lastModified: now,
-    changeFrequency: path === '/' ? 'daily' : 'weekly',
-    priority: path === '/' ? 1 : path === '/marketplace' ? 0.9 : 0.6,
+    changeFrequency: route.changeFrequency,
+    priority: route.priority,
   }));
 }

@@ -12,11 +12,11 @@
     "test:mobile": "node scripts/check-mobile-webgl.mjs",
     "test:collection": "node scripts/test-collection-experience.mjs",
     "test:commerce": "node scripts/test-commerce-hardening.mjs",
-    "test:release": "npm run test:rewards && npm run test:universal && npm run test:media && npm run test:mobile && npm run test:collection && npm run test:commerce && npm run build",
+    "test:routes": "node scripts/test-route-integrity.mjs",
+    "test:release": "npm run test:rewards && npm run test:universal && npm run test:media && npm run test:mobile && npm run test:collection && npm run test:commerce && npm run test:routes && npm run build",
     "chain:compile": "hardhat compile",
     "chain:deploy:sepolia": "hardhat run scripts/deploy-sepolia.js --network sepolia",
-    "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet",
-    "chain:deploy:voxelflip-base": "hardhat run scripts/deploy-voxelflip-base.js --network base"
+    "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",

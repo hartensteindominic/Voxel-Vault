@@ -6,11 +6,15 @@ const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 const APPROVED_OWNER = '0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb';
 
-// This Base deployment already passed the live VoxelFlip identity checks in the
-// registration route (bytecode, owner, mint signer, name/symbol and 5% ERC-2981
-// royalty). Keep it as a branch-level fallback so Preview deployments do not
-// depend on Supabase credentials just to remember the collection address.
-const VERIFIED_BRANCH_FALLBACK: VoxelFlipDeployment = {
+/**
+ * Production VoxelFlip is deliberately pinned here.
+ *
+ * A mutable Supabase object or a stale Vercel environment variable must never
+ * be able to switch the contract used for mint verification, market actions,
+ * or Neural Core. A future production contract change therefore requires a
+ * reviewed code deployment that updates this record.
+ */
+const VERIFIED_PRODUCTION_FALLBACK: VoxelFlipDeployment = {
   address: '0xa00758b05f96ef4409d97c3ffebb6794b2eafbde',
   chainId: 8453,
   network: 'base',
@@ -36,65 +40,84 @@ export type VoxelFlipDeployment = {
   registeredAt: string;
 };
 
-let memoryCache: { value: VoxelFlipDeployment | null; expiresAt: number } | null = null;
+let memoryCache: { value: VoxelFlipDeployment; expiresAt: number } | null = null;
+let warnedAboutStoredConflict = false;
+let warnedAboutEnvConflict = false;
+
+function normalizeAddress(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeTx(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
 
 function validDeployment(value: any): value is VoxelFlipDeployment {
   return Boolean(
-    value &&
-    ADDRESS_RE.test(String(value.address || '')) &&
-    Number(value.chainId) === 8453 &&
-    ADDRESS_RE.test(String(value.owner || '')) &&
-    ADDRESS_RE.test(String(value.mintSigner || '')) &&
-    ADDRESS_RE.test(String(value.royaltyReceiver || '')) &&
-    Number.isInteger(Number(value.royaltyBps)) &&
-    Number(value.royaltyBps) >= 0 &&
-    Number(value.royaltyBps) <= 1000 &&
-    TX_RE.test(String(value.deploymentTxHash || ''))
+    value
+    && ADDRESS_RE.test(String(value.address || ''))
+    && Number(value.chainId) === 8453
+    && ADDRESS_RE.test(String(value.owner || ''))
+    && ADDRESS_RE.test(String(value.mintSigner || ''))
+    && ADDRESS_RE.test(String(value.royaltyReceiver || ''))
+    && Number.isInteger(Number(value.royaltyBps))
+    && Number(value.royaltyBps) >= 0
+    && Number(value.royaltyBps) <= 1000
+    && TX_RE.test(String(value.deploymentTxHash || ''))
   );
 }
 
-async function ensureBucket() {
-  const supabase = getSupabaseAdmin();
-  const listed = await supabase.storage.listBuckets();
-  if (listed.error) throw listed.error;
-  if (!listed.data?.some((bucket) => bucket.name === BUCKET)) {
-    const created = await supabase.storage.createBucket(BUCKET, {
-      public: false,
-      fileSizeLimit: '1MB',
-      allowedMimeTypes: ['application/json'],
-    });
-    if (created.error) throw created.error;
-  }
-  return supabase;
-}
-
-function envFallback(): VoxelFlipDeployment | null {
-  const address = (process.env.NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS || process.env.VOXELFLIP_NFT_ADDRESS || '').trim();
-  if (!ADDRESS_RE.test(address)) return null;
-  const owner = (process.env.MULTISIG_OWNER || APPROVED_OWNER).trim();
-  const royaltyReceiver = (process.env.VOXELFLIP_ROYALTY_RECEIVER || owner).trim();
-  const mintSigner = (process.env.VOXELFLIP_MINT_SIGNER_ADDRESS || owner).trim();
-  if (![owner, royaltyReceiver, mintSigner].every((value) => ADDRESS_RE.test(value))) return null;
+function normalizeDeployment(value: VoxelFlipDeployment): VoxelFlipDeployment {
   return {
-    address,
+    ...value,
+    address: String(value.address).trim(),
     chainId: 8453,
     network: 'base',
-    owner,
-    mintSigner,
-    royaltyReceiver,
-    royaltyBps: 500,
-    deploymentTxHash: '0x' + '0'.repeat(64),
-    deployedAt: '',
-    registeredAt: '',
+    owner: String(value.owner).trim(),
+    mintSigner: String(value.mintSigner).trim(),
+    royaltyReceiver: String(value.royaltyReceiver).trim(),
+    royaltyBps: Number(value.royaltyBps),
+    deploymentTxHash: String(value.deploymentTxHash).trim(),
+    deployedAt: String(value.deployedAt || ''),
+    registeredAt: String(value.registeredAt || ''),
   };
 }
 
-function codeFallback(): VoxelFlipDeployment | null {
-  return validDeployment(VERIFIED_BRANCH_FALLBACK) ? VERIFIED_BRANCH_FALLBACK : null;
+function matchesVerifiedProduction(value: VoxelFlipDeployment) {
+  const trusted = VERIFIED_PRODUCTION_FALLBACK;
+  return (
+    normalizeAddress(value.address) === normalizeAddress(trusted.address)
+    && Number(value.chainId) === trusted.chainId
+    && String(value.network || '').trim().toLowerCase() === trusted.network
+    && normalizeAddress(value.owner) === normalizeAddress(trusted.owner)
+    && normalizeAddress(value.mintSigner) === normalizeAddress(trusted.mintSigner)
+    && normalizeAddress(value.royaltyReceiver) === normalizeAddress(trusted.royaltyReceiver)
+    && Number(value.royaltyBps) === trusted.royaltyBps
+    && normalizeTx(value.deploymentTxHash) === normalizeTx(trusted.deploymentTxHash)
+  );
 }
 
-export async function getVoxelFlipDeployment(options: { bypassCache?: boolean } = {}): Promise<VoxelFlipDeployment | null> {
+function warnAboutConflictingEnvironment() {
+  if (warnedAboutEnvConflict) return;
+  const configured = [
+    process.env.NEXT_PUBLIC_VOXELFLIP_NFT_ADDRESS,
+    process.env.VOXELFLIP_NFT_ADDRESS,
+  ].map(value => String(value || '').trim()).filter(Boolean);
+
+  const conflict = configured.find(value => ADDRESS_RE.test(value) && normalizeAddress(value) !== normalizeAddress(VERIFIED_PRODUCTION_FALLBACK.address));
+  if (!conflict) return;
+
+  warnedAboutEnvConflict = true;
+  console.warn('Ignoring stale VoxelFlip contract environment override; production is pinned to the reviewed deployment.', {
+    configuredAddress: conflict,
+    productionAddress: VERIFIED_PRODUCTION_FALLBACK.address,
+  });
+}
+
+export async function getVoxelFlipDeployment(options: { bypassCache?: boolean } = {}): Promise<VoxelFlipDeployment> {
   if (!options.bypassCache && memoryCache && memoryCache.expiresAt > Date.now()) return memoryCache.value;
+
+  warnAboutConflictingEnvironment();
 
   try {
     const supabase = getSupabaseAdmin();
@@ -102,43 +125,33 @@ export async function getVoxelFlipDeployment(options: { bypassCache?: boolean } 
     if (!downloaded.error && downloaded.data) {
       const parsed = JSON.parse(await downloaded.data.text());
       if (validDeployment(parsed)) {
-        const value = { ...parsed, royaltyBps: Number(parsed.royaltyBps), chainId: 8453 } as VoxelFlipDeployment;
-        memoryCache = { value, expiresAt: Date.now() + 30_000 };
-        return value;
+        const stored = normalizeDeployment(parsed);
+        if (matchesVerifiedProduction(stored)) {
+          // Stored timestamps may be newer, but security-sensitive deployment
+          // fields are accepted only when they exactly match reviewed code.
+          const value: VoxelFlipDeployment = {
+            ...VERIFIED_PRODUCTION_FALLBACK,
+            deployedAt: stored.deployedAt || VERIFIED_PRODUCTION_FALLBACK.deployedAt,
+            registeredAt: stored.registeredAt || VERIFIED_PRODUCTION_FALLBACK.registeredAt,
+          };
+          memoryCache = { value, expiresAt: Date.now() + 30_000 };
+          return value;
+        }
+
+        if (!warnedAboutStoredConflict) {
+          warnedAboutStoredConflict = true;
+          console.warn('Ignoring untrusted VoxelFlip deployment.json; it does not match the reviewed production deployment.', {
+            storedAddress: stored.address,
+            productionAddress: VERIFIED_PRODUCTION_FALLBACK.address,
+          });
+        }
       }
     }
-  } catch {
-    // Supabase is optional for the branch preview. Fall through to an environment
-    // override or the verified code fallback instead of blocking mint readiness.
-  }
-
-  const fallback = envFallback() || codeFallback();
-  memoryCache = { value: fallback, expiresAt: Date.now() + 30_000 };
-  return fallback;
-}
-
-export async function saveVoxelFlipDeployment(value: VoxelFlipDeployment) {
-  if (!validDeployment(value)) throw new Error('Invalid VoxelFlip deployment record');
-  const existing = await getVoxelFlipDeployment({ bypassCache: true });
-  if (existing?.address && existing.address.toLowerCase() !== value.address.toLowerCase()) {
-    throw new Error(`VoxelFlip is already registered at ${existing.address}`);
-  }
-
-  // Always make a successfully verified deployment immediately available to this
-  // runtime, even when optional persistent storage credentials are absent.
-  memoryCache = { value, expiresAt: Date.now() + 30_000 };
-
-  try {
-    const supabase = await ensureBucket();
-    const uploaded = await supabase.storage.from(BUCKET).upload(FILE, JSON.stringify(value, null, 2), {
-      contentType: 'application/json',
-      cacheControl: '60',
-      upsert: true,
-    });
-    if (uploaded.error) throw uploaded.error;
   } catch (error) {
-    console.warn('VoxelFlip deployment is using branch fallback because Supabase persistence is unavailable.', error);
+    console.warn('VoxelFlip deployment metadata storage is unavailable; using the reviewed production deployment.', error);
   }
 
+  const value = { ...VERIFIED_PRODUCTION_FALLBACK };
+  memoryCache = { value, expiresAt: Date.now() + 30_000 };
   return value;
 }

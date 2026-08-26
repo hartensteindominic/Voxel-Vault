@@ -1,22 +1,21 @@
 import PackBuilder from './PackBuilder';
-import { getVoxelPopEntitlement } from '../../../lib/voxelpop-entitlement';
+import { stripe } from '../../../lib/stripe-server';
 import { attributionFromMetadata, recordVoxelPopEvent } from '../../../lib/voxelpop-analytics';
 
 async function recordPurchase(sessionId: string) {
   if (!sessionId) return;
   try {
-    const entitlement = await getVoxelPopEntitlement(sessionId);
-    if (!entitlement) return;
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== 'paid' || session.metadata?.product !== 'voxelpop-3d-asset') return;
     await recordVoxelPopEvent({
       eventName: 'purchase_completed',
-      eventKey: `purchase_completed:${entitlement.paymentMethod}:${entitlement.id}`,
-      flowId: entitlement.metadata?.flow_id,
-      stripeSessionId: entitlement.paymentMethod === 'stripe' ? entitlement.id : null,
-      attribution: attributionFromMetadata(entitlement.metadata),
+      eventKey: `purchase_completed:${session.id}`,
+      flowId: session.metadata?.flow_id,
+      stripeSessionId: session.id,
+      attribution: attributionFromMetadata(session.metadata),
       details: {
-        amount_cents: entitlement.amountCents,
-        currency: entitlement.currency,
-        payment_method: entitlement.paymentMethod,
+        amount_cents: Number(session.amount_total || 0),
+        currency: session.currency || 'usd',
       },
     });
   } catch (error) {
