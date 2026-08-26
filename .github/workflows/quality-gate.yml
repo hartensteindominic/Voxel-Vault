@@ -28,6 +28,7 @@ jobs:
       - run: npm run test:universal
       - run: npm run test:media
       - run: npm run test:mobile
+      - run: npm run test:voxel-flow
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
