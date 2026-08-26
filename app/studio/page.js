@@ -114,7 +114,9 @@ export default function StudioPage(){
   setBusy(true);setError('');
   try{
    sessionStorage.setItem('voxelPackBrief',JSON.stringify({idea:idea.trim(),style:'polished'}));
-   const r=await fetch('/api/creator-pack/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:idea.trim().slice(0,180),style:'polished',flowId:id,attribution})});
+   const headers={'Content-Type':'application/json'};
+   if(session?.access_token)headers.Authorization=`Bearer ${session.access_token}`;
+   const r=await fetch('/api/creator-pack/checkout',{method:'POST',headers,body:JSON.stringify({idea:idea.trim().slice(0,180),style:'polished',flowId:id,attribution})});
    const d=await r.json(); if(!r.ok||!d.url) throw new Error(d.error||'Checkout unavailable'); location.href=d.url;
   }catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}
  }
@@ -149,13 +151,14 @@ export default function StudioPage(){
    {myVoxels.length>0?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}}>
     {myVoxels.map(voxel=>{
      const ready=voxel.meshStatus==='ready';const minted=voxel.mint?.tokenId?voxel.mint:null;
-     const assetHref=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;const mintHref=`/voxelflip/mint?session_id=${encodeURIComponent(voxel.sessionId)}`;const href=minted?mintHref:assetHref;
+     const assetHref=`/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;const mintHref=`/voxelflip/mint?session_id=${encodeURIComponent(voxel.sessionId)}`;const forgeHref=`/forge/real?focus_session=${encodeURIComponent(voxel.sessionId)}`;const href=minted?mintHref:assetHref;
      return <article key={voxel.sessionId} style={{overflow:'hidden',borderRadius:18,border:'1px solid #e5e7eb',background:'#f8fafc'}}>
       <img src={voxel.image} alt={voxel.name.replaceAll('-',' ')} style={{width:'100%',height:190,display:'block',objectFit:'cover',background:'#f3f4f6'}}/>
       <div style={{padding:14}}>
        <small style={{fontWeight:900,letterSpacing:'.08em',color:minted?'#4d7c0f':'#6b7280'}}>{minted?`VOXELFLIP #${minted.tokenId} · MINTED`:ready?'3D READY':'PAID VOXEL'}</small>
        <h3 style={{margin:'5px 0 12px',fontSize:18,textTransform:'capitalize',color:'#111827'}}>{voxel.name.replaceAll('-',' ')}</h3>
        <a href={href} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'11px 12px',borderRadius:12,fontWeight:900,background:minted?'#365314':'#111827',color:'#fff'}}>{minted?`Open minted 3D · #${minted.tokenId}`:ready?'Open 3D voxel':'Continue voxel'}</a>
+       {!minted&&ready&&<a href={forgeHref} style={{display:'block',textAlign:'center',textDecoration:'none',padding:'10px 10px 0',fontSize:13,fontWeight:900,color:'#365314'}}>Add this 3D voxel to Forge →</a>}
        {minted?.openSeaUrl&&<a href={minted.openSeaUrl} target="_blank" rel="noreferrer" style={{display:'block',textAlign:'center',textDecoration:'none',padding:'9px 10px 0',fontSize:13,fontWeight:800,color:'#475569'}}>Open on OpenSea ↗</a>}
       </div>
      </article>;
