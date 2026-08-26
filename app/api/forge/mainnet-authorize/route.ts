@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { Contract, JsonRpcProvider, Wallet, getAddress, hexlify, isAddress, keccak256, toUtf8Bytes } from 'ethers';
+import { Contract, JsonRpcProvider, getAddress, hexlify, isAddress, keccak256, toUtf8Bytes } from 'ethers';
 import { NextResponse } from 'next/server';
 import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
+import { getRevenueForgeDeployment, revenueForgeSigningWallet } from '../../../../lib/forge-revenue-deployment';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,18 +38,6 @@ const TYPES = {
 };
 
 type ParentInput = { contract?: string; tokenId?: string | number };
-
-function normalizePrivateKey(value: string) {
-  const trimmed = value.trim();
-  if (/^[a-fA-F0-9]{64}$/.test(trimmed)) return `0x${trimmed}`;
-  if (/^0X[a-fA-F0-9]{64}$/.test(trimmed)) return `0x${trimmed.slice(2)}`;
-  return trimmed;
-}
-
-function forgeAddress() {
-  const value = String(process.env.VOXELFORGE_REVENUE_ADDRESS || process.env.NEXT_PUBLIC_VOXELFORGE_REVENUE_ADDRESS || '').trim();
-  return isAddress(value) ? getAddress(value) : '';
-}
 
 function rpcCandidates() {
   return Array.from(new Set([
@@ -114,11 +103,11 @@ function metadataUri(origin: string, requestId: string, parents: { contract: str
 }
 
 export async function POST(request: Request) {
-  const configuredForge = forgeAddress();
-  const rawKey = String(process.env.VOXELFORGE_SIGNER_PRIVATE_KEY || '').trim();
-  if (!configuredForge || !rawKey) {
-    return NextResponse.json({ error: 'The Base mainnet revenue Forge is not activated on this deployment.' }, { status: 503 });
+  const registered = await getRevenueForgeDeployment();
+  if (!registered?.address) {
+    return NextResponse.json({ error: 'The Base mainnet revenue Forge has not been deployed and registered yet.' }, { status: 503 });
   }
+  const configuredForge = getAddress(registered.address);
 
   let provider: JsonRpcProvider | null = null;
   try {
@@ -149,9 +138,9 @@ export async function POST(request: Request) {
     if (paused) return NextResponse.json({ error: 'The Base revenue Forge is currently paused.' }, { status: 503 });
     if (!parentApproved) return NextResponse.json({ error: 'The reviewed VoxelFlip collection is not approved by the revenue Forge.' }, { status: 503 });
 
-    const signer = new Wallet(normalizePrivateKey(rawKey));
-    if (getAddress(configuredSigner) !== signer.address) {
-      return NextResponse.json({ error: 'The server Forge signer does not match the deployed revenue Forge.' }, { status: 503 });
+    const signer = revenueForgeSigningWallet();
+    if (getAddress(configuredSigner) !== signer.address || getAddress(registered.forgeSigner) !== signer.address) {
+      return NextResponse.json({ error: 'The protected server Forge signer does not match the registered revenue Forge.' }, { status: 503 });
     }
 
     for (let i = 0; i < parents.length; i += 1) {
