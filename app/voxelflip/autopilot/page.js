@@ -54,58 +54,73 @@ export default function VoxelFlipAutopilotPage(){
   finally{setBusy(false)}
  }
 
- const watching=tokenId?`VoxelFlip #${tokenId}`:'your VoxelFlip wallet';
  const openSeaHref=scanner?.openSeaUrl||'https://opensea.io';
  const listed=scanner?.tokenListed===true?'LISTED':scanner?.tokenListed===false?'NOT LISTED':'—';
  const marketReady=scanner?.marketDataConfigured===true;
  const factoryQuery=new URLSearchParams();if(wallet)factoryQuery.set('wallet',wallet);if(tokenId)factoryQuery.set('tokenId',tokenId);if(sessionId)factoryQuery.set('session_id',sessionId);const factoryHref=`/voxelflip/factory${factoryQuery.toString()?`?${factoryQuery}`:''}`;
 
  return <main className={styles.page}>
-  <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · AUTOPILOT</em></nav>
-
-  <header className={styles.hero}>
-   <p className={styles.eyebrow}>MONITORING MODE · NO AUTOMATIC SIGNING</p>
-   <h1>Watching<br/><em>{watching}.</em></h1>
-   <span>Autopilot watches OpenSea and Base for you. It cannot buy, sell, list, or sign transactions yet.</span>
-  </header>
+  <nav className={styles.nav}>
+   <a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a>
+   <em>AUTOPILOT</em>
+  </nav>
 
   <div className={styles.shell}>
-   <section className={styles.panel}>
-    <div className={styles.panelHead}>
-     <div><small>LIVE MARKET MONITOR</small><h2>{tokenId?`VoxelFlip #${tokenId}`:'Connect your VoxelFlip'}</h2></div>
-     <button className={`${styles.status} ${autoScan?styles.statusOn:''}`} onClick={()=>setAutoScan(v=>!v)}>{autoScan?'AUTO SCAN · ON':'AUTO SCAN · OFF'}</button>
+   <header className={styles.hero}>
+    <p>LIVE MONITOR</p>
+    <h1>{tokenId?`VoxelFlip #${tokenId}`:'VoxelFlip'}</h1>
+    <span>Watch the market. You approve every action.</span>
+   </header>
+
+   <section className={styles.dashboard}>
+    <div className={styles.controls}>
+     {!wallet?
+      <button className={styles.connect} onClick={connect} disabled={busy}>{busy?'CONNECTING…':'CONNECT WALLET'}</button>:
+      <div className={styles.wallet}>
+       <div><small>BASE WALLET</small><b>{short(wallet)}</b></div>
+       <button onClick={runScan} disabled={busy}>{busy?'SCANNING…':'REFRESH'}</button>
+      </div>}
+     <button className={`${styles.autoButton} ${autoScan?styles.autoOn:''}`} onClick={()=>setAutoScan(v=>!v)}>AUTO {autoScan?'ON':'OFF'}</button>
     </div>
 
-    {!wallet?<button className={styles.connect} onClick={connect} disabled={busy}>{busy?'Connecting…':'Connect Base wallet'}</button>:<div className={styles.wallet}><div><small>WATCH WALLET</small><b>{short(wallet)}</b></div><button onClick={runScan} disabled={busy}>{busy?'Scanning…':'Refresh now'}</button></div>}
     {error&&<div className={styles.notice}>{error}</div>}
 
-    <div className={styles.grid4}>
-     <article className={styles.metric}><small>FLOOR PRICE</small><b>{eth(scanner?.collectionFloorEth)}</b></article>
-     <article className={styles.metric}><small>ACTIVE LISTINGS</small><b>{count(scanner?.collectionListings,scanner?.collectionListingsMore)}</b></article>
-     <article className={styles.metric}><small>24H SALES</small><b>{count(scanner?.sales24h,scanner?.sales24hMore)}</b></article>
-     <article className={styles.metric}><small>YOUR VOXEL</small><b>{listed}</b></article>
+    <div className={styles.metrics}>
+     <article><small>FLOOR</small><b>{eth(scanner?.collectionFloorEth)}</b></article>
+     <article><small>LISTINGS</small><b>{count(scanner?.collectionListings,scanner?.collectionListingsMore)}</b></article>
+     <article><small>24H SALES</small><b>{count(scanner?.sales24h,scanner?.sales24hMore)}</b></article>
+     <article><small>YOUR NFT</small><b>{listed}</b></article>
     </div>
 
     {!scanner&&wallet&&<div className={styles.notice}>Waiting for the first market scan.</div>}
-    {scanner&&!marketReady&&<div className={styles.notice}>OpenSea market data is not connected yet, so live floor, listings and sales are unavailable. Your VoxelFlip is still safe and no transaction can be sent from this page.</div>}
-    {scanner&&marketReady&&!scanner.collectionSlug&&tokenId&&<div className={styles.notice}>OpenSea has not returned collection-level stats for this VoxelFlip yet. Autopilot will keep checking every 30 seconds.</div>}
-    {scanner?.checkedAt&&<p className={styles.riskText}>Last checked {time(scanner.checkedAt)} · OpenSea data can lag behind on-chain activity.</p>}
-   </section>
+    {scanner&&!marketReady&&<div className={styles.notice}>OpenSea market data is not connected yet. Your VoxelFlip is still safe and this page cannot send a transaction.</div>}
+    {scanner&&marketReady&&!scanner.collectionSlug&&tokenId&&<div className={styles.notice}>OpenSea has not returned collection stats yet. Auto Scan will keep checking every 30 seconds.</div>}
+    {scanner?.checkedAt&&<p className={styles.checked}>Checked {time(scanner.checkedAt)} · OpenSea data can lag behind Base.</p>}
 
-   <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>WHAT YOU CAN DO NOW</small><h2>Watch it, sell manually, or inspect Factory.</h2></div><span className={styles.status}>AUTOPILOT TRADING · COMING SOON</span></div>
-    <div className={styles.notice}>Automatic signing is OFF. Nothing on this page can spend ETH or list your NFT without you.</div>
-    <div className={styles.actions}>
-     <a href={factoryHref}>Open Factory loop →</a>
-     <a href={openSeaHref} target="_blank" rel="noreferrer">List manually on OpenSea ↗</a>
-     <a href={openSeaHref} target="_blank" rel="noreferrer">Open {tokenId?`VoxelFlip #${tokenId}`:'VoxelFlip'} ↗</a>
-     <a href="/studio#my-voxels">My Voxels</a>
-     {sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>Open minted 3D</a>}
+    <div className={styles.divider}/>
+
+    <div className={styles.actionHead}>
+     <div><small>ACTIONS</small><h2>What do you want to do?</h2></div>
+     <span>YOU APPROVE</span>
     </div>
-    <p className={styles.riskText}>Factory can observe settled external sales and enforce conservative reserve/reinvestment rules. Spending, minting, and listing stay approval-gated until a bounded executor is installed and tested.</p>
+
+    <div className={styles.safety}>
+     <b>Automatic signing is OFF.</b>
+     <span>Nothing on this page can spend ETH or list your NFT without you.</span>
+    </div>
+
+    <div className={styles.actions}>
+     <a className={styles.primary} href={openSeaHref} target="_blank" rel="noreferrer">LIST ON OPENSEA ↗</a>
+     <a href={openSeaHref} target="_blank" rel="noreferrer">VIEW NFT ↗</a>
+     {sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>OPEN 3D</a>}
+     <a href={factoryHref}>FACTORY</a>
+     <a href="/studio#my-voxels">MY VOXELS</a>
+    </div>
+
+    <p className={styles.finePrint}>Factory can watch settled sales and apply reserve/reinvestment rules. Spending, minting, and listing remain approval-gated.</p>
    </section>
   </div>
 
-  <footer className={styles.footer}><a href="/studio#my-voxels">← My Voxels</a><a href={factoryHref}>Factory →</a><a href={openSeaHref} target="_blank" rel="noreferrer">OpenSea ↗</a></footer>
+  <footer className={styles.footer}><a href="/studio#my-voxels">← MY VOXELS</a><a href={openSeaHref} target="_blank" rel="noreferrer">OPENSEA ↗</a></footer>
  </main>;
 }
