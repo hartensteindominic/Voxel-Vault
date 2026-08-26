@@ -1,0 +1,33 @@
+name: VoxelForge Web Artifacts
+
+on:
+  push:
+    branches:
+      - experiment/voxelflip-forge-v1
+    paths:
+      - '.github/workflows/forge-web-artifacts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run chain:compile
+      - name: Export browser deployment artifacts
+        run: |
+          mkdir -p forge-web-artifacts
+          cp artifacts/contracts/VoxelForgeAtomic.sol/VoxelForgeAtomic.json forge-web-artifacts/VoxelForgeAtomic.json
+          cp artifacts/contracts/mocks/MockVoxelFlipParent.sol/MockVoxelFlipParent.json forge-web-artifacts/MockVoxelFlipParent.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voxelforge-web-artifacts
+          path: forge-web-artifacts/*.json
+          retention-days: 7
