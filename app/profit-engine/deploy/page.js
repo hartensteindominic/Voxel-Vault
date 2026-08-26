@@ -107,17 +107,26 @@ export default function ProfitEngineDeployPage(){
       await contract.waitForDeployment();
       const address=getAddress(await contract.getAddress());
 
+      // Record the confirmed address BEFORE any follow-up RPC reads. If a wallet
+      // RPC fails during verification, the UI still prevents an accidental redeploy.
+      setDeployment({address,txHash:tx.hash,verified:false});
+      setStatus(`Executor deployed at ${short(address)}. Verifying live constants one at a time…`);
+
       const verify=new Contract(address,VERIFY_ABI,browserProvider);
-      const [owner,chainId,weth,usdc,uni,aero,aeroFactory]=await Promise.all([
-        verify.owner(),verify.BASE_CHAIN_ID(),verify.WETH(),verify.USDC(),verify.UNISWAP_SWAP_ROUTER_02(),verify.AERODROME_ROUTER(),verify.AERODROME_FACTORY(),
-      ]);
+      const owner=await verify.owner();
+      const chainId=await verify.BASE_CHAIN_ID();
+      const weth=await verify.WETH();
+      const usdc=await verify.USDC();
+      const uni=await verify.UNISWAP_SWAP_ROUTER_02();
+      const aero=await verify.AERODROME_ROUTER();
+      const aeroFactory=await verify.AERODROME_FACTORY();
       if(getAddress(owner)!==APPROVED_OWNER||BigInt(chainId)!==BigInt(8453)||getAddress(weth)!==EXPECTED.weth||getAddress(usdc)!==EXPECTED.usdc||getAddress(uni)!==EXPECTED.uni||getAddress(aero)!==EXPECTED.aero||getAddress(aeroFactory)!==EXPECTED.factory){
-        throw new Error('Deployment confirmed, but live executor constants did not match the reviewed production configuration. Do not fund or use this contract.');
+        throw new Error('Deployment confirmed, but live executor constants did not match the reviewed production configuration. Do not fund, use, or redeploy this contract.');
       }
 
-      setDeployment({address,txHash:tx.hash});
+      setDeployment({address,txHash:tx.hash,verified:true});
       setStatus('BaseArbExecutor deployed and live constants verified. Do not redeploy. The address now needs to be pinned into Profit Engine production before live execution is unlocked.');
-    }catch(e){setError(errorText(e));setStatus('')}finally{setBusy(false)}
+    }catch(e){setError(errorText(e));setStatus(deployment?'The deployment address above already exists. Do not redeploy; resolve the verification message first.':'')}finally{setBusy(false)}
   }
 
   return <main className={styles.page}>
@@ -135,7 +144,7 @@ export default function ProfitEngineDeployPage(){
         {!deployment&&<button className={styles.primary} style={{width:'100%',marginTop:16}} onClick={wallet?deploy:connect} disabled={busy}>{busy?'WORKING…':wallet&&bytecodeReady?'DEPLOY BASE ARB EXECUTOR':'CONNECT OWNER + VERIFY'}</button>}
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
-        {deployment&&<div className={styles.tx}><b>✓ EXECUTOR DEPLOYED</b><br/>Contract: {deployment.address}<br/>Transaction: <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${deployment.txHash}`} target="_blank" rel="noreferrer">{deployment.txHash}</a></div>}
+        {deployment&&<div className={styles.tx}><b>{deployment.verified?'✓ EXECUTOR DEPLOYED + VERIFIED':'✓ EXECUTOR DEPLOYED · VERIFYING/REVIEW NEEDED'}</b><br/>Contract: {deployment.address}<br/>Transaction: <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${deployment.txHash}`} target="_blank" rel="noreferrer">{deployment.txHash}</a><br/><b>Do not deploy another copy.</b></div>}
       </section>
     </div>
   </main>;
