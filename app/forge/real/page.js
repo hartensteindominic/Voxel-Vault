@@ -224,9 +224,21 @@ export default function RealVoxelForgePage(){
   const [error,setError]=useState('');
 
   useEffect(()=>{
+    let active=true;
     const q=new URLSearchParams(window.location.search);
     const clone=q.get('clone')||'';
     if(ADDRESS_RE.test(clone))setCloneAddress(getAddress(clone));
+    loadMyVoxels().then(library=>{
+      if(!active)return;
+      const localDisplay=mergeLibraryAndChain(library,[]);
+      setAssets(localDisplay);
+      setScanInfo({libraryLoaded:true,libraryCount:library.length,eligibleCount:0,totalShown:localDisplay.length,sourceWarning:null});
+      if(library.length){
+        const ready=library.filter(asset=>asset.library3d).length;
+        setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'} including ${ready} 3D-ready. Connect MetaMask only when you want to add verified Base NFTs.`);
+      }
+    }).catch(()=>{});
+    return()=>{active=false};
   },[]);
 
   const selected=useMemo(()=>selectedIds.map(id=>assets.find(asset=>asset.key===id)).filter(Boolean),[selectedIds,assets]);
@@ -258,14 +270,18 @@ export default function RealVoxelForgePage(){
   }
 
   async function scanAssets(){
-    setBusy(true);setError('');setAssets([]);setSelectedIds([]);setImported([]);setRare(null);setCloneVerified(false);setScanInfo(null);
+    setBusy(true);setError('');setSelectedIds([]);setImported([]);setRare(null);setCloneVerified(false);
     try{
-      if(!wallet)throw new Error('Connect MetaMask first.');
       setStatus('Loading your saved My Voxels first…');
       const library=await loadMyVoxels();
       const localDisplay=mergeLibraryAndChain(library,[]);
       setAssets(localDisplay);
       setScanInfo({libraryLoaded:true,libraryCount:library.length,eligibleCount:0,totalShown:localDisplay.length,sourceWarning:null});
+      if(!wallet){
+        const ready=library.filter(asset=>asset.library3d).length;
+        setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'} including ${ready} 3D-ready. Connect MetaMask to add wallet-owned Base NFTs.`);
+        return;
+      }
       setStatus(`Loaded ${library.length} saved My Voxel${library.length===1?'':'s'}. Now reading the connected wallet on Base.`);
 
       try{
@@ -400,13 +416,13 @@ export default function RealVoxelForgePage(){
       <section className={styles.panel}>
         <div className={styles.row}><div><small>CONNECTED WALLET</small><b>{wallet?wallet:'Not connected'}</b>{balanceEth&&<span>{Number(balanceEth).toFixed(5)} Base Sepolia ETH</span>}</div><button onClick={connect} disabled={busy}>{wallet?'RECONNECT':'CONNECT METAMASK'}</button></div>
         <div className={styles.safety}><b>Your Base mainnet NFTs are read-only here.</b><span>The scan does not approve, transfer, burn, list, or sign any Base NFT. The only write contract used later is your Base Sepolia test Forge clone.</span></div>
-        <div className={styles.sectionHead}><small>STEP 1 · LOAD SAVED + WALLET ASSETS</small><h2>Read the wallet, not just one collection.</h2><p>We show every saved My Voxel first, then discover likely VoxelPop/VoxelFlip ERC-721s from the connected Base wallet and independently verify current ownership across multiple Base RPCs.</p></div>
-        <button className={styles.primary} onClick={wallet?scanAssets:connect} disabled={busy}>{busy?'LOADING…':wallet?'LOAD ALL MY VOXELS':'CONNECT METAMASK'}</button>
+        <div className={styles.sectionHead}><small>STEP 1 · LOAD SAVED + WALLET ASSETS</small><h2>Read the library first, then the wallet.</h2><p>Saved My Voxels—including non-minted 3D-ready assets—load before wallet connection. Connecting MetaMask only adds independently verified wallet-owned Base voxel NFTs.</p></div>
+        <button className={styles.primary} onClick={wallet?scanAssets:connect} disabled={busy}>{busy?'LOADING…':wallet?'LOAD ALL MY VOXELS':'CONNECT METAMASK TO ADD MINTED NFTS'}</button>
         {scanInfo?.sourceWarning&&<div className={styles.notice}><b>SCAN NOTE</b><span>{scanInfo.sourceWarning}</span></div>}
         {scanInfo&&<div className={styles.notice}><b>LIBRARY + WALLET · READ ONLY</b><span>{savedCount} saved My Voxel{savedCount===1?'':'s'} · {readyCount} 3D ready · {selectableCount} verified Base voxel NFT{selectableCount===1?'':'s'} · {legacyCount} legacy-contract match{legacyCount===1?'':'es'}.</span></div>}
         {counts&&<div className={styles.notice}><b>WALLET SCAN DETAILS</b><span>Blockscout wallet NFTs: {counts.blockscoutWalletItems??'—'} · OpenSea wallet NFTs: {counts.openSeaWalletItems??'—'} · Voxel candidates: {counts.discoveredVoxelCandidates??'—'} · Verified: {counts.verified??'—'} · Current collection: {counts.currentProduction??'—'} · Legacy voxel contracts: {counts.legacyVoxel??'—'} · RPCs used: {counts.rpcProviders??'—'}.</span></div>}
-        {assets.length>0&&<><div className={styles.sectionHead}><small>STEP 2 · REVIEW / CHOOSE 3</small><h2>Each contract + token stays separate.</h2><p>A card becomes selectable only after Base confirms that the connected wallet owns it and its tokenURI can be read. Saved non-minted 3D voxels remain visible but are not selected automatically.</p></div><div className={styles.assetGrid}>{assets.map(asset=>{const chosen=selectedIds.includes(asset.key);const label=asset.selectable?(asset.legacyVoxelFlip?`VERIFIED LEGACY VOXEL NFT · #${asset.tokenId}`:`REAL BASE NFT · #${asset.tokenId}`):asset.library3d?'3D READY · MINT / RECOVER FIRST':'3D NOT READY';const detail=asset.selectable?`Owned by connected wallet · ${short(asset.contract)}`:asset.library3d?'This finished 3D voxel is saved. Open it from its paid voxel page to carry it into this same browser, or mint/recover it before Forge selection.':`Saved in My Voxels · mesh status ${asset.meshStatus||'idle'}.`;return <button key={asset.key} type="button" className={`${styles.asset} ${chosen?styles.selected:''} ${!asset.selectable?styles.unavailable:''}`} onClick={()=>toggle(asset.key)} disabled={imported.length>0||!asset.selectable}><span className={styles.check}>{chosen?'✓':asset.selectable?'+':'!'}</span>{asset.imageUrl?<img src={asset.imageUrl} alt={asset.name}/>:<div className={styles.placeholder}>{asset.selectable?`NFT #${asset.tokenId}`:'MY VOXEL'}</div>}<div className={styles.assetBody}><small>{label}</small><b>{asset.name}</b><span>{detail}</span></div></button>})}</div><div className={styles.selectionBar}><div><b>{selected.length} / 3 selected</b><span>{selected.length===3?'Ready to verify your test Forge.':selectableCount>=3?'Choose any three verified Base voxel NFT cards.':'Forge needs 3 verified Base voxel NFTs. The scan details above show exactly where discovery or verification stopped.'}</span></div>{selected.length>0&&imported.length===0&&<button className={styles.secondary} onClick={()=>setSelectedIds([])}>CLEAR SELECTION</button>}</div></>}
-        {scanInfo&&selectableCount<3&&<div className={styles.notice}><b>FORGE NEEDS 3 VERIFIED NFTS</b><span>If you know more are in this wallet, the WALLET SCAN DETAILS above now exposes whether discovery or owner verification is missing them. No automatic mint is performed here.</span></div>}
+        {assets.length>0&&<><div className={styles.sectionHead}><small>STEP 2 · REVIEW / CHOOSE 3</small><h2>Every saved voxel stays visible.</h2><p>Non-minted 3D voxels stay visible but disabled for forging. A card becomes selectable only after Base confirms that the connected wallet owns its NFT and its tokenURI can be read.</p></div><div className={styles.assetGrid}>{assets.map(asset=>{const chosen=selectedIds.includes(asset.key);const label=asset.selectable?(asset.legacyVoxelFlip?`VERIFIED LEGACY VOXEL NFT · #${asset.tokenId}`:`REAL BASE NFT · #${asset.tokenId}`):asset.library3d?'3D READY · NOT MINTED':'3D NOT READY';const detail=asset.selectable?`Owned by connected wallet · ${short(asset.contract)}`:asset.library3d?'Finished 3D voxel saved in My Voxels. It is visible here without minting; mint/recover only if you want to use it as a Forge parent.':`Saved in My Voxels · mesh status ${asset.meshStatus||'idle'}.`;return <button key={asset.key} type="button" className={`${styles.asset} ${chosen?styles.selected:''} ${!asset.selectable?styles.unavailable:''}`} onClick={()=>toggle(asset.key)} disabled={imported.length>0||!asset.selectable}><span className={styles.check}>{chosen?'✓':asset.selectable?'+':'!'}</span>{asset.imageUrl?<img src={asset.imageUrl} alt={asset.name}/>:<div className={styles.placeholder}>{asset.selectable?`NFT #${asset.tokenId}`:'MY VOXEL'}</div>}<div className={styles.assetBody}><small>{label}</small><b>{asset.name}</b><span>{detail}</span></div></button>})}</div><div className={styles.selectionBar}><div><b>{selected.length} / 3 selected</b><span>{selected.length===3?'Ready to verify your test Forge.':selectableCount>=3?'Choose any three verified Base voxel NFT cards.':'Forge needs 3 verified Base voxel NFTs. Your non-minted 3D voxels remain visible above but are not used as parents.'}</span></div>{selected.length>0&&imported.length===0&&<button className={styles.secondary} onClick={()=>setSelectedIds([])}>CLEAR SELECTION</button>}</div></>}
+        {scanInfo&&wallet&&selectableCount<3&&<div className={styles.notice}><b>FORGE NEEDS 3 VERIFIED NFTS</b><span>If you know more are in this wallet, the WALLET SCAN DETAILS above shows whether discovery or owner verification is missing them. No automatic mint is performed here.</span></div>}
         {selected.length===3&&<><div className={styles.sectionHead}><small>STEP 3 · VERIFY TEST FORGE</small><h2>Review the destination before anything is written.</h2><p>This is your already-deployed Base Sepolia creator Forge. MetaMask may switch networks here, but verifying it does not spend ETH.</p></div><div className={styles.inputRow}><input value={cloneAddress} onChange={e=>{setCloneAddress(e.target.value);setCloneVerified(false)}} placeholder="Base Sepolia Forge clone 0x…" autoCapitalize="off" autoCorrect="off" spellCheck="false"/><button className={styles.secondary} onClick={verifyClone} disabled={busy}>{cloneVerified?'✓ VERIFIED':'VERIFY FORGE'}</button></div><div className={styles.review}>{selected.map((asset,index)=><article key={asset.key}><small>PARENT {index+1}</small><b>{asset.name}</b><span>{asset.legacyVoxelFlip?'Legacy Voxel NFT':'VoxelFlip'} #{asset.tokenId}<br/>{asset.contract}</span></article>)}</div>{cloneVerified&&<button className={styles.primary} onClick={importSelected} disabled={busy||imported.length===3}>{imported.length===3?'3 TEST COPIES IMPORTED':busy?'WAITING FOR METAMASK…':'IMPORT 3 METADATA COPIES TO SEPOLIA'}</button>}<p className={styles.fine}>Import means minting three separate Common NFTs inside the test Forge with the same tokenURI metadata. It does not move the original Base NFTs.</p></>}
         {status&&<div className={styles.notice}><b>STATUS</b><span>{status}</span></div>}{error&&<div className={styles.error}>{error}</div>}
       </section>
