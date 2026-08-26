@@ -16,4 +16,5 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run chain:compile
+      - run: node scripts/check-profit-engine-bytecode.mjs
       - run: npx hardhat test
