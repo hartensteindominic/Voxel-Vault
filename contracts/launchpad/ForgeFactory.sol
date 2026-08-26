@@ -7,20 +7,7 @@ import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
-interface IForgeCloneInitializer {
-    function initialize(
-        string calldata name_,
-        string calldata symbol_,
-        address initialOwner,
-        address platformTreasury_,
-        address creatorTreasury_,
-        address forgeSigner_,
-        uint16 platformBps_,
-        uint256 basePriceWei_,
-        uint256 priceIncrementWei_
-    ) external;
-}
+import {IForgeClone} from "./IForgeClone.sol";
 
 /// @notice Launchpad factory for cheap EIP-1167 Forge clones.
 /// @dev Economics configured here apply only to newly created Forges. Existing clones keep their
@@ -89,17 +76,18 @@ contract ForgeFactory is Ownable2Step, Pausable, ReentrancyGuard {
         if (msg.value != deployFeeWei) revert IncorrectDeployFee(deployFeeWei, msg.value);
 
         forge = Clones.clone(implementation);
-        IForgeCloneInitializer(forge).initialize(
-            name_,
-            symbol_,
-            msg.sender,
-            platformTreasury,
-            creatorTreasury,
-            forgeSigner,
-            platformBps,
-            basePriceWei,
-            priceIncrementWei
-        );
+        IForgeClone.ForgeInitConfig memory config = IForgeClone.ForgeInitConfig({
+            name: name_,
+            symbol: symbol_,
+            initialOwner: msg.sender,
+            platformTreasury: platformTreasury,
+            creatorTreasury: creatorTreasury,
+            forgeSigner: forgeSigner,
+            platformBps: platformBps,
+            basePriceWei: basePriceWei,
+            priceIncrementWei: priceIncrementWei
+        });
+        IForgeClone(forge).initialize(config);
 
         accruedDeployFees += msg.value;
         forgeCount += 1;
