@@ -288,6 +288,10 @@ contract ForgeClone is
         platformAccrued += platformFee;
         creatorAccrued += expectedFee - platformFee;
 
+        _emitForged(descendantTokenId, request, expectedFee);
+    }
+
+    function _emitForged(uint256 descendantTokenId, ForgeRequest calldata request, uint256 expectedFee) internal {
         emit Forged(
             descendantTokenId,
             request.account,
