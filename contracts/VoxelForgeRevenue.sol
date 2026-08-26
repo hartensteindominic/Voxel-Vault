@@ -22,6 +22,7 @@ contract VoxelForgeRevenue is ERC721, ERC721URIStorage, ERC721Royalty, Ownable2S
 
     uint256 public constant MAX_FORGE_FEE = 0.1 ether;
     uint96 public constant MAX_ROYALTY_BPS = 1_000;
+    uint256 public constant MAX_TOKEN_URI_BYTES = 1_024;
 
     bytes32 public constant FORGE_TYPEHASH = keccak256(
         "ForgeRequest(address account,address parentContract0,uint256 parentTokenId0,address parentContract1,uint256 parentTokenId1,address parentContract2,uint256 parentTokenId2,bytes32 descendantUriHash,uint256 feeWei,bytes32 requestId,uint64 deadline)"
@@ -77,7 +78,7 @@ contract VoxelForgeRevenue is ERC721, ERC721URIStorage, ERC721Royalty, Ownable2S
         uint256 parentTokenId1,
         address parentContract2,
         uint256 parentTokenId2,
-        string descendantURI
+        bytes32 descendantUriHash
     );
     event RevenueWithdrawn(address indexed treasury, uint256 amountWei);
 
@@ -127,8 +128,11 @@ contract VoxelForgeRevenue is ERC721, ERC721URIStorage, ERC721Royalty, Ownable2S
         require(!usedRequestIds[request.requestId], "Forge request already used");
         require(request.feeWei == forgeFee, "Forge fee changed");
         require(msg.value == request.feeWei, "Incorrect forge payment");
-        require(bytes(descendantURI).length > 0, "Descendant URI required");
-        require(keccak256(bytes(descendantURI)) == request.descendantUriHash, "Descendant URI mismatch");
+
+        bytes memory descendantUriBytes = bytes(descendantURI);
+        require(descendantUriBytes.length > 0, "Descendant URI required");
+        require(descendantUriBytes.length <= MAX_TOKEN_URI_BYTES, "Descendant URI too long");
+        require(keccak256(descendantUriBytes) == request.descendantUriHash, "Descendant URI mismatch");
 
         _requireApprovedParent(request.parentContract0);
         _requireApprovedParent(request.parentContract1);
@@ -185,7 +189,7 @@ contract VoxelForgeRevenue is ERC721, ERC721URIStorage, ERC721Royalty, Ownable2S
             request.parentTokenId1,
             request.parentContract2,
             request.parentTokenId2,
-            descendantURI
+            request.descendantUriHash
         );
     }
 
@@ -250,6 +254,15 @@ contract VoxelForgeRevenue is ERC721, ERC721URIStorage, ERC721Royalty, Ownable2S
     function withdrawRevenue(uint256 amountWei) external onlyOwner nonReentrant {
         require(amountWei > 0, "Amount required");
         require(amountWei <= address(this).balance, "Amount exceeds balance");
+        totalFeesWithdrawn += amountWei;
+        (bool sent,) = payable(treasury).call{value: amountWei}("");
+        require(sent, "Treasury transfer failed");
+        emit RevenueWithdrawn(treasury, amountWei);
+    }
+
+    function withdrawAllRevenue() external onlyOwner nonReentrant {
+        uint256 amountWei = address(this).balance;
+        require(amountWei > 0, "No revenue to withdraw");
         totalFeesWithdrawn += amountWei;
         (bool sent,) = payable(treasury).call{value: amountWei}("");
         require(sent, "Treasury transfer failed");
