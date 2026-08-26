@@ -22,6 +22,16 @@ module.exports = {
       accounts: deployerKey,
       chainId: 1,
     },
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+      accounts: deployerKey,
+      chainId: 84532,
+    },
+    base: {
+      url: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
+      accounts: deployerKey,
+      chainId: 8453,
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || '',
