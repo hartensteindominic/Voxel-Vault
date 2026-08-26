@@ -16,7 +16,6 @@ export default function VoxelFlipAutopilotPage(){
  const [sessionId,setSessionId]=useState('');
  const [scanner,setScanner]=useState(null);
  const [busy,setBusy]=useState(false);
- const [autoScan,setAutoScan]=useState(true);
  const [error,setError]=useState('');
 
  useEffect(()=>{
@@ -28,11 +27,8 @@ export default function VoxelFlipAutopilotPage(){
  },[]);
 
  useEffect(()=>{
-  if(!ADDRESS_RE.test(wallet)||!autoScan)return;
-  runScan();
-  const timer=setInterval(runScan,30000);
-  return()=>clearInterval(timer);
- },[wallet,tokenId,autoScan]);
+  if(ADDRESS_RE.test(wallet))runScan();
+ },[wallet,tokenId]);
 
  async function connect(){
   setBusy(true);setError('');
@@ -48,9 +44,9 @@ export default function VoxelFlipAutopilotPage(){
    const q=new URLSearchParams({wallet});if(/^\d+$/.test(tokenId))q.set('tokenId',tokenId);
    const response=await fetch(`/api/voxelflip/trader?${q}`,{cache:'no-store'});
    const data=await response.json();
-   if(!response.ok)throw new Error(data.error||'Autopilot scan failed.');
+   if(!response.ok)throw new Error(data.error||'Market refresh failed.');
    setScanner(data);
-  }catch(e){setError(e instanceof Error?e.message:'Autopilot scan failed.')}
+  }catch(e){setError(e instanceof Error?e.message:'Market refresh failed.')}
   finally{setBusy(false)}
  }
 
@@ -59,18 +55,19 @@ export default function VoxelFlipAutopilotPage(){
  const marketReady=scanner?.marketDataConfigured===true;
  const factoryQuery=new URLSearchParams();if(wallet)factoryQuery.set('wallet',wallet);if(tokenId)factoryQuery.set('tokenId',tokenId);if(sessionId)factoryQuery.set('session_id',sessionId);const factoryHref=`/voxelflip/factory${factoryQuery.toString()?`?${factoryQuery}`:''}`;
  const forgeQuery=new URLSearchParams();if(wallet)forgeQuery.set('wallet',wallet);if(tokenId)forgeQuery.set('tokenId',tokenId);const forgeHref=`/forge${forgeQuery.toString()?`?${forgeQuery}`:''}`;
+ const mintHref=sessionId?`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`:'/studio#my-voxels';
 
  return <main className={styles.page}>
   <nav className={styles.nav}>
    <a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a>
-   <em>AUTOPILOT</em>
+   <em>MAKE · MINT · FORGE · POST</em>
   </nav>
 
   <div className={styles.shell}>
    <header className={styles.hero}>
-    <p>LIVE MONITOR</p>
+    <p>CREATOR CONTROL</p>
     <h1>{tokenId?`VoxelFlip #${tokenId}`:'VoxelFlip'}</h1>
-    <span>Watch the market. You approve every action.</span>
+    <span>Make the asset, mint it, forge it when eligible, then post/list it. Your wallet approves every onchain action.</span>
    </header>
 
    <section className={styles.dashboard}>
@@ -79,9 +76,8 @@ export default function VoxelFlipAutopilotPage(){
       <button className={styles.connect} onClick={connect} disabled={busy}>{busy?'CONNECTING…':'CONNECT WALLET'}</button>:
       <div className={styles.wallet}>
        <div><small>BASE WALLET</small><b>{short(wallet)}</b></div>
-       <button onClick={runScan} disabled={busy}>{busy?'SCANNING…':'REFRESH'}</button>
+       <button onClick={runScan} disabled={busy}>{busy?'CHECKING…':'REFRESH MARKET'}</button>
       </div>}
-     <button className={`${styles.autoButton} ${autoScan?styles.autoOn:''}`} onClick={()=>setAutoScan(v=>!v)}>AUTO {autoScan?'ON':'OFF'}</button>
     </div>
 
     {error&&<div className={styles.notice}>{error}</div>}
@@ -93,36 +89,49 @@ export default function VoxelFlipAutopilotPage(){
      <article><small>YOUR NFT</small><b>{listed}</b></article>
     </div>
 
-    {!scanner&&wallet&&<div className={styles.notice}>Waiting for the first market scan.</div>}
+    {!scanner&&wallet&&<div className={styles.notice}>Market data loads once when the wallet/token changes. Use Refresh Market whenever you want a newer reading.</div>}
     {scanner&&!marketReady&&<div className={styles.notice}>OpenSea market data is not connected yet. Your VoxelFlip is still safe and this page cannot send a transaction.</div>}
-    {scanner&&marketReady&&!scanner.collectionSlug&&tokenId&&<div className={styles.notice}>OpenSea has not returned collection stats yet. Auto Scan will keep checking every 30 seconds.</div>}
-    {scanner?.checkedAt&&<p className={styles.checked}>Checked {time(scanner.checkedAt)} · OpenSea data can lag behind Base.</p>}
+    {scanner&&marketReady&&!scanner.collectionSlug&&tokenId&&<div className={styles.notice}>OpenSea has not returned collection stats yet. Use Refresh Market before posting/listing if you want another check.</div>}
+    {scanner?.checkedAt&&<p className={styles.checked}>Checked {time(scanner.checkedAt)} · market data can lag behind Base.</p>}
 
     <div className={styles.divider}/>
 
     <div className={styles.actionHead}>
-     <div><small>YOUR NFT</small><h2>What do you want to do?</h2></div>
+     <div><small>THE CREATOR LOOP</small><h2>Make → Mint → Forge → Post</h2></div>
      <span>YOU APPROVE</span>
     </div>
 
     <div className={styles.safety}>
      <b>You’re in control.</b>
-     <span>Your wallet must approve every listing or ETH transaction.</span>
+     <span>No recurring auto-scan, mint, listing or ETH spend is authorized from this page. Your wallet must approve transactions.</span>
     </div>
 
     <div className={styles.actions}>
-     <a className={styles.primary} href={openSeaHref} target="_blank" rel="noreferrer">LIST ON OPENSEA ↗</a>
-     <a href={openSeaHref} target="_blank" rel="noreferrer">VIEW NFT ↗</a>
-     {sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>OPEN 3D</a>}
+     <a className={styles.primary} href="/studio">MAKE A VOXEL</a>
+     <a href={mintHref}>MINT</a>
      <a href={forgeHref}>THE FORGE</a>
-     <a href={factoryHref}>SALES & PROFIT</a>
+     <a href={openSeaHref} target="_blank" rel="noreferrer">POST / LIST ↗</a>
+     <a href={factoryHref}>FORGE LAUNCHPAD</a>
      <a href="/studio#my-voxels">MY VOXELS</a>
     </div>
 
-    <p className={styles.finePrint}>Sales & Profit tracks completed sales and your reinvestment limits. It cannot spend or list for you.</p>
+    <div className={styles.divider}/>
+
+    <div className={styles.actionHead}>
+     <div><small>FORGE LAUNCHPAD</small><h2>The machine that can create more Forges.</h2></div>
+     <span>TESTNET BRANCH</span>
+    </div>
+    <div className={styles.activity}>
+     <div className={styles.event}><b>01</b><span>One Forge implementation holds the reviewed 3→1 Common → Rare → Legendary logic.</span></div>
+     <div className={styles.event}><b>02</b><span>The Forge Factory creates cheap EIP-1167 clones for creators instead of redeploying the whole contract.</span></div>
+     <div className={styles.event}><b>03</b><span>New clones can charge a deploy fee and permanently record the platform merge-fee split they launched with.</span></div>
+     <div className={styles.event}><b>04</b><span>The merge curve is contract behavior, not a promise of profit: basePrice + increment × completed merges.</span></div>
+    </div>
+    <div className={styles.notice}>OpenZeppelin is pinned to the reviewed 5.4.0 release. Clone initialization uses one typed config struct instead of enabling viaIR globally, so the rest of Voxel Vault keeps the same compiler behavior.</div>
+    <p className={styles.finePrint}>The launchpad implementation/factory compile and tests are green on the experiment branch. Base mainnet deployment is still intentionally separate.</p>
    </section>
   </div>
 
-  <footer className={styles.footer}><a href="/studio#my-voxels">← MY VOXELS</a><a href={openSeaHref} target="_blank" rel="noreferrer">OPENSEA ↗</a></footer>
+  <footer className={styles.footer}><a href="/studio#my-voxels">← MY VOXELS</a><a href={factoryHref}>FORGE LAUNCHPAD →</a></footer>
  </main>;
 }
