@@ -39,8 +39,6 @@ const TYPES = {
 
 type ParentInput = { contract?: string; tokenId?: string | number };
 type ForgeState = {
-  provider: JsonRpcProvider;
-  rpc: string;
   feeWei: bigint;
   configuredSigner: string;
   treasury: string;
@@ -52,8 +50,8 @@ function rpcCandidates() {
   return Array.from(new Set([
     String(process.env.BASE_RPC_URL || '').trim(),
     String(process.env.VOXELFLIP_RPC_URL || '').trim(),
-    'https://mainnet.base.org',
     'https://base-rpc.publicnode.com',
+    'https://mainnet.base.org',
     'https://base.blockscout.com/api/eth-rpc',
     'https://base.llamarpc.com',
   ].filter(Boolean)));
@@ -73,92 +71,81 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs = 5_500, label = 'B
   }
 }
 
-function rpcError(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return String(error || 'Base RPC call failed');
+function compactRpcError(error: unknown) {
+  const text = error instanceof Error ? error.message : String(error || 'Base RPC call failed');
+  if (/missing revert data/i.test(text)) return 'RPC returned no revert data';
+  if (/timed out/i.test(text)) return text;
+  return text.length > 220 ? `${text.slice(0, 220)}…` : text;
 }
 
-async function forgeStateAcrossProviders(configuredForge: string, productionParent: string): Promise<ForgeState> {
-  let lastError = '';
-  const attempted: string[] = [];
-
+async function readAcrossProviders<T>(
+  label: string,
+  reader: (provider: JsonRpcProvider) => Promise<T>,
+  timeoutMs = 5_500,
+): Promise<T> {
+  const errors: string[] = [];
   for (const rpc of rpcCandidates()) {
     const provider = new JsonRpcProvider(rpc, BASE_CHAIN_ID, { staticNetwork: true });
-    attempted.push(rpc);
     try {
-      await withTimeout(provider.getBlockNumber(), 3_500, 'Base RPC health check');
-      const code = await withTimeout(provider.getCode(configuredForge), 4_500, 'Forge bytecode read');
-      if (!code || code === '0x') throw new Error('No Forge bytecode was returned by this Base RPC.');
-
-      const forge = new Contract(configuredForge, FORGE_ABI, provider);
-      const values = await withTimeout(Promise.all([
-        forge.forgeFee(),
-        forge.forgeSigner(),
-        forge.treasury(),
-        forge.paused(),
-        forge.approvedParentCollections(productionParent),
-      ]), 7_000, 'Live Forge configuration read');
-
-      return {
-        provider,
-        rpc,
-        feeWei: BigInt(values[0]),
-        configuredSigner: getAddress(values[1]),
-        treasury: getAddress(values[2]),
-        paused: Boolean(values[3]),
-        parentApproved: Boolean(values[4]),
-      };
+      await withTimeout(provider.getBlockNumber(), 3_500, `${label} health check`);
+      return await withTimeout(reader(provider), timeoutMs, label);
     } catch (error) {
-      lastError = rpcError(error);
-      provider.destroy();
-    }
-  }
-
-  console.error('All Base RPCs failed live Forge configuration read', { attempted, lastError, configuredForge });
-  throw new Error(`Could not read the live Base Forge configuration after trying ${attempted.length} RPC providers. No ETH was spent. Last error: ${lastError || 'RPC unavailable'}`);
-}
-
-async function readParent(provider: JsonRpcProvider, wallet: string, parent: { contract: string; tokenId: string }) {
-  const nft = new Contract(parent.contract, ERC721_ABI, provider);
-  const owner = getAddress(await withTimeout(nft.ownerOf(parent.tokenId), 5_000, 'Parent owner lookup'));
-  if (owner !== wallet) return { owned: false, tokenURI: '' };
-  const tokenURI = String(await withTimeout(nft.tokenURI(parent.tokenId), 5_000, 'Parent metadata lookup') || '').trim();
-  return { owned: true, tokenURI };
-}
-
-async function parentAcrossProviders(
-  primary: JsonRpcProvider,
-  primaryRpc: string,
-  wallet: string,
-  parent: { contract: string; tokenId: string }
-) {
-  let lastError = '';
-
-  try {
-    const result = await readParent(primary, wallet, parent);
-    if (!result.owned) return result;
-    if (result.tokenURI) return result;
-    lastError = 'Parent tokenURI was empty.';
-  } catch (error) {
-    lastError = rpcError(error);
-  }
-
-  for (const rpc of rpcCandidates()) {
-    if (rpc === primaryRpc) continue;
-    const provider = new JsonRpcProvider(rpc, BASE_CHAIN_ID, { staticNetwork: true });
-    try {
-      const result = await readParent(provider, wallet, parent);
-      if (!result.owned) return result;
-      if (result.tokenURI) return result;
-      lastError = 'Parent tokenURI was empty.';
-    } catch (error) {
-      lastError = rpcError(error);
+      errors.push(compactRpcError(error));
     } finally {
       provider.destroy();
     }
   }
 
-  throw new Error(`Could not independently verify parent ${parent.tokenId} across the available Base RPCs. No ETH was spent. Last error: ${lastError || 'RPC unavailable'}`);
+  const last = errors.filter(Boolean).at(-1) || 'RPC unavailable';
+  throw new Error(`${label} could not be read after trying ${rpcCandidates().length} Base RPC providers. No ETH was spent. Last error: ${last}`);
+}
+
+async function readForgeState(configuredForge: string, productionParent: string): Promise<ForgeState> {
+  // Intentionally serialized. Several free Base RPCs accept a health request and
+  // then fail when a burst of eth_call requests arrives concurrently.
+  const code = await readAcrossProviders('Forge bytecode', provider => provider.getCode(configuredForge), 5_000);
+  if (!code || code === '0x') throw new Error('No Forge bytecode exists at the configured Base address. No ETH was spent.');
+
+  const feeWei = BigInt(await readAcrossProviders('Live Forge fee', async provider => {
+    const forge = new Contract(configuredForge, FORGE_ABI, provider);
+    return forge.forgeFee();
+  }));
+
+  const configuredSigner = getAddress(await readAcrossProviders('Forge signer', async provider => {
+    const forge = new Contract(configuredForge, FORGE_ABI, provider);
+    return forge.forgeSigner();
+  }));
+
+  const treasury = getAddress(await readAcrossProviders('Forge treasury', async provider => {
+    const forge = new Contract(configuredForge, FORGE_ABI, provider);
+    return forge.treasury();
+  }));
+
+  const paused = Boolean(await readAcrossProviders('Forge pause state', async provider => {
+    const forge = new Contract(configuredForge, FORGE_ABI, provider);
+    return forge.paused();
+  }));
+
+  const parentApproved = Boolean(await readAcrossProviders('VoxelFlip parent approval', async provider => {
+    const forge = new Contract(configuredForge, FORGE_ABI, provider);
+    return forge.approvedParentCollections(productionParent);
+  }));
+
+  return { feeWei, configuredSigner, treasury, paused, parentApproved };
+}
+
+async function verifyParent(wallet: string, parent: { contract: string; tokenId: string }) {
+  const owner = getAddress(await readAcrossProviders(`Parent #${parent.tokenId} owner`, async provider => {
+    const nft = new Contract(parent.contract, ERC721_ABI, provider);
+    return nft.ownerOf(parent.tokenId);
+  }));
+  if (owner !== wallet) return { owned: false, tokenURI: '' };
+
+  const tokenURI = String(await readAcrossProviders(`Parent #${parent.tokenId} metadata`, async provider => {
+    const nft = new Contract(parent.contract, ERC721_ABI, provider);
+    return nft.tokenURI(parent.tokenId);
+  }) || '').trim();
+  return { owned: true, tokenURI };
 }
 
 function canonicalParents(parents: ParentInput[]) {
@@ -191,7 +178,6 @@ export async function POST(request: Request) {
   }
   const configuredForge = getAddress(registered.address);
 
-  let provider: JsonRpcProvider | null = null;
   try {
     const body = await request.json();
     const walletRaw = String(body?.wallet || '').trim();
@@ -207,9 +193,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Initial mainnet Forge launch accepts the reviewed VoxelFlip Base collection only.' }, { status: 400 });
     }
 
-    const live = await forgeStateAcrossProviders(configuredForge, productionParent);
-    provider = live.provider;
-
+    const live = await readForgeState(configuredForge, productionParent);
     if (live.paused) return NextResponse.json({ error: 'The Base revenue Forge is currently paused.' }, { status: 503 });
     if (!live.parentApproved) return NextResponse.json({ error: 'The reviewed VoxelFlip collection is not approved by the revenue Forge.' }, { status: 503 });
 
@@ -218,12 +202,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'The protected server Forge signer does not match the registered revenue Forge.' }, { status: 503 });
     }
 
-    const parentChecks = await Promise.all(
-      parents.map(parent => parentAcrossProviders(provider!, live.rpc, wallet, parent))
-    );
-    for (let i = 0; i < parentChecks.length; i += 1) {
-      if (!parentChecks[i].owned) return NextResponse.json({ error: `Connected wallet no longer owns parent ${i + 1}.` }, { status: 409 });
-      if (!parentChecks[i].tokenURI) return NextResponse.json({ error: `Parent ${i + 1} has no readable tokenURI.` }, { status: 409 });
+    // Also serialized to avoid six simultaneous ownerOf/tokenURI calls.
+    for (let i = 0; i < parents.length; i += 1) {
+      const check = await verifyParent(wallet, parents[i]);
+      if (!check.owned) return NextResponse.json({ error: `Connected wallet no longer owns parent ${i + 1}.` }, { status: 409 });
+      if (!check.tokenURI) return NextResponse.json({ error: `Parent ${i + 1} has no readable tokenURI.` }, { status: 409 });
     }
 
     const requestId = hexlify(randomBytes(32));
@@ -276,7 +259,5 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Base mainnet Forge authorization failed', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not authorize this Forge.' }, { status: 500 });
-  } finally {
-    provider?.destroy();
   }
 }
