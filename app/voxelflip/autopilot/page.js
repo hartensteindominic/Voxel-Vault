@@ -100,24 +100,24 @@ export default function VoxelFlipAutopilotPage(){
     <div className={styles.divider}/>
 
     <div className={styles.actionHead}>
-     <div><small>ACTIONS</small><h2>What do you want to do?</h2></div>
+     <div><small>YOUR NFT</small><h2>What do you want to do?</h2></div>
      <span>YOU APPROVE</span>
     </div>
 
     <div className={styles.safety}>
-     <b>Automatic signing is OFF.</b>
-     <span>Nothing on this page can spend ETH or list your NFT without you.</span>
+     <b>You’re in control.</b>
+     <span>Your wallet must approve every listing or ETH transaction.</span>
     </div>
 
     <div className={styles.actions}>
      <a className={styles.primary} href={openSeaHref} target="_blank" rel="noreferrer">LIST ON OPENSEA ↗</a>
      <a href={openSeaHref} target="_blank" rel="noreferrer">VIEW NFT ↗</a>
      {sessionId&&<a href={`/voxelflip/mint?session_id=${encodeURIComponent(sessionId)}`}>OPEN 3D</a>}
-     <a href={factoryHref}>FACTORY</a>
+     <a href={factoryHref}>SALES & PROFIT</a>
      <a href="/studio#my-voxels">MY VOXELS</a>
     </div>
 
-    <p className={styles.finePrint}>Factory can watch settled sales and apply reserve/reinvestment rules. Spending, minting, and listing remain approval-gated.</p>
+    <p className={styles.finePrint}>Sales & Profit tracks completed sales and your reinvestment limits. It cannot spend or list for you.</p>
    </section>
   </div>
 
