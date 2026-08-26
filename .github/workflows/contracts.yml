@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'contracts/**'
+      - 'test/**'
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'package.json'
@@ -11,12 +12,14 @@ on:
   pull_request:
     paths:
       - 'contracts/**'
+      - 'test/**'
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'package.json'
+      - '.github/workflows/contracts.yml'
 
 jobs:
-  compile:
+  compile-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,3 +28,5 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run chain:compile
+      - run: npm run test:forge
+      - run: npm run test:solo-vault
