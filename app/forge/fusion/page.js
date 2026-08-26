@@ -38,6 +38,21 @@ function fusionMessage(wallet,parents,nonce,issuedAt){
     'Purpose: authorize one off-chain 3D fusion generation. No NFT transfer or ETH spend.',
   ].join('\n');
 }
+async function apiJson(response,fallback){
+  const text=await response.text();
+  let data={};
+  try{data=text?JSON.parse(text):{}}catch{}
+  if(!response.ok){
+    const detail=String(data?.error||data?.message||'').trim();
+    let hint=detail;
+    if(!hint&&response.status===404)hint='The visual-fusion API is missing from this deployment.';
+    if(!hint&&(response.status===401||response.status===403))hint='The deployment blocked the visual-fusion API request or its authorization.';
+    if(!hint&&response.status>=500)hint='The deployment hit a server error before it could return JSON. Retry once; if it repeats, the HTTP status now identifies the failing stage.';
+    if(!hint)hint='The visual-fusion API returned an unreadable response.';
+    throw new Error(`${fallback} (HTTP ${response.status}). ${hint}`);
+  }
+  return data;
+}
 
 export default function VisualFusionPage(){
   const [provider,setProvider]=useState(null);
@@ -69,8 +84,7 @@ export default function VisualFusionPage(){
     try{
       if(!wallet)throw new Error('Connect MetaMask first.');
       const response=await fetch(`/api/forge/owned-assets?${new URLSearchParams({wallet})}`,{cache:'no-store'});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Could not load wallet NFTs.');
+      const data=await apiJson(response,'Could not load wallet NFTs');
       const verified=(Array.isArray(data.nfts)?data.nfts:[]).filter(asset=>asset.selectable!==false&&asset.contract&&asset.tokenId!=null&&displayImage(asset));
       setAssets(verified);
       setStatus(`Found ${verified.length} verified Base voxel NFT${verified.length===1?'':'s'} with usable visual media.`);
@@ -96,8 +110,7 @@ export default function VisualFusionPage(){
       const signature=await provider.request({method:'personal_sign',params:[message,wallet]});
       setStatus('Signature accepted. Building one coherent multi-view descendant from all three parent visuals…');
       const response=await fetch('/api/forge/visual-fusion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'concept',wallet,parents,nonce,issuedAt,signature})});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Could not start visual fusion.');
+      const data=await apiJson(response,'Could not start visual fusion');
       setConcept({taskId:data.conceptTaskId,ticket:data.ticket,parents:data.parents||parents,status:'PENDING',progress:0,imageUrls:[]});
       setStatus('Fusion concept started. The page will keep checking until the same new descendant is rendered from multiple angles.');
     }catch(error){setError(errorText(error));setStatus('')}finally{setBusy(false)}
@@ -109,8 +122,7 @@ export default function VisualFusionPage(){
     const poll=async()=>{
       try{
         const response=await fetch(`/api/forge/visual-fusion?${new URLSearchParams({kind:'concept',taskId:concept.taskId})}`,{cache:'no-store'});
-        const data=await response.json().catch(()=>({}));
-        if(!response.ok)throw new Error(data.error||'Could not read fusion concept status.');
+        const data=await apiJson(response,'Could not read fusion concept status');
         if(!active)return;
         setConcept(current=>current?{...current,status:data.status,progress:data.progress||0,imageUrls:data.imageUrls||[],error:data.error||''}:current);
         const upper=String(data.status||'').toUpperCase();
@@ -128,8 +140,7 @@ export default function VisualFusionPage(){
       const parents=selected.map(asset=>({contract:asset.contract,tokenId:String(asset.tokenId)}));
       setStatus('Starting the fused 3D reconstruction. This uses the multi-view descendant—not any single parent—as the geometry source.');
       const response=await fetch('/api/forge/visual-fusion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mesh',wallet,parents,conceptTaskId:concept.taskId,ticket:concept.ticket})});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Could not start fused 3D generation.');
+      const data=await apiJson(response,'Could not start fused 3D generation');
       setMesh({taskId:data.meshTaskId,status:'PENDING',progress:0,thumbnailUrl:'',modelUrl:''});
       setStatus('Fused 3D task started. Generating geometry, PBR textures, and GLB…');
     }catch(error){setError(errorText(error));setStatus('')}finally{setBusy(false)}
@@ -141,8 +152,7 @@ export default function VisualFusionPage(){
     const poll=async()=>{
       try{
         const response=await fetch(`/api/forge/visual-fusion?${new URLSearchParams({kind:'mesh',taskId:mesh.taskId})}`,{cache:'no-store'});
-        const data=await response.json().catch(()=>({}));
-        if(!response.ok)throw new Error(data.error||'Could not read fused 3D status.');
+        const data=await apiJson(response,'Could not read fused 3D status');
         if(!active)return;
         setMesh(current=>current?{...current,status:data.status,progress:data.progress||0,thumbnailUrl:data.thumbnailUrl||'',modelUrl:data.modelUrl||'',error:data.error||''}:current);
         const upper=String(data.status||'').toUpperCase();
