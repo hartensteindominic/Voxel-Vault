@@ -52,6 +52,11 @@ async function resetToWorkingBaseFork() {
         method: 'hardhat_reset',
         params: [{ forking: { jsonRpcUrl } }],
       });
+      // Hardhat 2/EDR can refuse historical execution on an unknown L2 at the
+      // exact fork block even when a custom hardfork history is configured.
+      // Mine one empty LOCAL block so all calls execute under the configured
+      // current hardfork while preserving the forked Base state.
+      await network.provider.send('hardhat_mine', ['0x1']);
       const code = await ethers.provider.getCode(LIVE_VOXELFLIP);
       if (!code || code === '0x') throw new Error('Live VoxelFlip bytecode was unavailable.');
       return jsonRpcUrl;
