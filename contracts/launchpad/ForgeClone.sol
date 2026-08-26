@@ -9,6 +9,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IForgeClone} from "./IForgeClone.sol";
 
 /// @notice Clone-safe 3-to-1 NFT Forge with a linear merge-price curve.
 /// @dev Each clone is its own ERC721 collection. Common -> Rare and Rare -> Legendary.
@@ -19,7 +20,8 @@ contract ForgeClone is
     Ownable2StepUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    EIP712Upgradeable
+    EIP712Upgradeable,
+    IForgeClone
 {
     using Address for address payable;
     using ECDSA for bytes32;
@@ -103,39 +105,29 @@ contract ForgeClone is
         _disableInitializers();
     }
 
-    function initialize(
-        string calldata name_,
-        string calldata symbol_,
-        address initialOwner,
-        address platformTreasury_,
-        address creatorTreasury_,
-        address forgeSigner_,
-        uint16 platformBps_,
-        uint256 basePriceWei_,
-        uint256 priceIncrementWei_
-    ) external initializer {
+    function initialize(IForgeClone.ForgeInitConfig calldata config) external initializer override {
         if (
-            initialOwner == address(0)
-                || platformTreasury_ == address(0)
-                || creatorTreasury_ == address(0)
-                || forgeSigner_ == address(0)
+            config.initialOwner == address(0)
+                || config.platformTreasury == address(0)
+                || config.creatorTreasury == address(0)
+                || config.forgeSigner == address(0)
         ) revert ZeroAddress();
-        if (platformBps_ > MAX_PLATFORM_BPS) revert InvalidPlatformBps();
+        if (config.platformBps > MAX_PLATFORM_BPS) revert InvalidPlatformBps();
 
-        __ERC721_init(name_, symbol_);
+        __ERC721_init(config.name, config.symbol);
         __ERC721URIStorage_init();
-        __Ownable_init(initialOwner);
+        __Ownable_init(config.initialOwner);
         __Ownable2Step_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         __EIP712_init("VoxelForgeClone", "1");
 
-        platformTreasury = platformTreasury_;
-        creatorTreasury = creatorTreasury_;
-        forgeSigner = forgeSigner_;
-        platformBps = platformBps_;
-        basePriceWei = basePriceWei_;
-        priceIncrementWei = priceIncrementWei_;
+        platformTreasury = config.platformTreasury;
+        creatorTreasury = config.creatorTreasury;
+        forgeSigner = config.forgeSigner;
+        platformBps = config.platformBps;
+        basePriceWei = config.basePriceWei;
+        priceIncrementWei = config.priceIncrementWei;
         nextTokenId = 1;
     }
 
