@@ -7,6 +7,7 @@ on:
     paths:
       - 'contracts/VoxelForgeAtomic.sol'
       - 'test/VoxelForgeAtomic.base-fork.test.js'
+      - 'hardhat.config.js'
       - 'package.json'
       - '.github/workflows/forge-base-fork.yml'
   workflow_dispatch:
