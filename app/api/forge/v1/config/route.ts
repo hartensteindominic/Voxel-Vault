@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       collectionAddress: address || null,
       forgeVersion: 'forge-preview-v1',
       recipeVersion: 'deterministic-preview-v1',
+      authorizationVersion: 'voxelforge-authorization-v1',
       fee: {
         displayUsd: '4.99',
         executionQuoteReady: false,
@@ -37,9 +38,12 @@ export async function GET(request: Request) {
         verifyParents: true,
         previewDescendant: true,
         quote: true,
+        authorizationDiscovery: true,
         createIntent: false,
         executeIntent: false,
         delegatedExecution: false,
+        eip7702Delegation: false,
+        erc4337Execution: false,
         verifiableGeneProof: false,
       },
       safety: {
@@ -48,14 +52,17 @@ export async function GET(request: Request) {
         privateKeysAccepted: false,
         parentCount: 3,
         atomicExecutionRequired: true,
+        delegationMustBeRevocable: true,
+        sessionPolicyRequired: true,
       },
       endpoints: {
         config: `${origin}/api/forge/v1/config`,
         verify: `${origin}/api/forge/v1/verify`,
         preview: `${origin}/api/forge/v1/preview`,
         quote: `${origin}/api/forge/v1/quote`,
+        authorization: `${origin}/api/forge/v1/authorization`,
       },
-      notice: 'VoxelForge agent discovery is live in read-only mode. State-changing execution remains disabled until the atomic 3-to-1 Forge path is reviewed and deployed.',
+      notice: 'VoxelForge agent discovery and authorization-schema discovery are live in read-only mode. State-changing execution and EIP-7702 delegation remain disabled until the atomic 3-to-1 Forge path and delegate contract are reviewed and deployed.',
     });
   } catch (error) {
     console.error('VoxelForge config failed', error);
