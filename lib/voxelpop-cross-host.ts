@@ -25,8 +25,9 @@ export async function loadAlternateHostVoxels(timeoutMs = 3000): Promise<Account
   if (alternateOrigin === window.location.origin) return [];
 
   const nonce = randomNonce();
-  return await new Promise(resolve => {
+  return await new Promise<AccountVoxel[]>(resolve => {
     let settled = false;
+    let timer = 0;
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     iframe.tabIndex = -1;
@@ -44,7 +45,7 @@ export async function loadAlternateHostVoxels(timeoutMs = 3000): Promise<Account
     const finish = (records: AccountVoxel[]) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (timer) window.clearTimeout(timer);
       cleanup();
       resolve(records);
     };
@@ -55,7 +56,7 @@ export async function loadAlternateHostVoxels(timeoutMs = 3000): Promise<Account
     };
 
     window.addEventListener('message', onMessage);
-    const timer = window.setTimeout(() => finish([]), timeoutMs);
+    timer = window.setTimeout(() => finish([]), timeoutMs);
     const query = new URLSearchParams({ parent_origin: window.location.origin, nonce });
     iframe.src = `${alternateOrigin}/forge/library-bridge?${query.toString()}`;
     document.body.appendChild(iframe);
