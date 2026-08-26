@@ -178,6 +178,18 @@ export default function StudioPage(){
    <div className={styles.gallery}>{examples.map(([src,name],i)=><figure key={src}><b>0{i+1}</b><img src={src} alt={name}/><figcaption>{name}</figcaption></figure>)}</div>
    <div className={styles.empty}>{myVoxels.length?'✦ Your paid voxels are saved in My Voxels above.':'✦ Your paid voxel will appear in My Voxels after checkout.'}</div>
   </section>
+
+  <section style={{maxWidth:980,margin:'34px auto 28px',padding:'28px',borderRadius:26,background:'#090d0b',color:'#f8fafc',border:'1px solid rgba(190,242,100,.22)',boxShadow:'0 22px 60px rgba(15,23,42,.18)'}}>
+   <small style={{display:'block',fontWeight:950,letterSpacing:'.16em',color:'#bef264',marginBottom:8}}>VOXEL FORGE</small>
+   <h2 style={{margin:'0 0 10px',fontSize:'clamp(1.7rem,5vw,2.8rem)',lineHeight:1.04}}>Forge the next generation.</h2>
+   <p style={{margin:'0 0 20px',maxWidth:700,color:'#a1a1aa',lineHeight:1.65}}>Open the Forge to work with your verified Base voxel NFTs. Or try Visual Fusion: choose three parent designs and generate one brand-new fused 3D descendant while the original NFTs stay untouched.</p>
+   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+    <a href="/forge/real" style={{flex:'1 1 220px',textAlign:'center',textDecoration:'none',padding:'14px 16px',borderRadius:14,fontWeight:950,background:'#bef264',color:'#10140d'}}>OPEN VOXEL FORGE →</a>
+    <a href="/forge/fusion" style={{flex:'1 1 260px',textAlign:'center',textDecoration:'none',padding:'14px 16px',borderRadius:14,fontWeight:950,background:'#18181b',color:'#fff',border:'1px solid #3f3f46'}}>3-PARENT VISUAL FUSION →</a>
+   </div>
+   <small style={{display:'block',marginTop:12,color:'#71717a'}}>Visual Fusion is experimental and creates off-chain media only.</small>
+  </section>
+
   <section className={styles.facts}><div><b>Anything</b><span>prompted into voxels</span></div><div><b>1 voxel</b><span>created after payment</span></div><div><b>Real 3D</b><span>rotate, zoom & move</span></div><div><b>$1.99</b><span>one-time, per asset</span></div></section>
   <footer><Brand/><p>One idea. One payment.<br/>One voxel you own.</p></footer>
  </main>
