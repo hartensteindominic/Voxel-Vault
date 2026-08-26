@@ -54,90 +54,77 @@ export default function VoxelFlipFactoryPage(){
  const factoryQuery=new URLSearchParams();
  if(wallet)factoryQuery.set('wallet',wallet);if(tokenId)factoryQuery.set('tokenId',tokenId);if(sessionId)factoryQuery.set('session_id',sessionId);
  const autopilotHref=`/voxelflip/autopilot${factoryQuery.toString()?`?${factoryQuery}`:''}`;
+ const loop=factory?.loop||[
+  {label:'External sale settles',ready:false},{label:'Verify net profit after costs',ready:false},{label:'Reserve capital',ready:false},{label:'Reinvest a capped slice',ready:false},{label:'Draft next voxel candidate',ready:false},{label:'Mint with approval',ready:false},{label:'List with approval',ready:false},{label:'Repeat after another sale',ready:false}
+ ];
+ const fallbackAgents=[
+  {agent:'SCOUT',headline:'Waiting for scan',reason:'Connect a wallet.',proposedAction:'Observe only.',requiresApproval:false},
+  {agent:'PRICER',headline:'Waiting for market data',reason:'No live price input yet.',proposedAction:'Observe only.',requiresApproval:true},
+  {agent:'RISK',headline:'Ledger required',reason:'Costs must be verified.',proposedAction:'Block spending.',requiresApproval:true},
+  {agent:'MAKER',headline:'Profit required',reason:'No verified reinvestment budget yet.',proposedAction:'Keep candidate queued.',requiresApproval:true}
+ ];
 
  return <main className={styles.page}>
-  <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>VOXELFLIP · FACTORY</em></nav>
-
-  <header className={styles.hero}>
-   <p className={styles.eyebrow}>SELL → LEDGER → RESERVE → REINVEST → DRAFT → APPROVE → MINT → LIST → REPEAT</p>
-   <h1>The voxel<br/><em>factory loop.</em></h1>
-   <span>Factory compounds only verified realized profit. Scout, Pricer, Risk and Maker can think continuously, but spending, minting, listing and signing stay approval-gated.</span>
-  </header>
+  <nav className={styles.nav}><a href="/studio"><img src="/voxelpop/voxelpop-logo.png" alt="VoxelPop"/><b>VoxelPop</b></a><em>FACTORY</em></nav>
 
   <div className={styles.shell}>
-   <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>FACTORY MODE</small><h2>{factory?.automaticFactoryActive?'Running':'Approval-gated'}</h2></div><span className={`${styles.status} ${factory?.automaticFactoryActive?styles.statusOn:''}`}>{factory?.automaticFactoryActive?'AUTOMATIC · ON':'AUTOMATIC · OFF'}</span></div>
-    {!wallet?<button className={styles.connect} onClick={connect} disabled={busy}>{busy?'Connecting…':'Connect Factory wallet'}</button>:<div className={styles.wallet}><div><small>FACTORY / SALE WALLET</small><b>{short(wallet)}</b></div><button onClick={refresh} disabled={busy}>{busy?'Checking…':'Refresh factory'}</button></div>}
-    {error&&<div className={styles.notice}>{error}</div>}
-    <div className={styles.grid4}>
-     <article className={styles.metric}><small>EXTERNAL SALES · 30D</small><b>{factory?observed.verifiedExternalSales30d:'—'}</b></article>
-     <article className={styles.metric}><small>GROSS SALE PROCEEDS</small><b>{factory?eth(observed.recognizedSaleProceedsEth):'—'}</b></article>
-     <article className={styles.metric}><small>VERIFIED ETH COSTS</small><b>{factory?eth(ledger.verifiedCostEth):'—'}</b></article>
-     <article className={styles.metric}><small>REALIZED PROFIT</small><b>{factory?(ledger.realizedProfitEth===null?'BLOCKED':eth(ledger.realizedProfitEth)):'—'}</b></article>
+   <header className={styles.hero}>
+    <p>OPTIONAL · ADVANCED</p>
+    <h1>Factory.</h1>
+    <span>Tracks real sales, costs, and profit. It does not spend, mint, list, or sign for you.</span>
+   </header>
+
+   <section className={styles.dashboard}>
+    <div className={styles.controls}>
+     {!wallet?<button className={styles.connect} onClick={connect} disabled={busy}>{busy?'CONNECTING…':'CONNECT WALLET'}</button>:<div className={styles.wallet}><div><small>WALLET</small><b>{short(wallet)}</b></div><button onClick={refresh} disabled={busy}>{busy?'CHECKING…':'REFRESH'}</button></div>}
     </div>
+    {error&&<div className={styles.notice}>{error}</div>}
+
+    <div className={styles.metrics}>
+     <article><small>SALES · 30D</small><b>{factory?observed.verifiedExternalSales30d:'—'}</b></article>
+     <article><small>GROSS SALES</small><b>{factory?eth(observed.recognizedSaleProceedsEth):'—'}</b></article>
+     <article><small>COSTS</small><b>{factory?eth(ledger.verifiedCostEth):'—'}</b></article>
+     <article><small>PROFIT</small><b>{factory?(ledger.realizedProfitEth===null?'WAIT':eth(ledger.realizedProfitEth)):'—'}</b></article>
+    </div>
+
     {factory&&<div className={styles.notice}>{factory.nextStep}</div>}
     {(ledger.warnings||[]).map((warning,i)=><div className={styles.notice} key={i}>{warning}</div>)}
-    {factory?.checkedAt&&<p className={styles.riskText}>Last checked {time(factory.checkedAt)} · a gross sale is never treated as profit until required costs are present.</p>}
-   </section>
+    {factory?.checkedAt&&<p className={styles.checked}>Checked {time(factory.checkedAt)}</p>}
 
-   <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>TRADING AGENTS</small><h2>Think like a desk. Sign like a vault.</h2></div><span className={styles.status}>AGENTS · ANALYSIS ONLY</span></div>
-    <div className={styles.activity}>
-     {(agents.length?agents:[
-      {agent:'SCOUT',state:'observe',headline:'Waiting for scan',reason:'Connect a Factory wallet.',proposedAction:'Observe only.',requiresApproval:false},
-      {agent:'PRICER',state:'observe',headline:'Waiting for market data',reason:'No live price input yet.',proposedAction:'Observe only.',requiresApproval:true},
-      {agent:'RISK',state:'blocked',headline:'Ledger required',reason:'Costs must be verified.',proposedAction:'Block spending.',requiresApproval:true},
-      {agent:'MAKER',state:'blocked',headline:'Profit required',reason:'No verified reinvestment budget yet.',proposedAction:'Keep candidate queued.',requiresApproval:true}
-     ]).map((agent,i)=><div className={styles.event} key={`${agent.agent}-${i}`}><b>{agent.agent}</b><span><strong style={{color:'#f7f7f3'}}>{agent.headline}</strong><br/>{agent.reason}<br/>→ {agent.proposedAction}{agent.requiresApproval?' · approval required':''}</span></div>)}
-    </div>
-    <div className={styles.notice}>Agents may observe, score, wait and draft actions. They cannot independently spend ETH, mint, list, transfer or sign.</div>
-   </section>
+    <div className={styles.safety}><b>SIGNING OFF.</b><span>Factory only observes and calculates. Every future wallet action still requires your approval.</span></div>
 
-   <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>THE LOOP</small><h2>One profitable sale can fund the next candidate.</h2></div><span className={styles.status}>PRINCIPAL SPENDING · BLOCKED</span></div>
-    <div className={styles.activity}>
-     {(factory?.loop||[
-      {label:'External sale settles',ready:false},{label:'Verify net profit after costs',ready:false},{label:'Reserve capital',ready:false},{label:'Reinvest a capped slice',ready:false},{label:'Draft next voxel candidate',ready:false},{label:'Mint with approval',ready:false},{label:'List with approval',ready:false},{label:'Repeat after another sale',ready:false}
-     ]).map((step,i)=><div className={styles.event} key={`${step.key||i}`}><b>{String(i+1).padStart(2,'0')}</b><span>{step.ready?'✓ ':'○ '}{step.label}</span></div>)}
-    </div>
-   </section>
+    <details className={styles.details}>
+     <summary>HOW THE LOOP WORKS</summary>
+     <div className={styles.detailList}>{loop.map((step,i)=><div key={`${step.key||i}`}><b>{step.ready?'✓ ':''}{i+1}. {step.label}</b></div>)}</div>
+    </details>
 
-   <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>CONSERVATIVE LIMITS</small><h2>Factory cannot snowball recklessly.</h2></div><span className={styles.status}>{factory?.killSwitch?'KILL SWITCH · ON':'KILL SWITCH · READY'}</span></div>
-    <div className={styles.grid4}>
-     <article className={styles.metric}><small>RESERVE</small><b>{factory?`${policy.reservePercent}%`:'—'}</b></article>
-     <article className={styles.metric}><small>MAX REINVEST</small><b>{factory?`${policy.reinvestPercent}%`:'—'}</b></article>
-     <article className={styles.metric}><small>MAX / CYCLE</small><b>{factory?eth(policy.maxReinvestPerCycleEth):'—'}</b></article>
-     <article className={styles.metric}><small>CURRENT ALLOWANCE</small><b>{factory?eth(ledger.reinvestAllowanceEth):'—'}</b></article>
-    </div>
-    <div className={styles.guardrails}>
-     <div className={styles.guardrail}><span>✓</span><p>Only settled external sales can enter the loop.</p></div>
-     <div className={styles.guardrail}><span>✓</span><p>Unsold NFTs and self-trades never count as profit.</p></div>
-     <div className={styles.guardrail}><span>✓</span><p>{policy.reservePercent??75}% stays reserved by default; at most {policy.reinvestPercent??25}% of verified profit can be considered.</p></div>
-     <div className={styles.guardrail}><span>✓</span><p>Maximum {policy.maxFactoryMintsPerDay??3} Factory mints/day and {policy.maxFactoryInventory??5} Factory inventory items.</p></div>
-     <div className={styles.guardrail}><span>✓</span><p>Every spend, mint and listing remains approval-gated until the bounded executor is separately installed and tested.</p></div>
-    </div>
-   </section>
+    <details className={styles.details}>
+     <summary>ANALYSIS AGENTS</summary>
+     <div className={styles.detailList}>{(agents.length?agents:fallbackAgents).map((agent,i)=><div key={`${agent.agent}-${i}`}><b>{agent.agent} · {agent.headline}</b>{agent.reason}<br/>Next: {agent.proposedAction}{agent.requiresApproval?' · approval required':''}</div>)}</div>
+    </details>
 
-   <section className={styles.panel}>
-    <div className={styles.panelHead}><div><small>READINESS</small><h2>What exists before self-looping.</h2></div></div>
-    <div className={styles.activity}>
-     <div className={styles.event}><b>{readiness.openSea?'READY':'WAIT'}</b><span>OpenSea sale monitoring</span></div>
-     <div className={styles.event}><b>{readiness.productionRpc?'READY':'WAIT'}</b><span>Production Base RPC</span></div>
-     <div className={styles.event}><b>{readiness.profitLedger?'READY':'WAIT'}</b><span>Server-owned cost/profit ledger schema</span></div>
-     <div className={styles.event}><b>{readiness.profitCycle?'READY':'WAIT'}</b><span>Complete verified costs + realized-profit threshold</span></div>
-     <div className={styles.event}><b>{readiness.generationFactory?'READY':'WAIT'}</b><span>Internal factory generation queue</span></div>
-     <div className={styles.event}><b>{readiness.boundedExecutor?'READY':'WAIT'}</b><span>Bounded mint/list executor</span></div>
-    </div>
+    <details className={styles.details}>
+     <summary>SAFETY + READINESS</summary>
+     <div className={styles.detailList}>
+      <div><b>Reserve</b>{factory?`${policy.reservePercent}% kept by default`:'Waiting for Factory data'}</div>
+      <div><b>Maximum reinvestment</b>{factory?`${policy.reinvestPercent}% of verified profit · ${eth(policy.maxReinvestPerCycleEth)} max per cycle`:'Waiting for Factory data'}</div>
+      <div><b>OpenSea</b>{readiness.openSea?'Ready':'Waiting'}</div>
+      <div><b>Base RPC</b>{readiness.productionRpc?'Ready':'Waiting'}</div>
+      <div><b>Profit ledger</b>{readiness.profitLedger?'Ready':'Waiting'}</div>
+      <div><b>Profit cycle</b>{readiness.profitCycle?'Ready':'Waiting'}</div>
+      <div><b>Bounded executor</b>{readiness.boundedExecutor?'Ready':'Not installed'}</div>
+     </div>
+    </details>
+
     <div className={styles.actions}>
-     <a href={autopilotHref}>← Autopilot monitor</a>
-     <a href="/studio">Create next voxel</a>
-     <a href="/studio#my-voxels">My Voxels</a>
+     <a className={styles.primary} href={autopilotHref}>BACK TO MONITOR</a>
+     <a href="/studio">CREATE VOXEL</a>
+     <a href="/studio#my-voxels">MY VOXELS</a>
     </div>
-    <p className={styles.riskText}>Factory is a compounding workflow, not a profit guarantee. It stops whenever verified net profit, cost coverage, inventory capacity or execution safety is missing.</p>
+    <p className={styles.finePrint}>A sale is not treated as profit until required costs are verified. Unsold NFTs and self-trades do not count as profit.</p>
    </section>
   </div>
 
-  <footer className={styles.footer}><a href={autopilotHref}>← Autopilot</a><a href="/studio#my-voxels">My Voxels</a></footer>
+  <footer className={styles.footer}><a href={autopilotHref}>← MONITOR</a><a href="/studio#my-voxels">MY VOXELS</a></footer>
  </main>;
 }
