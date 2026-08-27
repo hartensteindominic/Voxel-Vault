@@ -6,6 +6,8 @@ import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 
 const ENTITY_STORAGE_KEY = 'voxelvault.dinari.sandbox.entityId';
 const KYC_POLL_MS = 15000;
+const AUTH_TIMEOUT_MS = 10000;
+const API_TIMEOUT_MS = 12000;
 
 function short(value) {
   const text = String(value || '');
@@ -14,6 +16,29 @@ function short(value) {
 
 async function readJson(response) {
   return response.json().catch(() => ({}));
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function fetchWithTimeout(input, init = {}, timeoutMs = API_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Voxel Vault timed out waiting for the owner API. Retry once; if it repeats, the server or Dinari request is still pending.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export default function DinariAdminOnboardingPage() {
@@ -45,7 +70,7 @@ export default function DinariAdminOnboardingPage() {
     try {
       const stored = explicitEntityId || (typeof window !== 'undefined' ? localStorage.getItem(ENTITY_STORAGE_KEY) || '' : '');
       const query = stored ? `?entityId=${encodeURIComponent(stored)}` : '';
-      const response = await fetch(`/api/admin/digital-reits/onboarding${query}`, {
+      const response = await fetchWithTimeout(`/api/admin/digital-reits/onboarding${query}`, {
         cache: 'no-store',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -66,8 +91,16 @@ export default function DinariAdminOnboardingPage() {
     let subscription;
     (async () => {
       try {
-        const client = await getSupabaseBrowserAsync();
-        const { data } = await client.auth.getSession();
+        const client = await withTimeout(
+          getSupabaseBrowserAsync(),
+          AUTH_TIMEOUT_MS,
+          'Voxel Vault account setup took too long to load. Retry the owner page.'
+        );
+        const { data } = await withTimeout(
+          client.auth.getSession(),
+          AUTH_TIMEOUT_MS,
+          'Your Google session check timed out. This can happen when the mobile browser auth lock stalls; retry the owner page.'
+        );
         const accessToken = data?.session?.access_token || '';
         if (cancelled) return;
         if (!accessToken) {
@@ -88,7 +121,7 @@ export default function DinariAdminOnboardingPage() {
         subscription = result?.data?.subscription;
       } catch (err) {
         if (!cancelled) {
-          setAuthState('signed-out');
+          setAuthState('auth-error');
           setError(err instanceof Error ? err.message : 'Google account state could not be loaded.');
         }
       }
@@ -105,7 +138,7 @@ export default function DinariAdminOnboardingPage() {
 
     async function pollKyc() {
       try {
-        const response = await fetch(`/api/admin/digital-reits/onboarding?entityId=${encodeURIComponent(selectedEntityId)}`, {
+        const response = await fetchWithTimeout(`/api/admin/digital-reits/onboarding?entityId=${encodeURIComponent(selectedEntityId)}`, {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -133,7 +166,7 @@ export default function DinariAdminOnboardingPage() {
     setError('');
     setNotice('');
     try {
-      const response = await fetch('/api/admin/digital-reits/onboarding', {
+      const response = await fetchWithTimeout('/api/admin/digital-reits/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: actionName, ...payload }),
@@ -198,7 +231,22 @@ export default function DinariAdminOnboardingPage() {
   }
 
   if (authState === 'loading') {
-    return <main style={page}><div style={center}>Loading owner setup…</div></main>;
+    return <main style={page}><div style={center}>Checking owner session…</div></main>;
+  }
+
+  if (authState === 'auth-error') {
+    return <main style={page}><div style={shell}>
+      <nav style={nav}><Link href="/" style={brand}>V · Voxel Vault</Link><span style={pill}>OWNER ONLY</span></nav>
+      <section style={heroCard}>
+        <div style={eyebrow}>OWNER SESSION RECOVERY</div>
+        <h1 style={h1}>Session check<br/>stalled.</h1>
+        <p style={copyText}>{error || 'The owner session could not be loaded.'}</p>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <button style={primaryButton} onClick={() => window.location.reload()}>Retry owner session</button>
+          <Link href="/studio#my-voxels" style={secondaryLink}>Open Studio sign-in</Link>
+        </div>
+      </section>
+    </div></main>;
   }
 
   if (authState === 'signed-out') {
@@ -336,6 +384,7 @@ const input={width:'100%',boxSizing:'border-box',border:'1px solid #354030',bord
 const primary={display:'inline-block',background:'#b8ff55',color:'#0b1109',textDecoration:'none',borderRadius:13,padding:'11px 14px',fontWeight:950,fontSize:12};
 const primaryButton={border:0,background:'#b8ff55',color:'#0b1109',borderRadius:13,padding:'11px 14px',fontWeight:950,fontSize:12,marginTop:14,cursor:'pointer'};
 const secondary={border:'1px solid #354030',background:'#0b100b',color:'#d5ddd0',borderRadius:13,padding:'10px 12px',fontWeight:850,fontSize:11,cursor:'pointer',marginTop:10};
+const secondaryLink={display:'inline-block',border:'1px solid #354030',background:'#0b100b',color:'#d5ddd0',textDecoration:'none',borderRadius:13,padding:'10px 12px',fontWeight:850,fontSize:11,marginTop:14};
 const code={whiteSpace:'pre-wrap',overflowWrap:'anywhere',background:'#080c08',border:'1px solid #222b21',borderRadius:14,padding:14,color:'#cbd7c4',fontSize:11,lineHeight:1.65};
 const errorBox={border:'1px solid #6a403a',background:'#170d0c',color:'#f3bdb2',borderRadius:14,padding:13,marginBottom:14,fontSize:12};
 const noticeBox={border:'1px solid #526b3c',background:'#0f170c',color:'#d8f3b8',borderRadius:14,padding:13,marginBottom:14,fontSize:12};
