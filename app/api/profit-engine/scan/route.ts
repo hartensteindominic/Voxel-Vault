@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { formatEther, parseUnits } from 'ethers';
-import { normalizeAmountEth, scanBaseArbitrageGrid } from '../../../../lib/base-profit-engine';
+import { normalizeAmountEth } from '../../../../lib/base-profit-engine';
+import { scanBaseArbitrageGridParallel } from '../../../../lib/base-fast-grid';
 import { scanBaseWideMarkets } from '../../../../lib/base-wide-scanner';
 
 export const runtime = 'nodejs';
@@ -36,18 +37,20 @@ export async function POST(request: Request) {
     const targetBps = body?.targetBps;
     const slippageBps = body?.slippageBps;
     const preferFlashblocks = body?.preferFlashblocks !== false;
+    const mode = body?.mode === 'fast' ? 'fast' : 'wide';
+
+    const gridPromise = scanBaseArbitrageGridParallel({
+      amountsEth: sizes.amountsEth,
+      targetBps,
+      slippageBps,
+      preferFlashblocks,
+    });
 
     const [gridResult, wideResult] = await Promise.allSettled([
-      scanBaseArbitrageGrid({
-        amountsEth: sizes.amountsEth,
-        targetBps,
-        slippageBps,
-        preferFlashblocks,
-      }),
-      scanBaseWideMarkets({
-        maxCapitalEth: sizes.requested,
-        preferFlashblocks,
-      }),
+      gridPromise,
+      mode === 'wide'
+        ? scanBaseWideMarkets({ maxCapitalEth: sizes.requested, preferFlashblocks })
+        : Promise.resolve(null),
     ]);
 
     if (gridResult.status !== 'fulfilled') throw gridResult.reason;
@@ -67,17 +70,19 @@ export async function POST(request: Request) {
       .sort((a, b) => BigInt(a.netAfterGasWei) > BigInt(b.netAfterGasWei) ? -1 : BigInt(a.netAfterGasWei) < BigInt(b.netAfterGasWei) ? 1 : 0);
 
     const profitable = opportunities.filter(opportunity => opportunity.passes);
-    const wideMarkets = wideResult.status === 'fulfilled' ? wideResult.value : null;
-    const wideScanError = wideResult.status === 'rejected'
+    const wideMarkets = mode === 'wide' && wideResult.status === 'fulfilled' ? wideResult.value : null;
+    const wideScanError = mode === 'wide' && wideResult.status === 'rejected'
       ? (wideResult.reason instanceof Error ? wideResult.reason.message : String(wideResult.reason))
       : null;
 
     return NextResponse.json({
       ...anchor,
-      scanMode: 'ADAPTIVE_WIDE_V3',
+      scanMode: mode === 'fast' ? 'FAST_EXECUTION_V4' : 'ADAPTIVE_WIDE_V4',
+      requestedMode: mode,
       maxCapitalEth: sizes.requested,
       requestedAmountsEth: sizes.amountsEth,
       executionSizesScanned: grid.scans.length,
+      executionScanPartial: grid.partial,
       best: profitable[0] || null,
       bestQuoted: opportunities[0] || null,
       opportunities,
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
         aerodromePoolTypes: wideMarkets?.coverage?.aerodromePoolTypes || ['volatile', 'stable'],
         slipstreamTickSpacings: wideMarkets?.coverage?.slipstreamTickSpacings || [],
       },
-      rule: 'NO_TRADE unless an executable WETH/USDC candidate at or below the user capital cap clears conservative gas + target profit and then passes a fresh wallet static simulation. Wide-market signals are discovery-only until a separately reviewed executor supports them.',
+      rule: 'NO_TRADE unless an executable WETH/USDC candidate at or below the user capital cap clears conservative gas + target profit and then passes a fresh wallet static simulation. FAST mode only refreshes executable routes; WIDE mode also refreshes read-only market radar.',
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Profit Engine scan failed', error);

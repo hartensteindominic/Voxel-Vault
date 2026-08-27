@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {BrowserProvider,Contract,Interface,formatEther,getAddress} from 'ethers';
 import {discoverMetaMaskProvider,getMetaMaskDeepLink} from '../../lib/wallet-connect';
 import styles from './profit.module.css';
@@ -88,7 +88,7 @@ async function verifyExecutor(address,browserProvider){
 
 export default function ProfitEnginePage(){
   const [amountEth,setAmountEth]=useState('0.01');
-  const [targetBps,setTargetBps]=useState('25');
+  const [targetBps,setTargetBps]=useState('5');
   const [slippageBps,setSlippageBps]=useState('15');
   const [scan,setScan]=useState(null);
   const [busy,setBusy]=useState(false);
@@ -99,6 +99,11 @@ export default function ProfitEnginePage(){
   const [localExecutor,setLocalExecutor]=useState('');
   const [executorVerified,setExecutorVerified]=useState(false);
   const [tx,setTx]=useState(null);
+  const [autoWatch,setAutoWatch]=useState(true);
+  const [scanCount,setScanCount]=useState(0);
+  const [lastScanAt,setLastScanAt]=useState('');
+  const scanInFlightRef=useRef(false);
+  const autoCycleRef=useRef(0);
 
   useEffect(()=>{
     try{
@@ -114,21 +119,70 @@ export default function ProfitEnginePage(){
     }catch{}
   },[]);
 
-  async function runScan(){
-    setBusy(true);setError('');setStatus('Scanning Base Flashblocks across multiple capital sizes, major liquid pairs, Uniswap V3, Aerodrome and Slipstream…');setTx(null);
+  useEffect(()=>{
+    if(!autoWatch)return undefined;
+    let cancelled=false;
+    let timer=null;
+    const tick=async()=>{
+      if(cancelled)return;
+      autoCycleRef.current+=1;
+      const mode=autoCycleRef.current===1||autoCycleRef.current%5===0?'wide':'fast';
+      await runScan({mode,automatic:true});
+      if(!cancelled)timer=setTimeout(tick,12000);
+    };
+    timer=setTimeout(tick,700);
+    return()=>{cancelled=true;if(timer)clearTimeout(timer)};
+  },[autoWatch,amountEth,targetBps,slippageBps]);
+
+  async function runScan({mode='wide',automatic=false}={}){
+    if(scanInFlightRef.current)return;
+    scanInFlightRef.current=true;
+    if(!automatic)setBusy(true);
+    setError('');
+    if(!automatic)setTx(null);
+    if(!automatic)setStatus(mode==='wide'?'Running full Base scan: executable matrix + wide market radar…':'Refreshing executable matrix…');
     try{
-      const response=await fetch('/api/profit-engine/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountEth,targetBps:Number(targetBps),slippageBps:Number(slippageBps),preferFlashblocks:true}),cache:'no-store'});
+      const response=await fetch('/api/profit-engine/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountEth,targetBps:Number(targetBps),slippageBps:Number(slippageBps),preferFlashblocks:true,mode}),cache:'no-store'});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Base scan failed.');
-      setScan(data);
+      setScan(previous=>{
+        if(mode!=='fast'||!previous?.wideMarkets)return data;
+        return {
+          ...data,
+          wideMarkets:previous.wideMarkets,
+          wideScanError:previous.wideScanError,
+          coverage:{
+            ...data.coverage,
+            widePairsRequested:previous.coverage?.widePairsRequested||0,
+            widePairsQuoted:previous.coverage?.widePairsQuoted||0,
+            wideVenues:previous.coverage?.wideVenues||[],
+            slipstreamTickSpacings:previous.coverage?.slipstreamTickSpacings||[],
+          },
+        };
+      });
+      setScanCount(value=>value+1);
+      setLastScanAt(new Date().toLocaleTimeString());
       const source=data.flashblocks?'Flashblocks pending state':'sealed Base state fallback';
       const sizes=data.executionSizesScanned||1;
-      const wideQuoted=data.coverage?.widePairsQuoted||0;
-      const wideRequested=data.coverage?.widePairsRequested||0;
-      setStatus(data.best
-        ?`Executable candidate found on ${source} after checking ${sizes} capital sizes. It still must pass the fresh wallet simulation before MetaMask can submit it.`
-        :`No executable trade right now. Checked ${sizes} capital sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. Wide-radar signals below are discovery only, not permission to trade.`);
-    }catch(e){setError(errText(e));setStatus('');setScan(null)}finally{setBusy(false)}
+      if(data.best){
+        setStatus(`PROFITABLE CANDIDATE FOUND on ${source} after checking ${sizes} sizes. Auto-watch paused. Tap SIMULATE + EXECUTE ATOMICALLY; the wallet will re-check it before any transaction.`);
+        if(automatic)setAutoWatch(false);
+      }else if(automatic){
+        setStatus(`AUTO WATCHING · last executable scan checked ${sizes} sizes on ${source}. No trade cleared gas + ${prettyPct(data.targetBps)} net yet.`);
+      }else{
+        const wideQuoted=data.coverage?.widePairsQuoted||0;
+        const wideRequested=data.coverage?.widePairsRequested||0;
+        setStatus(mode==='wide'
+          ?`No executable trade right now. Checked ${sizes} sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. Auto-watch will keep checking.`
+          :`No executable trade right now after checking ${sizes} sizes. Auto-watch will keep checking.`);
+      }
+    }catch(e){
+      if(!automatic){setError(errText(e));setStatus('')}
+      else setStatus(`AUTO WATCH retrying · last scan error: ${errText(e)}`);
+    }finally{
+      scanInFlightRef.current=false;
+      if(!automatic)setBusy(false);
+    }
   }
 
   async function connect(){
@@ -159,7 +213,7 @@ export default function ProfitEnginePage(){
       const verified=await verifyExecutor(localExecutor,browserProvider);
       window.localStorage.setItem(EXECUTOR_STORAGE_KEY,verified);
       setLocalExecutor(verified);setExecutorVerified(true);
-      setStatus('Executor verified and activated on this device. Run the wide scan now.');
+      setStatus('Executor verified and activated on this device. Auto-watch can now keep scanning.');
     }catch(e){
       if(/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -173,7 +227,7 @@ export default function ProfitEnginePage(){
     if(!op?.passes)throw new Error('This route does not clear the profit floor.');
     const candidate=scan?.executorAddress||(executorVerified?localExecutor:'');
     if(!candidate)throw new Error('Verify the existing BaseArbExecutor first.');
-    setBusy(true);setError('');setTx(null);
+    setBusy(true);setError('');setTx(null);setAutoWatch(false);
     try{
       let provider=injected;
       let connectedWallet=wallet;
@@ -216,7 +270,7 @@ export default function ProfitEnginePage(){
       const actualGas=(receipt.gasUsed||0n)*(receipt.gasPrice||feePerGas||0n);
       const net=BigInt(grossProfit)-actualGas;
       setTx({hash:receipt.hash||sent.hash,pending:false,grossProfitWei:grossProfit,gasWei:actualGas.toString(),netWei:net.toString()});
-      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Scan again for the next opportunity.`);
+      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Turn AUTO WATCH back on for the next opportunity.`);
     }catch(e){
       if(!scan?.executorAddress&&/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -231,24 +285,29 @@ export default function ProfitEnginePage(){
   const widePairs=scan?.wideMarkets?.pairs||[];
 
   return <main className={styles.page}>
-    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V3 WIDE SCAN</span></nav>
+    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V4 AUTO WATCH</span></nav>
     <div className={styles.shell}>
-      <header className={styles.hero}><small>PROFIT ENGINE V3 · ADAPTIVE + WIDE</small><h1>Scan more.<br/><em>Trade only what clears.</em></h1><p>The main scan now checks several capital sizes at or below your cap and also sweeps major Base markets across Uniswap V3, Aerodrome classic pools, and Aerodrome Slipstream.</p></header>
+      <header className={styles.hero}><small>PROFIT ENGINE V4 · FAST + WIDE</small><h1>Stop tapping.<br/><em>Keep watching.</em></h1><p>V4 checks executable WETH/USDC sizes repeatedly while this page stays active, and periodically refreshes the broader Base radar across Uniswap V3, Aerodrome and Slipstream.</p></header>
 
       <section className={styles.panel}>
-        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>The wide radar can discover more markets, but only the separately reviewed WETH/USDC executor matrix can ever show an execution button. A candidate still needs conservative gas + profit clearance, live executor verification, fresh static simulation, fresh gas estimate, and your MetaMask approval.</span></div>
+        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>Auto-watch only reads quotes. It never signs or submits anything. A candidate still needs conservative gas + profit clearance, live executor verification, fresh static simulation, fresh gas estimate, and your MetaMask approval.</span></div>
         <div className={styles.form}>
           <div className={styles.field}><label>MAX CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
           <div className={styles.field}><label>MIN NET · BPS</label><input value={targetBps} onChange={e=>setTargetBps(e.target.value)} inputMode="numeric"/></div>
           <div className={styles.field}><label>SLIPPAGE · BPS</label><input value={slippageBps} onChange={e=>setSlippageBps(e.target.value)} inputMode="numeric"/></div>
-          <button className={styles.primary} onClick={runScan} disabled={busy}>{busy?'SCANNING BASE…':'SCAN BASE WIDE NOW'}</button>
+          <button className={styles.primary} onClick={()=>runScan({mode:'wide',automatic:false})} disabled={busy}>{busy?'SCANNING BASE…':'RUN FULL WIDE SCAN'}</button>
+          <button className={styles.secondary} style={{width:'100%'}} onClick={()=>setAutoWatch(value=>!value)} disabled={busy}>{autoWatch?'AUTO WATCH · ON':'AUTO WATCH · OFF'}</button>
         </div>
+        <div className={styles.footnote}>AUTO WATCH refreshes the executable matrix about every 12 seconds and the full wide radar periodically while this browser tab remains active. iPhone may suspend page timers when the browser is backgrounded.</div>
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
         {scan&&<div className={styles.summary}>
           <div className={styles.stat}><small>EXECUTION SIZES</small><b>{scan.executionSizesScanned||1}</b></div>
           <div className={styles.stat}><small>WIDE PAIRS</small><b>{scan.coverage?.widePairsQuoted||0}/{scan.coverage?.widePairsRequested||0}</b></div>
           <div className={styles.stat}><small>NET TARGET</small><b>{prettyPct(scan.targetBps)}</b></div>
+          <div className={styles.stat}><small>AUTO WATCH</small><b>{autoWatch?'ON':'PAUSED'}</b></div>
+          <div className={styles.stat}><small>SCANS THIS PAGE</small><b>{scanCount}</b></div>
+          <div className={styles.stat}><small>LAST CHECK</small><b>{lastScanAt||'—'}</b></div>
           <div className={styles.stat}><small>EXECUTOR</small><b>{executorReady?`${short(displayedExecutor)}${scan.executionEnabled?'':' · DEVICE'}`:localExecutor?`${short(localExecutor)} · VERIFY`:'LOCKED'}</b></div>
         </div>}
         {localExecutor&&!executorVerified&&!scan?.executionEnabled&&<button className={styles.secondary} style={{width:'100%',marginTop:14}} onClick={()=>activateExecutor()} disabled={busy}>{busy?'VERIFYING…':'VERIFY EXISTING EXECUTOR →'}</button>}
@@ -271,7 +330,7 @@ export default function ProfitEnginePage(){
           </div>
           {op.passes&&executorReady?<button className={styles.execute} disabled={busy} onClick={()=>execute(op)}>SIMULATE + EXECUTE ATOMICALLY</button>:op.passes?<div className={styles.lock}><b>EXECUTION LOCKED</b><br/>{localExecutor?'Verify the existing executor above.':<a style={{color:'inherit'}} href="/profit-engine/deploy">Deploy the reviewed executor</a>}</div>:null}
         </article>)}</div>
-        <div className={styles.footnote}>This is the only execution-capable section. Sizes never exceed the MAX CAPITAL value you entered. No wallet transaction is offered unless the quoted WETH/USDC round trip clears the configured net target after the conservative gas budget, and the exact transaction is simulated again immediately before MetaMask.</div>
+        <div className={styles.footnote}>This is the only execution-capable section. Sizes never exceed MAX CAPITAL. The default net target is now 5 bps, but conservative gas is still added on top, so lowering the target does not turn a losing route into a trade. Every actual attempt still gets a fresh wallet simulation immediately before MetaMask.</div>
       </section>}
 
       {scan&&<section className={styles.panel}>
@@ -295,7 +354,7 @@ export default function ProfitEnginePage(){
             </>:<p className={styles.footnote}>No complete cross-venue round trip was quotable for this pair on this state.</p>}
           </article>;
         })}</div>:<div className={styles.status}>No additional wide-market routes were available on this scan.</div>}
-        <div className={styles.footnote}>Radar values are raw quote differences before a route-specific gas model, slippage reserve, contract compatibility check, or wallet simulation. They are intentionally not executable. The radar currently covers major liquid Base quote markets and multiple Uniswap fee tiers, Aerodrome stable/volatile pools, and Slipstream tick spacings rather than blindly touching every unknown token contract.</div>
+        <div className={styles.footnote}>Radar values are raw quote differences before a route-specific gas model, slippage reserve, contract compatibility check, or wallet simulation. They are intentionally not executable. This avoids treating a raw price discrepancy as guaranteed profit.</div>
       </section>}
 
       <section className={styles.panel}>

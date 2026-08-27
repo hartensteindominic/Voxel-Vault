@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const read = path => fs.readFileSync(path, 'utf8');
 const core = read('lib/base-profit-engine.ts');
+const fastGrid = read('lib/base-fast-grid.ts');
 const wide = read('lib/base-wide-scanner.ts');
 const scanRoute = read('app/api/profit-engine/scan/route.ts');
 const payments = read('lib/x402-resource.ts');
@@ -31,6 +32,14 @@ requireText(core, "rule: 'NO_TRADE", 'profit engine must keep a hard no-trade ru
 forbidText(core, 'eth_sendRawTransaction', 'market-data core must never submit transactions');
 forbidText(core, 'DEPLOYER_PRIVATE_KEY', 'market-data core must never read deployer private keys');
 
+requireText(fastGrid, 'Promise.allSettled', 'fast grid must scan execution sizes concurrently');
+requireText(fastGrid, 'scanBaseArbitrage', 'fast grid must reuse the reviewed executable quote engine');
+requireText(fastGrid, 'never executes or signs anything', 'parallel scan must remain read-only');
+forbidText(fastGrid, 'sendTransaction', 'parallel scan must never submit transactions');
+forbidText(fastGrid, 'eth_sendRawTransaction', 'parallel scan must never submit raw transactions');
+forbidText(fastGrid, 'PRIVATE_KEY', 'parallel scan must never read private keys');
+forbidText(fastGrid, 'new Wallet', 'parallel scan must never instantiate a signing wallet');
+
 requireText(wide, "'Aerodrome Slipstream'", 'wide scanner must include Slipstream discovery');
 requireText(wide, "symbol: 'cbBTC'", 'wide scanner must include cbBTC discovery');
 requireText(wide, "symbol: 'cbETH'", 'wide scanner must include cbETH discovery');
@@ -45,9 +54,12 @@ forbidText(wide, 'new Wallet', 'wide scanner must never instantiate a signing wa
 requireText(scanRoute, 'normalized.inputWei / BigInt(8)', 'adaptive scan must test smaller capital sizes');
 requireText(scanRoute, 'normalized.inputWei,', 'adaptive scan must include the user capital cap itself');
 forbidText(scanRoute, 'normalized.inputWei * BigInt(2)', 'adaptive scan must never exceed the user capital cap');
-requireText(scanRoute, "scanMode: 'ADAPTIVE_WIDE_V3'", 'scan endpoint must disclose adaptive wide mode');
-requireText(scanRoute, 'scanBaseArbitrageGrid', 'scan endpoint must run multi-size executable quotes');
-requireText(scanRoute, 'scanBaseWideMarkets', 'scan endpoint must run wide read-only discovery');
+requireText(scanRoute, "body?.mode === 'fast' ? 'fast' : 'wide'", 'scan endpoint must split fast and wide modes');
+requireText(scanRoute, 'scanBaseArbitrageGridParallel', 'scan endpoint must use parallel multi-size executable quotes');
+requireText(scanRoute, "scanMode: mode === 'fast' ? 'FAST_EXECUTION_V4' : 'ADAPTIVE_WIDE_V4'", 'scan endpoint must disclose V4 scan mode');
+requireText(scanRoute, 'scanBaseWideMarkets', 'wide mode must still run read-only discovery');
+forbidText(scanRoute, 'sendTransaction', 'scan route must remain read-only');
+forbidText(scanRoute, 'PRIVATE_KEY', 'scan route must never read private keys');
 
 requireText(payments, "'PAYMENT-REQUIRED'", 'x402 402 challenge header must be emitted');
 requireText(payments, "request.headers.get('PAYMENT-SIGNATURE')", 'x402 payment payload header must be consumed');
@@ -92,16 +104,24 @@ forbidText(deployPage, 'PRIVATE_KEY', 'browser deployment page must never read p
 
 requireText(profitPage, "const fromUrl=params.get('executor')", 'profit page must accept an existing executor recovery address');
 requireText(profitPage, 'setExecutorVerified(false)', 'recovered executor must start unverified');
+requireText(profitPage, "const [targetBps,setTargetBps]=useState('5')", 'V4 UI should use the smaller net-profit target by default');
+requireText(profitPage, 'const [autoWatch,setAutoWatch]=useState(true)', 'V4 auto-watch must start enabled');
+requireText(profitPage, "setTimeout(tick,12000)", 'auto-watch cadence must remain bounded');
+requireText(profitPage, "const mode=autoCycleRef.current===1||autoCycleRef.current%5===0?'wide':'fast'", 'auto-watch must use fast scans between periodic wide scans');
+requireText(profitPage, 'if(data.best)', 'auto-watch must detect profitable candidates');
+requireText(profitPage, 'if(automatic)setAutoWatch(false)', 'auto-watch must pause when a candidate is found');
 requireText(profitPage, 'const code=await browserProvider.getCode(candidate)', 'verification must first confirm deployed bytecode exists');
 requireText(profitPage, 'const executorAddress=await verifyExecutor(candidate,browserProvider);', 'device executor must be re-verified live before use');
 requireText(profitPage, 'getAddress(connectedWallet)!==APPROVED_OWNER', 'execution must require the reviewed owner wallet');
 requireText(profitPage, 'fn.staticCall(...args', 'execution must run a fresh no-spend static simulation');
 requireText(profitPage, 'fn.estimateGas(...args', 'execution must run a fresh wallet gas estimate');
 requireText(profitPage, 'simulatedGross-estimatedWalletGas<target', 'wallet execution must still clear the net target after estimated gas');
+requireText(profitPage, 'Auto-watch only reads quotes', 'UI must disclose that auto-watch cannot execute');
 requireText(profitPage, 'Wide market radar', 'UI must clearly separate wide discovery from execution');
 requireText(profitPage, 'This is the only execution-capable section', 'UI must identify the only execution-capable section');
 requireText(profitPage, 'WATCH ONLY', 'wide signals must be visibly non-executable');
 forbidText(profitPage, 'PRIVATE_KEY', 'browser execution page must never read private keys');
 forbidText(profitPage, 'eth_sendRawTransaction', 'browser execution page must not bypass wallet signing');
+forbidText(profitPage, 'new Wallet', 'auto-watch page must not instantiate a signing wallet');
 
 console.log('Machine revenue layer safety checks passed.');
