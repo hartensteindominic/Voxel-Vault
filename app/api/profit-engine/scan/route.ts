@@ -14,9 +14,11 @@ const MAX_INPUT = parseUnits('10', 18);
 function adaptiveAmounts(amountEth: unknown) {
   const normalized = normalizeAmountEth(amountEth || '0.01');
   const values = [
+    normalized.inputWei / BigInt(16),
     normalized.inputWei / BigInt(8),
     normalized.inputWei / BigInt(4),
     normalized.inputWei / BigInt(2),
+    (normalized.inputWei * BigInt(3)) / BigInt(4),
     normalized.inputWei,
   ].map(value => value < MIN_INPUT ? MIN_INPUT : value > MAX_INPUT ? MAX_INPUT : value);
 
@@ -67,9 +69,10 @@ export async function POST(request: Request) {
         scanStateMode: scan.stateMode,
         scanRpcSource: scan.rpcSource,
       })))
-      .sort((a, b) => BigInt(a.netAfterGasWei) > BigInt(b.netAfterGasWei) ? -1 : BigInt(a.netAfterGasWei) < BigInt(b.netAfterGasWei) ? 1 : 0);
+      .sort((a, b) => BigInt(a.marginToProfitFloorWei) > BigInt(b.marginToProfitFloorWei) ? -1 : BigInt(a.marginToProfitFloorWei) < BigInt(b.marginToProfitFloorWei) ? 1 : 0);
 
     const profitable = opportunities.filter(opportunity => opportunity.passes);
+    const bestQuoted = opportunities[0] || null;
     const wideMarkets = mode === 'wide' && wideResult.status === 'fulfilled' ? wideResult.value : null;
     const wideScanError = mode === 'wide' && wideResult.status === 'rejected'
       ? (wideResult.reason instanceof Error ? wideResult.reason.message : String(wideResult.reason))
@@ -77,14 +80,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...anchor,
-      scanMode: mode === 'fast' ? 'FAST_EXECUTION_V4' : 'ADAPTIVE_WIDE_V4',
+      scanMode: mode === 'fast' ? 'BOSS_FAST_V5' : 'BOSS_WIDE_V5',
       requestedMode: mode,
       maxCapitalEth: sizes.requested,
       requestedAmountsEth: sizes.amountsEth,
       executionSizesScanned: grid.scans.length,
       executionScanPartial: grid.partial,
+      batchLatencyMs: grid.batchLatencyMs,
       best: profitable[0] || null,
-      bestQuoted: opportunities[0] || null,
+      bestQuoted,
+      nearMiss: profitable[0] ? null : bestQuoted,
+      marketHeat: grid.marketHeat,
+      suggestedCadenceMs: grid.suggestedCadenceMs,
+      closestMarginBps: grid.closestMarginBps,
       opportunities,
       wideMarkets,
       wideScanError,
@@ -99,7 +107,7 @@ export async function POST(request: Request) {
         aerodromePoolTypes: wideMarkets?.coverage?.aerodromePoolTypes || ['volatile', 'stable'],
         slipstreamTickSpacings: wideMarkets?.coverage?.slipstreamTickSpacings || [],
       },
-      rule: 'NO_TRADE unless an executable WETH/USDC candidate at or below the user capital cap clears conservative gas + target profit and then passes a fresh wallet static simulation. FAST mode only refreshes executable routes; WIDE mode also refreshes read-only market radar.',
+      rule: 'NO_TRADE unless an executable WETH/USDC candidate at or below the user capital cap clears conservative gas + target profit and then passes a fresh wallet static simulation. V5 speeds read-only scans near the profit floor but never auto-executes.',
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Profit Engine scan failed', error);
