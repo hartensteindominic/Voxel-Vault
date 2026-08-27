@@ -16,8 +16,9 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const walletAddress = String(body?.walletAddress || '').trim().toLowerCase();
-    const chainId = Number(body?.chainId || 0) || null;
+    const chainId = Number(body?.chainId || 0) || 0;
     if (!ADDRESS_RE.test(walletAddress)) return NextResponse.json({ error: 'A valid wallet address is required.' }, { status: 400 });
+    if (!Number.isSafeInteger(chainId) || chainId <= 0) return NextResponse.json({ error: 'A valid connected chain ID is required.' }, { status: 400 });
 
     const nonce = randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       'Sign this message to prove you control this wallet. This signature does not send a transaction or spend funds.',
       `Account: ${user.id}`,
       `Wallet: ${walletAddress}`,
+      `Chain ID: ${chainId}`,
       `Host: ${host}`,
       `Nonce: ${nonce}`,
       `Expires: ${expiresAt}`,
