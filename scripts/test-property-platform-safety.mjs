@@ -13,6 +13,7 @@ const launch = read('lib/real-estate/legal-launch.js');
 const launchPage = read('app/real-estate/launch/page.js');
 const deploy = read('scripts/deploy-property-pilot.js');
 const token = read('contracts/PropertyInterestToken.sol');
+const passport = read('contracts/PropertyPassport.sol');
 const distribution = read('contracts/PropertyDistributionVault.sol');
 const root = read('app/page.js');
 const home = read('app/real-estate/page.js');
@@ -33,8 +34,14 @@ requireText(status, 'mainnetPropertyTokenDeployment: false', 'property status ro
 requireText(status, 'evaluateLegalLaunch(process.env)', 'property status route');
 requireText(deploy, 'network.chainId !== 84532n', 'property deploy script');
 requireText(deploy, 'Base Sepolia only', 'property deploy script');
+requireText(deploy, 'PROPERTY_PASSPORT_ADDRESS', 'property deploy script');
+requireText(deploy, 'Property Passport is NOT minted at deployment', 'property deploy script');
 requireText(token, 'mapping(address account => bool allowed) public isAllowed', 'interest token');
 requireText(token, 'RecipientNotAllowed', 'interest token');
+requireText(passport, 'NOT the deed and NOT the investment security', 'property passport');
+requireText(passport, 'PropertyNotVerified', 'property passport');
+requireText(passport, 'PassportNonTransferable', 'property passport');
+requireText(passport, 'propertyRegistry.getProperty(propertyId)', 'property passport');
 requireText(distribution, 'ClaimantNotAllowed', 'distribution vault');
 requireText(distribution, 'interestToken.isAllowed(msg.sender)', 'distribution vault');
 requireText(distribution, 'InvalidStatementHash', 'distribution vault');
@@ -54,4 +61,4 @@ requireText(launchPage, 'Regulation Crowdfunding + registered partner', 'legal l
 requireText(launchPage, 'REAL-MONEY EXECUTION · LOCKED', 'legal launch page');
 requireText(launchPage, 'One real property. One real closing. One reconciled rent distribution.', 'legal launch page');
 
-console.log('Property-platform safety checks passed: regulated launch gates are explicit, live investing and auto-reinvestment remain fail-closed, distribution claims remain permissioned, and property deployment is Base Sepolia-only.');
+console.log('Property-platform safety checks passed: regulated launch gates are explicit, the verified Property Passport cannot be used as a transferable deed proxy, live investing and auto-reinvestment remain fail-closed, distribution claims remain permissioned, and property deployment is Base Sepolia-only.');
