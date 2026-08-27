@@ -28,6 +28,7 @@ export async function GET() {
       environment: dinari.environment,
       credentialsConfigured: dinari.credentialsConfigured,
       accountConfigured: dinari.accountConfigured,
+      sandboxFaucetEnabled: dinari.sandboxFaucetEnabled,
       sandboxTradingEnabled: dinari.sandboxTradingEnabled,
       productionTradingEnabled: dinari.productionTradingEnabled,
       symbols: dinari.symbols,
@@ -45,7 +46,9 @@ export async function GET() {
       dinariDigitalReitProviderAdapter: true,
       providerBackedReitCatalog: true,
       providerBackedPortfolioRead: true,
+      providerBackedCashRead: true,
       providerBackedDividendRead: true,
+      sandboxMockFunding: true,
       cappedSandboxSecurityOrders: true,
       jurisdictionAcquisitionGate: true,
       regulatedLaunchGateEngine: true,
@@ -63,9 +66,10 @@ export async function GET() {
       acquisitionStatus: '/api/property-platform/acquisition',
       digitalReitVault: '/real-estate/reits',
       digitalReitStatus: '/api/digital-reits',
+      digitalReitSandboxFunding: '/api/digital-reits/sandbox-fund',
     },
     note: launch.liveInvestingEnabled
       ? 'Controlled live mode is active through the approved production integration.'
-      : 'Fail-closed regulated launch build: sandbox tokenized-security testing is supported, but no live investor funds, live securities purchase, automated property acquisition or public security-token sale can execute from this code.',
+      : 'Fail-closed regulated launch build: sandbox tokenized-security testing and mock funding are supported, but no live investor funds, live securities purchase, automated property acquisition or public security-token sale can execute from this code.',
   });
 }

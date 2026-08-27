@@ -26,13 +26,35 @@ function shellCard(extra = {}) {
 export default function DigitalReitDashboard({ snapshot }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState('');
+  const [funding, setFunding] = useState(false);
   const [message, setMessage] = useState('');
 
   const portfolioBySymbol = new Map((snapshot.portfolio || []).map((position) => [position.symbol, position]));
   const paidDividends = (snapshot.dividends || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const sandboxCash = (snapshot.cash || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  async function fundSandbox() {
+    if (!snapshot.sandboxFaucetEnabled || funding || busyId) return;
+    const accepted = window.confirm('Mint Dinari sandbox test funds to this configured account? These are mock tokens only and have no real-world value.');
+    if (!accepted) return;
+
+    setFunding(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/digital-reits/sandbox-fund', { method: 'POST' });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Sandbox funding failed.');
+      setMessage(`Added ${payload.amount || 1000} ${payload.symbol || 'mockUSD'} test funds. Refreshing provider balances…`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error?.message || 'Sandbox funding failed.');
+    } finally {
+      setFunding(false);
+    }
+  }
 
   async function sandboxBuy(asset, amount) {
-    if (!snapshot.sandboxTradingEnabled || busyId) return;
+    if (!snapshot.sandboxTradingEnabled || busyId || funding) return;
     const accepted = window.confirm(`Place a $${amount} Dinari SANDBOX market buy for ${asset.symbol}? This uses test funds only.`);
     if (!accepted) return;
 
@@ -58,7 +80,7 @@ export default function DigitalReitDashboard({ snapshot }) {
 
   return (
     <div style={{display:'grid',gap:20}}>
-      <section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:12}}>
+      <section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:12}}>
         <div style={shellCard()}>
           <div style={label}>PROVIDER</div>
           <div style={value}>{snapshot.provider}</div>
@@ -75,9 +97,14 @@ export default function DigitalReitDashboard({ snapshot }) {
           <div style={sub}>Configured account only</div>
         </div>
         <div style={shellCard()}>
+          <div style={label}>SANDBOX CASH</div>
+          <div style={value}>{usd(sandboxCash)}</div>
+          <div style={sub}>{snapshot.cash?.length || 0} payment-token balance(s)</div>
+        </div>
+        <div style={shellCard()}>
           <div style={label}>DIVIDENDS OBSERVED</div>
           <div style={value}>{usd(paidDividends)}</div>
-          <div style={sub}>{snapshot.dividends.length} provider payment record(s)</div>
+          <div style={sub}>{snapshot.dividends.length} verified real-estate payment record(s)</div>
         </div>
       </section>
 
@@ -87,10 +114,31 @@ export default function DigitalReitDashboard({ snapshot }) {
         <section style={shellCard({padding:28})}>
           <div style={label}>CONNECTION REQUIRED</div>
           <h2 style={{fontSize:'clamp(1.8rem,4vw,3rem)',letterSpacing:'-.05em',margin:'9px 0'}}>The Digital REIT Vault is built. Dinari sandbox credentials are the missing plug.</h2>
-          <p style={copy}>Once the server-side API key, secret and account ID are configured, this page stops using placeholders and pulls the live provider catalog, account positions and dividend records. Credentials never go to the browser.</p>
+          <p style={copy}>Once the server-side API key, secret and account ID are configured, this page stops using placeholders and pulls the provider catalog, account positions, cash balances and dividend records. Credentials never go to the browser.</p>
           <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:18}}>
             {snapshot.symbols.map((symbol) => <span key={symbol} style={chip}>{symbol}</span>)}
           </div>
+        </section>
+      ) : null}
+
+      {snapshot.environment === 'sandbox' && snapshot.credentialsConfigured && snapshot.accountConfigured ? (
+        <section style={shellCard({borderColor:'#435434',padding:26})}>
+          <div style={label}>SANDBOX TEST WALLET</div>
+          <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:18,alignItems:'center',marginTop:8}}>
+            <div>
+              <h2 style={{fontSize:26,letterSpacing:'-.045em',margin:'0 0 6px'}}>Fund → buy → verify holding.</h2>
+              <p style={{...copy,margin:0}}>Dinari's official sandbox faucet mints 1,000 mockUSD-equivalent test tokens to the configured account. They have no real-world value. After funding, the $5 buttons can exercise the managed sandbox order flow.</p>
+            </div>
+            <button
+              type="button"
+              onClick={fundSandbox}
+              disabled={!snapshot.sandboxFaucetEnabled || funding || Boolean(busyId)}
+              style={{...buyButton,width:'auto',minWidth:190,marginTop:0,opacity:(!snapshot.sandboxFaucetEnabled || funding || busyId) ? .42 : 1,cursor:(!snapshot.sandboxFaucetEnabled || funding || busyId) ? 'not-allowed':'pointer'}}
+            >
+              {funding ? 'FUNDING…' : 'ADD 1,000 TEST FUNDS'}
+            </button>
+          </div>
+          {!snapshot.sandboxFaucetEnabled ? <p style={{...copy,margin:'12px 0 0',fontSize:11}}>Faucet is locked until <b>DINARI_SANDBOX_FAUCET_ENABLED=true</b> is set in the Preview environment.</p> : null}
         </section>
       ) : null}
 
@@ -132,9 +180,9 @@ export default function DigitalReitDashboard({ snapshot }) {
                   </div>
                   <button
                     type="button"
-                    disabled={!snapshot.sandboxTradingEnabled || Boolean(busyId)}
+                    disabled={!snapshot.sandboxTradingEnabled || Boolean(busyId) || funding}
                     onClick={() => sandboxBuy(asset, 5)}
-                    style={{...buyButton,opacity:(!snapshot.sandboxTradingEnabled || busyId) ? .42 : 1,cursor:(!snapshot.sandboxTradingEnabled || busyId) ? 'not-allowed':'pointer'}}
+                    style={{...buyButton,opacity:(!snapshot.sandboxTradingEnabled || busyId || funding) ? .42 : 1,cursor:(!snapshot.sandboxTradingEnabled || busyId || funding) ? 'not-allowed':'pointer'}}
                   >
                     {busyId === asset.id ? 'SUBMITTING…' : 'BUY $5 · SANDBOX'}
                   </button>
@@ -156,15 +204,15 @@ export default function DigitalReitDashboard({ snapshot }) {
           <div key={item.id || `${item.symbol}-${index}`} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:12,padding:'11px 0',borderTop:'1px solid #222a21',fontSize:13,alignItems:'center'}}>
             <b>{item.symbol || 'Real-estate security'}</b>
             <span style={{color:'#9ba897'}}>{item.payableDate || item.status || 'Provider record'}</span>
-            <b>{usd(item.amount)}</b>
+            <b>{usd(item.amount)} {item.currency && item.currency !== 'USD' ? item.currency : ''}</b>
           </div>
-        )) : <p style={{...copy,margin:0}}>No real provider dividend payments are available for the configured account yet.</p>}
+        )) : <p style={{...copy,margin:0}}>No provider dividend payments tied to the confirmed real-estate catalog are available for the configured account yet.</p>}
       </section>
 
       <section style={shellCard({borderColor:'#3b4933'})}>
         <div style={label}>PRODUCTION BOUNDARY</div>
         <h3 style={{fontSize:24,margin:'7px 0'}}>Sandbox can execute. Production cannot.</h3>
-        <p style={{...copy,margin:0}}>The sandbox button sends a real request to Dinari's sandbox order API when explicitly enabled. The production trading implementation is still hard-disabled in code, so changing an environment variable alone cannot turn this into unattended real-money trading.</p>
+        <p style={{...copy,margin:0}}>Sandbox funding and buy controls call Dinari's real sandbox API when explicitly enabled. They use mock assets only. The production trading implementation is still hard-disabled in code, so changing environment variables alone cannot turn this into unattended real-money trading.</p>
       </section>
     </div>
   );
