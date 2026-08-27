@@ -1,12 +1,13 @@
 import styles from '../real-estate.module.css';
 import DigitalReitDashboard from './DigitalReitDashboard';
+import ReitVaultCanvas from './ReitVaultCanvas';
 import { getDigitalReitSnapshot } from '../../../lib/real-estate/dinari';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Digital REIT Vault | Voxel Vault',
-  description: 'Provider-backed tokenized real-estate securities, account positions, dividends and sandbox execution inside Voxel Vault.',
+  description: 'Spatial provider-backed tokenized real-estate securities, account positions, dividends and sandbox execution inside Voxel Vault.',
 };
 
 export default async function DigitalReitPage() {
@@ -29,20 +30,37 @@ export default async function DigitalReitPage() {
             <p className={styles.eyebrow}>Stage 1 · regulated tokenized real-estate securities</p>
             <h1>Digital REITs,<br /><em>inside the vault.</em></h1>
             <p className={styles.lead}>
-              Voxel Vault now has a real provider integration layer for tokenized U.S. stocks and ETFs. The Digital REIT Vault filters the provider catalog for real-estate securities, reads actual configured-account positions and dividend records, and supports capped test buys in Dinari sandbox.
+              Voxel Vault combines a spatial portfolio with a provider-backed tokenized-securities layer. The REIT district uses the same Dinari snapshot as the financial dashboard: provider-confirmed assets become buildings, and only positions actually returned by the configured provider account are shown as held.
             </p>
             <div className={styles.actions}>
-              <a className={styles.primaryButton} href="#vault">Open Digital REIT Vault</a>
-              <a className={styles.secondaryButton} href="/real-estate/acquire">Build toward a deed</a>
+              <a className={styles.primaryButton} href="#spatial-vault">Enter My Vault</a>
+              <a className={styles.secondaryButton} href="#vault">Open financial view</a>
               <a className={styles.secondaryButton} href="/real-estate/launch">Production gates</a>
             </div>
             <div className={styles.heroNote}>
               <span>Dinari integration.</span>
-              <span>Sandbox first.</span>
-              <span>Real API data when credentials are configured.</span>
+              <span>Spatial portfolio.</span>
+              <span>Provider-backed holdings only.</span>
               <span>Production trading locked.</span>
             </div>
           </div>
+        </section>
+
+        <section id="spatial-vault" className={styles.section} style={{paddingTop:24}}>
+          <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'end',flexWrap:'wrap',marginBottom:14}}>
+            <div>
+              <p className={styles.eyebrow}>My Vault · spatial portfolio</p>
+              <h2 style={{fontSize:'clamp(2.2rem,5vw,4.4rem)',lineHeight:.92,letterSpacing:'-.065em',margin:'6px 0 0'}}>Your real-estate exposure,<br />built into a 3D district.</h2>
+            </div>
+            <div style={{maxWidth:430,fontSize:12,lineHeight:1.65,color:'#95a18f'}}>
+              Bright buildings represent provider-reported holdings. Dark buildings are browseable provider-confirmed assets or, before connection, clearly labeled watchlist previews. The 3D view never invents ownership.
+            </div>
+          </div>
+          <ReitVaultCanvas
+            assets={snapshot.catalog}
+            positions={snapshot.portfolio}
+            watchlistSymbols={snapshot.symbols}
+          />
         </section>
 
         <section id="vault" className={styles.section} style={{paddingTop:24}}>
@@ -68,7 +86,7 @@ export default async function DigitalReitPage() {
         </section>
 
         <footer className={styles.footer}>
-          <div><strong>Voxel Vault Digital REIT Vault</strong><br />Provider-backed tokenized real-estate integration with sandbox-first execution.</div>
+          <div><strong>Voxel Vault Digital REIT Vault</strong><br />Spatial provider-backed tokenized real-estate integration with sandbox-first execution.</div>
           <div>Not an investment recommendation · availability and eligibility are determined by the regulated provider · production trading is disabled.</div>
         </footer>
       </div>
