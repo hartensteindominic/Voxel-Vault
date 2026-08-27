@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { x402RuntimeStatus } from '../../../../lib/x402-resource';
+import { aiLicensePriceAtomic } from '../../../../lib/ai-licensing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,10 +11,11 @@ export async function GET(request: Request) {
   const quotePrice = String(process.env.X402_BASE_QUOTE_PRICE_ATOMIC || '1000');
   const optimizePrice = String(process.env.X402_OPTIMIZE_PRICE_ATOMIC || '5000');
   const decisionPrice = String(process.env.X402_DECISION_PRICE_ATOMIC || '10000');
+  const aiLicensePrice = aiLicensePriceAtomic();
 
   return NextResponse.json({
     name: 'Voxel Vault Machine Revenue API',
-    version: '2.1.0',
+    version: '2.2.0',
     network: 'Base',
     chainId: 8453,
     capabilities: [
@@ -22,6 +24,8 @@ export async function GET(request: Request) {
       'multi-size-net-profit-optimization',
       'short-lived-agent-execution-tickets',
       'x402-usdc-pay-per-request',
+      'nft-machine-use-licensing',
+      'pay-per-use-ai-asset-rights',
     ],
     safety: {
       readOnly: true,
@@ -29,7 +33,8 @@ export async function GET(request: Request) {
       submitsTransactions: false,
       authorizesSpending: false,
       bridgeAtomicityClaimed: false,
-      note: 'Paid machine endpoints return market intelligence and non-authorizing quote tickets only. Live execution remains a separate owner-controlled atomic executor flow with fresh simulation required.',
+      nftTransfers: false,
+      note: 'Paid machine endpoints return market intelligence, non-authorizing quote tickets, or machine-use license receipts only. Licensing never transfers the NFT. Live trading remains a separate owner-controlled atomic executor flow with fresh simulation required.',
     },
     coordinator: {
       defaultMaxQuoteEth: String(process.env.AGENT_MAX_QUOTE_ETH || '0.05'),
@@ -43,7 +48,15 @@ export async function GET(request: Request) {
         baseQuoteAtomicUsdc: quotePrice,
         optimizeAtomicUsdc: optimizePrice,
         decisionAtomicUsdc: decisionPrice,
+        aiMachineUseLicenseAtomicUsdc: aiLicensePrice,
       },
+    },
+    licensing: {
+      model: 'single-machine-use-v1',
+      repeatUseRequiresNewPayment: true,
+      modelTrainingIncluded: false,
+      nftOwnershipTransferred: false,
+      rightsNotice: 'Licenses cover only rights actually controlled by the configured licensor. NFT ownership alone does not prove copyright ownership.',
     },
     endpoints: {
       publicScan: `${origin}/api/profit-engine/scan`,
@@ -51,6 +64,9 @@ export async function GET(request: Request) {
       paidBaseQuote: `${origin}/api/agent/base-quote`,
       paidOptimize: `${origin}/api/agent/optimize`,
       paidDecision: `${origin}/api/agent/decision`,
+      publicLicenseCatalog: `${origin}/api/licenses/catalog`,
+      paidMachineUseLicense: `${origin}/api/licenses/use`,
+      licensingPage: `${origin}/ai-licensing`,
       openapi: `${origin}/api/agent/openapi`,
       manifest: `${origin}/api/agent/manifest`,
     },
@@ -58,6 +74,7 @@ export async function GET(request: Request) {
       baseQuote: { amountEth: '0.01', targetBps: 25, slippageBps: 15, preferFlashblocks: true },
       optimize: { amountsEth: ['0.005', '0.01', '0.025', '0.05'], targetBps: 25, slippageBps: 15, preferFlashblocks: true },
       decision: { amountEth: '0.01', targetBps: 25, slippageBps: 15, requireFlashblocks: true, ticketLifetimeMs: 1200 },
+      machineUseLicense: { tokenId: '1', clientId: 'example-agent', useCase: 'render this voxel in one generated scene' },
     },
   }, { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60' } });
 }
