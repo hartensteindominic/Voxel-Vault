@@ -13,10 +13,10 @@ const MAX_INPUT = parseUnits('10', 18);
 function adaptiveAmounts(amountEth: unknown) {
   const normalized = normalizeAmountEth(amountEth || '0.01');
   const values = [
+    normalized.inputWei / BigInt(8),
     normalized.inputWei / BigInt(4),
     normalized.inputWei / BigInt(2),
     normalized.inputWei,
-    normalized.inputWei * BigInt(2),
   ].map(value => value < MIN_INPUT ? MIN_INPUT : value > MAX_INPUT ? MAX_INPUT : value);
 
   const unique = Array.from(new Set(values.map(value => value.toString())))
@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...anchor,
       scanMode: 'ADAPTIVE_WIDE_V3',
+      maxCapitalEth: sizes.requested,
       requestedAmountsEth: sizes.amountsEth,
       executionSizesScanned: grid.scans.length,
       best: profitable[0] || null,
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
         aerodromePoolTypes: wideMarkets?.coverage?.aerodromePoolTypes || ['volatile', 'stable'],
         slipstreamTickSpacings: wideMarkets?.coverage?.slipstreamTickSpacings || [],
       },
-      rule: 'NO_TRADE unless an executable WETH/USDC candidate clears conservative gas + target profit and then passes a fresh wallet static simulation. Wide-market signals are discovery-only until a separately reviewed executor supports them.',
+      rule: 'NO_TRADE unless an executable WETH/USDC candidate at or below the user capital cap clears conservative gas + target profit and then passes a fresh wallet static simulation. Wide-market signals are discovery-only until a separately reviewed executor supports them.',
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Profit Engine scan failed', error);
