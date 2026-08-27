@@ -8,15 +8,15 @@ export async function GET(request: Request) {
   const paidResponses = {
     '200': { description: 'Paid response returned after x402 verify and settlement.' },
     '402': { description: 'Payment required or payment settlement failed.' },
-    '503': { description: 'Payment facilitator or Base market-data source unavailable.' },
+    '503': { description: 'Payment facilitator or Base data source unavailable.' },
   };
 
   return NextResponse.json({
     openapi: '3.1.0',
     info: {
       title: 'Voxel Vault Machine Revenue API',
-      version: '2.1.0',
-      description: 'Read-only Base market intelligence, Flashblocks-aware quoting, bounded agent decision tickets, and x402 USDC payment gates.',
+      version: '2.2.0',
+      description: 'Read-only Base market intelligence, bounded agent decision tickets, and x402-paid one-use AI asset licenses for Base VoxelFlip NFTs.',
     },
     servers: [{ url: origin }],
     paths: {
@@ -30,6 +30,44 @@ export async function GET(request: Request) {
         get: {
           summary: 'Read coordinator, executor, and x402 activation status.',
           responses: { '200': { description: 'Read-only service health and safety state.' } },
+        },
+      },
+      '/api/licenses/catalog': {
+        get: {
+          summary: 'Discover Base VoxelFlip NFTs currently eligible for machine-use licensing.',
+          description: 'Free catalog. Inclusion requires current on-chain ownership by the configured licensor wallet. NFT ownership alone does not prove copyright ownership.',
+          parameters: [{ name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 80, default: 24 } }],
+          responses: {
+            '200': { description: 'Current machine-license catalog and x402 activation status.' },
+            '503': { description: 'Base ownership discovery is temporarily unavailable.' },
+          },
+        },
+      },
+      '/api/licenses/use': {
+        post: {
+          summary: 'Buy one machine-use license for one eligible VoxelFlip NFT.',
+          description: 'Validates current licensor ownership before issuing the x402 challenge. Each successful payment issues exactly one non-transferable machine-use license unit. Additional uses require additional payments. V1 does not include model-training rights and never transfers the NFT.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['tokenId'],
+                  properties: {
+                    tokenId: { type: 'string', pattern: '^\\d+$', examples: ['1'] },
+                    clientId: { type: 'string', maxLength: 120, examples: ['my-agent'] },
+                    useCase: { type: 'string', maxLength: 240, examples: ['render this voxel in one generated scene'] },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            ...paidResponses,
+            '400': { description: 'Invalid token ID or request shape.' },
+            '404': { description: 'Token is not currently eligible for licensing.' },
+          },
         },
       },
       '/api/agent/base-quote': {
