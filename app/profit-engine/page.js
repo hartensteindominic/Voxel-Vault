@@ -45,13 +45,14 @@ export default function ProfitEnginePage(){
   const [tx,setTx]=useState(null);
 
   async function runScan(){
-    setBusy(true);setError('');setStatus('Reading live WETH/USDC routes on Base…');setTx(null);
+    setBusy(true);setError('');setStatus('Reading Base Flashblocks pending state and live WETH/USDC routes…');setTx(null);
     try{
-      const response=await fetch('/api/profit-engine/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountEth,targetBps:Number(targetBps),slippageBps:Number(slippageBps)}),cache:'no-store'});
+      const response=await fetch('/api/profit-engine/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountEth,targetBps:Number(targetBps),slippageBps:Number(slippageBps),preferFlashblocks:true}),cache:'no-store'});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Base scan failed.');
       setScan(data);
-      setStatus(data.best?`Candidate found. Quote clears the ${prettyPct(data.targetBps)} target after the conservative gas budget.`:'No trade. Neither cross-DEX route clears your net-profit threshold right now.');
+      const source=data.flashblocks?'Flashblocks pending state':'sealed Base state fallback';
+      setStatus(data.best?`Candidate found on ${source}. Quote clears the ${prettyPct(data.targetBps)} target after the conservative gas budget.`:`No trade on ${source}. Neither cross-DEX route clears your net-profit threshold right now.`);
     }catch(e){setError(errText(e));setStatus('');setScan(null)}finally{setBusy(false)}
   }
 
@@ -85,7 +86,7 @@ export default function ProfitEnginePage(){
       const deadline=Math.floor(Date.now()/1000)+Number(op.params.deadlineSeconds||90);
       const args=[Number(op.params.uniFee),Boolean(op.params.aeroStable),BigInt(op.params.minUsdcOut),BigInt(op.params.minWethOut),BigInt(op.params.minProfitWei),BigInt(deadline)];
       const fn=contract.getFunction(op.method);
-      setStatus('Running the exact atomic transaction as a no-spend simulation…');
+      setStatus('Running the exact atomic transaction as a fresh no-spend wallet simulation…');
       const simulatedGross=BigInt(await fn.staticCall(...args,{value:BigInt(op.inputWei)}));
       const gas=await fn.estimateGas(...args,{value:BigInt(op.inputWei)});
       const feeData=await browserProvider.getFeeData();
@@ -109,30 +110,30 @@ export default function ProfitEnginePage(){
   }
 
   return <main className={styles.page}>
-    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · SOLO MODE</span></nav>
+    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V2 MACHINE LAYER</span></nav>
     <div className={styles.shell}>
-      <header className={styles.hero}><small>SOLO BASE PROFIT ENGINE V1</small><h1>Scan first.<br/><em>Trade only profit.</em></h1><p>Live WETH/USDC cross-DEX quotes. The engine hard-stops unless the projected round trip covers starting capital, a conservative Base gas budget, and your required net-profit threshold.</p></header>
+      <header className={styles.hero}><small>PROFIT ENGINE V2 · FLASHBLOCKS + X402</small><h1>See sooner.<br/><em>Sell the intelligence.</em></h1><p>The scanner now prefers Base pre-confirmed Flashblocks state, still enforces the net-profit gate, and exposes separate read-only x402 endpoints that autonomous agents can pay in USDC to consume.</p></header>
 
       <section className={styles.panel}>
-        <div className={styles.guardrail}><b>ATOMIC RULE</b><span>No market-order guessing. A live candidate must clear the scanner threshold, then the exact executor call must pass a fresh no-spend simulation and wallet gas estimate before MetaMask is allowed to submit it.</span></div>
+        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>Machine endpoints only sell market intelligence. They cannot sign or submit trades. Your wallet execution path stays separate: a candidate must clear the scanner, then the exact executor call must pass a fresh no-spend simulation and wallet gas estimate before MetaMask can submit it.</span></div>
         <div className={styles.form}>
           <div className={styles.field}><label>CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
           <div className={styles.field}><label>MIN NET · BPS</label><input value={targetBps} onChange={e=>setTargetBps(e.target.value)} inputMode="numeric"/></div>
           <div className={styles.field}><label>SLIPPAGE · BPS</label><input value={slippageBps} onChange={e=>setSlippageBps(e.target.value)} inputMode="numeric"/></div>
-          <button className={styles.primary} onClick={runScan} disabled={busy}>{busy?'SCANNING…':'SCAN BASE NOW'}</button>
+          <button className={styles.primary} onClick={runScan} disabled={busy}>{busy?'SCANNING…':'SCAN FLASHBLOCKS NOW'}</button>
         </div>
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
         {scan&&<div className={styles.summary}>
           <div className={styles.stat}><small>PAIR</small><b>{scan.pair}</b></div>
-          <div className={styles.stat}><small>GAS BUDGET</small><b>{prettyEth(scan.gasBudgetWei)} ETH</b></div>
+          <div className={styles.stat}><small>STATE</small><b>{scan.flashblocks?'FLASHBLOCKS':'SEALED FALLBACK'}</b></div>
           <div className={styles.stat}><small>NET TARGET</small><b>{prettyPct(scan.targetBps)}</b></div>
           <div className={styles.stat}><small>EXECUTOR</small><b>{scan.executionEnabled?short(scan.executorAddress):'LOCKED'}</b></div>
         </div>}
       </section>
 
       {scan&&<section className={styles.panel}>
-        <div className={styles.sectionHead}><div><h2>Live routes</h2><span>{new Date(scan.scannedAt).toLocaleTimeString()} · {scan.rule}</span></div>{!wallet&&<button className={styles.secondary} onClick={()=>connect().catch(e=>setError(errText(e)))}>CONNECT METAMASK</button>}</div>
+        <div className={styles.sectionHead}><div><h2>Live routes</h2><span>{new Date(scan.scannedAt).toLocaleTimeString()} · {scan.stateMode} · {scan.rpcSource}</span></div>{!wallet&&<button className={styles.secondary} onClick={()=>connect().catch(e=>setError(errText(e)))}>CONNECT METAMASK</button>}</div>
         <div className={styles.grid}>{scan.opportunities.map(op=><article key={op.id} className={`${styles.card} ${op.passes?styles.good:''}`}>
           <span className={styles.badge}>{op.passes?'PROFIT FLOOR CLEARED':'NO TRADE'}</span>
           <div className={styles.route}>{op.first.venue} → {op.second.venue}</div>
@@ -147,8 +148,30 @@ export default function ProfitEnginePage(){
           </div>
           {op.passes&&scan.executionEnabled?<button className={styles.execute} disabled={busy} onClick={()=>execute(op)}>SIMULATE + EXECUTE ATOMICALLY</button>:op.passes?<div className={styles.lock}><b>EXECUTION LOCKED</b><br/>Scanner works now. Live spending stays disabled until the reviewed BaseArbExecutor deployment address is pinned in production.</div>:null}
         </article>)}</div>
-        <div className={styles.footnote}>Scanner venues in v1: Uniswap V3 fee tiers 0.01%, 0.05%, 0.30%, 1.00% and Aerodrome classic stable/volatile WETH-USDC pools. A quote is not a guarantee of profit; execution remains blocked unless the atomic transaction itself simulates successfully at the current state.</div>
+        <div className={styles.footnote}>V2 prefers the official Base Flashblocks pre-confirmation RPC and quotes against the pending sequencer state. If that service is unavailable it falls back to sealed Base RPC state and labels the response accordingly. A quote is never a profit guarantee; live execution remains blocked unless the atomic transaction itself simulates successfully at the current wallet state.</div>
       </section>}
+
+      <section className={styles.panel}>
+        <div className={styles.sectionHead}><div><h2>Machine revenue API</h2><span>Read-only intelligence · x402 v2 · Base USDC</span></div></div>
+        <div className={styles.grid}>
+          <article className={styles.card}>
+            <span className={styles.badge}>FREE DISCOVERY</span>
+            <div className={styles.route}>Manifest + OpenAPI</div>
+            <div className={styles.leg}><span>MANIFEST</span><b>/api/agent/manifest</b></div>
+            <div className={styles.leg}><span>SCHEMA</span><b>/api/agent/openapi</b></div>
+            <p className={styles.footnote}>Agents can inspect capabilities, request shapes, network, safety limits, prices, and whether the x402 receiver/facilitator are activated.</p>
+            <a className={styles.secondary} style={{display:'block',textAlign:'center',textDecoration:'none',marginTop:14}} href="/api/agent/manifest" target="_blank" rel="noreferrer">OPEN MACHINE MANIFEST</a>
+          </article>
+          <article className={styles.card}>
+            <span className={styles.badge}>X402 PAID</span>
+            <div className={styles.route}>Quote + Optimize</div>
+            <div className={styles.leg}><span>BASE QUOTE</span><b>/api/agent/base-quote</b></div>
+            <div className={styles.leg}><span>MULTI-SIZE</span><b>/api/agent/optimize</b></div>
+            <p className={styles.footnote}>Unpaid requests receive the standard PAYMENT-REQUIRED challenge. Paid requests are verified and settled before the market-intelligence response is released.</p>
+            <a className={styles.secondary} style={{display:'block',textAlign:'center',textDecoration:'none',marginTop:14}} href="/api/agent/openapi" target="_blank" rel="noreferrer">OPEN API SCHEMA</a>
+          </article>
+        </div>
+      </section>
 
       {tx&&<section className={styles.panel}><div className={styles.tx}>{tx.pending?'PENDING':'CONFIRMED'} · <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${tx.hash}`} target="_blank" rel="noreferrer">{tx.hash}</a>{tx.netWei&&<><br/>Estimated wallet net after transaction gas: {prettyEth(tx.netWei)} ETH</>}</div></section>}
     </div>
