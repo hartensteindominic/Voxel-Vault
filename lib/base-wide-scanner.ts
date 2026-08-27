@@ -10,7 +10,7 @@ import {
 const BASE_FLASHBLOCKS_RPC = 'https://mainnet-preconf.base.org';
 const AERODROME_MIXED_QUOTER = getAddress('0x0A5aA5D3a4d28014f967Bf0f29EAA3FF9807D5c6');
 const UNI_FEE_TIERS = [100, 500, 3000, 10000];
-const SLIPSTREAM_TICK_SPACINGS = [1, 50, 100, 200, 2000];
+const SLIPSTREAM_TICK_SPACINGS = [1, 10, 50, 100, 200, 2000];
 const ZERO = BigInt(0);
 const BPS = BigInt(10000);
 const MIN_SAMPLE = parseUnits('0.0005', 18);
@@ -23,7 +23,7 @@ const AERO_ROUTER_ABI = [
   'function getAmountsOut(uint256 amountIn,(address from,address to,bool stable,address factory)[] routes) view returns (uint256[] amounts)',
 ];
 const SLIPSTREAM_QUOTER_ABI = [
-  'function quoteExactInputSingleV3((address tokenIn,address tokenOut,int24 tickSpacing,uint256 amountIn,uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)',
+  'function quoteExactInputSingleV3((address tokenIn,address tokenOut,uint256 amountIn,int24 tickSpacing,uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)',
 ];
 
 type StateTag = 'pending' | 'latest';
@@ -158,7 +158,7 @@ async function quoteSlipstream(
     try {
       const result = await withTimeout(
         quoter.getFunction('quoteExactInputSingleV3').staticCall(
-          { tokenIn, tokenOut, tickSpacing, amountIn, sqrtPriceLimitX96: 0 },
+          { tokenIn, tokenOut, amountIn, tickSpacing, sqrtPriceLimitX96: 0 },
           { blockTag },
         ),
         3_000,
