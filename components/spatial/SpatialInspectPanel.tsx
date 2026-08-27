@@ -3,14 +3,19 @@
 import type { SpatialAsset } from '@/lib/spatial-assets';
 import { openSeaUrlForSpatialAsset, shortWallet, spatialAssetStatusLabel } from '@/lib/spatial-assets';
 import { reviewedMintPageHref } from '@/lib/web3-minting';
+import SpatialMintPanel from './SpatialMintPanel';
 import styles from './spatial.module.css';
 
 type Props = {
   asset: SpatialAsset | null;
   busy?: boolean;
+  accessToken?: string;
+  walletAddress?: string;
+  walletVerified?: boolean;
   onClose: () => void;
   onDownload: (asset: SpatialAsset) => void;
   onToggleFavorite: (asset: SpatialAsset) => void;
+  onMintComplete?: () => void | Promise<void>;
 };
 
 function transactionUrl(asset: SpatialAsset) {
@@ -20,7 +25,17 @@ function transactionUrl(asset: SpatialAsset) {
   return '';
 }
 
-export default function SpatialInspectPanel({ asset, busy = false, onClose, onDownload, onToggleFavorite }: Props) {
+export default function SpatialInspectPanel({
+  asset,
+  busy = false,
+  accessToken = '',
+  walletAddress = '',
+  walletVerified = false,
+  onClose,
+  onDownload,
+  onToggleFavorite,
+  onMintComplete = () => {},
+}: Props) {
   if (!asset) return <div className={styles.emptyInspect}>Tap any creation in the 3D room to inspect its model, ownership, and actions.</div>;
   const openSea = openSeaUrlForSpatialAsset(asset);
   const explorer = transactionUrl(asset);
@@ -47,12 +62,20 @@ export default function SpatialInspectPanel({ asset, busy = false, onClose, onDo
           </div>
           <div className={styles.inspectActions}>
             {(asset.modelUrl || asset.sourceTaskId) && <button type="button" className={styles.primary} onClick={() => onDownload(asset)} disabled={busy}>{busy ? 'PREPARING…' : 'DOWNLOAD GLB ↓'}</button>}
-            {asset.state !== 'minted' && mintHref && <a className={styles.secondary} href={mintHref}>MINT WITH VERIFIED FLOW</a>}
+            {asset.state !== 'minted' && mintHref && <a className={styles.secondary} href={mintHref}>PRODUCTION VOXELFLIP MINT</a>}
             {openSea && <a className={styles.secondary} href={openSea} target="_blank" rel="noreferrer">VIEW ON OPENSEA ↗</a>}
             {explorer && <a className={styles.secondary} href={explorer} target="_blank" rel="noreferrer">TRANSACTION ↗</a>}
             <button type="button" className={styles.secondary} onClick={() => onToggleFavorite(asset)} disabled={busy}>{asset.favorite ? '★ FAVORITED' : '☆ FAVORITE'}</button>
           </div>
-          {asset.state !== 'minted' && !mintHref && <p className={styles.statusText}>Imported GLB assets can live in the spatial wallet now. Experimental direct minting stays disabled until the separate Base Sepolia spatial contract is deployed and verified.</p>}
+          {asset.state !== 'minted' && accessToken && (
+            <SpatialMintPanel
+              asset={asset}
+              accessToken={accessToken}
+              walletAddress={walletAddress}
+              walletVerified={walletVerified}
+              onComplete={onMintComplete}
+            />
+          )}
         </div>
       </div>
     </section>
