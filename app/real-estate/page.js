@@ -55,6 +55,8 @@ export default function RealEstatePlatformPage() {
           </a>
           <div className={styles.navActions}>
             <span className={styles.statusPill}><span className={styles.statusDot} />PILOT · BASE SEPOLIA</span>
+            <a className={styles.ghostPill} href="/real-estate/acquire">Acquisition engine</a>
+            <a className={styles.ghostPill} href="/real-estate/invest">$1,000 simulator</a>
             <a className={styles.ghostPill} href="/real-estate/compound">Compounding simulator</a>
             <a className={styles.ghostPill} href="/studio">3D asset studio</a>
           </div>
@@ -68,7 +70,8 @@ export default function RealEstatePlatformPage() {
               Voxel Vault is becoming a real-property operating platform: each building or parcel can have a legally linked property entity, a permissioned blockchain ownership layer, an explorable 3D digital twin and auditable net-income distributions.
             </p>
             <div className={styles.actions}>
-              <a className={styles.primaryButton} href="#portfolio">Explore demo portfolio</a>
+              <a className={styles.primaryButton} href="/real-estate/acquire">Find the next property</a>
+              <a className={styles.secondaryButton} href="#portfolio">Explore demo portfolio</a>
               <a className={styles.secondaryButton} href="/real-estate/onboard">Start property intake</a>
               <a className={styles.secondaryButton} href="/real-estate/compound">Run capital simulator</a>
             </div>
@@ -107,14 +110,39 @@ export default function RealEstatePlatformPage() {
             <div className={styles.metricSub}>Legal agreement provides the linkage</div>
           </div>
           <div className={styles.metricCard}>
-            <div className={styles.metricLabel}>Transfer mode</div>
-            <div className={styles.metricValue}>Allowlisted</div>
-            <div className={styles.metricSub}>No anonymous unrestricted transfers</div>
+            <div className={styles.metricLabel}>Acquisition goal</div>
+            <div className={styles.metricValue}>Cheap + viable</div>
+            <div className={styles.metricSub}>Diligence beats sticker price</div>
           </div>
           <div className={styles.metricCard}>
             <div className={styles.metricLabel}>Money movement</div>
             <div className={styles.metricValue}>Locked</div>
             <div className={styles.metricSub}>Legal + provider gates required first</div>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className={styles.eyebrow}>The capital ladder</p>
+              <h2>Start with regulated exposure. Graduate to the deed.</h2>
+            </div>
+            <p>The acquisition engine is designed to separate the early tokenized-real-estate phase from the later direct-property phase. Securities remain with approved providers; direct property still closes through normal title and recording systems.</p>
+          </div>
+          <div className={styles.stackGrid}>
+            {[
+              ['Tokenized real estate', 'Connect an approved broker/provider later for eligible real-estate securities, holdings and distributions.'],
+              ['Acquisition reserve', 'Track cash available for closing costs, repairs, reserves and the first direct purchase.'],
+              ['Direct property', 'Rank low-cost rental candidates by all-in basis, modeled net income and hard diligence gates.'],
+              ['Verified property vault', 'After legal closing, create the LLC-linked 3D twin, Property Passport and rent/accounting record.'],
+            ].map(([title, copy], index) => (
+              <article className={styles.stackCard} key={title}>
+                <span className={styles.stackNumber}>{index + 1}</span>
+                {index < 3 ? <span className={styles.stackArrow}>→</span> : null}
+                <h3>{title}</h3>
+                <p>{copy}</p>
+              </article>
+            ))}
           </div>
         </section>
 
