@@ -13,6 +13,7 @@ export default function PropertyInvestPage(){
         <a href="/" style={{color:'inherit',textDecoration:'none',fontWeight:950,letterSpacing:'-.04em',fontSize:20}}>V · Voxel Vault</a>
         <div style={{display:'flex',gap:9,flexWrap:'wrap',alignItems:'center'}}>
           <span style={pill}><span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'#b8ff55',marginRight:7}}/>$1,000 PILOT</span>
+          <a href="/real-estate/acquire" style={link}>Acquisition engine</a>
           <a href="/real-estate/launch" style={link}>Legal launch</a>
           <a href="/real-estate" style={link}>Property platform</a>
           <a href="/real-estate/compound" style={link}>Full-asset simulator</a>
@@ -26,6 +27,7 @@ export default function PropertyInvestPage(){
           <p style={{fontSize:'clamp(1.05rem,2vw,1.28rem)',lineHeight:1.6,color:'#b8c1b4',maxWidth:720}}>Voxel Vault models a diversified basket of small property interests. The production target is real property offered through a registered intermediary, with permissioned blockchain ownership records and net rent routed into either cash, confirm-each reinvestment or a separately approved auto-reinvestment instruction.</p>
           <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:22}}>
             <a href="#wallet" style={{...cta,background:'#b8ff55',color:'#0c120b'}}>RUN $1,000 DEMO</a>
+            <a href="/real-estate/acquire" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>FIND NEXT PROPERTY</a>
             <a href="/real-estate/launch" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>LEGAL LAUNCH GATES</a>
             <a href="/real-estate/onboard" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>ADD A PROPERTY</a>
           </div>
