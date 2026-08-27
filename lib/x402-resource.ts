@@ -183,7 +183,7 @@ async function facilitatorHeaders(url: URL) {
 function requirementsFor(config: X402RouteConfig): PaymentRequirements {
   const payTo = configuredPayTo();
   if (!payTo) throw new Error('X402_PAY_TO must be a valid Base EVM address before paid routes are enabled.');
-  if (!/^\d+$/.test(config.amountAtomic) || BigInt(config.amountAtomic) <= 0n) {
+  if (!/^\d+$/.test(config.amountAtomic) || BigInt(config.amountAtomic) <= BigInt(0)) {
     throw new Error('x402 price must be a positive USDC atomic-unit integer.');
   }
   return {
