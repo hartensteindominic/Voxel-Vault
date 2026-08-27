@@ -55,8 +55,8 @@ contract BaseMultiArbExecutor is Ownable, ReentrancyGuard {
     uint256 public constant BASE_CHAIN_ID = 8453;
     address public constant WETH = 0x4200000000000000000000000000000000000006;
     address public constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address public constant CBBTC = 0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf;
-    address public constant CBETH = 0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22;
+    address public constant CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
+    address public constant CBETH = 0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22;
     address public constant AERO = 0x940181a94A35A4569E4529A3CDfB74e38FD98631;
 
     address public constant UNISWAP_SWAP_ROUTER_02 = 0x2626664c2603336E57B271c5C0b26F421741e481;
