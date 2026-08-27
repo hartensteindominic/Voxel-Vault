@@ -2,6 +2,8 @@ import fs from 'node:fs';
 
 const read = path => fs.readFileSync(path, 'utf8');
 const core = read('lib/base-profit-engine.ts');
+const wide = read('lib/base-wide-scanner.ts');
+const scanRoute = read('app/api/profit-engine/scan/route.ts');
 const payments = read('lib/x402-resource.ts');
 const coordinator = read('lib/agent-coordinator.ts');
 const quote = read('app/api/agent/base-quote/route.ts');
@@ -28,6 +30,24 @@ requireText(core, "stateMode: used.flashblocks ? 'flashblocks-pending' : 'sealed
 requireText(core, "rule: 'NO_TRADE", 'profit engine must keep a hard no-trade rule');
 forbidText(core, 'eth_sendRawTransaction', 'market-data core must never submit transactions');
 forbidText(core, 'DEPLOYER_PRIVATE_KEY', 'market-data core must never read deployer private keys');
+
+requireText(wide, "'Aerodrome Slipstream'", 'wide scanner must include Slipstream discovery');
+requireText(wide, "symbol: 'cbBTC'", 'wide scanner must include cbBTC discovery');
+requireText(wide, "symbol: 'cbETH'", 'wide scanner must include cbETH discovery');
+requireText(wide, "symbol: 'AERO'", 'wide scanner must include AERO discovery');
+requireText(wide, "executionCompatibility: token.symbol === 'USDC'", 'wide scanner must explicitly separate current-executor routes from watch-only routes');
+requireText(wide, 'WIDE_SCAN_IS_READ_ONLY', 'wide scanner must declare itself read-only');
+forbidText(wide, 'sendTransaction', 'wide scanner must never submit transactions');
+forbidText(wide, 'eth_sendRawTransaction', 'wide scanner must never submit raw transactions');
+forbidText(wide, 'PRIVATE_KEY', 'wide scanner must never read private keys');
+forbidText(wide, 'new Wallet', 'wide scanner must never instantiate a signing wallet');
+
+requireText(scanRoute, 'normalized.inputWei / BigInt(8)', 'adaptive scan must test smaller capital sizes');
+requireText(scanRoute, 'normalized.inputWei,', 'adaptive scan must include the user capital cap itself');
+forbidText(scanRoute, 'normalized.inputWei * BigInt(2)', 'adaptive scan must never exceed the user capital cap');
+requireText(scanRoute, "scanMode: 'ADAPTIVE_WIDE_V3'", 'scan endpoint must disclose adaptive wide mode');
+requireText(scanRoute, 'scanBaseArbitrageGrid', 'scan endpoint must run multi-size executable quotes');
+requireText(scanRoute, 'scanBaseWideMarkets', 'scan endpoint must run wide read-only discovery');
 
 requireText(payments, "'PAYMENT-REQUIRED'", 'x402 402 challenge header must be emitted');
 requireText(payments, "request.headers.get('PAYMENT-SIGNATURE')", 'x402 payment payload header must be consumed');
@@ -78,6 +98,9 @@ requireText(profitPage, 'getAddress(connectedWallet)!==APPROVED_OWNER', 'executi
 requireText(profitPage, 'fn.staticCall(...args', 'execution must run a fresh no-spend static simulation');
 requireText(profitPage, 'fn.estimateGas(...args', 'execution must run a fresh wallet gas estimate');
 requireText(profitPage, 'simulatedGross-estimatedWalletGas<target', 'wallet execution must still clear the net target after estimated gas');
+requireText(profitPage, 'Wide market radar', 'UI must clearly separate wide discovery from execution');
+requireText(profitPage, 'This is the only execution-capable section', 'UI must identify the only execution-capable section');
+requireText(profitPage, 'WATCH ONLY', 'wide signals must be visibly non-executable');
 forbidText(profitPage, 'PRIVATE_KEY', 'browser execution page must never read private keys');
 forbidText(profitPage, 'eth_sendRawTransaction', 'browser execution page must not bypass wallet signing');
 

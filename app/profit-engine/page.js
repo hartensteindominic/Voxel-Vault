@@ -35,8 +35,16 @@ const EXPECTED={
 function errText(error){return String(error?.shortMessage||error?.reason||error?.message||error||'Action failed.')}
 function prettyEth(value){try{return Number(formatEther(BigInt(value))).toFixed(8)}catch{return '—'}}
 function prettyPct(bps){return `${(Number(bps)/100).toFixed(2)}%`}
+function prettyBps(value){const n=Number(value);return Number.isFinite(n)?`${n} bps`:'—'}
 function short(value){return value?`${String(value).slice(0,6)}…${String(value).slice(-4)}`:'—'}
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+function venueMeta(quote){
+  if(!quote)return '—';
+  if(quote.fee!==null&&quote.fee!==undefined)return `${quote.venue} · fee ${quote.fee}`;
+  if(quote.stable!==null&&quote.stable!==undefined)return `${quote.venue} · ${quote.stable?'stable':'volatile'}`;
+  if(quote.tickSpacing!==null&&quote.tickSpacing!==undefined)return `${quote.venue} · tick ${quote.tickSpacing}`;
+  return quote.venue;
+}
 
 async function ensureBase(provider){
   let chain=String(await provider.request({method:'eth_chainId'})||'').toLowerCase();
@@ -107,14 +115,19 @@ export default function ProfitEnginePage(){
   },[]);
 
   async function runScan(){
-    setBusy(true);setError('');setStatus('Reading Base Flashblocks pending state and live WETH/USDC routes…');setTx(null);
+    setBusy(true);setError('');setStatus('Scanning Base Flashblocks across multiple capital sizes, major liquid pairs, Uniswap V3, Aerodrome and Slipstream…');setTx(null);
     try{
       const response=await fetch('/api/profit-engine/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountEth,targetBps:Number(targetBps),slippageBps:Number(slippageBps),preferFlashblocks:true}),cache:'no-store'});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Base scan failed.');
       setScan(data);
       const source=data.flashblocks?'Flashblocks pending state':'sealed Base state fallback';
-      setStatus(data.best?`Candidate found on ${source}. Quote clears the ${prettyPct(data.targetBps)} target after the conservative gas budget.`:`No trade on ${source}. Neither cross-DEX route clears your net-profit threshold right now.`);
+      const sizes=data.executionSizesScanned||1;
+      const wideQuoted=data.coverage?.widePairsQuoted||0;
+      const wideRequested=data.coverage?.widePairsRequested||0;
+      setStatus(data.best
+        ?`Executable candidate found on ${source} after checking ${sizes} capital sizes. It still must pass the fresh wallet simulation before MetaMask can submit it.`
+        :`No executable trade right now. Checked ${sizes} capital sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. Wide-radar signals below are discovery only, not permission to trade.`);
     }catch(e){setError(errText(e));setStatus('');setScan(null)}finally{setBusy(false)}
   }
 
@@ -146,7 +159,7 @@ export default function ProfitEnginePage(){
       const verified=await verifyExecutor(localExecutor,browserProvider);
       window.localStorage.setItem(EXECUTOR_STORAGE_KEY,verified);
       setLocalExecutor(verified);setExecutorVerified(true);
-      setStatus('Executor verified and activated on this device. Scan Flashblocks now.');
+      setStatus('Executor verified and activated on this device. Run the wide scan now.');
     }catch(e){
       if(/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -215,25 +228,26 @@ export default function ProfitEnginePage(){
 
   const executorReady=Boolean(scan?.executionEnabled||(localExecutor&&executorVerified));
   const displayedExecutor=scan?.executionEnabled?scan.executorAddress:localExecutor;
+  const widePairs=scan?.wideMarkets?.pairs||[];
 
   return <main className={styles.page}>
-    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V2 MACHINE LAYER</span></nav>
+    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V3 WIDE SCAN</span></nav>
     <div className={styles.shell}>
-      <header className={styles.hero}><small>PROFIT ENGINE V2 · FLASHBLOCKS + X402</small><h1>See sooner.<br/><em>Sell the intelligence.</em></h1><p>The scanner prefers Base pre-confirmed Flashblocks state, enforces the net-profit gate, and can immediately use a reviewed executor verified on this device after deployment.</p></header>
+      <header className={styles.hero}><small>PROFIT ENGINE V3 · ADAPTIVE + WIDE</small><h1>Scan more.<br/><em>Trade only what clears.</em></h1><p>The main scan now checks several capital sizes at or below your cap and also sweeps major Base markets across Uniswap V3, Aerodrome classic pools, and Aerodrome Slipstream.</p></header>
 
       <section className={styles.panel}>
-        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>A candidate must clear the scanner, the executor address is re-verified live against the reviewed owner/router constants, and the exact call must pass a fresh no-spend simulation plus wallet gas estimate before MetaMask can submit it.</span></div>
+        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>The wide radar can discover more markets, but only the separately reviewed WETH/USDC executor matrix can ever show an execution button. A candidate still needs conservative gas + profit clearance, live executor verification, fresh static simulation, fresh gas estimate, and your MetaMask approval.</span></div>
         <div className={styles.form}>
-          <div className={styles.field}><label>CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
+          <div className={styles.field}><label>MAX CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
           <div className={styles.field}><label>MIN NET · BPS</label><input value={targetBps} onChange={e=>setTargetBps(e.target.value)} inputMode="numeric"/></div>
           <div className={styles.field}><label>SLIPPAGE · BPS</label><input value={slippageBps} onChange={e=>setSlippageBps(e.target.value)} inputMode="numeric"/></div>
-          <button className={styles.primary} onClick={runScan} disabled={busy}>{busy?'SCANNING…':'SCAN FLASHBLOCKS NOW'}</button>
+          <button className={styles.primary} onClick={runScan} disabled={busy}>{busy?'SCANNING BASE…':'SCAN BASE WIDE NOW'}</button>
         </div>
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
         {scan&&<div className={styles.summary}>
-          <div className={styles.stat}><small>PAIR</small><b>{scan.pair}</b></div>
-          <div className={styles.stat}><small>STATE</small><b>{scan.flashblocks?'FLASHBLOCKS':'SEALED FALLBACK'}</b></div>
+          <div className={styles.stat}><small>EXECUTION SIZES</small><b>{scan.executionSizesScanned||1}</b></div>
+          <div className={styles.stat}><small>WIDE PAIRS</small><b>{scan.coverage?.widePairsQuoted||0}/{scan.coverage?.widePairsRequested||0}</b></div>
           <div className={styles.stat}><small>NET TARGET</small><b>{prettyPct(scan.targetBps)}</b></div>
           <div className={styles.stat}><small>EXECUTOR</small><b>{executorReady?`${short(displayedExecutor)}${scan.executionEnabled?'':' · DEVICE'}`:localExecutor?`${short(localExecutor)} · VERIFY`:'LOCKED'}</b></div>
         </div>}
@@ -242,14 +256,14 @@ export default function ProfitEnginePage(){
       </section>
 
       {scan&&<section className={styles.panel}>
-        <div className={styles.sectionHead}><div><h2>Live routes</h2><span>{new Date(scan.scannedAt).toLocaleTimeString()} · {scan.stateMode} · {scan.rpcSource}</span></div>{!wallet&&<button className={styles.secondary} onClick={()=>connect().catch(e=>setError(errText(e)))}>CONNECT METAMASK</button>}</div>
+        <div className={styles.sectionHead}><div><h2>Executable matrix</h2><span>{scan.executionSizesScanned||1} sizes · WETH/USDC · {scan.stateMode} · {scan.rpcSource}</span></div>{!wallet&&<button className={styles.secondary} onClick={()=>connect().catch(e=>setError(errText(e)))}>CONNECT METAMASK</button>}</div>
         <div className={styles.grid}>{scan.opportunities.map(op=><article key={op.id} className={`${styles.card} ${op.passes?styles.good:''}`}>
           <span className={styles.badge}>{op.passes?'PROFIT FLOOR CLEARED':'NO TRADE'}</span>
           <div className={styles.route}>{op.first.venue} → {op.second.venue}</div>
-          <div className={styles.leg}><span>LEG 1</span><b>{op.first.venue}{op.first.fee?` · fee ${op.first.fee}`:''}{op.first.stable!==null?` · ${op.first.stable?'stable':'volatile'}`:''}</b></div>
-          <div className={styles.leg}><span>LEG 2</span><b>{op.second.venue}{op.second.fee?` · fee ${op.second.fee}`:''}{op.second.stable!==null?` · ${op.second.stable?'stable':'volatile'}`:''}</b></div>
+          <div className={styles.leg}><span>CAPITAL</span><b>{prettyEth(op.inputWei)} ETH</b></div>
+          <div className={styles.leg}><span>LEG 1</span><b>{venueMeta(op.first)}</b></div>
+          <div className={styles.leg}><span>LEG 2</span><b>{venueMeta(op.second)}</b></div>
           <div className={styles.numbers}>
-            <div className={styles.number}><span>Start</span><b>{prettyEth(op.inputWei)} ETH</b></div>
             <div className={styles.number}><span>Quoted final</span><b>{prettyEth(op.finalWei)} WETH</b></div>
             <div className={styles.number}><span>Gross spread</span><b className={BigInt(op.grossProfitWei)>0n?styles.positive:styles.negative}>{prettyEth(op.grossProfitWei)} ETH</b></div>
             <div className={styles.number}><span>Conservative gas</span><b>-{prettyEth(op.gasBudgetWei)} ETH</b></div>
@@ -257,7 +271,31 @@ export default function ProfitEnginePage(){
           </div>
           {op.passes&&executorReady?<button className={styles.execute} disabled={busy} onClick={()=>execute(op)}>SIMULATE + EXECUTE ATOMICALLY</button>:op.passes?<div className={styles.lock}><b>EXECUTION LOCKED</b><br/>{localExecutor?'Verify the existing executor above.':<a style={{color:'inherit'}} href="/profit-engine/deploy">Deploy the reviewed executor</a>}</div>:null}
         </article>)}</div>
-        <div className={styles.footnote}>The scanner prefers the official Base Flashblocks pre-confirmation RPC and quotes against pending sequencer state. A quote is never a profit guarantee. No wallet transaction is offered unless the candidate clears the configured net target, and the final executor call is simulated again immediately before MetaMask.</div>
+        <div className={styles.footnote}>This is the only execution-capable section. Sizes never exceed the MAX CAPITAL value you entered. No wallet transaction is offered unless the quoted WETH/USDC round trip clears the configured net target after the conservative gas budget, and the exact transaction is simulated again immediately before MetaMask.</div>
+      </section>}
+
+      {scan&&<section className={styles.panel}>
+        <div className={styles.sectionHead}><div><h2>Wide market radar</h2><span>{scan.coverage?.widePairsQuoted||0}/{scan.coverage?.widePairsRequested||0} pairs · {(scan.coverage?.wideVenues||[]).join(' + ')||'read-only discovery'}</span></div></div>
+        {scan.wideScanError&&<div className={styles.status}>Wide radar was partial on this scan: {scan.wideScanError}</div>}
+        {widePairs.length?<div className={styles.grid}>{widePairs.map(pair=>{
+          const signal=pair.bestRaw;
+          const positive=signal&&BigInt(signal.grossSpreadWei)>0n;
+          return <article key={pair.pair} className={`${styles.card} ${positive?styles.good:''}`}>
+            <span className={styles.badge}>{signal?'RAW MARKET SIGNAL':'NO ROUTE'}</span>
+            <div className={styles.route}>{pair.pair}</div>
+            {signal?<>
+              <div className={styles.leg}><span>LEG 1</span><b>{venueMeta(signal.first)}</b></div>
+              <div className={styles.leg}><span>LEG 2</span><b>{venueMeta(signal.second)}</b></div>
+              <div className={styles.numbers}>
+                <div className={styles.number}><span>Sample size</span><b>{pair.sampleInputEth} ETH</b></div>
+                <div className={styles.number}><span>Raw spread</span><b className={positive?styles.positive:styles.negative}>{prettyEth(signal.grossSpreadWei)} ETH</b></div>
+                <div className={styles.number}><span>Raw spread rate</span><b className={positive?styles.positive:styles.negative}>{prettyBps(signal.grossSpreadBps)}</b></div>
+                <div className={styles.number}><span>Status</span><b>{signal.executionCompatibility==='CURRENT_EXECUTOR'?'CHECKED AGAIN ABOVE':'WATCH ONLY'}</b></div>
+              </div>
+            </>:<p className={styles.footnote}>No complete cross-venue round trip was quotable for this pair on this state.</p>}
+          </article>;
+        })}</div>:<div className={styles.status}>No additional wide-market routes were available on this scan.</div>}
+        <div className={styles.footnote}>Radar values are raw quote differences before a route-specific gas model, slippage reserve, contract compatibility check, or wallet simulation. They are intentionally not executable. The radar currently covers major liquid Base quote markets and multiple Uniswap fee tiers, Aerodrome stable/volatile pools, and Slipstream tick spacings rather than blindly touching every unknown token contract.</div>
       </section>}
 
       <section className={styles.panel}>
