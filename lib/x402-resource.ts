@@ -77,13 +77,23 @@ function facilitatorBaseUrl() {
   return '';
 }
 
+function safeHostname(value: string) {
+  if (!value) return '';
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return '';
+  }
+}
+
 export function x402RuntimeStatus() {
   const payTo = configuredPayTo();
   const facilitator = facilitatorBaseUrl();
+  const facilitatorHost = safeHostname(facilitator);
   return {
-    configured: Boolean(payTo && facilitator),
+    configured: Boolean(payTo && facilitatorHost),
     payTo,
-    facilitatorHost: facilitator ? new URL(facilitator).hostname : '',
+    facilitatorHost,
     network: X402_NETWORK,
     asset: BASE_USDC,
     assetSymbol: 'USDC',
@@ -240,7 +250,7 @@ function paymentRequiredResponse(required: PaymentRequired, status = 402) {
 
 async function facilitatorCall(endpoint: 'verify' | 'settle', paymentPayload: PaymentPayload, requirement: PaymentRequirements) {
   const base = facilitatorBaseUrl();
-  if (!base) throw new Error('No Base-mainnet-capable x402 facilitator is configured.');
+  if (!safeHostname(base)) throw new Error('No valid Base-mainnet-capable x402 facilitator is configured.');
   const url = new URL(`${base}/${endpoint}`);
   const response = await fetch(url, {
     method: 'POST',
@@ -335,8 +345,12 @@ export async function withX402Json<T>(
     return response;
   }
 
+  const resultBody: Record<string, unknown> = result && typeof result === 'object'
+    ? { ...(result as Record<string, unknown>) }
+    : { result };
+
   return NextResponse.json({
-    ...((result && typeof result === 'object') ? result : { result }),
+    ...resultBody,
     payment: {
       protocol: 'x402',
       network: settlement.network || X402_NETWORK,
