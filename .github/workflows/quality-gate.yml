@@ -35,6 +35,7 @@ jobs:
       - run: npm run test:ai-licensing
       - run: npm run test:property-platform
       - run: npm run test:global-rent
+      - run: npm run test:fractional-compound
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
