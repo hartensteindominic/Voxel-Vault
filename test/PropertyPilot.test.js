@@ -17,6 +17,10 @@ describe('Voxel Vault real-property pilot contracts', function () {
     const registry = await Registry.deploy(owner.address);
     await registry.waitForDeployment();
 
+    const Passport = await ethers.getContractFactory('PropertyPassport');
+    const passport = await Passport.deploy(owner.address, await registry.getAddress());
+    await passport.waitForDeployment();
+
     const Vault = await ethers.getContractFactory('PropertyDistributionVault');
     const vault = await Vault.deploy(owner.address, await token.getAddress());
     await vault.waitForDeployment();
@@ -25,7 +29,7 @@ describe('Voxel Vault real-property pilot contracts', function () {
     const usdc = await MockUSDC.deploy();
     await usdc.waitForDeployment();
 
-    return { owner, alice, bob, propertyId, agreementHash, entityHash, deedHash, token, registry, vault, usdc };
+    return { owner, alice, bob, propertyId, agreementHash, entityHash, deedHash, token, registry, passport, vault, usdc };
   }
 
   it('blocks minting and transfers to wallets that are not allowlisted', async function () {
@@ -79,6 +83,38 @@ describe('Voxel Vault real-property pilot contracts', function () {
     await registry.setVerified(propertyId, false);
     const resetRecord = await registry.getProperty(propertyId);
     expect(resetRecord.active).to.equal(false);
+  });
+
+  it('mints one non-transferable Property Passport only after property verification', async function () {
+    const { owner, alice, bob, propertyId, entityHash, deedHash, token, registry, passport } = await deployPilot();
+    const metadataURI = 'ipfs://verified-3d-property-passport';
+
+    await registry.registerProperty(
+      propertyId,
+      owner.address,
+      await token.getAddress(),
+      entityHash,
+      deedHash,
+      metadataURI
+    );
+
+    await expect(passport.mintVerifiedPassport(propertyId, alice.address))
+      .to.be.revertedWithCustomError(passport, 'PropertyNotVerified')
+      .withArgs(propertyId);
+
+    await registry.setVerified(propertyId, true);
+    await passport.mintVerifiedPassport(propertyId, alice.address);
+
+    const tokenId = BigInt(propertyId);
+    expect(await passport.ownerOf(tokenId)).to.equal(alice.address);
+    expect(await passport.tokenURI(tokenId)).to.equal(metadataURI);
+
+    await expect(passport.mintVerifiedPassport(propertyId, owner.address))
+      .to.be.revertedWithCustomError(passport, 'PassportAlreadyMinted')
+      .withArgs(propertyId);
+
+    await expect(passport.connect(alice).transferFrom(alice.address, bob.address, tokenId))
+      .to.be.revertedWithCustomError(passport, 'PassportNonTransferable');
   });
 
   it('funds one audited distribution epoch and prevents double claims', async function () {
