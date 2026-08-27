@@ -4,6 +4,7 @@ import styles from './real-estate.module.css';
 const properties = [
   {
     id: 'PROPERTY #0001',
+    routeId: '0001',
     location: 'Buffalo House',
     type: 'Single-family rental',
     value: '$182,000',
@@ -14,6 +15,7 @@ const properties = [
   },
   {
     id: 'PROPERTY #0002',
+    routeId: '0002',
     location: 'Mixed-Use Corner',
     type: 'Retail + apartment demo',
     value: '$410,000',
@@ -24,6 +26,7 @@ const properties = [
   },
   {
     id: 'PROPERTY #0003',
+    routeId: '0003',
     location: 'Vacant Parcel',
     type: 'Land-only demo',
     value: '$44,000',
@@ -52,6 +55,7 @@ export default function RealEstatePlatformPage() {
           </a>
           <div className={styles.navActions}>
             <span className={styles.statusPill}><span className={styles.statusDot} />PILOT · BASE SEPOLIA</span>
+            <a className={styles.ghostPill} href="/real-estate/compound">Compounding simulator</a>
             <a className={styles.ghostPill} href="/studio">3D asset studio</a>
           </div>
         </nav>
@@ -66,6 +70,7 @@ export default function RealEstatePlatformPage() {
             <div className={styles.actions}>
               <a className={styles.primaryButton} href="#portfolio">Explore demo portfolio</a>
               <a className={styles.secondaryButton} href="/real-estate/onboard">Start property intake</a>
+              <a className={styles.secondaryButton} href="/real-estate/compound">Run capital simulator</a>
             </div>
             <div className={styles.heroNote}>
               <span>🔒 Live investing is locked.</span>
@@ -139,26 +144,29 @@ export default function RealEstatePlatformPage() {
               <p className={styles.eyebrow}>My real estate</p>
               <h2>Walk through a portfolio, not a spreadsheet.</h2>
             </div>
-            <p>Every property card can eventually open into a live spatial twin with documents, title references, occupancy, expenses, distribution history and approved ownership records.</p>
+            <p>Open a property to enter its spatial vault with title/entity references, occupancy, expenses, document controls, distributions and blockchain history.</p>
           </div>
 
           <div className={styles.propertyGrid}>
             {properties.map((property) => (
-              <article className={styles.propertyCard} key={property.id}>
-                <div className={styles.propertyArt} data-tone={property.tone}>
-                  <span className={styles.artGlyph}>{property.glyph}</span>
-                </div>
-                <div className={styles.propertyBody}>
-                  <span className={styles.propertyTag}>{property.id} · demo</span>
-                  <h3>{property.location}</h3>
-                  <p>{property.type}</p>
-                  <div className={styles.propertyStats}>
-                    <div className={styles.propertyStat}><small>Value</small><b>{property.value}</b></div>
-                    <div className={styles.propertyStat}><small>Gross rent</small><b>{property.rent}</b></div>
-                    <div className={styles.propertyStat}><small>Token units</small><b>{property.units}</b></div>
+              <a key={property.id} href={`/real-estate/property/${property.routeId}`} style={{color:'inherit',textDecoration:'none'}} aria-label={`Open ${property.location} property vault`}>
+                <article className={styles.propertyCard} style={{height:'100%'}}>
+                  <div className={styles.propertyArt} data-tone={property.tone}>
+                    <span className={styles.artGlyph}>{property.glyph}</span>
                   </div>
-                </div>
-              </article>
+                  <div className={styles.propertyBody}>
+                    <span className={styles.propertyTag}>{property.id} · demo</span>
+                    <h3>{property.location}</h3>
+                    <p>{property.type}</p>
+                    <div className={styles.propertyStats}>
+                      <div className={styles.propertyStat}><small>Value</small><b>{property.value}</b></div>
+                      <div className={styles.propertyStat}><small>Gross rent</small><b>{property.rent}</b></div>
+                      <div className={styles.propertyStat}><small>Token units</small><b>{property.units}</b></div>
+                    </div>
+                    <div style={{marginTop:16,fontSize:13,fontWeight:900,letterSpacing:'.04em'}}>OPEN PROPERTY VAULT →</div>
+                  </div>
+                </article>
+              </a>
             ))}
           </div>
         </section>
