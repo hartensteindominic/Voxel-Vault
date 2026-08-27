@@ -26,7 +26,13 @@ export async function requireVoxelVaultAdmin(request: Request): Promise<VoxelVau
   try {
     admin = getSupabaseAdmin();
   } catch {
-    return { ok: false, status: 503, error: 'Server authentication is not configured yet.', setupRequired: true };
+    return {
+      ok: false,
+      status: 503,
+      error:
+        'Server authentication is not configured yet. Add SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) plus SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY) to Vercel, then redeploy.',
+      setupRequired: true,
+    };
   }
 
   const { data, error } = await admin.auth.getUser(token);
@@ -41,14 +47,22 @@ export async function requireVoxelVaultAdmin(request: Request): Promise<VoxelVau
     return {
       ok: false,
       status: 503,
-      error: 'Owner tools are locked until an admin allowlist is configured.',
+      error:
+        'Owner tools are locked until an admin allowlist is configured. Add VOXEL_VAULT_ADMIN_EMAILS or VOXEL_VAULT_ADMIN_USER_IDS to Vercel, then redeploy.',
       setupRequired: true,
     };
   }
 
   const email = String(data.user.email || '').toLowerCase();
   const allowed = allowedIds.has(data.user.id) || (Boolean(email) && allowedEmails.has(email));
-  if (!allowed) return { ok: false, status: 403, error: 'This Google account is not authorized for owner tools.' };
+  if (!allowed) {
+    return {
+      ok: false,
+      status: 403,
+      error:
+        'This Google account is not authorized for owner tools. Add the Google account email to VOXEL_VAULT_ADMIN_EMAILS (or its Supabase user ID to VOXEL_VAULT_ADMIN_USER_IDS), then redeploy.',
+    };
+  }
 
   return { ok: true, user: data.user, admin };
 }
