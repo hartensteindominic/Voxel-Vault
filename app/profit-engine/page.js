@@ -104,6 +104,7 @@ export default function ProfitEnginePage(){
   const [lastScanAt,setLastScanAt]=useState('');
   const scanInFlightRef=useRef(false);
   const autoCycleRef=useRef(0);
+  const nextDelayRef=useRef(12000);
 
   useEffect(()=>{
     try{
@@ -126,9 +127,9 @@ export default function ProfitEnginePage(){
     const tick=async()=>{
       if(cancelled)return;
       autoCycleRef.current+=1;
-      const mode=autoCycleRef.current===1||autoCycleRef.current%5===0?'wide':'fast';
+      const mode=autoCycleRef.current===1||autoCycleRef.current%8===0?'wide':'fast';
       await runScan({mode,automatic:true});
-      if(!cancelled)timer=setTimeout(tick,12000);
+      if(!cancelled)timer=setTimeout(tick,nextDelayRef.current);
     };
     timer=setTimeout(tick,700);
     return()=>{cancelled=true;if(timer)clearTimeout(timer)};
@@ -140,7 +141,7 @@ export default function ProfitEnginePage(){
     if(!automatic)setBusy(true);
     setError('');
     if(!automatic)setTx(null);
-    if(!automatic)setStatus(mode==='wide'?'Running full Base scan: executable matrix + wide market radar…':'Refreshing executable matrix…');
+    if(!automatic)setStatus(mode==='wide'?'Running V5 boss scan: executable matrix + wide market radar…':'Refreshing boss executable matrix…');
     try{
       const response=await fetch('/api/profit-engine/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountEth,targetBps:Number(targetBps),slippageBps:Number(slippageBps),preferFlashblocks:true,mode}),cache:'no-store'});
       const data=await response.json().catch(()=>({}));
@@ -162,21 +163,35 @@ export default function ProfitEnginePage(){
       });
       setScanCount(value=>value+1);
       setLastScanAt(new Date().toLocaleTimeString());
+      const suggested=Math.max(4000,Math.min(15000,Number(data.suggestedCadenceMs||12000)));
+      nextDelayRef.current=suggested;
       const source=data.flashblocks?'Flashblocks pending state':'sealed Base state fallback';
       const sizes=data.executionSizesScanned||1;
+      const heat=String(data.marketHeat||'COLD');
       if(data.best){
-        setStatus(`PROFITABLE CANDIDATE FOUND on ${source} after checking ${sizes} sizes. Auto-watch paused. Tap SIMULATE + EXECUTE ATOMICALLY; the wallet will re-check it before any transaction.`);
+        setStatus(`PROFIT FLOOR CLEARED on ${source} after checking ${sizes} sizes. Auto-watch paused. Tap SIMULATE + EXECUTE ATOMICALLY; the wallet will re-check the exact trade before anything is sent.`);
+        try{navigator.vibrate?.([200,100,200])}catch{}
+        try{document.title='PROFIT FOUND · Voxel Vault'}catch{}
         if(automatic)setAutoWatch(false);
-      }else if(automatic){
-        setStatus(`AUTO WATCHING · last executable scan checked ${sizes} sizes on ${source}. No trade cleared gas + ${prettyPct(data.targetBps)} net yet.`);
       }else{
-        const wideQuoted=data.coverage?.widePairsQuoted||0;
-        const wideRequested=data.coverage?.widePairsRequested||0;
-        setStatus(mode==='wide'
-          ?`No executable trade right now. Checked ${sizes} sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. Auto-watch will keep checking.`
-          :`No executable trade right now after checking ${sizes} sizes. Auto-watch will keep checking.`);
+        try{document.title='Profit Engine V5 · Voxel Vault'}catch{}
+        const gap=Number(data.nearMiss?.distanceToProfitFloorBps??data.bestQuoted?.distanceToProfitFloorBps??0);
+        if(automatic&&heat==='HOT'){
+          setStatus(`BOSS BURST · closest executable route is about ${gap} bps short of gas + target. Scanning again in ~${Math.round(suggested/1000)}s.`);
+        }else if(automatic&&heat==='WARM'){
+          setStatus(`BOSS WATCH · market is warming. Closest route is about ${gap} bps short of the profit floor; next scan in ~${Math.round(suggested/1000)}s.`);
+        }else if(automatic){
+          setStatus(`AUTO WATCHING · ${sizes} sizes checked on ${source}. No trade clears gas + ${prettyPct(data.targetBps)} net yet; next scan in ~${Math.round(suggested/1000)}s.`);
+        }else{
+          const wideQuoted=data.coverage?.widePairsQuoted||0;
+          const wideRequested=data.coverage?.widePairsRequested||0;
+          setStatus(mode==='wide'
+            ?`No executable trade right now. Checked ${sizes} sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. Boss auto-watch will keep hunting.`
+            :`No executable trade right now after checking ${sizes} sizes. Boss auto-watch will keep hunting.`);
+        }
       }
     }catch(e){
+      nextDelayRef.current=12000;
       if(!automatic){setError(errText(e));setStatus('')}
       else setStatus(`AUTO WATCH retrying · last scan error: ${errText(e)}`);
     }finally{
@@ -213,7 +228,7 @@ export default function ProfitEnginePage(){
       const verified=await verifyExecutor(localExecutor,browserProvider);
       window.localStorage.setItem(EXECUTOR_STORAGE_KEY,verified);
       setLocalExecutor(verified);setExecutorVerified(true);
-      setStatus('Executor verified and activated on this device. Auto-watch can now keep scanning.');
+      setStatus('Executor verified and activated on this device. Boss auto-watch can keep scanning.');
     }catch(e){
       if(/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -270,7 +285,7 @@ export default function ProfitEnginePage(){
       const actualGas=(receipt.gasUsed||0n)*(receipt.gasPrice||feePerGas||0n);
       const net=BigInt(grossProfit)-actualGas;
       setTx({hash:receipt.hash||sent.hash,pending:false,grossProfitWei:grossProfit,gasWei:actualGas.toString(),netWei:net.toString()});
-      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Turn AUTO WATCH back on for the next opportunity.`);
+      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Turn BOSS AUTO WATCH back on for the next opportunity.`);
     }catch(e){
       if(!scan?.executorAddress&&/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -283,28 +298,33 @@ export default function ProfitEnginePage(){
   const executorReady=Boolean(scan?.executionEnabled||(localExecutor&&executorVerified));
   const displayedExecutor=scan?.executionEnabled?scan.executorAddress:localExecutor;
   const widePairs=scan?.wideMarkets?.pairs||[];
+  const marketHeat=String(scan?.marketHeat||'COLD');
+  const nearMiss=scan?.nearMiss||(!scan?.best?scan?.bestQuoted:null);
 
   return <main className={styles.page}>
-    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V4 AUTO WATCH</span></nav>
+    <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V5 BOSS MODE</span></nav>
     <div className={styles.shell}>
-      <header className={styles.hero}><small>PROFIT ENGINE V4 · FAST + WIDE</small><h1>Stop tapping.<br/><em>Keep watching.</em></h1><p>V4 checks executable WETH/USDC sizes repeatedly while this page stays active, and periodically refreshes the broader Base radar across Uniswap V3, Aerodrome and Slipstream.</p></header>
+      <header className={styles.hero}><small>PROFIT ENGINE V5 · BOSS SCAN</small><h1>Hunt faster.<br/><em>Attack only real edge.</em></h1><p>V5 batches six capital sizes against one Base state source, parallelizes venue quotes, ranks every route by distance to the on-chain profit floor, and automatically enters burst mode when the market gets close.</p></header>
 
       <section className={styles.panel}>
-        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>Auto-watch only reads quotes. It never signs or submits anything. A candidate still needs conservative gas + profit clearance, live executor verification, fresh static simulation, fresh gas estimate, and your MetaMask approval.</span></div>
+        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>Boss auto-watch only reads quotes. It never signs or submits anything. A candidate still needs conservative gas + profit clearance, live executor verification, a fresh static simulation, a fresh wallet gas estimate, and your MetaMask approval.</span></div>
         <div className={styles.form}>
           <div className={styles.field}><label>MAX CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
           <div className={styles.field}><label>MIN NET · BPS</label><input value={targetBps} onChange={e=>setTargetBps(e.target.value)} inputMode="numeric"/></div>
           <div className={styles.field}><label>SLIPPAGE · BPS</label><input value={slippageBps} onChange={e=>setSlippageBps(e.target.value)} inputMode="numeric"/></div>
-          <button className={styles.primary} onClick={()=>runScan({mode:'wide',automatic:false})} disabled={busy}>{busy?'SCANNING BASE…':'RUN FULL WIDE SCAN'}</button>
-          <button className={styles.secondary} style={{width:'100%'}} onClick={()=>setAutoWatch(value=>!value)} disabled={busy}>{autoWatch?'AUTO WATCH · ON':'AUTO WATCH · OFF'}</button>
+          <button className={styles.primary} onClick={()=>runScan({mode:'wide',automatic:false})} disabled={busy}>{busy?'SCANNING BASE…':'RUN BOSS WIDE SCAN'}</button>
+          <button className={styles.secondary} style={{width:'100%'}} onClick={()=>setAutoWatch(value=>!value)} disabled={busy}>{autoWatch?`BOSS AUTO WATCH · ON · ${marketHeat}`:'BOSS AUTO WATCH · OFF'}</button>
         </div>
-        <div className={styles.footnote}>AUTO WATCH refreshes the executable matrix about every 12 seconds and the full wide radar periodically while this browser tab remains active. iPhone may suspend page timers when the browser is backgrounded.</div>
+        <div className={styles.footnote}>V5 dynamically watches about every 12 seconds in cold markets, about 7 seconds when warm, and as fast as about 4 seconds in HOT near-miss conditions. The full wide radar refreshes periodically. iPhone may suspend page timers when the browser is backgrounded.</div>
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
+        {nearMiss&&!scan?.best&&<div className={styles.status}>Closest executable: {nearMiss.first?.venue} → {nearMiss.second?.venue} at {nearMiss.inputEth} ETH. It is about {nearMiss.distanceToProfitFloorBps} bps ({prettyEth(nearMiss.distanceToProfitFloorWei)} ETH) short of gas + your profit target. V5 automatically speeds up as that gap closes.</div>}
         {scan&&<div className={styles.summary}>
           <div className={styles.stat}><small>EXECUTION SIZES</small><b>{scan.executionSizesScanned||1}</b></div>
+          <div className={styles.stat}><small>MARKET HEAT</small><b>{marketHeat}</b></div>
           <div className={styles.stat}><small>WIDE PAIRS</small><b>{scan.coverage?.widePairsQuoted||0}/{scan.coverage?.widePairsRequested||0}</b></div>
           <div className={styles.stat}><small>NET TARGET</small><b>{prettyPct(scan.targetBps)}</b></div>
+          <div className={styles.stat}><small>BATCH LATENCY</small><b>{scan.batchLatencyMs?`${scan.batchLatencyMs} ms`:'—'}</b></div>
           <div className={styles.stat}><small>AUTO WATCH</small><b>{autoWatch?'ON':'PAUSED'}</b></div>
           <div className={styles.stat}><small>SCANS THIS PAGE</small><b>{scanCount}</b></div>
           <div className={styles.stat}><small>LAST CHECK</small><b>{lastScanAt||'—'}</b></div>
@@ -317,7 +337,7 @@ export default function ProfitEnginePage(){
       {scan&&<section className={styles.panel}>
         <div className={styles.sectionHead}><div><h2>Executable matrix</h2><span>{scan.executionSizesScanned||1} sizes · WETH/USDC · {scan.stateMode} · {scan.rpcSource}</span></div>{!wallet&&<button className={styles.secondary} onClick={()=>connect().catch(e=>setError(errText(e)))}>CONNECT METAMASK</button>}</div>
         <div className={styles.grid}>{scan.opportunities.map(op=><article key={op.id} className={`${styles.card} ${op.passes?styles.good:''}`}>
-          <span className={styles.badge}>{op.passes?'PROFIT FLOOR CLEARED':'NO TRADE'}</span>
+          <span className={styles.badge}>{op.passes?'PROFIT FLOOR CLEARED':Number(op.distanceToProfitFloorBps)<=5?'NEAR MISS':'NO TRADE'}</span>
           <div className={styles.route}>{op.first.venue} → {op.second.venue}</div>
           <div className={styles.leg}><span>CAPITAL</span><b>{prettyEth(op.inputWei)} ETH</b></div>
           <div className={styles.leg}><span>LEG 1</span><b>{venueMeta(op.first)}</b></div>
@@ -325,12 +345,12 @@ export default function ProfitEnginePage(){
           <div className={styles.numbers}>
             <div className={styles.number}><span>Quoted final</span><b>{prettyEth(op.finalWei)} WETH</b></div>
             <div className={styles.number}><span>Gross spread</span><b className={BigInt(op.grossProfitWei)>0n?styles.positive:styles.negative}>{prettyEth(op.grossProfitWei)} ETH</b></div>
-            <div className={styles.number}><span>Conservative gas</span><b>-{prettyEth(op.gasBudgetWei)} ETH</b></div>
-            <div className={styles.number}><span>Net after gas</span><b className={BigInt(op.netAfterGasWei)>0n?styles.positive:styles.negative}>{prettyEth(op.netAfterGasWei)} ETH</b></div>
+            <div className={styles.number}><span>Net after gas</span><b className={BigInt(op.netAfterGasWei)>0n?styles.positive:styles.negative}>{prettyEth(op.netAfterGasWei)} ETH · {prettyBps(op.netAfterGasBps)}</b></div>
+            <div className={styles.number}><span>Profit-floor margin</span><b className={BigInt(op.marginToProfitFloorWei)>=0n?styles.positive:styles.negative}>{prettyBps(op.marginToProfitFloorBps)}</b></div>
           </div>
           {op.passes&&executorReady?<button className={styles.execute} disabled={busy} onClick={()=>execute(op)}>SIMULATE + EXECUTE ATOMICALLY</button>:op.passes?<div className={styles.lock}><b>EXECUTION LOCKED</b><br/>{localExecutor?'Verify the existing executor above.':<a style={{color:'inherit'}} href="/profit-engine/deploy">Deploy the reviewed executor</a>}</div>:null}
         </article>)}</div>
-        <div className={styles.footnote}>This is the only execution-capable section. Sizes never exceed MAX CAPITAL. The default net target is now 5 bps, but conservative gas is still added on top, so lowering the target does not turn a losing route into a trade. Every actual attempt still gets a fresh wallet simulation immediately before MetaMask.</div>
+        <div className={styles.footnote}>This is the only execution-capable section. Six adaptive sizes never exceed MAX CAPITAL. V5 ranks by margin to the actual contract profit floor, not by a raw price difference. Every real attempt still gets a fresh wallet simulation immediately before MetaMask.</div>
       </section>}
 
       {scan&&<section className={styles.panel}>
@@ -354,7 +374,7 @@ export default function ProfitEnginePage(){
             </>:<p className={styles.footnote}>No complete cross-venue round trip was quotable for this pair on this state.</p>}
           </article>;
         })}</div>:<div className={styles.status}>No additional wide-market routes were available on this scan.</div>}
-        <div className={styles.footnote}>Radar values are raw quote differences before a route-specific gas model, slippage reserve, contract compatibility check, or wallet simulation. They are intentionally not executable. This avoids treating a raw price discrepancy as guaranteed profit.</div>
+        <div className={styles.footnote}>Radar values are raw quote differences before a route-specific gas model, slippage reserve, contract compatibility check, or wallet simulation. They remain discovery-only so V5 never mistakes a raw price discrepancy for guaranteed profit.</div>
       </section>}
 
       <section className={styles.panel}>
