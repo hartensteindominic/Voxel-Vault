@@ -18,7 +18,6 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const challengeId = String(body?.challengeId || '').trim();
     const signature = String(body?.signature || '').trim();
-    const chainId = Number(body?.chainId || 0) || null;
     if (!challengeId || !/^0x[a-fA-F0-9]{130}$/.test(signature)) {
       return NextResponse.json({ error: 'Wallet signature proof is incomplete.' }, { status: 400 });
     }
@@ -35,6 +34,10 @@ export async function POST(request: Request) {
     if (Date.parse(challenge.expires_at) <= Date.now()) return NextResponse.json({ error: 'Wallet challenge expired. Start again.' }, { status: 410 });
     if (!ADDRESS_RE.test(challenge.wallet_address)) return NextResponse.json({ error: 'Wallet challenge is invalid.' }, { status: 400 });
 
+    const chainMatch = String(challenge.message || '').match(/^Chain ID:\s*(\d+)$/m);
+    const chainId = Number(chainMatch?.[1] || 0);
+    if (!Number.isSafeInteger(chainId) || chainId <= 0) return NextResponse.json({ error: 'Signed wallet challenge has no valid chain context.' }, { status: 400 });
+
     let recovered = '';
     try { recovered = verifyMessage(challenge.message, signature).toLowerCase(); }
     catch { return NextResponse.json({ error: 'Wallet signature could not be verified.' }, { status: 400 }); }
@@ -43,12 +46,15 @@ export async function POST(request: Request) {
     }
 
     const usedAt = new Date().toISOString();
-    const { error: consumeError } = await supabaseAdmin
+    const { data: consumed, error: consumeError } = await supabaseAdmin
       .from('wallet_link_challenges')
       .update({ used_at: usedAt })
       .eq('id', challenge.id)
-      .is('used_at', null);
+      .is('used_at', null)
+      .select('id')
+      .maybeSingle();
     if (consumeError) throw consumeError;
+    if (!consumed) return NextResponse.json({ error: 'Wallet challenge was already consumed.' }, { status: 409 });
 
     const { data: link, error: linkError } = await supabaseAdmin.from('wallet_links').upsert({
       user_id: user.id,
