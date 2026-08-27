@@ -32,6 +32,7 @@ jobs:
       - run: npm run chain:compile
       - run: npm run chain:check:forge-bytecode
       - run: npm run chain:test:forge
+      - run: npm run chain:test:liquidity
       - name: Upload production Forge artifact
         uses: actions/upload-artifact@v4
         with:

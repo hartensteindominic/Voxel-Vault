@@ -9,19 +9,21 @@ const standardSolidity = {
     optimizer: { enabled: true, runs: 200 },
   },
 };
+const viaIrSolidity = {
+  version: '0.8.26',
+  settings: {
+    evmVersion: 'cancun',
+    optimizer: { enabled: true, runs: 200 },
+    viaIR: true,
+  },
+};
 
 module.exports = {
   solidity: {
     compilers: [standardSolidity],
     overrides: {
-      'contracts/VoxelForgeRevenue.sol': {
-        version: '0.8.26',
-        settings: {
-          evmVersion: 'cancun',
-          optimizer: { enabled: true, runs: 200 },
-          viaIR: true,
-        },
-      },
+      'contracts/VoxelForgeRevenue.sol': viaIrSolidity,
+      'contracts/BaseLiquidityManager.sol': viaIrSolidity,
     },
   },
   networks: {
