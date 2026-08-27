@@ -6,6 +6,8 @@ import { getCatalogItem } from '../../../../lib/catalog';
 import { submitPhysicalFulfillment } from '../../../../lib/fulfillment';
 import { buildVerifiedRewardRecord } from '../../../../lib/rewards/stripeWebhook.js';
 import { persistRewardEvent } from '../../../../lib/rewards/persistence.js';
+import { getVaultStoreProduct } from '../../../../lib/vault-store-products';
+import { recordVaultStorePaidSale, recordVaultStoreRefund } from '../../../../lib/vault-store-accounting';
 
 const WALLET_RE = /^0x[a-f0-9]{40}$/;
 type ShippingDetails = {
@@ -21,6 +23,28 @@ type ShippingDetails = {
   } | null;
 };
 type CheckoutSessionWithShipping = Stripe.Checkout.Session & { shipping_details?: ShippingDetails | null };
+
+async function getVerifiedStripeFeeCents(paymentIntentId: string | null) {
+  if (!paymentIntentId) return null;
+  try {
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge.balance_transaction'],
+    });
+    const charge = intent.latest_charge && typeof intent.latest_charge === 'object'
+      ? intent.latest_charge as Stripe.Charge
+      : null;
+    const balanceTransaction = charge?.balance_transaction && typeof charge.balance_transaction === 'object'
+      ? charge.balance_transaction as Stripe.BalanceTransaction
+      : null;
+    const fee = Number(balanceTransaction?.fee);
+    return Number.isSafeInteger(fee) && fee >= 0 ? fee : null;
+  } catch (error) {
+    // Gross accounting remains mandatory. A temporarily unavailable Stripe fee
+    // is never guessed; the order stays marked gross_recorded for reconciliation.
+    console.error('vault store Stripe fee lookup unavailable', { paymentIntentId, error });
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
@@ -111,11 +135,64 @@ export async function POST(request: Request) {
             if (fulfillmentTimelineError) throw fulfillmentTimelineError;
           } catch (fulfillmentError) {
             console.error('VoxelVault physical fulfillment submission failed', fulfillmentError);
-            // Stripe retries the signed webhook. The provider adapter uses the
-            // durable Voxel Vault order ID as its idempotency key where supported.
             throw fulfillmentError;
           }
         }
+        return NextResponse.json({ received: true });
+      }
+
+      const storeSku = session.metadata?.vault_store_sku;
+      const storeBuyerId = session.metadata?.buyer_id;
+      if (session.metadata?.commerce_kind === 'vault_store' || storeSku) {
+        const product = getVaultStoreProduct(storeSku);
+        if (!product || !storeBuyerId) throw new Error('Invalid Vault Store checkout metadata');
+        const amount = Number(session.amount_total ?? -1);
+        const currency = String(session.currency || '').toLowerCase();
+        if (amount !== product.priceCents || currency !== product.currency) {
+          throw new Error('Vault Store payment amount does not match the server catalog');
+        }
+
+        const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
+        const { data: order, error: orderError } = await supabaseAdmin.from('vault_store_orders').upsert({
+          buyer_id: storeBuyerId,
+          sku: product.sku,
+          stripe_checkout_session_id: session.id,
+          stripe_payment_intent_id: paymentIntentId,
+          currency: product.currency,
+          amount_cents: product.priceCents,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'stripe_checkout_session_id' }).select('id,status,processing_fee_cents,refunded_amount_cents').single();
+        if (orderError || !order) throw orderError ?? new Error('Vault Store order creation failed');
+
+        // Never re-grant a fully refunded purchase if Stripe replays a success event later.
+        if (order.status === 'refunded') return NextResponse.json({ received: true });
+
+        const feeCents = await getVerifiedStripeFeeCents(paymentIntentId);
+        await recordVaultStorePaidSale({
+          checkoutSessionId: session.id,
+          paymentIntentId,
+          currency: product.currency,
+          amountCents: product.priceCents,
+          processingFeeCents: feeCents,
+        });
+
+        if (feeCents != null) {
+          const { error: feeUpdateError } = await supabaseAdmin.from('vault_store_orders').update({
+            processing_fee_cents: feeCents,
+            accounting_status: 'fee_verified',
+            updated_at: new Date().toISOString(),
+          }).eq('id', order.id);
+          if (feeUpdateError) throw feeUpdateError;
+        }
+
+        // Gross journal posting is mandatory and happens before access is granted.
+        const { error: entitlementError } = await supabaseAdmin.from('vault_store_entitlements').upsert({
+          buyer_id: storeBuyerId,
+          sku: product.sku,
+          order_id: order.id,
+          revoked_at: null,
+        }, { onConflict: 'buyer_id,sku' });
+        if (entitlementError) throw entitlementError;
         return NextResponse.json({ received: true });
       }
 
@@ -137,7 +214,48 @@ export async function POST(request: Request) {
       const charge = event.data.object as Stripe.Charge;
       const paymentIntent = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
       if (paymentIntent) {
-        const { data: order } = await supabaseAdmin.from('physical_orders').update({ order_status: 'refunded', return_status: 'refunded', refunded_at: new Date().toISOString(), claim_eligible: false, updated_at: new Date().toISOString() }).eq('stripe_payment_intent_id', paymentIntent).select('id').maybeSingle();
+        const refundedAt = new Date().toISOString();
+        const { data: storeOrder, error: storeLookupError } = await supabaseAdmin
+          .from('vault_store_orders')
+          .select('id,stripe_checkout_session_id,currency,amount_cents,refunded_amount_cents,status')
+          .eq('stripe_payment_intent_id', paymentIntent)
+          .maybeSingle();
+        if (storeLookupError) throw storeLookupError;
+
+        if (storeOrder) {
+          const totalRefunded = Math.max(0, Math.min(Number(charge.amount_refunded || 0), Number(storeOrder.amount_cents || 0)));
+          const alreadyRecorded = Math.max(0, Number(storeOrder.refunded_amount_cents || 0));
+          const refundDelta = Math.max(0, totalRefunded - alreadyRecorded);
+          const fullyRefunded = totalRefunded >= Number(storeOrder.amount_cents || 0);
+
+          if (refundDelta > 0) {
+            await recordVaultStoreRefund({
+              eventId: event.id,
+              checkoutSessionId: storeOrder.stripe_checkout_session_id,
+              paymentIntentId: paymentIntent,
+              currency: storeOrder.currency,
+              amountCents: refundDelta,
+            });
+          }
+
+          const { error: storeRefundError } = await supabaseAdmin.from('vault_store_orders').update({
+            refunded_amount_cents: totalRefunded,
+            status: fullyRefunded ? 'refunded' : totalRefunded > 0 ? 'partially_refunded' : storeOrder.status,
+            updated_at: refundedAt,
+          }).eq('id', storeOrder.id);
+          if (storeRefundError) throw storeRefundError;
+
+          if (fullyRefunded) {
+            const { error: revokeError } = await supabaseAdmin
+              .from('vault_store_entitlements')
+              .update({ revoked_at: refundedAt })
+              .eq('order_id', storeOrder.id)
+              .is('revoked_at', null);
+            if (revokeError) throw revokeError;
+          }
+        }
+
+        const { data: order } = await supabaseAdmin.from('physical_orders').update({ order_status: 'refunded', return_status: 'refunded', refunded_at: refundedAt, claim_eligible: false, updated_at: refundedAt }).eq('stripe_payment_intent_id', paymentIntent).select('id').maybeSingle();
         if (order) await supabaseAdmin.from('physical_order_events').upsert({ physical_order_id: order.id, event_id: `${event.id}:refunded`, event_type: 'refunded', public_message: 'The order was refunded. Its delivery claim is closed.' }, { onConflict: 'event_id' });
       }
     }
