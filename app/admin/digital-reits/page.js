@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 
 const ENTITY_STORAGE_KEY = 'voxelvault.dinari.sandbox.entityId';
+const KYC_POLL_MS = 15000;
 
 function short(value) {
   const text = String(value || '');
@@ -30,6 +31,8 @@ export default function DinariAdminOnboardingPage() {
   const finalRef = useRef(null);
 
   const selectedEntityId = state?.entity?.id || state?.configuredEntityId || '';
+  const kycStatus = String(state?.kyc?.status || 'NOT_STARTED').trim().toUpperCase();
+  const kycPending = kycStatus === 'PENDING' || kycStatus === 'NEEDS_REVIEW';
   const usAccount = useMemo(
     () => (state?.accounts || []).find((account) => account.isActive && account.jurisdiction === 'US') || null,
     [state?.accounts]
@@ -96,6 +99,34 @@ export default function DinariAdminOnboardingPage() {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (!token || !selectedEntityId || !kycPending) return undefined;
+    let cancelled = false;
+
+    async function pollKyc() {
+      try {
+        const response = await fetch(`/api/admin/digital-reits/onboarding?entityId=${encodeURIComponent(selectedEntityId)}`, {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await readJson(response);
+        if (!response.ok) throw new Error(data.error || 'Dinari KYC status could not be refreshed.');
+        if (!cancelled) {
+          setState(data);
+          if (data.entity?.id) localStorage.setItem(ENTITY_STORAGE_KEY, data.entity.id);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Dinari KYC status could not be refreshed.');
+      }
+    }
+
+    const timer = window.setInterval(pollKyc, KYC_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [token, selectedEntityId, kycPending]);
+
   async function action(actionName, payload = {}) {
     if (!token || busy) return null;
     setBusy(actionName);
@@ -112,7 +143,7 @@ export default function DinariAdminOnboardingPage() {
       if (data.snapshot) setState(data.snapshot);
       if (data.entity?.id) {
         localStorage.setItem(ENTITY_STORAGE_KEY, data.entity.id);
-        setNotice(`Sandbox Entity created: ${data.entity.id}. Next: open Dinari KYC.`);
+        setNotice(`Sandbox Entity created: ${data.entity.id}. Next: open Dinari KYC once.`);
         setTimeout(() => step3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
       }
       if (data.account?.id) {
@@ -136,12 +167,16 @@ export default function DinariAdminOnboardingPage() {
 
   async function startKyc() {
     if (!selectedEntityId) return;
+    if (kycPending) {
+      setNotice('KYC is already submitted to Dinari. Do not start another KYC session while the current check is PENDING. This page is checking automatically.');
+      return;
+    }
     const popup = window.open('', '_blank');
     const result = await action('create-managed-kyc', { entityId: selectedEntityId, jurisdiction: 'US' });
     if (result?.kyc?.embedUrl) {
       if (popup) popup.location.href = result.kyc.embedUrl;
       else window.location.href = result.kyc.embedUrl;
-      setNotice(`Dinari hosted KYC opened. URL expires ${result.kyc.expirationDt || 'later'}. Return here afterward and refresh status.`);
+      setNotice(`Dinari hosted KYC opened. URL expires ${result.kyc.expirationDt || 'later'}. Complete it once, then return here; status will refresh automatically.`);
     } else if (popup) {
       popup.close();
     }
@@ -182,16 +217,19 @@ export default function DinariAdminOnboardingPage() {
   const providerErrors = Array.isArray(state?.errors) ? state.errors.map((item) => String(item || '')).filter(Boolean) : [];
   const credentialProbeFailed = providerErrors.some((item) => /^credentials:/i.test(item));
   const credentialsOkay = Boolean(state?.credentialsConfigured && !credentialProbeFailed);
-  const kycPass = state?.kyc?.status === 'PASS' && state?.entity?.isKycComplete;
+  const kycPass = kycStatus === 'PASS' && state?.entity?.isKycComplete;
+  const kycCanStart = Boolean(selectedEntityId && !kycPass && !kycPending);
   const nextStep = !credentialsOkay
     ? null
     : !selectedEntityId
       ? { label: 'Credentials verified — continue to Step 2', detail: 'Create your Dinari sandbox customer Entity. This is still test-only and does not move real money.', ref: step2Ref }
-      : !kycPass
-        ? { label: 'Entity ready — continue to Step 3', detail: 'Open Dinari’s hosted KYC, complete verification there, then return and refresh the KYC status.', ref: step3Ref }
-        : !usAccount
-          ? { label: 'KYC passed — continue to Step 4', detail: 'Create or reuse your US sandbox Account so the Digital REIT Vault has a provider account to read.', ref: step4Ref }
-          : { label: 'Sandbox account ready — finish setup', detail: 'Copy the non-secret Entity and Account IDs into Vercel, then verify read-only portfolio data before enabling mock funding.', ref: finalRef };
+      : kycPending
+        ? { label: `KYC submitted — ${kycStatus}`, detail: 'Do not redo KYC. Dinari is still reporting the submitted check as pending. Voxel Vault will re-check it automatically every 15 seconds.', ref: step3Ref }
+        : !kycPass
+          ? { label: 'Entity ready — continue to Step 3', detail: 'Open Dinari’s hosted KYC once, complete verification there, then return here. The page will monitor the result.', ref: step3Ref }
+          : !usAccount
+            ? { label: 'KYC passed — continue to Step 4', detail: 'Create or reuse your US sandbox Account so the Digital REIT Vault has a provider account to read.', ref: step4Ref }
+            : { label: 'Sandbox account ready — finish setup', detail: 'Copy the non-secret Entity and Account IDs into Vercel, then verify read-only portfolio data before enabling mock funding.', ref: finalRef };
 
   return <main style={page}><div style={shell}>
     <nav style={nav}>
@@ -248,16 +286,21 @@ export default function DinariAdminOnboardingPage() {
 
       <article ref={step3Ref} style={{...card,opacity:selectedEntityId?1:.45}}>
         <span style={step}>3</span><div style={eyebrow}>DINARI HOSTED KYC</div>
-        <h2 style={h2}>{kycPass ? 'KYC passed.' : `KYC: ${state?.kyc?.status || 'NOT STARTED'}`}</h2>
-        <p style={copyText}>Dinari hosts the sensitive identity flow. Voxel Vault receives only the status needed to continue.</p>
-        {!kycPass ? <button style={primaryButton} disabled={!selectedEntityId || Boolean(busy)} onClick={startKyc}>{busy === 'create-managed-kyc' ? 'Creating URL…' : 'Open secure Dinari KYC'}</button> : null}
-        <button style={{...secondary,marginLeft:8}} disabled={!selectedEntityId || Boolean(busy)} onClick={() => load(token, selectedEntityId)}>Refresh KYC status</button>
+        <h2 style={h2}>{kycPass ? 'KYC passed.' : kycPending ? `KYC submitted — ${kycStatus}.` : `KYC: ${kycStatus}`}</h2>
+        <p style={copyText}>{kycPending
+          ? 'You already completed the hosted identity flow. Do not submit another KYC session. Dinari is still processing or reviewing the latest check, and Voxel Vault is polling for the result automatically.'
+          : 'Dinari hosts the sensitive identity flow. Voxel Vault receives only the status needed to continue.'}</p>
+        {kycPending ? <div style={pendingBox}>
+          <b>Waiting on Dinari.</b> Auto-checking every 15 seconds. Latest check: {short(state?.kyc?.id)}{state?.kyc?.checkedDt ? ` · ${state.kyc.checkedDt}` : ''}.
+        </div> : null}
+        {kycCanStart ? <button style={primaryButton} disabled={Boolean(busy)} onClick={startKyc}>{busy === 'create-managed-kyc' ? 'Creating URL…' : kycStatus === 'NOT_STARTED' ? 'Open secure Dinari KYC' : 'Retry secure Dinari KYC'}</button> : null}
+        <button style={{...secondary,marginLeft:kycCanStart?8:0}} disabled={!selectedEntityId || Boolean(busy)} onClick={() => load(token, selectedEntityId)}>{kycPending ? 'Check now' : 'Refresh KYC status'}</button>
       </article>
 
       <article ref={step4Ref} style={{...card,opacity:kycPass?1:.45}}>
         <span style={step}>4</span><div style={eyebrow}>US SANDBOX ACCOUNT</div>
         <h2 style={h2}>{usAccount ? 'Account ready.' : 'Create the trading Account.'}</h2>
-        <p style={copyText}>{usAccount ? `Active US account ${short(usAccount.id)} is ready to connect to the Digital REIT Vault.` : 'This stays blocked until Dinari reports KYC PASS.'}</p>
+        <p style={copyText}>{usAccount ? `Active US account ${short(usAccount.id)} is ready to connect to the Digital REIT Vault.` : kycPending ? 'Dinari still reports KYC as pending. Account creation remains safely blocked until Dinari returns PASS.' : 'This stays blocked until Dinari reports KYC PASS.'}</p>
         {usAccount ? <button style={secondary} onClick={() => copy(usAccount.id)}>Copy Account ID</button> : <button style={primaryButton} disabled={!kycPass || Boolean(busy)} onClick={createAccount}>{busy === 'create-account' ? 'Creating…' : 'Create US sandbox Account'}</button>}
       </article>
     </section>
@@ -296,6 +339,7 @@ const secondary={border:'1px solid #354030',background:'#0b100b',color:'#d5ddd0'
 const code={whiteSpace:'pre-wrap',overflowWrap:'anywhere',background:'#080c08',border:'1px solid #222b21',borderRadius:14,padding:14,color:'#cbd7c4',fontSize:11,lineHeight:1.65};
 const errorBox={border:'1px solid #6a403a',background:'#170d0c',color:'#f3bdb2',borderRadius:14,padding:13,marginBottom:14,fontSize:12};
 const noticeBox={border:'1px solid #526b3c',background:'#0f170c',color:'#d8f3b8',borderRadius:14,padding:13,marginBottom:14,fontSize:12};
+const pendingBox={border:'1px solid #5f6237',background:'#17170c',color:'#e8e7b0',borderRadius:14,padding:12,marginTop:12,fontSize:12,lineHeight:1.55};
 const nextActionBox={display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',border:'1px solid #526b3c',background:'#10170d',borderRadius:20,padding:'18px 20px',marginBottom:16};
 const nextActionEyebrow={fontSize:10,fontWeight:950,letterSpacing:'.14em',color:'#b8ff55'};
 const nextActionTitle={fontSize:'clamp(20px,4vw,30px)',lineHeight:1.05,letterSpacing:'-.04em',fontWeight:950,marginTop:5};
