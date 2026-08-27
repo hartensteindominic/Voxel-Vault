@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { getVaultStoreProduct } from '../../../../lib/vault-store-products';
-import { vaultStoreEnabled } from '../../../../lib/vault-store-server';
+import { preflightVaultStoreProduct, vaultStoreEnabled } from '../../../../lib/vault-store-server';
 
 export async function POST(request: Request) {
   try {
@@ -21,6 +21,14 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const product = getVaultStoreProduct(typeof body?.sku === 'string' ? body.sku : '');
     if (!product) return NextResponse.json({ error: 'Unknown Vault Store product.' }, { status: 400 });
+
+    // Fail closed before Stripe can accept money. The feature flag alone is not
+    // enough: the exact paid ZIP must already exist in private storage.
+    const delivery = await preflightVaultStoreProduct(product.sku);
+    if (!delivery.available) {
+      console.error('vault store checkout blocked by delivery preflight', { sku: product.sku, reason: delivery.reason });
+      return NextResponse.json({ error: 'This product is not ready for paid delivery yet.' }, { status: 503 });
+    }
 
     const { data: existing, error: entitlementLookupError } = await supabaseAdmin
       .from('vault_store_entitlements')
