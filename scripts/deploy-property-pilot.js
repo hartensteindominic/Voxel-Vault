@@ -41,7 +41,7 @@ async function main() {
   await interestToken.waitForDeployment();
 
   const DistributionVault = await ethers.getContractFactory('PropertyDistributionVault');
-  const distributionVault = await DistributionVault.deploy(deployer.address);
+  const distributionVault = await DistributionVault.deploy(deployer.address, await interestToken.getAddress());
   await distributionVault.waitForDeployment();
 
   await (await registry.registerProperty(
@@ -57,6 +57,7 @@ async function main() {
   console.log('PROPERTY_INTEREST_TOKEN_ADDRESS=', await interestToken.getAddress());
   console.log('PROPERTY_DISTRIBUTION_VAULT_ADDRESS=', await distributionVault.getAddress());
   console.log('PROPERTY_ID_HASH=', propertyId);
+  console.log('Distribution claims are restricted to wallets currently allowlisted by the property interest token.');
   console.log('Registry record is intentionally unverified and inactive after deployment.');
 }
 
