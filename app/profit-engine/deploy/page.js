@@ -126,7 +126,10 @@ export default function ProfitEngineDeployPage(){
       window.localStorage.setItem(EXECUTOR_STORAGE_KEY,address);
       setDeployment({address,txHash:tx.hash,verified:true});
       setStatus('BaseArbExecutor deployed, live constants verified, and activated on this device. Return to Profit Engine and scan now. Every trade still requires a fresh simulation and your MetaMask approval.');
-    }catch(e){setError(errorText(e));setStatus(deployment?'The deployment address above already exists. Do not redeploy; resolve the verification message first.':'')}finally{setBusy(false)}
+    }catch(e){
+      setError(errorText(e));
+      setStatus(deployment?'Deployment exists. Do not redeploy. Use the verification recovery link below; it sends no transaction.':'');
+    }finally{setBusy(false)}
   }
 
   return <main className={styles.page}>
@@ -144,7 +147,7 @@ export default function ProfitEngineDeployPage(){
         {!deployment&&<button className={styles.primary} style={{width:'100%',marginTop:16}} onClick={wallet?deploy:connect} disabled={busy}>{busy?'WORKING…':wallet&&bytecodeReady?'DEPLOY BASE ARB EXECUTOR':'CONNECT OWNER + VERIFY'}</button>}
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
-        {deployment&&<div className={styles.tx}><b>{deployment.verified?'✓ EXECUTOR DEPLOYED + DEVICE ACTIVATED':'✓ EXECUTOR DEPLOYED · VERIFYING/REVIEW NEEDED'}</b><br/>Contract: {deployment.address}<br/>Transaction: <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${deployment.txHash}`} target="_blank" rel="noreferrer">{deployment.txHash}</a><br/>{deployment.verified?<><a style={{color:'inherit',fontWeight:800}} href="/profit-engine">OPEN PROFIT ENGINE →</a><br/></>:null}<b>Do not deploy another copy.</b></div>}
+        {deployment&&<div className={styles.tx}><b>{deployment.verified?'✓ EXECUTOR DEPLOYED + DEVICE ACTIVATED':'✓ EXECUTOR DEPLOYED · VERIFYING/REVIEW NEEDED'}</b><br/>Contract: {deployment.address}<br/>Transaction: <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${deployment.txHash}`} target="_blank" rel="noreferrer">{deployment.txHash}</a><br/>{deployment.verified?<><a style={{color:'inherit',fontWeight:800}} href="/profit-engine">OPEN PROFIT ENGINE →</a><br/></>:<><a style={{color:'inherit',fontWeight:800}} href={`/profit-engine?executor=${deployment.address}`}>VERIFY EXISTING EXECUTOR →</a><br/></>}<b>Do not deploy another copy.</b></div>}
       </section>
     </div>
   </main>;
