@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { getVaultStoreProduct } from '../../../../lib/vault-store-products';
-import { vaultStoreEnabled } from '../../../../lib/vault-store-server';
+import { vaultStoreEnabled, vaultStoreProductReady } from '../../../../lib/vault-store-server';
 
 export async function POST(request: Request) {
   try {
@@ -31,6 +31,13 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (entitlementLookupError) throw entitlementLookupError;
     if (existing) return NextResponse.json({ error: 'You already own this product.' }, { status: 409 });
+
+    const deliveryReady = await vaultStoreProductReady(supabaseAdmin, product.sku);
+    if (!deliveryReady) {
+      return NextResponse.json({
+        error: 'This digital product is not available for purchase until its private delivery file passes readiness checks.',
+      }, { status: 503 });
+    }
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
     const metadata = {
