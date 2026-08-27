@@ -18,7 +18,7 @@ describe('Voxel Vault real-property pilot contracts', function () {
     await registry.waitForDeployment();
 
     const Vault = await ethers.getContractFactory('PropertyDistributionVault');
-    const vault = await Vault.deploy(owner.address);
+    const vault = await Vault.deploy(owner.address, await token.getAddress());
     await vault.waitForDeployment();
 
     const MockUSDC = await ethers.getContractFactory('MockUSDC');
@@ -82,7 +82,7 @@ describe('Voxel Vault real-property pilot contracts', function () {
   });
 
   it('funds one audited distribution epoch and prevents double claims', async function () {
-    const { owner, alice, vault, usdc } = await deployPilot();
+    const { owner, alice, token, vault, usdc } = await deployPilot();
     const amount = 600n * 10n ** 6n;
     const epochId = 1n;
     const statementHash = ethers.keccak256(ethers.toUtf8Bytes('approved-net-income-statement-2026-08'));
@@ -93,6 +93,7 @@ describe('Voxel Vault real-property pilot contracts', function () {
       )
     );
 
+    await token.setAllowed(alice.address, true);
     await usdc.mint(owner.address, amount);
     await usdc.approve(await vault.getAddress(), amount);
     await vault.createDistribution(await usdc.getAddress(), leaf, amount, statementHash);
@@ -100,5 +101,47 @@ describe('Voxel Vault real-property pilot contracts', function () {
     await vault.connect(alice).claim(epochId, amount, []);
     expect(await usdc.balanceOf(alice.address)).to.equal(amount);
     await expect(vault.connect(alice).claim(epochId, amount, [])).to.be.revertedWithCustomError(vault, 'AlreadyClaimed');
+  });
+
+  it('blocks a distribution claim if the wallet is no longer currently allowlisted', async function () {
+    const { owner, alice, token, vault, usdc } = await deployPilot();
+    const amount = 250n * 10n ** 6n;
+    const epochId = 1n;
+    const statementHash = ethers.keccak256(ethers.toUtf8Bytes('approved-net-income-statement-2026-09'));
+    const leaf = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ['uint256', 'address', 'uint256'],
+        [epochId, alice.address, amount]
+      )
+    );
+
+    await token.setAllowed(alice.address, true);
+    await usdc.mint(owner.address, amount);
+    await usdc.approve(await vault.getAddress(), amount);
+    await vault.createDistribution(await usdc.getAddress(), leaf, amount, statementHash);
+
+    await token.setAllowed(alice.address, false);
+    await expect(vault.connect(alice).claim(epochId, amount, []))
+      .to.be.revertedWithCustomError(vault, 'ClaimantNotAllowed')
+      .withArgs(alice.address);
+  });
+
+  it('requires every distribution epoch to reference a nonzero approved statement hash', async function () {
+    const { owner, alice, token, vault, usdc } = await deployPilot();
+    const amount = 100n * 10n ** 6n;
+    const epochId = 1n;
+    const leaf = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ['uint256', 'address', 'uint256'],
+        [epochId, alice.address, amount]
+      )
+    );
+
+    await token.setAllowed(alice.address, true);
+    await usdc.mint(owner.address, amount);
+    await usdc.approve(await vault.getAddress(), amount);
+
+    await expect(vault.createDistribution(await usdc.getAddress(), leaf, amount, ethers.ZeroHash))
+      .to.be.revertedWithCustomError(vault, 'InvalidStatementHash');
   });
 });
