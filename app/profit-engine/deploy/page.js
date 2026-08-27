@@ -8,6 +8,7 @@ import styles from '../profit.module.css';
 const BASE_CHAIN_ID='0x2105';
 const BASE_RPC='https://mainnet.base.org';
 const BASE_EXPLORER='https://basescan.org';
+const EXECUTOR_STORAGE_KEY='voxelvault.baseArbExecutor.v1';
 const APPROVED_OWNER=getAddress('0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb');
 const EXPECTED_BYTECODE_SHA256='b7a78ec53347fac65957dfd0c0c4092031b85244fe1b23ce14ceba3b00fd1e47';
 const CONSTRUCTOR_ABI=['constructor(address initialOwner)'];
@@ -107,8 +108,6 @@ export default function ProfitEngineDeployPage(){
       await contract.waitForDeployment();
       const address=getAddress(await contract.getAddress());
 
-      // Record the confirmed address BEFORE any follow-up RPC reads. If a wallet
-      // RPC fails during verification, the UI still prevents an accidental redeploy.
       setDeployment({address,txHash:tx.hash,verified:false});
       setStatus(`Executor deployed at ${short(address)}. Verifying live constants one at a time…`);
 
@@ -124,8 +123,9 @@ export default function ProfitEngineDeployPage(){
         throw new Error('Deployment confirmed, but live executor constants did not match the reviewed production configuration. Do not fund, use, or redeploy this contract.');
       }
 
+      window.localStorage.setItem(EXECUTOR_STORAGE_KEY,address);
       setDeployment({address,txHash:tx.hash,verified:true});
-      setStatus('BaseArbExecutor deployed and live constants verified. Do not redeploy. The address now needs to be pinned into Profit Engine production before live execution is unlocked.');
+      setStatus('BaseArbExecutor deployed, live constants verified, and activated on this device. Return to Profit Engine and scan now. Every trade still requires a fresh simulation and your MetaMask approval.');
     }catch(e){setError(errorText(e));setStatus(deployment?'The deployment address above already exists. Do not redeploy; resolve the verification message first.':'')}finally{setBusy(false)}
   }
 
@@ -144,7 +144,7 @@ export default function ProfitEngineDeployPage(){
         {!deployment&&<button className={styles.primary} style={{width:'100%',marginTop:16}} onClick={wallet?deploy:connect} disabled={busy}>{busy?'WORKING…':wallet&&bytecodeReady?'DEPLOY BASE ARB EXECUTOR':'CONNECT OWNER + VERIFY'}</button>}
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
-        {deployment&&<div className={styles.tx}><b>{deployment.verified?'✓ EXECUTOR DEPLOYED + VERIFIED':'✓ EXECUTOR DEPLOYED · VERIFYING/REVIEW NEEDED'}</b><br/>Contract: {deployment.address}<br/>Transaction: <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${deployment.txHash}`} target="_blank" rel="noreferrer">{deployment.txHash}</a><br/><b>Do not deploy another copy.</b></div>}
+        {deployment&&<div className={styles.tx}><b>{deployment.verified?'✓ EXECUTOR DEPLOYED + DEVICE ACTIVATED':'✓ EXECUTOR DEPLOYED · VERIFYING/REVIEW NEEDED'}</b><br/>Contract: {deployment.address}<br/>Transaction: <a style={{color:'inherit'}} href={`${BASE_EXPLORER}/tx/${deployment.txHash}`} target="_blank" rel="noreferrer">{deployment.txHash}</a><br/>{deployment.verified?<><a style={{color:'inherit',fontWeight:800}} href="/profit-engine">OPEN PROFIT ENGINE →</a><br/></>:null}<b>Do not deploy another copy.</b></div>}
       </section>
     </div>
   </main>;

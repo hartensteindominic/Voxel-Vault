@@ -10,6 +10,8 @@ const decision = read('app/api/agent/decision/route.ts');
 const health = read('app/api/agent/health/route.ts');
 const manifest = read('app/api/agent/manifest/route.ts');
 const openapi = read('app/api/agent/openapi/route.ts');
+const profitPage = read('app/profit-engine/page.js');
+const deployPage = read('app/profit-engine/deploy/page.js');
 
 function requireText(source, value, label) {
   if (!source.includes(value)) throw new Error(`Machine revenue check failed: ${label}`);
@@ -59,5 +61,19 @@ requireText(health, 'signsTransactions: false', 'health endpoint must disclose n
 requireText(manifest, 'authorizesSpending: false', 'manifest must disclose that tickets do not authorize spending');
 requireText(openapi, '/api/agent/decision', 'OpenAPI must document the decision endpoint');
 requireText(openapi, 'PAYMENT-SIGNATURE', 'OpenAPI must document x402 payment header');
+
+requireText(deployPage, "window.localStorage.setItem(EXECUTOR_STORAGE_KEY,address)", 'verified deployment must be activatable on the same device without a server secret');
+requireText(deployPage, 'getAddress(owner)!==APPROVED_OWNER', 'deployment must verify the reviewed owner before device activation');
+requireText(deployPage, 'getAddress(uni)!==EXPECTED.uni', 'deployment must verify the reviewed Uniswap router');
+requireText(deployPage, 'getAddress(aero)!==EXPECTED.aero', 'deployment must verify the reviewed Aerodrome router');
+forbidText(deployPage, 'PRIVATE_KEY', 'browser deployment page must never read private keys');
+
+requireText(profitPage, 'const executorAddress=await verifyExecutor(candidate,browserProvider);', 'device executor must be re-verified live before use');
+requireText(profitPage, 'getAddress(connectedWallet)!==APPROVED_OWNER', 'execution must require the reviewed owner wallet');
+requireText(profitPage, 'fn.staticCall(...args', 'execution must run a fresh no-spend static simulation');
+requireText(profitPage, 'fn.estimateGas(...args', 'execution must run a fresh wallet gas estimate');
+requireText(profitPage, 'simulatedGross-estimatedWalletGas<target', 'wallet execution must still clear the net target after estimated gas');
+forbidText(profitPage, 'PRIVATE_KEY', 'browser execution page must never read private keys');
+forbidText(profitPage, 'eth_sendRawTransaction', 'browser execution page must not bypass wallet signing');
 
 console.log('Machine revenue layer safety checks passed.');
