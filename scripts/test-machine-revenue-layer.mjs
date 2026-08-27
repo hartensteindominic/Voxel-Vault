@@ -77,6 +77,10 @@ requireText(payments, "facilitatorCall('verify'", 'x402 payments must be verifie
 requireText(payments, "facilitatorCall('settle'", 'x402 payments must be settled before paid output is returned');
 requireText(payments, "'PAYMENT-RESPONSE'", 'x402 settlement receipt header must be returned');
 requireText(payments, "return 'https://api.cdp.coinbase.com/platform/v2/x402'", 'CDP Base-mainnet facilitator path must be supported');
+requireText(payments, "DEFAULT_X402_PAY_TO = getAddress('0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb')", 'x402 must pin the reviewed public receiver fallback');
+requireText(payments, "ZERO_ADDRESS = getAddress('0x0000000000000000000000000000000000000000')", 'x402 must explicitly detect the zero-address placeholder');
+requireText(payments, 'if (normalized !== ZERO_ADDRESS) return normalized;', 'x402 must ignore zero-address receiver placeholders');
+requireText(payments, 'return DEFAULT_X402_PAY_TO;', 'x402 must fall back to the reviewed public receiver when env receiver is blank or placeholder');
 forbidText(payments, 'VOXELFLIP_MINT_SIGNER_PRIVATE_KEY', 'x402 must not reuse mint signer keys');
 forbidText(payments, 'VOXELFORGE_SIGNER_PRIVATE_KEY', 'x402 must not reuse Forge signer keys');
 
