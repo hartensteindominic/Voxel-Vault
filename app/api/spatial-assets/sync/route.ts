@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { appendAuditChainEvent } from '../../../../lib/audit-chain';
 
 export const runtime = 'nodejs';
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const TX_RE = /^0x[a-fA-F0-9]{64}$/;
 
 function meshReady(payload: any) {
   const status = String(payload?.mesh?.status || '').toLowerCase();
@@ -11,6 +13,34 @@ function meshReady(payload: any) {
 
 function cleanText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max);
+}
+
+async function verifyHistoricalMint(request: Request, sessionId: string, taskId: string, mint: any) {
+  const tokenId = cleanText(mint?.tokenId, 80);
+  const txHash = cleanText(mint?.txHash || mint?.hash, 80);
+  const wallet = cleanText(mint?.owner, 80);
+  const metadataUrl = cleanText(mint?.metadataUrl, 500);
+  if (!/^\d+$/.test(tokenId) || !TX_RE.test(txHash) || !ADDRESS_RE.test(wallet) || !/^https:\/\//i.test(metadataUrl)) return null;
+  try {
+    const response = await fetch(new URL('/api/creator-pack/nft/confirm', request.url), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, taskId, tokenId, txHash, wallet, metadataUrl }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.confirmed !== true) return null;
+    return {
+      tokenId: String(data.tokenId || tokenId),
+      txHash,
+      wallet: String(data.wallet || wallet).toLowerCase(),
+      contractAddress: String(data.contractAddress || ''),
+      metadataUrl,
+    };
+  } catch (error) {
+    console.warn('Historical VoxelFlip mint could not be re-verified during spatial sync.', error);
+    return null;
+  }
 }
 
 export async function POST(request: Request) {
@@ -32,6 +62,7 @@ export async function POST(request: Request) {
     const library = Array.isArray(profile?.avatar_style?.voxelpop_library) ? profile.avatar_style.voxelpop_library : [];
     let created = 0;
     let updated = 0;
+    let verifiedMints = 0;
 
     for (const record of library.slice(0, 120)) {
       const sessionId = cleanText(record?.sessionId, 240);
@@ -42,7 +73,7 @@ export async function POST(request: Request) {
 
       const { data: existing, error: lookupError } = await supabaseAdmin
         .from('spatial_assets')
-        .select('id,state,source_task_id')
+        .select('id,state,source_task_id,transaction_hash')
         .eq('owner_user_id', user.id)
         .eq('source_kind', 'voxelpop')
         .eq('source_session_id', sessionId)
@@ -72,7 +103,7 @@ export async function POST(request: Request) {
         if (error || !inserted) throw error ?? new Error('Spatial asset import failed.');
         assetId = inserted.id;
         created += 1;
-        await appendAuditChainEvent(supabaseAdmin, {
+        const importedAudit = await appendAuditChainEvent(supabaseAdmin, {
           eventType: 'spatial_asset_imported',
           entityType: 'spatial_asset',
           entityId: assetId,
@@ -80,10 +111,51 @@ export async function POST(request: Request) {
           sourceRef: `voxelpop:${sessionId}`,
           payload: { sourceKind: 'voxelpop', sessionId, taskId, state: safeState, title },
         });
+        await supabaseAdmin.from('spatial_assets').update({ audit_hash: importedAudit.entryHash }).eq('id', assetId);
+      }
+
+      if (taskId && existing?.state !== 'minted' && payload?.mint?.tokenId) {
+        const verified = await verifyHistoricalMint(request, sessionId, taskId, payload.mint);
+        if (verified && ADDRESS_RE.test(verified.contractAddress)) {
+          const { error: mintUpdateError } = await supabaseAdmin.from('spatial_assets').update({
+            state: 'minted',
+            chain_id: 8453,
+            contract_address: verified.contractAddress.toLowerCase(),
+            token_id: verified.tokenId,
+            transaction_hash: verified.txHash.toLowerCase(),
+            owner_wallet: verified.wallet,
+            metadata_uri: verified.metadataUrl,
+            updated_at: new Date().toISOString(),
+          }).eq('id', assetId).eq('owner_user_id', user.id);
+          if (mintUpdateError) throw mintUpdateError;
+
+          const audit = await appendAuditChainEvent(supabaseAdmin, {
+            eventType: 'spatial_mint_verified',
+            entityType: 'spatial_asset',
+            entityId: assetId,
+            actorUserId: user.id,
+            sourceRef: `base:mint:${verified.txHash.toLowerCase()}`,
+            payload: {
+              chainId: 8453,
+              contractAddress: verified.contractAddress.toLowerCase(),
+              tokenId: verified.tokenId,
+              transactionHash: verified.txHash.toLowerCase(),
+              ownerWallet: verified.wallet,
+              metadataUri: verified.metadataUrl,
+            },
+          });
+          await supabaseAdmin.from('spatial_assets').update({ audit_hash: audit.entryHash }).eq('id', assetId);
+          await supabaseAdmin.from('spatial_asset_events').insert({
+            asset_id: assetId,
+            event_type: 'mint_verified',
+            details: { chainId: 8453, tokenId: verified.tokenId, transactionHash: verified.txHash.toLowerCase() },
+          });
+          verifiedMints += 1;
+        }
       }
     }
 
-    return NextResponse.json({ synced: true, created, updated, totalSourceRecords: library.length });
+    return NextResponse.json({ synced: true, created, updated, verifiedMints, totalSourceRecords: library.length });
   } catch (error) {
     console.error('spatial asset sync failed', error);
     return NextResponse.json({ error: 'Unable to sync your VoxelPop library into My Vault.' }, { status: 500 });
