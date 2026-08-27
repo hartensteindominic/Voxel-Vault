@@ -12,10 +12,12 @@ const success = fs.readFileSync('app/vault-store/success/page.tsx', 'utf8');
 
 const required = [
   ['production feature gate', /VAULT_STORE_ENABLED/g, server],
+  ['private artifact existence preflight', /\.exists\(path\)/g, server],
   ['server-owned commerce kit price', /priceCents:\s*4900/g, products],
   ['server-owned audit pack price', /priceCents:\s*2900/g, products],
   ['checkout bearer authentication', /auth\.getUser\(token\)/g, checkout],
   ['checkout server SKU lookup', /getVaultStoreProduct/g, checkout],
+  ['checkout delivery readiness gate', /vaultStoreProductReady/g, checkout],
   ['checkout server-owned price data', /unit_amount:\s*product\.priceCents/g, checkout],
   ['checkout duplicate ownership guard', /already own this product/g, checkout],
   ['entitlement bearer authentication', /auth\.getUser\(token\)/g, entitlements],
