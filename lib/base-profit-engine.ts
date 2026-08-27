@@ -9,10 +9,12 @@ export const AERODROME_FACTORY = getAddress('0x420DD381b31aEf6683db6B902084cB0FF
 
 const BASE_FLASHBLOCKS_RPC = 'https://mainnet-preconf.base.org';
 const UNI_FEE_TIERS = [100, 500, 3000, 10000];
-const ESTIMATED_EXECUTOR_GAS = 520000n;
-const L1_DATA_FEE_BUFFER_WEI = 20_000_000_000_000n;
+const ESTIMATED_EXECUTOR_GAS = BigInt(520000);
+const L1_DATA_FEE_BUFFER_WEI = BigInt('20000000000000');
 const MIN_INPUT = parseUnits('0.0005', 18);
 const MAX_INPUT = parseUnits('10', 18);
+const BPS_DENOMINATOR = BigInt(10000);
+const ZERO = BigInt(0);
 
 const UNI_QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)',
@@ -52,7 +54,6 @@ type Opportunity = {
 };
 
 export type SerializedOpportunity = ReturnType<typeof serializeOpportunity>;
-export type BaseArbScan = Awaited<ReturnType<typeof scanBaseArbitrage>>;
 
 export function normalizeBps(value: unknown, fallback: number, min: number, max: number) {
   const parsed = Number(value ?? fallback);
@@ -148,7 +149,7 @@ async function quoteUni(
         `Uniswap ${fee} ${blockTag} quote`,
       );
       const amountOut = BigInt(result[0]);
-      if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
+      if (amountOut > ZERO && (!best || amountOut > best.amountOut)) {
         best = { venue: 'Uniswap V3', amountOut, fee, quoteGas: BigInt(result[3] || 0) };
       }
     } catch {
@@ -176,7 +177,7 @@ async function quoteAero(
         `Aerodrome ${stable ? 'stable' : 'volatile'} ${blockTag} quote`,
       );
       const amountOut = BigInt(amounts?.[amounts.length - 1] || 0);
-      if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
+      if (amountOut > ZERO && (!best || amountOut > best.amountOut)) {
         best = { venue: 'Aerodrome', amountOut, stable };
       }
     } catch {
@@ -187,7 +188,7 @@ async function quoteAero(
 }
 
 function applySlippage(amount: bigint, bps: number) {
-  return (amount * BigInt(10_000 - bps)) / 10_000n;
+  return (amount * BigInt(10_000 - bps)) / BPS_DENOMINATOR;
 }
 
 function serializeQuote(quote: Quote, outputDecimals: number) {
@@ -254,7 +255,7 @@ async function scanOnProvider(
   const feeData = await withTimeout(provider.getFeeData(), 4_000, 'Base fee data');
   const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || parseUnits('0.02', 'gwei');
   const gasBudgetWei = gasPrice * ESTIMATED_EXECUTOR_GAS + L1_DATA_FEE_BUFFER_WEI;
-  const targetProfitWei = (inputWei * BigInt(targetBps)) / 10_000n;
+  const targetProfitWei = (inputWei * BigInt(targetBps)) / BPS_DENOMINATOR;
   const opportunities: Opportunity[] = [];
 
   const uniFirst = await quoteUni(provider, WETH, USDC, inputWei, blockTag);
