@@ -39,7 +39,7 @@ export default async function AiLicensingPage() {
   }
 
   const statusLabel = x402.configured?'LIVE':'NEEDS CONFIG';
-  const liveCopy = `Voxel Vault AI Licensing is live on Base. AI agents, tools, and games can discover NFT-linked 3D voxel assets and pay per machine-use with x402 USDC. Catalog: https://www.voxelvault.io/api/licenses/catalog Public page: https://www.voxelvault.io/ai-licensing`;
+  const liveCopy = `Voxel Vault AI Licensing is live on Base. AI agents, tools, and games can discover NFT-linked 3D voxel assets and pay per machine-use with x402 USDC. Catalog: https://www.voxelvault.io/api/licenses/catalog Public page: https://www.voxelvault.io/ai-licensing Human test payment: https://www.voxelvault.io/pay`;
 
   return <main style={{minHeight:'100vh',background:'#070907',color:'#f5f7ef',fontFamily:'Inter,ui-sans-serif,system-ui,-apple-system,sans-serif'}}>
     <nav style={{maxWidth:1120,margin:'0 auto',padding:'20px 20px 0',display:'flex',justifyContent:'space-between',gap:16,alignItems:'center'}}>
@@ -47,13 +47,14 @@ export default async function AiLicensingPage() {
       <span style={{fontSize:12,fontWeight:900,letterSpacing:'.12em',color:'#b6ff22'}}>AI LICENSING · BASE · X402</span>
     </nav>
 
-    <section style={{maxWidth:1120,margin:'0 auto',padding:'58px 20px 28px',display:'grid',gridTemplateColumns:'minmax(0,1.35fr) minmax(280px,.65fr)',gap:22,alignItems:'stretch'}}>
+    <section style={{maxWidth:1120,margin:'0 auto',padding:'58px 20px 28px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:22,alignItems:'stretch'}}>
       <div>
         <div style={{fontSize:12,fontWeight:900,letterSpacing:'.16em',color:'#b6ff22'}}>LIVE MACHINE-CALLABLE ASSET LICENSING</div>
         <h1 style={{fontSize:'clamp(3rem,8vw,6.9rem)',lineHeight:.86,letterSpacing:'-.07em',margin:'14px 0 24px',maxWidth:980}}>Your NFT can earn<br/><span style={{color:'#b6ff22'}}>when AI uses it.</span></h1>
         <p style={{fontSize:'clamp(1.08rem,2.2vw,1.38rem)',...mutedText,maxWidth:790,margin:0}}>Voxel Vault turns eligible VoxelFlip NFTs into paid machine-use assets. AI agents and apps discover the catalog, pay a small Base USDC fee through x402, and receive a one-use license receipt.</p>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:24}}>
           <a href="/api/licenses/catalog" target="_blank" rel="noreferrer" style={{color:'#0b0d0b',background:'#b6ff22',padding:'13px 17px',borderRadius:14,textDecoration:'none',fontWeight:950}}>OPEN FREE CATALOG ↗</a>
+          <a href="/pay" style={{color:'#0b0d0b',background:'#f5f7ef',padding:'13px 17px',borderRadius:14,textDecoration:'none',fontWeight:950}}>HUMAN TEST PAYMENT</a>
           <a href="#developer-test" style={{color:'#f5f7ef',border:'1px solid #3d4939',padding:'13px 17px',borderRadius:14,textDecoration:'none',fontWeight:900}}>HOW BUILDERS PAY</a>
         </div>
       </div>
@@ -74,8 +75,9 @@ export default async function AiLicensingPage() {
     <section style={{maxWidth:1120,margin:'0 auto',padding:'0 20px 28px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12}}>
       <div style={cardStyle}><small style={{color:'#8f998b',fontWeight:900,letterSpacing:'.1em'}}>MACHINE PAYMENTS</small><div style={{fontSize:27,fontWeight:950,marginTop:7,color:x402.configured?'#b6ff22':'#ffca6a'}}>{x402.configured?'LIVE':'NEEDS CONFIG'}</div><p style={{fontSize:13,...mutedText,margin:'7px 0 0'}}>{x402.configured?'Receiver + facilitator are configured for Base.':'Code is live, but x402 receiver/facilitator credentials still need production configuration.'}</p></div>
       <div style={cardStyle}><small style={{color:'#8f998b',fontWeight:900,letterSpacing:'.1em'}}>PRICE / LICENSED USE</small><div style={{fontSize:27,fontWeight:950,marginTop:7}}>${price} USDC</div><p style={{fontSize:13,...mutedText,margin:'7px 0 0'}}>{priceAtomic} atomic USDC · Base mainnet · one machine-use unit.</p></div>
+      <div style={cardStyle}><small style={{color:'#8f998b',fontWeight:900,letterSpacing:'.1em'}}>HUMAN PAYLINK</small><div style={{fontSize:27,fontWeight:950,marginTop:7}}>Ready</div><p style={{fontSize:13,...mutedText,margin:'7px 0 0'}}><a href="/pay" style={{color:'#b6ff22',fontWeight:900}}>Open /pay</a> for a direct Base USDC test payment prompt.</p></div>
       <div style={cardStyle}><small style={{color:'#8f998b',fontWeight:900,letterSpacing:'.1em'}}>LICENSABLE NOW</small><div style={{fontSize:27,fontWeight:950,marginTop:7}}>{catalog?.assets.length ?? '—'} NFTs</div><p style={{fontSize:13,...mutedText,margin:'7px 0 0'}}>Only assets still owned by the configured licensor wallet are offered.</p></div>
-      <div style={cardStyle}><small style={{color:'#8f998b',fontWeight:900,letterSpacing:'.1em'}}>WHAT BUYERS GET</small><div style={{fontSize:27,fontWeight:950,marginTop:7}}>Receipt</div><p style={{fontSize:13,...mutedText,margin:'7px 0 0'}}>Every paid request returns a machine-readable one-use license receipt and payment proof.</p></div>
+      <div style={cardStyle}><small style={{color:'#8f998b',fontWeight:900,letterSpacing:'.1em'}}>WHAT BUYERS GET</small><div style={{fontSize:27,fontWeight:950,marginTop:7}}>Receipt</div><p style={{fontSize:13,...mutedText,margin:'7px 0 0'}}>Every x402 paid request returns a machine-readable one-use license receipt and payment proof.</p></div>
     </section>
 
     <section style={{maxWidth:1120,margin:'0 auto',padding:'18px 20px 30px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12}}>
@@ -100,6 +102,7 @@ export default async function AiLicensingPage() {
         <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:16}}>
           <a href="/api/licenses/catalog" target="_blank" rel="noreferrer" style={{color:'#0b0d0b',background:'#b6ff22',padding:'12px 15px',borderRadius:12,textDecoration:'none',fontWeight:950}}>OPEN CATALOG</a>
           <a href="/api/licenses/use" target="_blank" rel="noreferrer" style={{color:'#f5f7ef',border:'1px solid #3d4939',padding:'12px 15px',borderRadius:12,textDecoration:'none',fontWeight:900}}>VIEW PAID ENDPOINT</a>
+          <a href="/pay" style={{color:'#f5f7ef',border:'1px solid #3d4939',padding:'12px 15px',borderRadius:12,textDecoration:'none',fontWeight:900}}>HUMAN PAYLINK</a>
         </div>
       </div>
     </section>
@@ -109,7 +112,7 @@ export default async function AiLicensingPage() {
         <div style={{fontSize:12,fontWeight:900,letterSpacing:'.14em',color:'#8f998b'}}>COPY-PASTE BRAND LAUNCH BLURB</div>
         <h2 style={{fontSize:'clamp(1.8rem,4vw,2.8rem)',letterSpacing:'-.04em',margin:'8px 0 12px'}}>Share as Voxel Vault, not personally.</h2>
         <pre style={{whiteSpace:'pre-wrap',fontSize:13,lineHeight:1.6,background:'#070907',padding:16,borderRadius:14,border:'1px solid #293126',color:'#d7ddd3'}}>{liveCopy}</pre>
-        <div style={{fontSize:12,color:'#808a7c',lineHeight:1.55,marginTop:14}}>The NFT itself is not sold or transferred. Model training is not included in this V1 license. Rights are limited to rights actually controlled by the configured licensor; NFT ownership alone does not prove copyright ownership.</div>
+        <div style={{fontSize:12,color:'#808a7c',lineHeight:1.55,marginTop:14}}>The NFT itself is not sold or transferred. Direct wallet payments do not automatically issue license receipts. Model training is not included in this V1 license. Rights are limited to rights actually controlled by the configured licensor; NFT ownership alone does not prove copyright ownership.</div>
       </div>
     </section>
   </main>;
