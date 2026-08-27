@@ -29,16 +29,24 @@ requireText(core, "stateTag: 'pending'", 'Flashblocks must quote pending pre-con
 requireText(core, "{ blockTag }", 'DEX calls must receive an explicit state block tag');
 requireText(core, "stateMode: used.flashblocks ? 'flashblocks-pending' : 'sealed-latest'", 'responses must disclose state source');
 requireText(core, "rule: 'NO_TRADE", 'profit engine must keep a hard no-trade rule');
+requireText(core, 'Promise.all(UNI_FEE_TIERS.map', 'Uniswap fee tiers must quote concurrently');
+requireText(core, "Promise.all([false, true].map", 'Aerodrome pool types must quote concurrently');
+requireText(core, 'const [uniFirst, aeroFirst] = await Promise.all', 'both executable first legs must quote concurrently');
+requireText(core, 'export async function scanBaseArbitrageBatch', 'V5 must share state and gas across batch capital sizes');
+requireText(core, '.slice(0, 6)', 'batch scan must remain bounded to six capital sizes');
+requireText(core, 'marginToProfitFloorBps', 'executable quotes must expose distance to the actual profit floor');
 forbidText(core, 'eth_sendRawTransaction', 'market-data core must never submit transactions');
 forbidText(core, 'DEPLOYER_PRIVATE_KEY', 'market-data core must never read deployer private keys');
+forbidText(core, 'new Wallet', 'market-data core must never instantiate a signing wallet');
 
-requireText(fastGrid, 'Promise.allSettled', 'fast grid must scan execution sizes concurrently');
-requireText(fastGrid, 'scanBaseArbitrage', 'fast grid must reuse the reviewed executable quote engine');
-requireText(fastGrid, 'never executes or signs anything', 'parallel scan must remain read-only');
-forbidText(fastGrid, 'sendTransaction', 'parallel scan must never submit transactions');
-forbidText(fastGrid, 'eth_sendRawTransaction', 'parallel scan must never submit raw transactions');
-forbidText(fastGrid, 'PRIVATE_KEY', 'parallel scan must never read private keys');
-forbidText(fastGrid, 'new Wallet', 'parallel scan must never instantiate a signing wallet');
+requireText(fastGrid, 'scanBaseArbitrageBatch', 'boss grid must use the shared-state batch scanner');
+requireText(fastGrid, "? 'HOT'", 'boss grid must identify near-profit hot states');
+requireText(fastGrid, 'suggestedCadenceMs', 'boss grid must publish bounded watch cadence guidance');
+requireText(fastGrid, 'never executes or signs anything', 'boss grid must remain read-only');
+forbidText(fastGrid, 'sendTransaction', 'boss grid must never submit transactions');
+forbidText(fastGrid, 'eth_sendRawTransaction', 'boss grid must never submit raw transactions');
+forbidText(fastGrid, 'PRIVATE_KEY', 'boss grid must never read private keys');
+forbidText(fastGrid, 'new Wallet', 'boss grid must never instantiate a signing wallet');
 
 requireText(wide, "'Aerodrome Slipstream'", 'wide scanner must include Slipstream discovery');
 requireText(wide, "symbol: 'cbBTC'", 'wide scanner must include cbBTC discovery');
@@ -51,12 +59,14 @@ forbidText(wide, 'eth_sendRawTransaction', 'wide scanner must never submit raw t
 forbidText(wide, 'PRIVATE_KEY', 'wide scanner must never read private keys');
 forbidText(wide, 'new Wallet', 'wide scanner must never instantiate a signing wallet');
 
-requireText(scanRoute, 'normalized.inputWei / BigInt(8)', 'adaptive scan must test smaller capital sizes');
+requireText(scanRoute, 'normalized.inputWei / BigInt(16)', 'V5 adaptive scan must test a smaller capital size');
+requireText(scanRoute, '(normalized.inputWei * BigInt(3)) / BigInt(4)', 'V5 adaptive scan must test a three-quarter size');
 requireText(scanRoute, 'normalized.inputWei,', 'adaptive scan must include the user capital cap itself');
 forbidText(scanRoute, 'normalized.inputWei * BigInt(2)', 'adaptive scan must never exceed the user capital cap');
 requireText(scanRoute, "body?.mode === 'fast' ? 'fast' : 'wide'", 'scan endpoint must split fast and wide modes');
-requireText(scanRoute, 'scanBaseArbitrageGridParallel', 'scan endpoint must use parallel multi-size executable quotes');
-requireText(scanRoute, "scanMode: mode === 'fast' ? 'FAST_EXECUTION_V4' : 'ADAPTIVE_WIDE_V4'", 'scan endpoint must disclose V4 scan mode');
+requireText(scanRoute, 'scanBaseArbitrageGridParallel', 'scan endpoint must use boss multi-size executable quotes');
+requireText(scanRoute, "scanMode: mode === 'fast' ? 'BOSS_FAST_V5' : 'BOSS_WIDE_V5'", 'scan endpoint must disclose V5 boss mode');
+requireText(scanRoute, 'suggestedCadenceMs: grid.suggestedCadenceMs', 'scan endpoint must expose safe burst cadence guidance');
 requireText(scanRoute, 'scanBaseWideMarkets', 'wide mode must still run read-only discovery');
 forbidText(scanRoute, 'sendTransaction', 'scan route must remain read-only');
 forbidText(scanRoute, 'PRIVATE_KEY', 'scan route must never read private keys');
@@ -104,24 +114,28 @@ forbidText(deployPage, 'PRIVATE_KEY', 'browser deployment page must never read p
 
 requireText(profitPage, "const fromUrl=params.get('executor')", 'profit page must accept an existing executor recovery address');
 requireText(profitPage, 'setExecutorVerified(false)', 'recovered executor must start unverified');
-requireText(profitPage, "const [targetBps,setTargetBps]=useState('5')", 'V4 UI should use the smaller net-profit target by default');
-requireText(profitPage, 'const [autoWatch,setAutoWatch]=useState(true)', 'V4 auto-watch must start enabled');
-requireText(profitPage, "setTimeout(tick,12000)", 'auto-watch cadence must remain bounded');
-requireText(profitPage, "const mode=autoCycleRef.current===1||autoCycleRef.current%5===0?'wide':'fast'", 'auto-watch must use fast scans between periodic wide scans');
-requireText(profitPage, 'if(data.best)', 'auto-watch must detect profitable candidates');
-requireText(profitPage, 'if(automatic)setAutoWatch(false)', 'auto-watch must pause when a candidate is found');
+requireText(profitPage, "const [targetBps,setTargetBps]=useState('5')", 'V5 UI must keep a positive net-profit target by default');
+requireText(profitPage, 'const [autoWatch,setAutoWatch]=useState(true)', 'V5 boss auto-watch must start enabled');
+requireText(profitPage, 'const nextDelayRef=useRef(12000)', 'boss watcher must start from a bounded cadence');
+requireText(profitPage, 'Math.max(4000,Math.min(15000', 'boss watcher burst cadence must stay bounded between 4s and 15s');
+requireText(profitPage, "autoCycleRef.current%8===0?'wide':'fast'", 'boss watcher must use fast scans between periodic wide scans');
+requireText(profitPage, "heat==='HOT'", 'boss UI must react to near-profit hot states');
+requireText(profitPage, 'if(data.best)', 'boss watcher must detect profitable candidates');
+requireText(profitPage, 'if(automatic)setAutoWatch(false)', 'boss watcher must pause when a candidate is found');
+forbidText(profitPage, 'execute(data.best)', 'boss auto-watch must never execute a discovered candidate automatically');
 requireText(profitPage, 'const code=await browserProvider.getCode(candidate)', 'verification must first confirm deployed bytecode exists');
 requireText(profitPage, 'const executorAddress=await verifyExecutor(candidate,browserProvider);', 'device executor must be re-verified live before use');
 requireText(profitPage, 'getAddress(connectedWallet)!==APPROVED_OWNER', 'execution must require the reviewed owner wallet');
 requireText(profitPage, 'fn.staticCall(...args', 'execution must run a fresh no-spend static simulation');
 requireText(profitPage, 'fn.estimateGas(...args', 'execution must run a fresh wallet gas estimate');
 requireText(profitPage, 'simulatedGross-estimatedWalletGas<target', 'wallet execution must still clear the net target after estimated gas');
-requireText(profitPage, 'Auto-watch only reads quotes', 'UI must disclose that auto-watch cannot execute');
+requireText(profitPage, 'Boss auto-watch only reads quotes', 'UI must disclose that boss auto-watch cannot execute');
+requireText(profitPage, 'Closest executable:', 'UI must surface the nearest executable route instead of only NO TRADE');
 requireText(profitPage, 'Wide market radar', 'UI must clearly separate wide discovery from execution');
 requireText(profitPage, 'This is the only execution-capable section', 'UI must identify the only execution-capable section');
 requireText(profitPage, 'WATCH ONLY', 'wide signals must be visibly non-executable');
 forbidText(profitPage, 'PRIVATE_KEY', 'browser execution page must never read private keys');
 forbidText(profitPage, 'eth_sendRawTransaction', 'browser execution page must not bypass wallet signing');
-forbidText(profitPage, 'new Wallet', 'auto-watch page must not instantiate a signing wallet');
+forbidText(profitPage, 'new Wallet', 'boss auto-watch page must not instantiate a signing wallet');
 
 console.log('Machine revenue layer safety checks passed.');

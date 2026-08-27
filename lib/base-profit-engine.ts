@@ -53,6 +53,13 @@ type Opportunity = {
   method: Method;
 };
 
+type ProviderScan = {
+  gasPrice: bigint;
+  gasBudgetWei: bigint;
+  targetProfitWei: bigint;
+  opportunities: Opportunity[];
+};
+
 export type SerializedOpportunity = ReturnType<typeof serializeOpportunity>;
 
 export function normalizeBps(value: unknown, fallback: number, min: number, max: number) {
@@ -137,24 +144,28 @@ async function quoteUni(
   blockTag: StateTag,
 ): Promise<Quote | null> {
   const quoter = new Contract(UNISWAP_QUOTER_V2, UNI_QUOTER_ABI, provider);
-  let best: Quote | null = null;
-  for (const fee of UNI_FEE_TIERS) {
+  const results = await Promise.all(UNI_FEE_TIERS.map(async fee => {
     try {
       const result = await withTimeout(
         quoter.getFunction('quoteExactInputSingle').staticCall(
           { tokenIn, tokenOut, amountIn, fee, sqrtPriceLimitX96: 0 },
           { blockTag },
         ),
-        4_500,
+        3_500,
         `Uniswap ${fee} ${blockTag} quote`,
       );
       const amountOut = BigInt(result[0]);
-      if (amountOut > ZERO && (!best || amountOut > best.amountOut)) {
-        best = { venue: 'Uniswap V3', amountOut, fee, quoteGas: BigInt(result[3] || 0) };
-      }
+      return amountOut > ZERO
+        ? { venue: 'Uniswap V3' as const, amountOut, fee, quoteGas: BigInt(result[3] || 0) }
+        : null;
     } catch {
-      // Missing fee tiers/pools are normal. Continue scanning the remaining tiers.
+      return null;
     }
+  }));
+
+  let best: Quote | null = null;
+  for (const result of results) {
+    if (result && (!best || result.amountOut > best.amountOut)) best = result;
   }
   return best;
 }
@@ -167,28 +178,35 @@ async function quoteAero(
   blockTag: StateTag,
 ): Promise<Quote | null> {
   const router = new Contract(AERODROME_ROUTER, AERO_ROUTER_ABI, provider);
-  let best: Quote | null = null;
-  for (const stable of [false, true]) {
+  const results = await Promise.all([false, true].map(async stable => {
     try {
       const route = [{ from: tokenIn, to: tokenOut, stable, factory: AERODROME_FACTORY }];
       const amounts = await withTimeout(
         router.getFunction('getAmountsOut').staticCall(amountIn, route, { blockTag }),
-        4_500,
+        3_500,
         `Aerodrome ${stable ? 'stable' : 'volatile'} ${blockTag} quote`,
       );
       const amountOut = BigInt(amounts?.[amounts.length - 1] || 0);
-      if (amountOut > ZERO && (!best || amountOut > best.amountOut)) {
-        best = { venue: 'Aerodrome', amountOut, stable };
-      }
+      return amountOut > ZERO ? { venue: 'Aerodrome' as const, amountOut, stable } : null;
     } catch {
-      // A missing stable/volatile pool is not fatal.
+      return null;
     }
+  }));
+
+  let best: Quote | null = null;
+  for (const result of results) {
+    if (result && (!best || result.amountOut > best.amountOut)) best = result;
   }
   return best;
 }
 
 function applySlippage(amount: bigint, bps: number) {
   return (amount * BigInt(10_000 - bps)) / BPS_DENOMINATOR;
+}
+
+function signedBps(value: bigint, input: bigint) {
+  if (input === ZERO) return 0;
+  return Number((value * BPS_DENOMINATOR) / input);
 }
 
 function serializeQuote(quote: Quote, outputDecimals: number) {
@@ -206,7 +224,9 @@ function serializeOpportunity(op: Opportunity) {
   const grossProfit = op.finalOut - op.input;
   const netAfterGas = grossProfit - op.gasBudgetWei;
   const requiredGross = op.gasBudgetWei + op.targetProfitWei;
-  const passes = grossProfit >= requiredGross;
+  const marginToProfitFloor = grossProfit - requiredGross;
+  const distanceToProfitFloor = marginToProfitFloor < ZERO ? -marginToProfitFloor : ZERO;
+  const passes = marginToProfitFloor >= ZERO;
   const minFirstOut = applySlippage(op.first.amountOut, op.slippageBps);
   const minFinalOut = applySlippage(op.finalOut, op.slippageBps);
 
@@ -223,13 +243,20 @@ function serializeOpportunity(op: Opportunity) {
     finalEth: formatEther(op.finalOut),
     grossProfitWei: grossProfit.toString(),
     grossProfitEth: formatEther(grossProfit),
+    grossProfitBps: signedBps(grossProfit, op.input),
     gasBudgetWei: op.gasBudgetWei.toString(),
     gasBudgetEth: formatEther(op.gasBudgetWei),
     targetProfitWei: op.targetProfitWei.toString(),
     targetProfitEth: formatEther(op.targetProfitWei),
     netAfterGasWei: netAfterGas.toString(),
     netAfterGasEth: formatEther(netAfterGas),
+    netAfterGasBps: signedBps(netAfterGas, op.input),
     requiredGrossProfitWei: requiredGross.toString(),
+    marginToProfitFloorWei: marginToProfitFloor.toString(),
+    marginToProfitFloorBps: signedBps(marginToProfitFloor, op.input),
+    distanceToProfitFloorWei: distanceToProfitFloor.toString(),
+    distanceToProfitFloorEth: formatEther(distanceToProfitFloor),
+    distanceToProfitFloorBps: Math.max(0, -signedBps(marginToProfitFloor, op.input)),
     minFirstOut: minFirstOut.toString(),
     minFinalOut: minFinalOut.toString(),
     minProfitWei: requiredGross.toString(),
@@ -245,6 +272,66 @@ function serializeOpportunity(op: Opportunity) {
   };
 }
 
+async function readGasPrice(provider: JsonRpcProvider) {
+  const feeData = await withTimeout(provider.getFeeData(), 3_500, 'Base fee data');
+  return feeData.maxFeePerGas || feeData.gasPrice || parseUnits('0.02', 'gwei');
+}
+
+async function scanOnProviderWithGas(
+  provider: JsonRpcProvider,
+  inputWei: bigint,
+  targetBps: number,
+  slippageBps: number,
+  blockTag: StateTag,
+  gasPrice: bigint,
+): Promise<ProviderScan> {
+  const gasBudgetWei = gasPrice * ESTIMATED_EXECUTOR_GAS + L1_DATA_FEE_BUFFER_WEI;
+  const targetProfitWei = (inputWei * BigInt(targetBps)) / BPS_DENOMINATOR;
+  const opportunities: Opportunity[] = [];
+
+  const [uniFirst, aeroFirst] = await Promise.all([
+    quoteUni(provider, WETH, USDC, inputWei, blockTag),
+    quoteAero(provider, WETH, USDC, inputWei, blockTag),
+  ]);
+
+  const [aeroSecond, uniSecond] = await Promise.all([
+    uniFirst ? quoteAero(provider, USDC, WETH, uniFirst.amountOut, blockTag) : Promise.resolve(null),
+    aeroFirst ? quoteUni(provider, USDC, WETH, aeroFirst.amountOut, blockTag) : Promise.resolve(null),
+  ]);
+
+  if (uniFirst && aeroSecond) {
+    opportunities.push({
+      id: 'uniswap-to-aerodrome',
+      first: uniFirst,
+      second: aeroSecond,
+      finalOut: aeroSecond.amountOut,
+      input: inputWei,
+      gasBudgetWei,
+      targetProfitWei,
+      slippageBps,
+      method: 'executeUniThenAero',
+    });
+  }
+
+  if (aeroFirst && uniSecond) {
+    opportunities.push({
+      id: 'aerodrome-to-uniswap',
+      first: aeroFirst,
+      second: uniSecond,
+      finalOut: uniSecond.amountOut,
+      input: inputWei,
+      gasBudgetWei,
+      targetProfitWei,
+      slippageBps,
+      method: 'executeAeroThenUni',
+    });
+  }
+
+  if (!opportunities.length) throw new Error('No complete WETH/USDC cross-DEX route could be quoted on this RPC.');
+  opportunities.sort((a, b) => (a.finalOut > b.finalOut ? -1 : a.finalOut < b.finalOut ? 1 : 0));
+  return { gasPrice, gasBudgetWei, targetProfitWei, opportunities };
+}
+
 async function scanOnProvider(
   provider: JsonRpcProvider,
   inputWei: bigint,
@@ -252,51 +339,65 @@ async function scanOnProvider(
   slippageBps: number,
   blockTag: StateTag,
 ) {
-  const feeData = await withTimeout(provider.getFeeData(), 4_000, 'Base fee data');
-  const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || parseUnits('0.02', 'gwei');
-  const gasBudgetWei = gasPrice * ESTIMATED_EXECUTOR_GAS + L1_DATA_FEE_BUFFER_WEI;
-  const targetProfitWei = (inputWei * BigInt(targetBps)) / BPS_DENOMINATOR;
-  const opportunities: Opportunity[] = [];
+  const gasPrice = await readGasPrice(provider);
+  return scanOnProviderWithGas(provider, inputWei, targetBps, slippageBps, blockTag, gasPrice);
+}
 
-  const uniFirst = await quoteUni(provider, WETH, USDC, inputWei, blockTag);
-  if (uniFirst) {
-    const aeroSecond = await quoteAero(provider, USDC, WETH, uniFirst.amountOut, blockTag);
-    if (aeroSecond) {
-      opportunities.push({
-        id: 'uniswap-to-aerodrome',
-        first: uniFirst,
-        second: aeroSecond,
-        finalOut: aeroSecond.amountOut,
-        input: inputWei,
-        gasBudgetWei,
-        targetProfitWei,
-        slippageBps,
-        method: 'executeUniThenAero',
-      });
-    }
-  }
+function configuredExecutorAddress() {
+  const executorRaw = String(process.env.NEXT_PUBLIC_BASE_ARB_EXECUTOR_ADDRESS || process.env.BASE_ARB_EXECUTOR_ADDRESS || '').trim();
+  return isAddress(executorRaw) ? getAddress(executorRaw) : '';
+}
 
-  const aeroFirst = await quoteAero(provider, WETH, USDC, inputWei, blockTag);
-  if (aeroFirst) {
-    const uniSecond = await quoteUni(provider, USDC, WETH, aeroFirst.amountOut, blockTag);
-    if (uniSecond) {
-      opportunities.push({
-        id: 'aerodrome-to-uniswap',
-        first: aeroFirst,
-        second: uniSecond,
-        finalOut: uniSecond.amountOut,
-        input: inputWei,
-        gasBudgetWei,
-        targetProfitWei,
-        slippageBps,
-        method: 'executeAeroThenUni',
-      });
-    }
-  }
+function serializeScan(
+  inputWei: bigint,
+  targetBps: number,
+  slippageBps: number,
+  scanned: ProviderScan,
+  used: RpcCandidate,
+  observedState: string,
+  executorAddress: string,
+  scanLatencyMs: number,
+) {
+  const opportunities = scanned.opportunities.map(serializeOpportunity);
+  const profitable = opportunities
+    .filter(item => item.passes)
+    .sort((a, b) => BigInt(a.netAfterGasWei) > BigInt(b.netAfterGasWei) ? -1 : BigInt(a.netAfterGasWei) < BigInt(b.netAfterGasWei) ? 1 : 0);
+  const ranked = [...opportunities]
+    .sort((a, b) => BigInt(a.marginToProfitFloorWei) > BigInt(b.marginToProfitFloorWei) ? -1 : BigInt(a.marginToProfitFloorWei) < BigInt(b.marginToProfitFloorWei) ? 1 : 0);
 
-  if (!opportunities.length) throw new Error('No complete WETH/USDC cross-DEX route could be quoted on this RPC.');
-  opportunities.sort((a, b) => (a.finalOut > b.finalOut ? -1 : a.finalOut < b.finalOut ? 1 : 0));
-  return { gasPrice, gasBudgetWei, targetProfitWei, opportunities };
+  return {
+    chainId: BASE_CHAIN_ID,
+    pair: 'WETH/USDC',
+    inputWei: inputWei.toString(),
+    inputEth: formatEther(inputWei),
+    targetBps,
+    slippageBps,
+    estimatedExecutorGasUnits: ESTIMATED_EXECUTOR_GAS.toString(),
+    gasBudgetWei: scanned.gasBudgetWei.toString(),
+    gasBudgetEth: formatEther(scanned.gasBudgetWei),
+    targetProfitWei: scanned.targetProfitWei.toString(),
+    targetProfitEth: formatEther(scanned.targetProfitWei),
+    executorAddress,
+    executionEnabled: Boolean(executorAddress),
+    best: profitable[0] || null,
+    bestQuoted: ranked[0] || null,
+    opportunities,
+    scannedAt: new Date().toISOString(),
+    scanLatencyMs,
+    rpcSource: safeRpcLabel(used.url),
+    stateMode: used.flashblocks ? 'flashblocks-pending' : 'sealed-latest',
+    stateTag: used.stateTag,
+    stateObservedBlock: observedState,
+    flashblocks: used.flashblocks,
+    contracts: {
+      weth: WETH,
+      usdc: USDC,
+      uniswapQuoterV2: UNISWAP_QUOTER_V2,
+      aerodromeRouter: AERODROME_ROUTER,
+      aerodromeFactory: AERODROME_FACTORY,
+    },
+    rule: 'NO_TRADE unless quoted final WETH covers starting ETH + conservative gas budget + target profit. Live execution must still pass a fresh atomic executor simulation.',
+  };
 }
 
 export async function scanBaseArbitrage(input: {
@@ -305,12 +406,13 @@ export async function scanBaseArbitrage(input: {
   slippageBps?: unknown;
   preferFlashblocks?: boolean;
 }) {
+  const startedAt = Date.now();
   const { inputWei } = normalizeAmountEth(input.amountEth || '0.01');
   const targetBps = normalizeBps(input.targetBps, 25, 1, 1000);
   const slippageBps = normalizeBps(input.slippageBps, 15, 1, 100);
   const preferFlashblocks = input.preferFlashblocks !== false;
 
-  let scanned: Awaited<ReturnType<typeof scanOnProvider>> | null = null;
+  let scanned: ProviderScan | null = null;
   let used: RpcCandidate | null = null;
   let observedState = '';
   const errors: string[] = [];
@@ -334,45 +436,105 @@ export async function scanBaseArbitrage(input: {
     throw new Error(`Could not complete a live Base scan across ${candidates.length} RPCs. ${errors.at(-1) || ''}`);
   }
 
-  const executorRaw = String(process.env.NEXT_PUBLIC_BASE_ARB_EXECUTOR_ADDRESS || process.env.BASE_ARB_EXECUTOR_ADDRESS || '').trim();
-  const executorAddress = isAddress(executorRaw) ? getAddress(executorRaw) : '';
-  const opportunities = scanned.opportunities.map(serializeOpportunity);
-  const profitable = opportunities
-    .filter(item => item.passes)
-    .sort((a, b) => BigInt(a.netAfterGasWei) > BigInt(b.netAfterGasWei) ? -1 : BigInt(a.netAfterGasWei) < BigInt(b.netAfterGasWei) ? 1 : 0);
-
-  return {
-    chainId: BASE_CHAIN_ID,
-    pair: 'WETH/USDC',
-    inputWei: inputWei.toString(),
-    inputEth: formatEther(inputWei),
+  return serializeScan(
+    inputWei,
     targetBps,
     slippageBps,
-    estimatedExecutorGasUnits: ESTIMATED_EXECUTOR_GAS.toString(),
-    gasBudgetWei: scanned.gasBudgetWei.toString(),
-    gasBudgetEth: formatEther(scanned.gasBudgetWei),
-    targetProfitWei: scanned.targetProfitWei.toString(),
-    targetProfitEth: formatEther(scanned.targetProfitWei),
-    executorAddress,
-    executionEnabled: Boolean(executorAddress),
-    best: profitable[0] || null,
-    bestQuoted: opportunities[0] || null,
-    opportunities,
-    scannedAt: new Date().toISOString(),
-    rpcSource: safeRpcLabel(used.url),
-    stateMode: used.flashblocks ? 'flashblocks-pending' : 'sealed-latest',
-    stateTag: used.stateTag,
-    stateObservedBlock: observedState,
-    flashblocks: used.flashblocks,
-    contracts: {
-      weth: WETH,
-      usdc: USDC,
-      uniswapQuoterV2: UNISWAP_QUOTER_V2,
-      aerodromeRouter: AERODROME_ROUTER,
-      aerodromeFactory: AERODROME_FACTORY,
-    },
-    rule: 'NO_TRADE unless quoted final WETH covers starting ETH + conservative gas budget + target profit. Live execution must still pass a fresh atomic executor simulation.',
-  };
+    scanned,
+    used,
+    observedState,
+    configuredExecutorAddress(),
+    Date.now() - startedAt,
+  );
+}
+
+export async function scanBaseArbitrageBatch(input: {
+  amountsEth: unknown[];
+  targetBps?: unknown;
+  slippageBps?: unknown;
+  preferFlashblocks?: boolean;
+}) {
+  const startedAt = Date.now();
+  const normalized = Array.from(new Set((input.amountsEth || []).map(value => normalizeAmountEth(value).amount)))
+    .slice(0, 6)
+    .map(amount => normalizeAmountEth(amount));
+  if (!normalized.length) throw new Error('Provide at least one ETH amount to optimize.');
+
+  const targetBps = normalizeBps(input.targetBps, 25, 1, 1000);
+  const slippageBps = normalizeBps(input.slippageBps, 15, 1, 100);
+  const preferFlashblocks = input.preferFlashblocks !== false;
+  const executorAddress = configuredExecutorAddress();
+  const errors: string[] = [];
+  const candidates = rpcCandidates(preferFlashblocks);
+
+  for (const candidate of candidates) {
+    const provider = new JsonRpcProvider(candidate.url, BASE_CHAIN_ID, { staticNetwork: true });
+    try {
+      const [observedState, gasPrice] = await Promise.all([
+        stateHealth(provider, candidate),
+        readGasPrice(provider),
+      ]);
+      const settled = await Promise.allSettled(normalized.map(item => scanOnProviderWithGas(
+        provider,
+        item.inputWei,
+        targetBps,
+        slippageBps,
+        candidate.stateTag,
+        gasPrice,
+      )));
+
+      const elapsed = Date.now() - startedAt;
+      const scans = settled.flatMap((result, index) => {
+        if (result.status !== 'fulfilled') return [];
+        return [serializeScan(
+          normalized[index].inputWei,
+          targetBps,
+          slippageBps,
+          result.value,
+          candidate,
+          observedState,
+          executorAddress,
+          elapsed,
+        )];
+      });
+
+      if (!scans.length) throw new Error('No executable capital size completed on this RPC.');
+      const allOpportunities = scans.flatMap(scan => scan.opportunities.map(opportunity => ({
+        ...opportunity,
+        scanInputEth: scan.inputEth,
+        stateMode: scan.stateMode,
+        scannedAt: scan.scannedAt,
+      })));
+      const profitable = allOpportunities
+        .filter(opportunity => opportunity.passes)
+        .sort((a, b) => BigInt(a.marginToProfitFloorWei) > BigInt(b.marginToProfitFloorWei) ? -1 : BigInt(a.marginToProfitFloorWei) < BigInt(b.marginToProfitFloorWei) ? 1 : 0);
+      const ranked = [...allOpportunities]
+        .sort((a, b) => BigInt(a.marginToProfitFloorWei) > BigInt(b.marginToProfitFloorWei) ? -1 : BigInt(a.marginToProfitFloorWei) < BigInt(b.marginToProfitFloorWei) ? 1 : 0);
+
+      return {
+        chainId: BASE_CHAIN_ID,
+        pair: 'WETH/USDC',
+        requestedAmountsEth: normalized.map(item => item.amount),
+        completedAmountsEth: scans.map(scan => scan.inputEth),
+        best: profitable[0] || null,
+        bestQuoted: ranked[0] || null,
+        scans,
+        partial: scans.length !== normalized.length,
+        batchLatencyMs: elapsed,
+        stateMode: candidate.flashblocks ? 'flashblocks-pending' : 'sealed-latest',
+        stateObservedBlock: observedState,
+        rpcSource: safeRpcLabel(candidate.url),
+        flashblocks: candidate.flashblocks,
+        rule: 'Batch optimization shares one Base state source and one gas read across up to six concurrent capital sizes. It never executes or signs anything.',
+      };
+    } catch (error) {
+      errors.push(`${safeRpcLabel(candidate.url)}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      provider.destroy();
+    }
+  }
+
+  throw new Error(`Could not complete a batch Base scan across ${candidates.length} RPCs. ${errors.at(-1) || ''}`);
 }
 
 export async function scanBaseArbitrageGrid(input: {
@@ -381,30 +543,13 @@ export async function scanBaseArbitrageGrid(input: {
   slippageBps?: unknown;
   preferFlashblocks?: boolean;
 }) {
-  const unique = Array.from(new Set((input.amountsEth || []).map(value => normalizeAmountEth(value).amount))).slice(0, 4);
-  if (!unique.length) throw new Error('Provide at least one ETH amount to optimize.');
-
-  const scans = [];
-  for (const amountEth of unique) {
-    scans.push(await scanBaseArbitrage({
-      amountEth,
-      targetBps: input.targetBps,
-      slippageBps: input.slippageBps,
-      preferFlashblocks: input.preferFlashblocks,
-    }));
-  }
-
-  const profitable = scans
-    .flatMap(scan => scan.opportunities.map(opportunity => ({ ...opportunity, scanInputEth: scan.inputEth, stateMode: scan.stateMode, scannedAt: scan.scannedAt })))
-    .filter(opportunity => opportunity.passes)
-    .sort((a, b) => BigInt(a.netAfterGasWei) > BigInt(b.netAfterGasWei) ? -1 : BigInt(a.netAfterGasWei) < BigInt(b.netAfterGasWei) ? 1 : 0);
-
+  const batch = await scanBaseArbitrageBatch(input);
   return {
-    chainId: BASE_CHAIN_ID,
-    pair: 'WETH/USDC',
-    requestedAmountsEth: unique,
-    best: profitable[0] || null,
-    scans,
-    rule: 'Optimization chooses the highest positive net-after-gas candidate across the requested sizes; it does not execute or sign anything.',
+    chainId: batch.chainId,
+    pair: batch.pair,
+    requestedAmountsEth: batch.requestedAmountsEth,
+    best: batch.best,
+    scans: batch.scans,
+    rule: 'Optimization chooses the highest positive margin-to-profit-floor candidate across the requested sizes; it does not execute or sign anything.',
   };
 }
