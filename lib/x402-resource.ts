@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 export const X402_VERSION = 2;
 export const X402_NETWORK = 'eip155:8453';
 export const BASE_USDC = getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+export const DEFAULT_X402_PAY_TO = getAddress('0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb');
+const ZERO_ADDRESS = getAddress('0x0000000000000000000000000000000000000000');
 
 export type X402RouteConfig = {
   amountAtomic: string;
@@ -65,7 +67,11 @@ type SettlementResponse = {
 
 function configuredPayTo() {
   const raw = String(process.env.X402_PAY_TO || process.env.PAY_TO || '').trim();
-  return isAddress(raw) ? getAddress(raw) : '';
+  if (isAddress(raw)) {
+    const normalized = getAddress(raw);
+    if (normalized !== ZERO_ADDRESS) return normalized;
+  }
+  return DEFAULT_X402_PAY_TO;
 }
 
 function facilitatorBaseUrl() {
@@ -284,7 +290,8 @@ export async function withX402Json<T>(
   if (!runtime.configured) {
     return NextResponse.json({
       error: 'Machine payments are not activated on this deployment yet.',
-      requiredConfiguration: ['X402_PAY_TO', 'X402_FACILITATOR_URL or CDP_API_KEY_ID + CDP_API_KEY_SECRET'],
+      requiredConfiguration: ['X402_FACILITATOR_URL or CDP_API_KEY_ID + CDP_API_KEY_SECRET'],
+      receiver: runtime.payTo,
       network: X402_NETWORK,
     }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
