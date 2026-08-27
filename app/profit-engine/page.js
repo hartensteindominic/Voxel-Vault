@@ -1,6 +1,6 @@
 'use client';
 
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {BrowserProvider,Contract,Interface,formatEther,getAddress} from 'ethers';
 import {discoverMetaMaskProvider,getMetaMaskDeepLink} from '../../lib/wallet-connect';
 import styles from './profit.module.css';
@@ -8,11 +8,29 @@ import styles from './profit.module.css';
 const BASE_CHAIN_ID='0x2105';
 const BASE_RPC='https://mainnet.base.org';
 const BASE_EXPLORER='https://basescan.org';
+const EXECUTOR_STORAGE_KEY='voxelvault.baseArbExecutor.v1';
+const APPROVED_OWNER=getAddress('0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb');
 const EXECUTOR_ABI=[
   'function executeUniThenAero(uint24 uniFee,bool aeroStable,uint256 minUsdcOut,uint256 minWethOut,uint256 minProfitWei,uint256 deadline) payable returns (uint256 grossProfitWei)',
   'function executeAeroThenUni(uint24 uniFee,bool aeroStable,uint256 minUsdcOut,uint256 minWethOut,uint256 minProfitWei,uint256 deadline) payable returns (uint256 grossProfitWei)',
   'event ArbitrageExecuted(bytes32 indexed route,uint256 capitalWei,uint256 finalWei,uint256 grossProfitWei,uint256 minProfitWei)',
 ];
+const VERIFY_ABI=[
+  'function owner() view returns (address)',
+  'function BASE_CHAIN_ID() view returns (uint256)',
+  'function WETH() view returns (address)',
+  'function USDC() view returns (address)',
+  'function UNISWAP_SWAP_ROUTER_02() view returns (address)',
+  'function AERODROME_ROUTER() view returns (address)',
+  'function AERODROME_FACTORY() view returns (address)',
+];
+const EXPECTED={
+  weth:getAddress('0x4200000000000000000000000000000000000006'),
+  usdc:getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'),
+  uni:getAddress('0x2626664c2603336E57B271c5C0b26F421741e481'),
+  aero:getAddress('0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43'),
+  factory:getAddress('0x420DD381b31aEf6683db6B902084cB0FFECe40Da'),
+};
 
 function errText(error){return String(error?.shortMessage||error?.reason||error?.message||error||'Action failed.')}
 function prettyEth(value){try{return Number(formatEther(BigInt(value))).toFixed(8)}catch{return '—'}}
@@ -32,6 +50,20 @@ async function ensureBase(provider){
   if(chain!==BASE_CHAIN_ID)throw new Error('Switch MetaMask to Base before execution.');
 }
 
+async function verifyExecutor(address,browserProvider){
+  const verify=new Contract(getAddress(address),VERIFY_ABI,browserProvider);
+  const owner=await verify.owner();
+  const chainId=await verify.BASE_CHAIN_ID();
+  const weth=await verify.WETH();
+  const usdc=await verify.USDC();
+  const uni=await verify.UNISWAP_SWAP_ROUTER_02();
+  const aero=await verify.AERODROME_ROUTER();
+  const aeroFactory=await verify.AERODROME_FACTORY();
+  const ok=getAddress(owner)===APPROVED_OWNER&&BigInt(chainId)===BigInt(8453)&&getAddress(weth)===EXPECTED.weth&&getAddress(usdc)===EXPECTED.usdc&&getAddress(uni)===EXPECTED.uni&&getAddress(aero)===EXPECTED.aero&&getAddress(aeroFactory)===EXPECTED.factory;
+  if(!ok)throw new Error('Executor verification failed. Trading blocked.');
+  return getAddress(address);
+}
+
 export default function ProfitEnginePage(){
   const [amountEth,setAmountEth]=useState('0.01');
   const [targetBps,setTargetBps]=useState('25');
@@ -42,7 +74,15 @@ export default function ProfitEnginePage(){
   const [error,setError]=useState('');
   const [wallet,setWallet]=useState('');
   const [injected,setInjected]=useState(null);
+  const [localExecutor,setLocalExecutor]=useState('');
   const [tx,setTx]=useState(null);
+
+  useEffect(()=>{
+    try{
+      const saved=window.localStorage.getItem(EXECUTOR_STORAGE_KEY);
+      if(saved)setLocalExecutor(getAddress(saved));
+    }catch{}
+  },[]);
 
   async function runScan(){
     setBusy(true);setError('');setStatus('Reading Base Flashblocks pending state and live WETH/USDC routes…');setTx(null);
@@ -62,12 +102,15 @@ export default function ProfitEnginePage(){
     if(!provider){window.location.href=getMetaMaskDeepLink(window.location.href);return}
     const accounts=await provider.request({method:'eth_requestAccounts'});
     if(!accounts?.[0])throw new Error('Wallet connection was cancelled.');
-    setInjected(provider);setWallet(getAddress(accounts[0]));
+    const address=getAddress(accounts[0]);
+    if(address!==APPROVED_OWNER)throw new Error(`Connect the reviewed Profit Engine owner wallet ${APPROVED_OWNER}.`);
+    setInjected(provider);setWallet(address);
   }
 
   async function execute(op){
     if(!op?.passes)throw new Error('This route does not clear the profit floor.');
-    if(!scan?.executorAddress)throw new Error('The atomic executor is not deployed/activated yet.');
+    const candidate=scan?.executorAddress||localExecutor;
+    if(!candidate)throw new Error('Deploy the reviewed BaseArbExecutor first.');
     setBusy(true);setError('');setTx(null);
     try{
       let provider=injected;
@@ -79,10 +122,16 @@ export default function ProfitEnginePage(){
         if(!accounts?.[0])throw new Error('Wallet connection was cancelled.');
         connectedWallet=getAddress(accounts[0]);setInjected(provider);setWallet(connectedWallet);
       }
+      if(getAddress(connectedWallet)!==APPROVED_OWNER)throw new Error(`Connect the reviewed Profit Engine owner wallet ${APPROVED_OWNER}.`);
       await ensureBase(provider);
       const browserProvider=new BrowserProvider(provider);
+      const executorAddress=await verifyExecutor(candidate,browserProvider);
+      if(!scan?.executorAddress){
+        window.localStorage.setItem(EXECUTOR_STORAGE_KEY,executorAddress);
+        setLocalExecutor(executorAddress);
+      }
       const signer=await browserProvider.getSigner(connectedWallet);
-      const contract=new Contract(getAddress(scan.executorAddress),EXECUTOR_ABI,signer);
+      const contract=new Contract(executorAddress,EXECUTOR_ABI,signer);
       const deadline=Math.floor(Date.now()/1000)+Number(op.params.deadlineSeconds||90);
       const args=[Number(op.params.uniFee),Boolean(op.params.aeroStable),BigInt(op.params.minUsdcOut),BigInt(op.params.minWethOut),BigInt(op.params.minProfitWei),BigInt(deadline)];
       const fn=contract.getFunction(op.method);
@@ -106,16 +155,25 @@ export default function ProfitEnginePage(){
       const net=BigInt(grossProfit)-actualGas;
       setTx({hash:receipt.hash||sent.hash,pending:false,grossProfitWei:grossProfit,gasWei:actualGas.toString(),netWei:net.toString()});
       setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Scan again for the next opportunity.`);
-    }catch(e){setError(errText(e));setStatus('')}finally{setBusy(false)}
+    }catch(e){
+      if(!scan?.executorAddress&&/Executor verification failed/i.test(errText(e))){
+        try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
+        setLocalExecutor('');
+      }
+      setError(errText(e));setStatus('');
+    }finally{setBusy(false)}
   }
+
+  const executorReady=Boolean(scan?.executionEnabled||localExecutor);
+  const displayedExecutor=scan?.executionEnabled?scan.executorAddress:localExecutor;
 
   return <main className={styles.page}>
     <nav className={styles.nav}><a href="/studio">Voxel Vault · Profit Engine</a><span>BASE · V2 MACHINE LAYER</span></nav>
     <div className={styles.shell}>
-      <header className={styles.hero}><small>PROFIT ENGINE V2 · FLASHBLOCKS + X402</small><h1>See sooner.<br/><em>Sell the intelligence.</em></h1><p>The scanner now prefers Base pre-confirmed Flashblocks state, still enforces the net-profit gate, and exposes separate read-only x402 endpoints that autonomous agents can pay in USDC to consume.</p></header>
+      <header className={styles.hero}><small>PROFIT ENGINE V2 · FLASHBLOCKS + X402</small><h1>See sooner.<br/><em>Sell the intelligence.</em></h1><p>The scanner prefers Base pre-confirmed Flashblocks state, enforces the net-profit gate, and can immediately use a reviewed executor verified on this device after deployment.</p></header>
 
       <section className={styles.panel}>
-        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>Machine endpoints only sell market intelligence. They cannot sign or submit trades. Your wallet execution path stays separate: a candidate must clear the scanner, then the exact executor call must pass a fresh no-spend simulation and wallet gas estimate before MetaMask can submit it.</span></div>
+        <div className={styles.guardrail}><b>EXECUTION RULE</b><span>A candidate must clear the scanner, the executor address is re-verified live against the reviewed owner/router constants, and the exact call must pass a fresh no-spend simulation plus wallet gas estimate before MetaMask can submit it.</span></div>
         <div className={styles.form}>
           <div className={styles.field}><label>CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
           <div className={styles.field}><label>MIN NET · BPS</label><input value={targetBps} onChange={e=>setTargetBps(e.target.value)} inputMode="numeric"/></div>
@@ -128,8 +186,9 @@ export default function ProfitEnginePage(){
           <div className={styles.stat}><small>PAIR</small><b>{scan.pair}</b></div>
           <div className={styles.stat}><small>STATE</small><b>{scan.flashblocks?'FLASHBLOCKS':'SEALED FALLBACK'}</b></div>
           <div className={styles.stat}><small>NET TARGET</small><b>{prettyPct(scan.targetBps)}</b></div>
-          <div className={styles.stat}><small>EXECUTOR</small><b>{scan.executionEnabled?short(scan.executorAddress):'LOCKED'}</b></div>
+          <div className={styles.stat}><small>EXECUTOR</small><b>{executorReady?`${short(displayedExecutor)}${scan.executionEnabled?'':' · DEVICE'}`:'LOCKED'}</b></div>
         </div>}
+        {!executorReady&&<a className={styles.secondary} style={{display:'block',textAlign:'center',textDecoration:'none',marginTop:14}} href="/profit-engine/deploy">DEPLOY REVIEWED EXECUTOR →</a>}
       </section>
 
       {scan&&<section className={styles.panel}>
@@ -146,9 +205,9 @@ export default function ProfitEnginePage(){
             <div className={styles.number}><span>Conservative gas</span><b>-{prettyEth(op.gasBudgetWei)} ETH</b></div>
             <div className={styles.number}><span>Net after gas</span><b className={BigInt(op.netAfterGasWei)>0n?styles.positive:styles.negative}>{prettyEth(op.netAfterGasWei)} ETH</b></div>
           </div>
-          {op.passes&&scan.executionEnabled?<button className={styles.execute} disabled={busy} onClick={()=>execute(op)}>SIMULATE + EXECUTE ATOMICALLY</button>:op.passes?<div className={styles.lock}><b>EXECUTION LOCKED</b><br/>Scanner works now. Live spending stays disabled until the reviewed BaseArbExecutor deployment address is pinned in production.</div>:null}
+          {op.passes&&executorReady?<button className={styles.execute} disabled={busy} onClick={()=>execute(op)}>SIMULATE + EXECUTE ATOMICALLY</button>:op.passes?<div className={styles.lock}><b>EXECUTION LOCKED</b><br/><a style={{color:'inherit'}} href="/profit-engine/deploy">Deploy the reviewed executor</a>; it activates on this device immediately after verification.</div>:null}
         </article>)}</div>
-        <div className={styles.footnote}>V2 prefers the official Base Flashblocks pre-confirmation RPC and quotes against the pending sequencer state. If that service is unavailable it falls back to sealed Base RPC state and labels the response accordingly. A quote is never a profit guarantee; live execution remains blocked unless the atomic transaction itself simulates successfully at the current wallet state.</div>
+        <div className={styles.footnote}>The scanner prefers the official Base Flashblocks pre-confirmation RPC and quotes against pending sequencer state. A quote is never a profit guarantee. No wallet transaction is offered unless the candidate clears the configured net target, and the final executor call is simulated again immediately before MetaMask.</div>
       </section>}
 
       <section className={styles.panel}>
