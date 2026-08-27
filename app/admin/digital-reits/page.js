@@ -1,0 +1,263 @@
+'use client';
+
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
+
+const ENTITY_STORAGE_KEY = 'voxelvault.dinari.sandbox.entityId';
+
+function short(value) {
+  const text = String(value || '');
+  return text.length > 18 ? `${text.slice(0, 8)}…${text.slice(-6)}` : text || '—';
+}
+
+async function readJson(response) {
+  return response.json().catch(() => ({}));
+}
+
+export default function DinariAdminOnboardingPage() {
+  const [token, setToken] = useState('');
+  const [authState, setAuthState] = useState('loading');
+  const [state, setState] = useState(null);
+  const [entityName, setEntityName] = useState('Voxel Vault Sandbox Owner');
+  const [referenceId, setReferenceId] = useState('voxel-vault-owner-sandbox');
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const selectedEntityId = state?.entity?.id || state?.configuredEntityId || '';
+  const usAccount = useMemo(
+    () => (state?.accounts || []).find((account) => account.isActive && account.jurisdiction === 'US') || null,
+    [state?.accounts]
+  );
+
+  const load = useCallback(async (accessToken, explicitEntityId = '') => {
+    if (!accessToken) return;
+    setBusy('refresh');
+    setError('');
+    try {
+      const stored = explicitEntityId || (typeof window !== 'undefined' ? localStorage.getItem(ENTITY_STORAGE_KEY) || '' : '');
+      const query = stored ? `?entityId=${encodeURIComponent(stored)}` : '';
+      const response = await fetch(`/api/admin/digital-reits/onboarding${query}`, {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(data.error || 'Dinari onboarding could not be loaded.');
+      setState(data);
+      if (data.entity?.id) localStorage.setItem(ENTITY_STORAGE_KEY, data.entity.id);
+      setAuthState('authorized');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Dinari onboarding could not be loaded.');
+    } finally {
+      setBusy('');
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let subscription;
+    (async () => {
+      try {
+        const client = await getSupabaseBrowserAsync();
+        const { data } = await client.auth.getSession();
+        const accessToken = data?.session?.access_token || '';
+        if (cancelled) return;
+        if (!accessToken) {
+          setAuthState('signed-out');
+          return;
+        }
+        setToken(accessToken);
+        setAuthState('authenticated');
+        await load(accessToken);
+        const result = client.auth.onAuthStateChange((_event, session) => {
+          const next = session?.access_token || '';
+          setToken(next);
+          if (!next) {
+            setAuthState('signed-out');
+            setState(null);
+          }
+        });
+        subscription = result?.data?.subscription;
+      } catch (err) {
+        if (!cancelled) {
+          setAuthState('signed-out');
+          setError(err instanceof Error ? err.message : 'Google account state could not be loaded.');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      subscription?.unsubscribe?.();
+    };
+  }, [load]);
+
+  async function action(actionName, payload = {}) {
+    if (!token || busy) return null;
+    setBusy(actionName);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/admin/digital-reits/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: actionName, ...payload }),
+      });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(data.error || 'Dinari onboarding action failed.');
+      if (data.snapshot) setState(data.snapshot);
+      if (data.entity?.id) {
+        localStorage.setItem(ENTITY_STORAGE_KEY, data.entity.id);
+        setNotice(`Sandbox Entity created: ${data.entity.id}`);
+      }
+      if (data.account?.id) setNotice(`${data.created ? 'Created' : 'Reused'} US sandbox Account: ${data.account.id}`);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Dinari onboarding action failed.');
+      return null;
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function createEntity() {
+    const accepted = window.confirm('Create this INDIVIDUAL Entity in the Dinari SANDBOX? This does not create a live brokerage account or spend real money.');
+    if (!accepted) return;
+    await action('create-entity', { name: entityName, referenceId });
+  }
+
+  async function startKyc() {
+    if (!selectedEntityId) return;
+    const popup = window.open('', '_blank');
+    const result = await action('create-managed-kyc', { entityId: selectedEntityId, jurisdiction: 'US' });
+    if (result?.kyc?.embedUrl) {
+      if (popup) popup.location.href = result.kyc.embedUrl;
+      else window.location.href = result.kyc.embedUrl;
+      setNotice(`Dinari hosted KYC opened. URL expires ${result.kyc.expirationDt || 'later'}. Return here afterward and refresh status.`);
+    } else if (popup) {
+      popup.close();
+    }
+  }
+
+  async function createAccount() {
+    if (!selectedEntityId) return;
+    const accepted = window.confirm('Create or reuse a US Account for this PASSed Dinari SANDBOX Entity? Test environment only.');
+    if (!accepted) return;
+    await action('create-account', { entityId: selectedEntityId, jurisdiction: 'US' });
+  }
+
+  function copy(value) {
+    navigator.clipboard?.writeText(String(value || '')).then(() => setNotice('Copied.'));
+  }
+
+  if (authState === 'loading') {
+    return <main style={page}><div style={center}>Loading owner setup…</div></main>;
+  }
+
+  if (authState === 'signed-out') {
+    return <main style={page}><div style={shell}>
+      <nav style={nav}><Link href="/" style={brand}>V · Voxel Vault</Link><span style={pill}>OWNER ONLY</span></nav>
+      <section style={heroCard}>
+        <div style={eyebrow}>DINARI SANDBOX ONBOARDING</div>
+        <h1 style={h1}>Google sign-in<br/>required.</h1>
+        <p style={copyText}>This page uses your existing Voxel Vault Google session and a server-side owner allowlist. API secrets never enter the browser.</p>
+        <Link href="/studio#my-voxels" style={primary}>Open Studio and sign in →</Link>
+        {error ? <div style={errorBox}>{error}</div> : null}
+      </section>
+    </div></main>;
+  }
+
+  const credentialsOkay = Boolean(state?.credentialsConfigured && state?.organization?.connected);
+  const kycPass = state?.kyc?.status === 'PASS' && state?.entity?.isKycComplete;
+
+  return <main style={page}><div style={shell}>
+    <nav style={nav}>
+      <Link href="/" style={brand}>V · Voxel Vault</Link>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <Link href="/real-estate/reits" style={navLink}>Digital REIT Vault</Link>
+        <span style={pill}>OWNER · PRIVATE</span>
+      </div>
+    </nav>
+
+    <header style={{padding:'48px 0 24px'}}>
+      <div style={eyebrow}>DINARI · SANDBOX ACTIVATION</div>
+      <h1 style={h1}>Secret created.<br/><span style={{color:'#b8ff55'}}>Now connect the rails.</span></h1>
+      <p style={copyText}>This wizard verifies your server-side credentials, creates the sandbox customer Entity, opens Dinari's hosted US KYC, then creates/reuses the US sandbox Account. Voxel Vault never asks you to paste the API secret, SSN, tax ID or identity documents into this page.</p>
+    </header>
+
+    {error ? <div style={errorBox}>{error}</div> : null}
+    {notice ? <div style={noticeBox}>{notice}</div> : null}
+
+    <section style={grid}>
+      <article style={card}>
+        <span style={step}>1</span><div style={eyebrow}>SERVER CREDENTIALS</div>
+        <h2 style={h2}>{credentialsOkay ? 'Dinari answered.' : 'Put the secret in Vercel.'}</h2>
+        <p style={copyText}>{credentialsOkay ? `Connected to Dinari ${String(state?.environment || '').toUpperCase()} as organization ${short(state?.organization?.id)}.` : 'Add the Key ID and Secret Key to the Vercel Preview environment. Do not use NEXT_PUBLIC_ names.'}</p>
+        {!credentialsOkay ? <pre style={code}>{`DINARI_ENVIRONMENT=sandbox\nDINARI_API_KEY_ID=<your key id>\nDINARI_API_SECRET_KEY=<your secret>`}</pre> : null}
+        <button style={secondary} disabled={Boolean(busy)} onClick={() => load(token)}>{busy === 'refresh' ? 'Checking…' : 'Check credentials'}</button>
+      </article>
+
+      <article style={{...card,opacity:credentialsOkay?1:.45}}>
+        <span style={step}>2</span><div style={eyebrow}>CUSTOMER ENTITY</div>
+        <h2 style={h2}>{state?.entity?.id ? 'Sandbox Entity ready.' : 'Create your sandbox Entity.'}</h2>
+        {state?.entity?.id ? <>
+          <p style={copyText}>Entity <b style={{color:'#fff'}}>{short(state.entity.id)}</b> · KYC complete: {String(state.entity.isKycComplete)}</p>
+          <button style={secondary} onClick={() => copy(state.entity.id)}>Copy Entity ID</button>
+        </> : <>
+          <label style={label}>Entity name<input style={input} value={entityName} onChange={(event) => setEntityName(event.target.value)} disabled={!credentialsOkay || Boolean(busy)}/></label>
+          <label style={label}>Reference ID<input style={input} value={referenceId} onChange={(event) => setReferenceId(event.target.value)} disabled={!credentialsOkay || Boolean(busy)}/></label>
+          <button style={primaryButton} disabled={!credentialsOkay || Boolean(busy)} onClick={createEntity}>{busy === 'create-entity' ? 'Creating…' : 'Create sandbox Entity'}</button>
+        </>}
+      </article>
+
+      <article style={{...card,opacity:selectedEntityId?1:.45}}>
+        <span style={step}>3</span><div style={eyebrow}>DINARI HOSTED KYC</div>
+        <h2 style={h2}>{kycPass ? 'KYC passed.' : `KYC: ${state?.kyc?.status || 'NOT STARTED'}`}</h2>
+        <p style={copyText}>Dinari hosts the sensitive identity flow. Voxel Vault receives only the status needed to continue.</p>
+        {!kycPass ? <button style={primaryButton} disabled={!selectedEntityId || Boolean(busy)} onClick={startKyc}>{busy === 'create-managed-kyc' ? 'Creating URL…' : 'Open secure Dinari KYC'}</button> : null}
+        <button style={{...secondary,marginLeft:8}} disabled={!selectedEntityId || Boolean(busy)} onClick={() => load(token, selectedEntityId)}>Refresh KYC status</button>
+      </article>
+
+      <article style={{...card,opacity:kycPass?1:.45}}>
+        <span style={step}>4</span><div style={eyebrow}>US SANDBOX ACCOUNT</div>
+        <h2 style={h2}>{usAccount ? 'Account ready.' : 'Create the trading Account.'}</h2>
+        <p style={copyText}>{usAccount ? `Active US account ${short(usAccount.id)} is ready to connect to the Digital REIT Vault.` : 'This stays blocked until Dinari reports KYC PASS.'}</p>
+        {usAccount ? <button style={secondary} onClick={() => copy(usAccount.id)}>Copy Account ID</button> : <button style={primaryButton} disabled={!kycPass || Boolean(busy)} onClick={createAccount}>{busy === 'create-account' ? 'Creating…' : 'Create US sandbox Account'}</button>}
+      </article>
+    </section>
+
+    <section style={{...card,marginTop:16,borderColor:usAccount?'#526b3c':'#283126'}}>
+      <div style={eyebrow}>FINAL VERCEL PREVIEW VALUES</div>
+      <h2 style={h2}>Connect the created IDs, then run the $5 test.</h2>
+      <pre style={code}>{`DINARI_ENTITY_ID=${selectedEntityId || '<waiting for entity>'}\nDINARI_ACCOUNT_ID=${usAccount?.id || '<waiting for account>'}\nDINARI_SANDBOX_FAUCET_ENABLED=false\nDINARI_SANDBOX_ORDER_EXECUTION_ENABLED=false`}</pre>
+      <p style={copyText}>First verify `/api/digital-reits` reads correctly with both action flags false. Then enable only the faucet, add mock funds, enable sandbox ordering, and place the $5 test order. Production trading remains code-locked.</p>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><Link href="/real-estate/reits" style={primary}>Open Digital REIT Vault →</Link><button style={secondary} onClick={() => {localStorage.removeItem(ENTITY_STORAGE_KEY); setState(state ? {...state, entity:null, kyc:null, accounts:[]} : state);}}>Forget local Entity selection</button></div>
+    </section>
+
+    <footer style={{padding:'26px 0',color:'#71806d',fontSize:12}}>Owner-only setup · Dinari sandbox writes only · no live accounts, real-money orders or identity-document storage enabled here.</footer>
+  </div></main>;
+}
+
+const page={minHeight:'100vh',background:'#070a08',color:'#f5f8f1',fontFamily:'Inter,ui-sans-serif,system-ui,-apple-system,sans-serif'};
+const shell={maxWidth:1160,margin:'0 auto',padding:'20px clamp(16px,4vw,34px) 50px'};
+const nav={display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'};
+const brand={color:'#f5f8f1',textDecoration:'none',fontWeight:950,letterSpacing:'-.035em',fontSize:20};
+const navLink={color:'#b9c3b3',textDecoration:'none',fontSize:12,fontWeight:800,padding:'8px 10px'};
+const pill={border:'1px solid #354030',borderRadius:999,padding:'8px 11px',fontSize:10,fontWeight:900,letterSpacing:'.09em',color:'#b8ff55'};
+const heroCard={maxWidth:760,margin:'90px auto',padding:30,border:'1px solid #283126',borderRadius:28,background:'#0d120d'};
+const h1={fontSize:'clamp(3.4rem,9vw,7.3rem)',lineHeight:.86,letterSpacing:'-.075em',margin:'14px 0 22px'};
+const h2={fontSize:26,lineHeight:1.05,letterSpacing:'-.04em',margin:'8px 0 12px'};
+const eyebrow={fontSize:10,fontWeight:900,letterSpacing:'.14em',color:'#8d9a87'};
+const copyText={fontSize:13,lineHeight:1.65,color:'#aab4a4',maxWidth:780};
+const grid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12};
+const card={position:'relative',border:'1px solid #283126',background:'#0d120d',borderRadius:24,padding:22};
+const step={position:'absolute',top:16,right:16,width:28,height:28,borderRadius:999,display:'grid',placeItems:'center',background:'#151d13',color:'#b8ff55',fontSize:11,fontWeight:950};
+const label={display:'grid',gap:6,fontSize:11,fontWeight:800,color:'#8d9a87',marginTop:10};
+const input={width:'100%',boxSizing:'border-box',border:'1px solid #354030',borderRadius:12,background:'#080c08',color:'#f5f8f1',padding:'11px 12px',outline:'none'};
+const primary={display:'inline-block',background:'#b8ff55',color:'#0b1109',textDecoration:'none',borderRadius:13,padding:'11px 14px',fontWeight:950,fontSize:12};
+const primaryButton={border:0,background:'#b8ff55',color:'#0b1109',borderRadius:13,padding:'11px 14px',fontWeight:950,fontSize:12,marginTop:14,cursor:'pointer'};
+const secondary={border:'1px solid #354030',background:'#0b100b',color:'#d5ddd0',borderRadius:13,padding:'10px 12px',fontWeight:850,fontSize:11,cursor:'pointer',marginTop:10};
+const code={whiteSpace:'pre-wrap',overflowWrap:'anywhere',background:'#080c08',border:'1px solid #222b21',borderRadius:14,padding:14,color:'#cbd7c4',fontSize:11,lineHeight:1.65};
+const errorBox={border:'1px solid #6a403a',background:'#170d0c',color:'#f3bdb2',borderRadius:14,padding:13,marginBottom:14,fontSize:12};
+const noticeBox={border:'1px solid #526b3c',background:'#0f170c',color:'#d8f3b8',borderRadius:14,padding:13,marginBottom:14,fontSize:12};
+const center={minHeight:'100vh',display:'grid',placeItems:'center',color:'#9ba897'};
