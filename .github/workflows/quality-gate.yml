@@ -31,6 +31,7 @@ jobs:
       - run: npm run test:voxel-flow
       - run: npm run test:machine-revenue
       - run: npm run test:liquidity-engine
+      - run: npm run test:multipair
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
