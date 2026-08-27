@@ -6,6 +6,8 @@ const scanner = read('lib/base-multipair-profit-engine.ts');
 const route = read('app/api/profit-engine/multipair/route.ts');
 const page = read('app/profit-engine/v6/page.js');
 const deploy = read('app/profit-engine/v6/deploy/page.js');
+const meter = read('app/profit-engine/v6/ProfitReadinessMeter.js');
+const v6Layout = read('app/profit-engine/v6/layout.js');
 const hardhat = read('hardhat.config.js');
 
 function requireText(source, value, label) {
@@ -59,6 +61,20 @@ forbidText(page, 'execute(data.best)', 'V6 auto-watch must never auto-execute a 
 forbidText(page, 'eth_sendRawTransaction', 'V6 browser must not bypass wallet signing');
 forbidText(page, 'new Wallet', 'V6 browser must not instantiate a private signing wallet');
 forbidText(page, 'PRIVATE_KEY', 'V6 browser must never read private keys');
+
+requireText(meter, "const READY_TEXT='PROFIT FLOOR CLEARED'", 'readiness meter must key off the reviewed V6 profitable state');
+requireText(meter, 'MutationObserver', 'readiness meter must observe the existing V6 state instead of driving execution');
+requireText(meter, 'READY TO SIMULATE', 'profitable state must be visually unmistakable');
+requireText(meter, 'BPS TO GO', 'non-profitable state must show exact distance to the floor');
+requireText(meter, 'findActionButton', 'ready banner may locate the explicit simulation control');
+requireText(meter, 'scrollIntoView', 'ready banner may only navigate the user to the explicit action');
+forbidText(meter, "fetch('/api/profit-engine/multipair'", 'readiness meter must not create a duplicate scanner loop');
+forbidText(meter, '.click()', 'readiness meter must never click the execute button automatically');
+forbidText(meter, 'sendTransaction', 'readiness meter must never submit a transaction');
+forbidText(meter, 'eth_sendRawTransaction', 'readiness meter must never submit a raw transaction');
+forbidText(meter, 'Wallet(', 'readiness meter must never create a signing wallet');
+forbidText(meter, 'PRIVATE_KEY', 'readiness meter must never read private keys');
+requireText(v6Layout, '<ProfitReadinessMeter />', 'V6 route layout must mount the readiness meter');
 
 requireText(deploy, "EXPECTED_BYTECODE_SHA256='cee514d98a08a191a5d4db4253fe3712c23c2207ae1199b16ef58904b22a05ee'", 'V6 deploy page must pin the CI bytecode hash');
 requireText(deploy, "fetch('/profit-engine/multi-executor-bytecode.txt'", 'V6 deploy page must load only the pinned creation bytecode');
