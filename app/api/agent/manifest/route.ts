@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     name: 'Voxel Vault Machine Revenue API',
-    version: '2.2.0',
+    version: '2.3.0',
     network: 'Base',
     chainId: 8453,
     capabilities: [
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       'x402-usdc-pay-per-request',
       'nft-machine-use-licensing',
       'pay-per-use-ai-asset-rights',
+      'human-base-usdc-paylink',
     ],
     safety: {
       readOnly: true,
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
       authorizesSpending: false,
       bridgeAtomicityClaimed: false,
       nftTransfers: false,
-      note: 'Paid machine endpoints return market intelligence, non-authorizing quote tickets, or machine-use license receipts only. Licensing never transfers the NFT. Live trading remains a separate owner-controlled atomic executor flow with fresh simulation required.',
+      note: 'Paid machine endpoints return market intelligence, non-authorizing quote tickets, or machine-use license receipts only. Licensing never transfers the NFT. Live trading remains a separate owner-controlled atomic executor flow with fresh simulation required. Direct paylinks are human payment prompts and do not automatically issue license receipts.',
     },
     coordinator: {
       defaultMaxQuoteEth: String(process.env.AGENT_MAX_QUOTE_ETH || '0.05'),
@@ -66,6 +67,8 @@ export async function GET(request: Request) {
       paidDecision: `${origin}/api/agent/decision`,
       publicLicenseCatalog: `${origin}/api/licenses/catalog`,
       paidMachineUseLicense: `${origin}/api/licenses/use`,
+      directPayPage: `${origin}/pay`,
+      directPaylink: `${origin}/api/paylink`,
       licensingPage: `${origin}/ai-licensing`,
       openapi: `${origin}/api/agent/openapi`,
       manifest: `${origin}/api/agent/manifest`,
