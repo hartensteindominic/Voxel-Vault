@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
-import { LIVE_ACQUISITION_ENABLED, buildAcquisitionPlan, demoAssetCatalog, rankAssets } from '../lib/real-estate/global-asset-engine.js';
-import { evaluateJurisdictionGate, requiredJurisdictionChecks } from '../lib/real-estate/jurisdiction-gate.js';
+import { readFile } from 'node:fs/promises';
+
+async function importSource(path) {
+  const source = await readFile(new URL(path, import.meta.url), 'utf8');
+  const url = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+  return import(url);
+}
+
+const engine = await importSource('../lib/real-estate/global-asset-engine.js');
+const jurisdiction = await importSource('../lib/real-estate/jurisdiction-gate.js');
+
+const { LIVE_ACQUISITION_ENABLED, buildAcquisitionPlan, demoAssetCatalog, rankAssets } = engine;
+const { evaluateJurisdictionGate, requiredJurisdictionChecks } = jurisdiction;
 
 assert.equal(LIVE_ACQUISITION_ENABLED, false, 'live acquisition must remain disabled in the pilot');
 
