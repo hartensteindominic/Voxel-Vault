@@ -8,6 +8,10 @@ function csv(value: string | undefined) {
     .filter(Boolean);
 }
 
+function firstConfigured(...values: Array<string | undefined>) {
+  return values.find(value => String(value || '').trim()) || '';
+}
+
 function bearerToken(request: Request) {
   const header = request.headers.get('authorization') || '';
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -38,29 +42,43 @@ export async function requireVoxelVaultAdmin(request: Request): Promise<VoxelVau
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data?.user) return { ok: false, status: 401, error: 'Your Google session could not be verified. Sign in again.' };
 
-  const allowedEmails = new Set(
-    csv(process.env.VOXEL_VAULT_ADMIN_EMAILS || process.env.NEURAL_CORE_ADMIN_EMAILS).map(value => value.toLowerCase())
+  const configuredEmails = firstConfigured(
+    process.env.VOXEL_VAULT_ADMIN_EMAILS,
+    process.env.VOXEL_VAULT_ADMIN_EMAIL,
+    process.env.VOXEL_VAULT_OWNER_EMAILS,
+    process.env.VOXEL_VAULT_OWNER_EMAIL,
+    process.env.NEURAL_CORE_ADMIN_EMAILS
   );
-  const allowedIds = new Set(csv(process.env.VOXEL_VAULT_ADMIN_USER_IDS || process.env.NEURAL_CORE_ADMIN_USER_IDS));
+  const configuredIds = firstConfigured(
+    process.env.VOXEL_VAULT_ADMIN_USER_IDS,
+    process.env.VOXEL_VAULT_ADMIN_USER_ID,
+    process.env.VOXEL_VAULT_OWNER_USER_IDS,
+    process.env.VOXEL_VAULT_OWNER_USER_ID,
+    process.env.NEURAL_CORE_ADMIN_USER_IDS
+  );
+
+  const allowedEmails = new Set(csv(configuredEmails).map(value => value.toLowerCase()));
+  const allowedIds = new Set(csv(configuredIds));
 
   if (!allowedEmails.size && !allowedIds.size) {
+    const environment = String(process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown');
     return {
       ok: false,
       status: 503,
       error:
-        'Owner tools are locked until an admin allowlist is configured. Add VOXEL_VAULT_ADMIN_EMAILS or VOXEL_VAULT_ADMIN_USER_IDS to Vercel, then redeploy.',
+        `Owner tools are locked because no admin allowlist is visible to the ${environment} deployment. Add VOXEL_VAULT_ADMIN_EMAILS (or VOXEL_VAULT_ADMIN_USER_IDS) to that Vercel environment, then redeploy.`,
       setupRequired: true,
     };
   }
 
-  const email = String(data.user.email || '').toLowerCase();
+  const email = String(data.user.email || '').trim().toLowerCase();
   const allowed = allowedIds.has(data.user.id) || (Boolean(email) && allowedEmails.has(email));
   if (!allowed) {
     return {
       ok: false,
       status: 403,
       error:
-        'This Google account is not authorized for owner tools. Add the Google account email to VOXEL_VAULT_ADMIN_EMAILS (or its Supabase user ID to VOXEL_VAULT_ADMIN_USER_IDS), then redeploy.',
+        'This Google account is not authorized for owner tools. Make sure the exact Google account email is present in VOXEL_VAULT_ADMIN_EMAILS for this deployment, then redeploy.',
     };
   }
 
