@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-export default function PropertyTwinCanvas({ className = '' }) {
+export default function PropertyTwinCanvas({ className = '', style }) {
   const hostRef = useRef(null);
 
   useEffect(() => {
@@ -208,5 +208,5 @@ export default function PropertyTwinCanvas({ className = '' }) {
     };
   }, []);
 
-  return <div ref={hostRef} className={className} aria-label="Interactive demo 3D digital twin of a house and parcel" />;
+  return <div ref={hostRef} className={className} style={style} aria-label="Interactive demo 3D digital twin of a house and parcel" />;
 }
