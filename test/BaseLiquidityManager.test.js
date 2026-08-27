@@ -74,7 +74,7 @@ describe('BaseLiquidityManager', function () {
       deadline: latest.timestamp + 120,
       ...overrides,
     };
-    await ctx.manager.connect(ctx.operator).openPosition(
+    return ctx.manager.connect(ctx.operator).openPosition(
       values.fee,
       values.tickLower,
       values.tickUpper,
@@ -85,7 +85,6 @@ describe('BaseLiquidityManager', function () {
       values.durationSeconds,
       values.deadline
     );
-    return values;
   }
 
   it('opens from pre-funded inventory and routes principal plus fees to treasury on close', async function () {
@@ -145,7 +144,7 @@ describe('BaseLiquidityManager', function () {
     await openDefault(ctx, { amount0Desired: 200, amount1Desired: 200 });
     await openDefault(ctx, { amount0Desired: 200, amount1Desired: 200 });
     await expect(openDefault(ctx, { amount0Desired: 200, amount1Desired: 200 }))
-      .to.be.rejectedWith('Token0 allocation cap');
+      .to.be.revertedWith('Token0 allocation cap');
   });
 
   it('pauses new exposure while preserving emergency exit', async function () {
