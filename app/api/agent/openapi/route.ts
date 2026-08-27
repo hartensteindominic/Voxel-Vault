@@ -5,12 +5,18 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
+  const paidResponses = {
+    '200': { description: 'Paid response returned after x402 verify and settlement.' },
+    '402': { description: 'Payment required or payment settlement failed.' },
+    '503': { description: 'Payment facilitator or Base market-data source unavailable.' },
+  };
+
   return NextResponse.json({
     openapi: '3.1.0',
     info: {
       title: 'Voxel Vault Machine Revenue API',
-      version: '2.0.0',
-      description: 'Read-only Base market intelligence with Flashblocks-aware quoting and x402 USDC payment gates.',
+      version: '2.1.0',
+      description: 'Read-only Base market intelligence, Flashblocks-aware quoting, bounded agent decision tickets, and x402 USDC payment gates.',
     },
     servers: [{ url: origin }],
     paths: {
@@ -18,6 +24,12 @@ export async function GET(request: Request) {
         get: {
           summary: 'Discover service capabilities and payment configuration.',
           responses: { '200': { description: 'Machine-readable service manifest.' } },
+        },
+      },
+      '/api/agent/health': {
+        get: {
+          summary: 'Read coordinator, executor, and x402 activation status.',
+          responses: { '200': { description: 'Read-only service health and safety state.' } },
         },
       },
       '/api/agent/base-quote': {
@@ -40,11 +52,7 @@ export async function GET(request: Request) {
               },
             },
           },
-          responses: {
-            '200': { description: 'Paid quote returned after x402 verify and settlement.' },
-            '402': { description: 'Payment required or payment settlement failed.' },
-            '503': { description: 'Payment facilitator or Base market-data source unavailable.' },
-          },
+          responses: paidResponses,
         },
       },
       '/api/agent/optimize': {
@@ -72,11 +80,31 @@ export async function GET(request: Request) {
               },
             },
           },
-          responses: {
-            '200': { description: 'Paid optimization response returned after x402 settlement.' },
-            '402': { description: 'Payment required or payment settlement failed.' },
-            '503': { description: 'Payment facilitator or Base market-data source unavailable.' },
+          responses: paidResponses,
+        },
+      },
+      '/api/agent/decision': {
+        post: {
+          summary: 'Paid bounded agent decision ticket.',
+          description: 'Requires Flashblocks by default, applies the coordinator quote cap, and returns a short-lived deterministic ticket only when the quote gate passes. Tickets are not signatures or spending authorizations.',
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    amountEth: { type: 'string', default: '0.01' },
+                    targetBps: { type: 'integer', minimum: 1, maximum: 1000, default: 25 },
+                    slippageBps: { type: 'integer', minimum: 1, maximum: 100, default: 15 },
+                    requireFlashblocks: { type: 'boolean', default: true },
+                    ticketLifetimeMs: { type: 'integer', minimum: 400, maximum: 5000, default: 1200 },
+                  },
+                },
+              },
+            },
           },
+          responses: paidResponses,
         },
       },
     },
