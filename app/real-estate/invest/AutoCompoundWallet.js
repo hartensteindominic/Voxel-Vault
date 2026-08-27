@@ -54,28 +54,43 @@ export default function AutoCompoundWallet() {
 
       <section style={card}>
         <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'end',flexWrap:'wrap'}}>
-          <div><div style={label}>DAILY RENT → NEXT SHARE</div><h2 style={heading}>Revenue keeps working.</h2></div>
+          <div><div style={label}>SIMULATED DAILY RENT → NEXT SHARE</div><h2 style={heading}>Model the compounding loop.</h2></div>
           <div style={{textAlign:'right'}}><small style={{opacity:.55}}>5-year demo economic value</small><strong style={{display:'block',fontSize:28}}>{money.format(finalYear?.totalEconomicValue || capital)}</strong></div>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10,marginTop:18}}>
-          {simulation.timeline.map(row=><div key={row.year} style={{border:'1px solid rgba(255,255,255,.09)',borderRadius:16,padding:14}}><small style={{opacity:.5}}>YEAR {row.year}</small><b style={{display:'block',fontSize:21,margin:'5px 0'}}>{money.format(row.totalEconomicValue)}</b><span style={{fontSize:12,opacity:.65}}>{row.autoPurchases} automatic share buys · {money.format(row.annualNetIncome)}/yr modeled rent</span></div>)}
+          {simulation.timeline.map(row=><div key={row.year} style={{border:'1px solid rgba(255,255,255,.09)',borderRadius:16,padding:14}}><small style={{opacity:.5}}>YEAR {row.year}</small><b style={{display:'block',fontSize:21,margin:'5px 0'}}>{money.format(row.totalEconomicValue)}</b><span style={{fontSize:12,opacity:.65}}>{row.autoPurchases} simulated share buys · {money.format(row.annualNetIncome)}/yr modeled rent</span></div>)}
         </div>
         <div style={{marginTop:18,padding:16,borderRadius:16,border:'1px solid rgba(184,255,85,.2)',background:'rgba(184,255,85,.06)'}}>
-          <b>Auto-compound rule:</b> collect net distributions into the reinvestment wallet; when enough cash exists for an eligible share plus fees, purchase the highest-ranked share that stays inside the diversification limit. If nothing qualifies, keep cash.
+          <b>Simulation rule:</b> collect modeled net distributions into the reinvestment wallet; when enough cash exists for an eligible demo share plus fees, buy the highest-ranked simulated share that stays inside the diversification limit. If nothing qualifies, keep cash.
+        </div>
+      </section>
+
+      <section style={card}>
+        <div style={label}>PRODUCTION REINVESTMENT MODES</div>
+        <h2 style={heading}>Investor control comes first.</h2>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10,marginTop:17}}>
+          <Mode title="Cash" copy="Net distributions remain cash with the approved provider/payment rail." />
+          <Mode title="Confirm each" copy="Voxel Vault may surface eligible offerings, but the investor confirms every new subscription through the registered intermediary." />
+          <Mode title="Provider-approved auto" copy="Available only after intermediary and counsel approve the authorization, allocation rules, limits, disclosures and execution API." />
         </div>
       </section>
 
       <section style={{...card,borderColor:'rgba(255,190,90,.28)'}}>
         <div style={label}>LIVE EXECUTION GATE</div>
         <h2 style={heading}>No hidden spending.</h2>
-        <p style={muted}>This build does not connect to a brokerage, tokenized-property marketplace, bank account or wallet signer. A production adapter must use the provider's authorized API/custody flow, investor eligibility rules and explicit account permissions before any purchase or reinvestment can occur.</p>
-        <button type="button" disabled style={{marginTop:14,border:0,borderRadius:14,padding:'13px 18px',fontWeight:950,opacity:.55,cursor:'not-allowed'}}>LIVE AUTO-INVEST · LOCKED</button>
+        <p style={muted}>This build does not connect to a registered intermediary, live securities offering, escrow account, bank account or production wallet signer. A production adapter must use an authorized provider API/embedded flow and provider-authoritative settlement state before any ownership unit can be recorded or minted.</p>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:14}}>
+          <button type="button" disabled style={{border:0,borderRadius:14,padding:'13px 18px',fontWeight:950,opacity:.55,cursor:'not-allowed'}}>LIVE INVEST · LOCKED</button>
+          <button type="button" disabled style={{border:0,borderRadius:14,padding:'13px 18px',fontWeight:950,opacity:.55,cursor:'not-allowed'}}>LIVE AUTO-REINVEST · LOCKED</button>
+          <a href="/real-estate/launch" style={{border:'1px solid rgba(255,255,255,.14)',borderRadius:14,padding:'13px 18px',fontWeight:950,color:'inherit',textDecoration:'none'}}>VIEW LAUNCH GATES</a>
+        </div>
       </section>
     </div>
   );
 }
 
 function Stat({title,value}){return <div><small style={{opacity:.55}}>{title}</small><strong style={{display:'block',fontSize:23,marginTop:4}}>{value}</strong></div>}
+function Mode({title,copy}){return <div style={{border:'1px solid rgba(255,255,255,.09)',borderRadius:16,padding:15}}><b>{title}</b><p style={{...muted,fontSize:13,marginTop:6}}>{copy}</p></div>}
 const card={border:'1px solid rgba(255,255,255,.12)',borderRadius:26,padding:'clamp(18px,4vw,28px)',background:'rgba(255,255,255,.045)',boxShadow:'0 24px 80px rgba(0,0,0,.18)'};
 const label={fontSize:12,fontWeight:900,letterSpacing:'.13em',opacity:.58};
 const muted={opacity:.68,lineHeight:1.6,margin:'8px 0 0'};
