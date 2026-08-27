@@ -7,7 +7,7 @@ export const maxDuration = 60;
 
 function priceAtomic() {
   const configured = String(process.env.X402_BASE_QUOTE_PRICE_ATOMIC || '1000').trim();
-  return /^\d+$/.test(configured) && BigInt(configured) > 0n ? configured : '1000';
+  return /^\d+$/.test(configured) && BigInt(configured) > BigInt(0) ? configured : '1000';
 }
 
 export async function POST(request: Request) {
