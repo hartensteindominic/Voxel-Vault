@@ -116,9 +116,15 @@ requireText(profitPage, "const fromUrl=params.get('executor')", 'profit page mus
 requireText(profitPage, 'setExecutorVerified(false)', 'recovered executor must start unverified');
 requireText(profitPage, "const [targetBps,setTargetBps]=useState('5')", 'V5 UI must keep a positive net-profit target by default');
 requireText(profitPage, 'const [autoWatch,setAutoWatch]=useState(true)', 'V5 boss auto-watch must start enabled');
+requireText(profitPage, 'const manualPauseRef=useRef(false)', 'boss watcher must distinguish explicit user pause from automatic candidate pause');
 requireText(profitPage, 'const nextDelayRef=useRef(12000)', 'boss watcher must start from a bounded cadence');
 requireText(profitPage, 'Math.max(4000,Math.min(15000', 'boss watcher burst cadence must stay bounded between 4s and 15s');
 requireText(profitPage, "autoCycleRef.current%8===0?'wide':'fast'", 'boss watcher must use fast scans between periodic wide scans');
+requireText(profitPage, "document.addEventListener('visibilitychange',resumeWhenVisible)", 'boss watcher must resume when an unpaused page returns to the foreground');
+requireText(profitPage, "setStatus('BOSS AUTO WATCH PAUSED BY YOU.", 'explicit pause must be clearly disclosed');
+requireText(profitPage, "'TURN BOSS AUTO WATCH ON'", 'off state must render an explicit resume action');
+requireText(profitPage, 'manualPauseRef.current=false;\n          autoCycleRef.current=0;\n          setAutoWatch(true);', 'manual non-profitable scans must restart continuous watch');
+requireText(profitPage, 'BOSS AUTO WATCH IS ON and will keep hunting.', 'manual scan status must agree with the actual watch state');
 requireText(profitPage, "heat==='HOT'", 'boss UI must react to near-profit hot states');
 requireText(profitPage, 'if(data.best)', 'boss watcher must detect profitable candidates');
 requireText(profitPage, 'if(automatic)setAutoWatch(false)', 'boss watcher must pause when a candidate is found');
