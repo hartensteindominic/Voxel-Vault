@@ -32,7 +32,7 @@ export default function PropertyInvestPage(){
             <a href="/real-estate/acquire" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>FIND NEXT PROPERTY</a>
             <a href="/real-estate/launch" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>LEGAL LAUNCH GATES</a>
           </div>
-          <p style={{fontSize:12,lineHeight:1.55,color:'#7e897a',marginTop:16}}>The simulator uses modeled values. The Digital REIT Vault can use real provider catalog/portfolio data when Dinari sandbox credentials are configured. Real-money production orders remain disabled.</p>
+          <p style={{fontSize:12,lineHeight:1.55,color:'#7e897a',marginTop:16}}>The simulator uses modeled values. The Digital REIT Vault can use real provider catalog/portfolio data when Dinari sandbox credentials are configured. Any live U.S. securities flow must run through the appropriate registered intermediary/provider and approved compliance path. Real-money production orders remain disabled.</p>
         </div>
 
         <div style={{position:'relative',minHeight:390,border:'1px solid #273126',borderRadius:30,overflow:'hidden',background:'#0c120d'}}>
@@ -50,7 +50,7 @@ export default function PropertyInvestPage(){
       <section style={{marginTop:28,padding:'26px 0 0',borderTop:'1px solid #222b21',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:18,color:'#8e998a',fontSize:13,lineHeight:1.6}}>
         <div><b style={{color:'#eef2e9'}}>Digital REIT stage</b><br/>Dinari provider catalog → tokenized real-estate securities → account holdings → dividend records → acquisition reserve planning.</div>
         <div><b style={{color:'#eef2e9'}}>Direct-property stage</b><br/>Acquisition research → diligence → LLC → normal title/closing → recorded deed → verified onchain Property Passport.</div>
-        <div><b style={{color:'#eef2e9'}}>Production boundary</b><br/>Sandbox orders can be enabled for testing. Live securities execution, automated acquisition and public fractional-property sales remain disabled until reviewed regulated integrations are complete.</div>
+        <div><b style={{color:'#eef2e9'}}>Production boundary</b><br/>Sandbox orders can be enabled for testing. Live securities execution, automated acquisition and public fractional-property sales remain disabled until the registered intermediary/provider, compliance, custody/settlement and legal integrations are complete.</div>
       </section>
     </div>
   </main>;
