@@ -40,6 +40,10 @@ async function main() {
   );
   await interestToken.waitForDeployment();
 
+  const Passport = await ethers.getContractFactory('PropertyPassport');
+  const passport = await Passport.deploy(deployer.address, await registry.getAddress());
+  await passport.waitForDeployment();
+
   const DistributionVault = await ethers.getContractFactory('PropertyDistributionVault');
   const distributionVault = await DistributionVault.deploy(deployer.address, await interestToken.getAddress());
   await distributionVault.waitForDeployment();
@@ -55,9 +59,12 @@ async function main() {
 
   console.log('PROPERTY_REGISTRY_ADDRESS=', await registry.getAddress());
   console.log('PROPERTY_INTEREST_TOKEN_ADDRESS=', await interestToken.getAddress());
+  console.log('PROPERTY_PASSPORT_ADDRESS=', await passport.getAddress());
   console.log('PROPERTY_DISTRIBUTION_VAULT_ADDRESS=', await distributionVault.getAddress());
   console.log('PROPERTY_ID_HASH=', propertyId);
   console.log('Distribution claims are restricted to wallets currently allowlisted by the property interest token.');
+  console.log('Property Passport is NOT minted at deployment because the property registry record starts unverified.');
+  console.log('After independent verification, mintVerifiedPassport may mint one non-transferable identity NFT for the property.');
   console.log('Registry record is intentionally unverified and inactive after deployment.');
 }
 
