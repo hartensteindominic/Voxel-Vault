@@ -18,16 +18,19 @@
     "test:liquidity-engine": "node scripts/test-liquidity-engine-safety.mjs",
     "test:multipair": "node scripts/test-multipair-profit-engine.mjs",
     "test:ai-licensing": "node scripts/test-ai-licensing.mjs",
-    "test:release": "npm run test:rewards && npm run test:universal && npm run test:media && npm run test:mobile && npm run test:collection && npm run test:commerce && npm run test:routes && npm run test:voxel-flow && npm run test:machine-revenue && npm run test:liquidity-engine && npm run test:multipair && npm run test:ai-licensing && npm run build",
+    "test:property-platform": "node scripts/test-property-platform-safety.mjs",
+    "test:release": "npm run test:rewards && npm run test:universal && npm run test:media && npm run test:mobile && npm run test:collection && npm run test:commerce && npm run test:routes && npm run test:voxel-flow && npm run test:machine-revenue && npm run test:liquidity-engine && npm run test:multipair && npm run test:ai-licensing && npm run test:property-platform && npm run build",
     "chain:compile": "hardhat compile",
     "chain:test:forge": "hardhat test test/VoxelForgeRevenue.test.js",
     "chain:test:liquidity": "hardhat test test/BaseLiquidityManager.test.js",
+    "chain:test:property": "hardhat test test/PropertyPilot.test.js",
     "chain:check:forge-bytecode": "node scripts/check-forge-deploy-bytecode.mjs",
     "chain:check:multipair-bytecode": "node scripts/check-multipair-profit-engine-bytecode.mjs",
     "chain:deploy:sepolia": "hardhat run scripts/deploy-sepolia.js --network sepolia",
     "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet",
     "chain:deploy:base-forge": "hardhat run scripts/deploy-base-forge-revenue.js --network base",
-    "chain:deploy:base-liquidity": "hardhat run scripts/deploy-base-liquidity-engine.js --network base"
+    "chain:deploy:base-liquidity": "hardhat run scripts/deploy-base-liquidity-engine.js --network base",
+    "chain:deploy:property-pilot": "hardhat run scripts/deploy-property-pilot.js --network baseSepolia"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",

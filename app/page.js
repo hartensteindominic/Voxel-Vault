@@ -1,5 +1,5 @@
-import StudioPage from './studio/page';
+import RealEstatePlatformPage from './real-estate/page';
 
 export default function Home() {
-  return <StudioPage />;
+  return <RealEstatePlatformPage />;
 }

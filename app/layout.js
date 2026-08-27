@@ -1,6 +1,4 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
-import VoxelPopHelpWidget from './components/VoxelPopHelpWidget';
-import VoxelPopExitIntent from './components/VoxelPopExitIntent';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 
@@ -9,11 +7,11 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'VoxelPop 3D Generator | Your Idea, Made 3D for $1.99',
-    template: '%s | VoxelPop',
+    default: 'Voxel Vault | Real Property, Made Spatial',
+    template: '%s | Voxel Vault',
   },
-  description: 'Turn a written idea into one custom downloadable 3D voxel asset for $1.99. Get the GLB model and source image with no subscription.',
-  keywords: ['3D voxel generator','custom voxel','GLB generator','3D asset generator','VoxelPop','voxel assets'],
+  description: 'Voxel Vault is a real-property digital-twin pilot linking ordinary property entities, permissioned blockchain ownership records and auditable net-income distribution workflows.',
+  keywords: ['real estate digital twin', 'property tokenization', 'permissioned blockchain', '3D property', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: {
@@ -21,17 +19,17 @@ export const metadata = {
     apple: '/voxelpop/voxelpop-logo.png',
   },
   openGraph: {
-    title: 'VoxelPop | Your Idea, Made 3D for $1.99',
-    description: 'Describe what you want and create one custom 3D voxel asset with a downloadable GLB model and source image for $1.99.',
+    title: 'Voxel Vault | Real Property, Made Spatial',
+    description: 'A 3D real-property pilot combining property entities, permissioned blockchain ownership records and auditable distribution workflows.',
     type: 'website',
     url: SITE_URL,
-    siteName: 'VoxelPop',
-    images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'VoxelPop — Your Idea, Made 3D' }],
+    siteName: 'Voxel Vault',
+    images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
   },
   twitter: {
     card: 'summary',
-    title: 'VoxelPop | Your Idea, Made 3D for $1.99',
-    description: 'One idea in. One custom 3D voxel asset out. GLB + source image, no subscription.',
+    title: 'Voxel Vault | Real Property, Made Spatial',
+    description: 'Explore the Voxel Vault real-property digital-twin pilot.',
     images: ['/voxelpop/voxelpop-logo.png'],
   },
 };
@@ -41,8 +39,6 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <WalletIdentityProvider>{children}</WalletIdentityProvider>
-        <VoxelPopHelpWidget />
-        <VoxelPopExitIntent />
       </body>
     </html>
   );
