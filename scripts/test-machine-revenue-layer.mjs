@@ -66,8 +66,13 @@ requireText(deployPage, "window.localStorage.setItem(EXECUTOR_STORAGE_KEY,addres
 requireText(deployPage, 'getAddress(owner)!==APPROVED_OWNER', 'deployment must verify the reviewed owner before device activation');
 requireText(deployPage, 'getAddress(uni)!==EXPECTED.uni', 'deployment must verify the reviewed Uniswap router');
 requireText(deployPage, 'getAddress(aero)!==EXPECTED.aero', 'deployment must verify the reviewed Aerodrome router');
+requireText(deployPage, 'VERIFY EXISTING EXECUTOR', 'failed post-deploy reads must offer recovery instead of redeployment');
+requireText(deployPage, '/profit-engine?executor=', 'recovery must pass only the public deployed contract address');
 forbidText(deployPage, 'PRIVATE_KEY', 'browser deployment page must never read private keys');
 
+requireText(profitPage, "const fromUrl=params.get('executor')", 'profit page must accept an existing executor recovery address');
+requireText(profitPage, 'setExecutorVerified(false)', 'recovered executor must start unverified');
+requireText(profitPage, 'const code=await browserProvider.getCode(candidate)', 'verification must first confirm deployed bytecode exists');
 requireText(profitPage, 'const executorAddress=await verifyExecutor(candidate,browserProvider);', 'device executor must be re-verified live before use');
 requireText(profitPage, 'getAddress(connectedWallet)!==APPROVED_OWNER', 'execution must require the reviewed owner wallet');
 requireText(profitPage, 'fn.staticCall(...args', 'execution must run a fresh no-spend static simulation');
