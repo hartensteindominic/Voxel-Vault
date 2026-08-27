@@ -179,7 +179,9 @@ export default function DinariAdminOnboardingPage() {
     </div></main>;
   }
 
-  const credentialsOkay = Boolean(state?.credentialsConfigured && state?.organization?.connected);
+  const providerErrors = Array.isArray(state?.errors) ? state.errors.map((item) => String(item || '')).filter(Boolean) : [];
+  const credentialProbeFailed = providerErrors.some((item) => /^credentials:/i.test(item));
+  const credentialsOkay = Boolean(state?.credentialsConfigured && !credentialProbeFailed);
   const kycPass = state?.kyc?.status === 'PASS' && state?.entity?.isKycComplete;
   const nextStep = !credentialsOkay
     ? null
@@ -208,6 +210,7 @@ export default function DinariAdminOnboardingPage() {
 
     {error ? <div style={errorBox}>{error}</div> : null}
     {notice ? <div style={noticeBox}>{notice}</div> : null}
+    {providerErrors.length ? <div style={errorBox}>{providerErrors.join(' · ')}</div> : null}
     {nextStep ? <section style={nextActionBox}>
       <div>
         <div style={nextActionEyebrow}>NEXT ACTION</div>
@@ -220,8 +223,12 @@ export default function DinariAdminOnboardingPage() {
     <section style={grid}>
       <article style={card}>
         <span style={step}>1</span><div style={eyebrow}>SERVER CREDENTIALS</div>
-        <h2 style={h2}>{credentialsOkay ? 'Dinari answered.' : 'Put the secret in Vercel.'}</h2>
-        <p style={copyText}>{credentialsOkay ? `Connected to Dinari ${String(state?.environment || '').toUpperCase()} as organization ${short(state?.organization?.id)}.` : 'Add the Key ID and Secret Key to the Vercel environment serving this page. Do not use NEXT_PUBLIC_ names.'}</p>
+        <h2 style={h2}>{credentialsOkay ? 'Credentials accepted.' : 'Put the secret in Vercel.'}</h2>
+        <p style={copyText}>{credentialsOkay
+          ? state?.organization?.connected
+            ? `Connected to Dinari ${String(state?.environment || '').toUpperCase()} as organization ${short(state?.organization?.id)}.`
+            : `Dinari ${String(state?.environment || '').toUpperCase()} credentials are configured and no authentication error was returned. Organization metadata is not required to create a sandbox Entity.`
+          : 'Add the Key ID and Secret Key to the Vercel environment serving this page. Do not use NEXT_PUBLIC_ names.'}</p>
         {!credentialsOkay ? <pre style={code}>{`DINARI_ENVIRONMENT=sandbox\nDINARI_API_KEY_ID=<your key id>\nDINARI_API_SECRET_KEY=<your secret>`}</pre> : null}
         <button style={secondary} disabled={Boolean(busy)} onClick={() => load(token)}>{busy === 'refresh' ? 'Checking…' : 'Check credentials'}</button>
       </article>
