@@ -7,6 +7,10 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+interface IPropertyInterestToken {
+    function isAllowed(address account) external view returns (bool);
+}
+
 /// @notice Pull-based distribution vault for approved net-property-income epochs.
 /// @dev Allocation roots should be generated from a compliance-approved cap-table
 ///      snapshot after property expenses and reserves are finalized off-chain.
@@ -22,15 +26,19 @@ contract PropertyDistributionVault is Ownable, ReentrancyGuard {
         uint64 createdAt;
     }
 
+    IPropertyInterestToken public immutable interestToken;
     uint256 public nextEpochId = 1;
     mapping(uint256 epochId => DistributionEpoch epoch) public epochs;
     mapping(uint256 epochId => mapping(address account => bool claimed)) public hasClaimed;
 
     error InvalidAsset();
+    error InvalidInterestToken();
     error InvalidMerkleRoot();
+    error InvalidStatementHash();
     error InvalidAmount();
     error EpochNotFound();
     error AlreadyClaimed();
+    error ClaimantNotAllowed(address account);
     error InvalidProof();
 
     event DistributionCreated(
@@ -42,7 +50,10 @@ contract PropertyDistributionVault is Ownable, ReentrancyGuard {
     );
     event DistributionClaimed(uint256 indexed epochId, address indexed account, uint256 amount);
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(address initialOwner, IPropertyInterestToken interestToken_) Ownable(initialOwner) {
+        if (address(interestToken_) == address(0)) revert InvalidInterestToken();
+        interestToken = interestToken_;
+    }
 
     function createDistribution(
         IERC20 asset,
@@ -52,6 +63,7 @@ contract PropertyDistributionVault is Ownable, ReentrancyGuard {
     ) external onlyOwner returns (uint256 epochId) {
         if (address(asset) == address(0)) revert InvalidAsset();
         if (merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
+        if (statementHash == bytes32(0)) revert InvalidStatementHash();
         if (totalAmount == 0) revert InvalidAmount();
 
         epochId = nextEpochId++;
@@ -72,6 +84,7 @@ contract PropertyDistributionVault is Ownable, ReentrancyGuard {
         DistributionEpoch storage epoch = epochs[epochId];
         if (address(epoch.asset) == address(0)) revert EpochNotFound();
         if (hasClaimed[epochId][msg.sender]) revert AlreadyClaimed();
+        if (!interestToken.isAllowed(msg.sender)) revert ClaimantNotAllowed(msg.sender);
         if (amount == 0) revert InvalidAmount();
 
         bytes32 leaf = keccak256(abi.encode(epochId, msg.sender, amount));
