@@ -24,6 +24,7 @@ module.exports = {
     overrides: {
       'contracts/VoxelForgeRevenue.sol': viaIrSolidity,
       'contracts/BaseLiquidityManager.sol': viaIrSolidity,
+      'contracts/BaseMultiArbExecutor.sol': viaIrSolidity,
     },
   },
   networks: {

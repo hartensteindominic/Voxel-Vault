@@ -8,6 +8,7 @@ on:
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'public/forge/bytecode-*.txt'
+      - 'public/profit-engine/**'
       - 'package.json'
       - '.github/workflows/contracts.yml'
   pull_request:
@@ -17,6 +18,7 @@ on:
       - 'hardhat.config.js'
       - 'scripts/**'
       - 'public/forge/bytecode-*.txt'
+      - 'public/profit-engine/**'
       - 'package.json'
       - '.github/workflows/contracts.yml'
 
@@ -31,6 +33,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run chain:compile
       - run: npm run chain:check:forge-bytecode
+      - run: npm run chain:check:multipair-bytecode
       - run: npm run chain:test:forge
       - run: npm run chain:test:liquidity
       - name: Upload production Forge artifact
@@ -38,4 +41,10 @@ jobs:
         with:
           name: voxel-forge-revenue-artifact
           path: artifacts/contracts/VoxelForgeRevenue.sol/VoxelForgeRevenue.json
+          if-no-files-found: error
+      - name: Upload V6 multi-pair executor artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-multi-arb-executor-artifact
+          path: artifacts/contracts/BaseMultiArbExecutor.sol/BaseMultiArbExecutor.json
           if-no-files-found: error
