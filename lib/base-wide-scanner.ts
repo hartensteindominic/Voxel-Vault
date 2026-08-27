@@ -116,8 +116,8 @@ async function quoteUni(
       return null;
     }
   }));
-  return results.filter((item): item is VenueQuote => Boolean(item))
-    .sort((a, b) => a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0)[0] || null;
+  const viable = results.filter(Boolean) as VenueQuote[];
+  return viable.sort((a, b) => a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0)[0] || null;
 }
 
 async function quoteAero(
@@ -142,8 +142,8 @@ async function quoteAero(
       return null;
     }
   }));
-  return results.filter((item): item is VenueQuote => Boolean(item))
-    .sort((a, b) => a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0)[0] || null;
+  const viable = results.filter(Boolean) as VenueQuote[];
+  return viable.sort((a, b) => a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0)[0] || null;
 }
 
 async function quoteSlipstream(
@@ -170,8 +170,8 @@ async function quoteSlipstream(
       return null;
     }
   }));
-  return results.filter((item): item is VenueQuote => Boolean(item))
-    .sort((a, b) => a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0)[0] || null;
+  const viable = results.filter(Boolean) as VenueQuote[];
+  return viable.sort((a, b) => a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0)[0] || null;
 }
 
 const VENUES = [
