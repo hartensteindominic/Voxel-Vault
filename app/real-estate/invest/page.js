@@ -13,6 +13,7 @@ export default function PropertyInvestPage(){
         <a href="/" style={{color:'inherit',textDecoration:'none',fontWeight:950,letterSpacing:'-.04em',fontSize:20}}>V · Voxel Vault</a>
         <div style={{display:'flex',gap:9,flexWrap:'wrap',alignItems:'center'}}>
           <span style={pill}><span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'#b8ff55',marginRight:7}}/>$1,000 PILOT</span>
+          <a href="/real-estate/reits" style={link}>Digital REITs</a>
           <a href="/real-estate/acquire" style={link}>Acquisition engine</a>
           <a href="/real-estate/launch" style={link}>Legal launch</a>
           <a href="/real-estate" style={link}>Property platform</a>
@@ -24,14 +25,14 @@ export default function PropertyInvestPage(){
         <div style={{alignSelf:'center'}}>
           <div style={eyebrow}>FRACTIONAL REAL ESTATE · 3D · REGULATED-LAUNCH DESIGN</div>
           <h1 style={{fontSize:'clamp(3.4rem,9vw,7.4rem)',lineHeight:.84,letterSpacing:'-.075em',margin:'14px 0 24px'}}>Make the first<br/><span style={{color:'#b8ff55'}}>$1,000 work.</span></h1>
-          <p style={{fontSize:'clamp(1.05rem,2vw,1.28rem)',lineHeight:1.6,color:'#b8c1b4',maxWidth:720}}>Voxel Vault models a diversified basket of small property interests. The production target is real property offered through a registered intermediary, with permissioned blockchain ownership records and net rent routed into either cash, confirm-each reinvestment or a separately approved auto-reinvestment instruction.</p>
+          <p style={{fontSize:'clamp(1.05rem,2vw,1.28rem)',lineHeight:1.6,color:'#b8c1b4',maxWidth:720}}>Voxel Vault models a diversified basket of small property interests. The Digital REIT Vault now adds a real Dinari sandbox/provider layer for tokenized real-estate securities, while this page remains the strategy simulator for building toward direct property ownership.</p>
           <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:22}}>
-            <a href="#wallet" style={{...cta,background:'#b8ff55',color:'#0c120b'}}>RUN $1,000 DEMO</a>
+            <a href="/real-estate/reits" style={{...cta,background:'#b8ff55',color:'#0c120b'}}>OPEN DIGITAL REITS</a>
+            <a href="#wallet" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>RUN $1,000 DEMO</a>
             <a href="/real-estate/acquire" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>FIND NEXT PROPERTY</a>
             <a href="/real-estate/launch" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>LEGAL LAUNCH GATES</a>
-            <a href="/real-estate/onboard" style={{...cta,border:'1px solid #364033',color:'#f6f8f2'}}>ADD A PROPERTY</a>
           </div>
-          <p style={{fontSize:12,lineHeight:1.55,color:'#7e897a',marginTop:16}}>Simulation only. No registered intermediary, live offering, escrow account or production wallet signer is connected yet. Returns are not guaranteed and demo yields are not forecasts.</p>
+          <p style={{fontSize:12,lineHeight:1.55,color:'#7e897a',marginTop:16}}>The simulator uses modeled values. The Digital REIT Vault can use real provider catalog/portfolio data when Dinari sandbox credentials are configured. Real-money production orders remain disabled.</p>
         </div>
 
         <div style={{position:'relative',minHeight:390,border:'1px solid #273126',borderRadius:30,overflow:'hidden',background:'#0c120d'}}>
@@ -47,9 +48,9 @@ export default function PropertyInvestPage(){
       <section id="wallet" style={{scrollMarginTop:20}}><AutoCompoundWallet/></section>
 
       <section style={{marginTop:28,padding:'26px 0 0',borderTop:'1px solid #222b21',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:18,color:'#8e998a',fontSize:13,lineHeight:1.6}}>
-        <div><b style={{color:'#eef2e9'}}>Target production architecture</b><br/>Registered intermediary → property-specific issuer/security → approved escrow/settlement → permissioned blockchain ownership record → net distributions → investor-controlled reinvestment mode.</div>
-        <div><b style={{color:'#eef2e9'}}>What Voxel Vault adds</b><br/>3D spatial property vaults, one portfolio view, compliance-aware property data, transparent rent waterfalls and a configurable reinvestment experience.</div>
-        <div><b style={{color:'#eef2e9'}}>What regulated partners control</b><br/>Offering workflow, investor eligibility, securities settlement, custody/escrow where applicable, records and any approved secondary trading. Title recording remains in the ordinary property system.</div>
+        <div><b style={{color:'#eef2e9'}}>Digital REIT stage</b><br/>Dinari provider catalog → tokenized real-estate securities → account holdings → dividend records → acquisition reserve planning.</div>
+        <div><b style={{color:'#eef2e9'}}>Direct-property stage</b><br/>Acquisition research → diligence → LLC → normal title/closing → recorded deed → verified onchain Property Passport.</div>
+        <div><b style={{color:'#eef2e9'}}>Production boundary</b><br/>Sandbox orders can be enabled for testing. Live securities execution, automated acquisition and public fractional-property sales remain disabled until reviewed regulated integrations are complete.</div>
       </section>
     </div>
   </main>;
