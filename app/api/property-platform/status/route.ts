@@ -15,13 +15,14 @@ export async function GET() {
   const explicitLiveFlag = process.env.REAL_ESTATE_LIVE_INVESTING_ENABLED === 'true';
 
   // Deliberately false in this pilot. A later production integration must replace
-  // this constant only after real provider-backed investment, custody and transfer
-  // workflows exist end-to-end. Environment variables alone cannot unlock money movement.
+  // this constant only after real provider-backed acquisition, custody, transfer,
+  // rent collection and jurisdiction-specific workflows exist end-to-end.
+  // Environment variables alone cannot unlock money movement.
   const productionInvestmentImplementationReady = false;
   const liveInvestingEnabled = explicitLiveFlag && allExternalGatesSatisfied && productionInvestmentImplementationReady;
 
   return NextResponse.json({
-    product: 'Voxel Vault Real Property Pilot',
+    product: 'Voxel Vault Global Rent Engine Pilot',
     mode: liveInvestingEnabled ? 'controlled-live' : 'pilot',
     network: 'Base Sepolia',
     chainId: 84532,
@@ -34,11 +35,17 @@ export async function GET() {
       legalEntityLinkageModel: true,
       permissionedInterestTokenContracts: true,
       merkleDistributionVaultContract: true,
+      globalAssetAllocationSimulation: true,
+      jurisdictionAcquisitionGate: true,
+      crossAssetAdapterModel: true,
+      rentReinvestmentSimulation: true,
       liveInvestmentCheckout: false,
+      automatedLiveAcquisition: false,
+      pooledPublicRentInvesting: false,
       mainnetPropertyTokenDeployment: false,
     },
     note: liveInvestingEnabled
       ? 'Controlled live mode is active.'
-      : 'Fail-closed pilot: no live property investment or public security-token sale is enabled.',
+      : 'Fail-closed pilot: simulations may rank assets, but no live acquisition, pooled investment, property purchase or public security-token sale is enabled.',
   });
 }
