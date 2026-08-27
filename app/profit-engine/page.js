@@ -105,6 +105,7 @@ export default function ProfitEnginePage(){
   const scanInFlightRef=useRef(false);
   const autoCycleRef=useRef(0);
   const nextDelayRef=useRef(12000);
+  const manualPauseRef=useRef(false);
 
   useEffect(()=>{
     try{
@@ -134,6 +135,36 @@ export default function ProfitEnginePage(){
     timer=setTimeout(tick,700);
     return()=>{cancelled=true;if(timer)clearTimeout(timer)};
   },[autoWatch,amountEth,targetBps,slippageBps]);
+
+  useEffect(()=>{
+    const resumeWhenVisible=()=>{
+      if(document.visibilityState!=='visible')return;
+      if(manualPauseRef.current||scan?.best||busy)return;
+      autoCycleRef.current=0;
+      nextDelayRef.current=4000;
+      setAutoWatch(true);
+    };
+    document.addEventListener('visibilitychange',resumeWhenVisible);
+    window.addEventListener('pageshow',resumeWhenVisible);
+    return()=>{
+      document.removeEventListener('visibilitychange',resumeWhenVisible);
+      window.removeEventListener('pageshow',resumeWhenVisible);
+    };
+  },[scan?.best,busy]);
+
+  function toggleAutoWatch(){
+    if(autoWatch){
+      manualPauseRef.current=true;
+      setAutoWatch(false);
+      setStatus('BOSS AUTO WATCH PAUSED BY YOU. Tap TURN BOSS AUTO WATCH ON to resume hunting.');
+      return;
+    }
+    manualPauseRef.current=false;
+    autoCycleRef.current=0;
+    nextDelayRef.current=4000;
+    setAutoWatch(true);
+    setStatus('BOSS AUTO WATCH ON · scanning immediately and adapting cadence to market heat.');
+  }
 
   async function runScan({mode='wide',automatic=false}={}){
     if(scanInFlightRef.current)return;
@@ -176,6 +207,11 @@ export default function ProfitEnginePage(){
       }else{
         try{document.title='Profit Engine V5 · Voxel Vault'}catch{}
         const gap=Number(data.nearMiss?.distanceToProfitFloorBps??data.bestQuoted?.distanceToProfitFloorBps??0);
+        if(!automatic){
+          manualPauseRef.current=false;
+          autoCycleRef.current=0;
+          setAutoWatch(true);
+        }
         if(automatic&&heat==='HOT'){
           setStatus(`BOSS BURST · closest executable route is about ${gap} bps short of gas + target. Scanning again in ~${Math.round(suggested/1000)}s.`);
         }else if(automatic&&heat==='WARM'){
@@ -186,8 +222,8 @@ export default function ProfitEnginePage(){
           const wideQuoted=data.coverage?.widePairsQuoted||0;
           const wideRequested=data.coverage?.widePairsRequested||0;
           setStatus(mode==='wide'
-            ?`No executable trade right now. Checked ${sizes} sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. Boss auto-watch will keep hunting.`
-            :`No executable trade right now after checking ${sizes} sizes. Boss auto-watch will keep hunting.`);
+            ?`No executable trade right now. Checked ${sizes} sizes plus ${wideQuoted}/${wideRequested} wide Base pairs. BOSS AUTO WATCH IS ON and will keep hunting.`
+            :`No executable trade right now after checking ${sizes} sizes. BOSS AUTO WATCH IS ON and will keep hunting.`);
         }
       }
     }catch(e){
@@ -228,7 +264,9 @@ export default function ProfitEnginePage(){
       const verified=await verifyExecutor(localExecutor,browserProvider);
       window.localStorage.setItem(EXECUTOR_STORAGE_KEY,verified);
       setLocalExecutor(verified);setExecutorVerified(true);
-      setStatus('Executor verified and activated on this device. Boss auto-watch can keep scanning.');
+      manualPauseRef.current=false;
+      setAutoWatch(true);
+      setStatus('Executor verified and activated on this device. Boss auto-watch is ON and scanning.');
     }catch(e){
       if(/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -285,7 +323,9 @@ export default function ProfitEnginePage(){
       const actualGas=(receipt.gasUsed||0n)*(receipt.gasPrice||feePerGas||0n);
       const net=BigInt(grossProfit)-actualGas;
       setTx({hash:receipt.hash||sent.hash,pending:false,grossProfitWei:grossProfit,gasWei:actualGas.toString(),netWei:net.toString()});
-      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. Turn BOSS AUTO WATCH back on for the next opportunity.`);
+      manualPauseRef.current=false;
+      setAutoWatch(true);
+      setStatus(`Confirmed. Gross spread captured: ${prettyEth(grossProfit)} ETH; transaction gas: ${prettyEth(actualGas)} ETH; estimated wallet net: ${prettyEth(net)} ETH. BOSS AUTO WATCH is back ON for the next opportunity.`);
     }catch(e){
       if(!scan?.executorAddress&&/Executor verification failed/i.test(errText(e))){
         try{window.localStorage.removeItem(EXECUTOR_STORAGE_KEY)}catch{}
@@ -312,10 +352,10 @@ export default function ProfitEnginePage(){
           <div className={styles.field}><label>MAX CAPITAL · ETH</label><input value={amountEth} onChange={e=>setAmountEth(e.target.value)} inputMode="decimal"/></div>
           <div className={styles.field}><label>MIN NET · BPS</label><input value={targetBps} onChange={e=>setTargetBps(e.target.value)} inputMode="numeric"/></div>
           <div className={styles.field}><label>SLIPPAGE · BPS</label><input value={slippageBps} onChange={e=>setSlippageBps(e.target.value)} inputMode="numeric"/></div>
-          <button className={styles.primary} onClick={()=>runScan({mode:'wide',automatic:false})} disabled={busy}>{busy?'SCANNING BASE…':'RUN BOSS WIDE SCAN'}</button>
-          <button className={styles.secondary} style={{width:'100%'}} onClick={()=>setAutoWatch(value=>!value)} disabled={busy}>{autoWatch?`BOSS AUTO WATCH · ON · ${marketHeat}`:'BOSS AUTO WATCH · OFF'}</button>
+          <button className={styles.primary} onClick={()=>runScan({mode:'wide',automatic:false})} disabled={busy}>{busy?'SCANNING BASE…':'RUN BOSS WIDE SCAN + KEEP WATCHING'}</button>
+          <button className={styles.secondary} style={{width:'100%'}} onClick={toggleAutoWatch} disabled={busy}>{autoWatch?`PAUSE BOSS AUTO WATCH · ${marketHeat}`:'TURN BOSS AUTO WATCH ON'}</button>
         </div>
-        <div className={styles.footnote}>V5 dynamically watches about every 12 seconds in cold markets, about 7 seconds when warm, and as fast as about 4 seconds in HOT near-miss conditions. The full wide radar refreshes periodically. iPhone may suspend page timers when the browser is backgrounded.</div>
+        <div className={styles.footnote}>Manual Boss Wide Scan automatically keeps auto-watch ON unless a real profitable candidate is being held. V5 dynamically watches about every 12 seconds in cold markets, about 7 seconds when warm, and as fast as about 4 seconds in HOT near-miss conditions. Returning to the foreground resumes watching unless you explicitly paused it.</div>
         {status&&<div className={styles.status}>{status}</div>}
         {error&&<div className={styles.error}>{error}</div>}
         {nearMiss&&!scan?.best&&<div className={styles.status}>Closest executable: {nearMiss.first?.venue} → {nearMiss.second?.venue} at {nearMiss.inputEth} ETH. It is about {nearMiss.distanceToProfitFloorBps} bps ({prettyEth(nearMiss.distanceToProfitFloorWei)} ETH) short of gas + your profit target. V5 automatically speeds up as that gap closes.</div>}
