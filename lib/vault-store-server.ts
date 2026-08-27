@@ -16,3 +16,15 @@ export function getVaultStoreStoragePath(sku: VaultStoreSku) {
 export function getVaultStoreBucket() {
   return process.env.VAULT_STORE_BUCKET || 'assets-private';
 }
+
+export async function vaultStoreProductReady(supabaseAdmin: any, sku: VaultStoreSku) {
+  const path = getVaultStoreStoragePath(sku);
+  const { data, error } = await supabaseAdmin.storage
+    .from(getVaultStoreBucket())
+    .exists(path);
+  if (error) {
+    console.error('vault store delivery preflight failed', { sku, error });
+    return false;
+  }
+  return data === true;
+}
