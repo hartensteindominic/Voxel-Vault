@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Contract, JsonRpcProvider, Wallet, getBytes, keccak256, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
 
 export const SPATIAL_MINT_ABI = [
@@ -18,6 +18,12 @@ function normalizedPrivateKey(value: string) {
   const raw = value.trim();
   if (!PRIVATE_KEY_RE.test(raw)) return '';
   return raw.startsWith('0x') ? raw : `0x${raw}`;
+}
+
+function metadataSecret() {
+  const secret = String(process.env.SPATIAL_MINT_METADATA_SECRET || '');
+  if (secret.length < 32) throw new Error('Spatial mint metadata secret is not configured.');
+  return secret;
 }
 
 export function spatialMintServerEnabled() {
@@ -56,9 +62,7 @@ export function assertSpatialMintServerReady({ requireSigner = false, requireMet
   if (requireSigner && !normalizedPrivateKey(String(process.env.SPATIAL_NFT_VOUCHER_SIGNER_PRIVATE_KEY || ''))) {
     throw new Error('Spatial mint voucher signer is not configured.');
   }
-  if (requireMetadataSecret && String(process.env.SPATIAL_MINT_METADATA_SECRET || '').length < 32) {
-    throw new Error('Spatial mint metadata secret is not configured.');
-  }
+  if (requireMetadataSecret) metadataSecret();
   return { chainId, contractAddress, rpcUrl };
 }
 
@@ -73,18 +77,19 @@ export function spatialMintContract(provider?: JsonRpcProvider) {
 }
 
 export function spatialMintMetadataSignature(assetId: string) {
-  assertSpatialMintServerReady({ requireMetadataSecret: true });
-  return createHmac('sha256', String(process.env.SPATIAL_MINT_METADATA_SECRET)).update(`spatial-metadata:${assetId}:v1`).digest('hex');
+  return createHmac('sha256', metadataSecret()).update(`spatial-metadata:${assetId}:v1`).digest('hex');
 }
 
 export function spatialMintMediaSignature(assetId: string, kind: 'model' | 'image') {
-  assertSpatialMintServerReady({ requireMetadataSecret: true });
-  return createHmac('sha256', String(process.env.SPATIAL_MINT_METADATA_SECRET)).update(`spatial-media:${assetId}:${kind}:v1`).digest('hex');
+  return createHmac('sha256', metadataSecret()).update(`spatial-media:${assetId}:${kind}:v1`).digest('hex');
 }
 
 export function spatialMintSignatureValid(assetId: string, value: string, kind?: 'model' | 'image') {
+  if (!/^[a-f0-9]{64}$/i.test(value)) return false;
   const expected = kind ? spatialMintMediaSignature(assetId, kind) : spatialMintMetadataSignature(assetId);
-  return /^[a-f0-9]{64}$/i.test(value) && value.toLowerCase() === expected.toLowerCase();
+  const actualBuffer = Buffer.from(value.toLowerCase(), 'hex');
+  const expectedBuffer = Buffer.from(expected.toLowerCase(), 'hex');
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 export function spatialMintVoucherId(assetId: string) {
