@@ -28,6 +28,9 @@ export async function GET() {
       merkleDistributionVaultContract: true,
       globalAssetAllocationSimulation: true,
       fractionalPropertySimulation: true,
+      acquisitionResearchEngine: true,
+      cheapestProfitableVerifiedRanking: true,
+      tokenizedRealEstateProviderModel: true,
       jurisdictionAcquisitionGate: true,
       regulatedLaunchGateEngine: true,
       crossAssetAdapterModel: true,
@@ -37,6 +40,10 @@ export async function GET() {
       liveAutomaticReinvestment: false,
       pooledPublicRentInvesting: false,
       mainnetPropertyTokenDeployment: false,
+    },
+    routes: {
+      acquisitionEngine: '/real-estate/acquire',
+      acquisitionStatus: '/api/property-platform/acquisition',
     },
     note: launch.liveInvestingEnabled
       ? 'Controlled live mode is active through the approved production integration.'
