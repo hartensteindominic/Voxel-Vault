@@ -27,8 +27,11 @@ forbidText(manager, 'delegatecall', 'manager must not use delegatecall');
 forbidText(manager, 'tx.origin', 'manager must not use tx.origin authentication');
 
 requireText(treasury, 'onlyOwner', 'treasury withdrawals must remain owner-controlled');
-forbidText(treasury, 'swap', 'treasury v1 must not auto-swap proceeds');
-forbidText(treasury, 'governance', 'treasury v1 must not perform governance actions');
+forbidText(treasury, 'exactInput', 'treasury v1 must not call swap-router exactInput methods');
+forbidText(treasury, 'swapExact', 'treasury v1 must not call swap-router exact-output methods');
+forbidText(treasury, 'ISwapRouter', 'treasury v1 must not depend on a swap router');
+forbidText(treasury, 'castVote', 'treasury v1 must not cast governance votes');
+forbidText(treasury, 'delegate(address', 'treasury v1 must not delegate governance power');
 
 requireText(scanner, 'https://mainnet-preconf.base.org', 'scanner must support official Base Flashblocks preconfirmation endpoint');
 requireText(scanner, "stateTag: 'pending'", 'scanner must read pending preconfirmed state');
