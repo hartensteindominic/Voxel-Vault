@@ -1,5 +1,5 @@
-import GlobalAssetCompoundPage from './real-estate/compound/page';
+import RealEstatePlatformPage from './real-estate/page';
 
 export default function Home() {
-  return <GlobalAssetCompoundPage />;
+  return <RealEstatePlatformPage />;
 }
