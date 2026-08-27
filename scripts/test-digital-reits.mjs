@@ -62,7 +62,7 @@ global.fetch = async (url, options = {}) => {
     ] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
   if (href.endsWith('/accounts/account-test/faucet')) {
-    return new Response('', { status: 204 });
+    return new Response(null, { status: 204 });
   }
   if (href.includes('/order_requests/market_buy')) {
     return new Response(JSON.stringify({ id: 'sandbox-order-1', status: 'PENDING' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
