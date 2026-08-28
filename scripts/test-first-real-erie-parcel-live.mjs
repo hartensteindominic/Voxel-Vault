@@ -6,7 +6,7 @@ import {
 import { ERIE_COUNTY_PARCEL_LAYER } from '../lib/real-estate/erie-county-gis.js';
 import {
   NYS_ERIE_LIDAR_COLLECTION,
-  NYS_ERIE_LIDAR_INDEX_LAYER,
+  NYS_LIDAR_INDEX_SERVICE,
   fetchNysErieLidarCoverage,
 } from '../lib/real-estate/nys-lidar-evidence.js';
 import {
@@ -106,8 +106,19 @@ const lidar = await loadLidarWithRetry({
   longitude: twin.location.longitude,
 });
 
+console.log('LIDAR_COVERAGE_DIAGNOSTIC', JSON.stringify({
+  point: lidar.point,
+  collection: lidar.collection,
+  resolvedLayer: lidar.resolvedLayer,
+  coverageStatus: lidar.coverageStatus,
+  tileCount: lidar.tiles.length,
+  queryUrl: lidar.provenance?.queryUrl,
+}, null, 2));
+
 assert.equal(lidar.ok, true, 'official NYS LiDAR index query must succeed for 618 Main');
 assert.equal(lidar.collection, NYS_ERIE_LIDAR_COLLECTION, 'the first parcel must use the Erie/Genesee/Livingston 2019 collection');
+assert.equal(lidar.resolvedLayer?.name, NYS_ERIE_LIDAR_COLLECTION, 'the live source layer must be resolved by exact official collection name');
+assert.ok(String(lidar.resolvedLayer?.layerUrl || '').startsWith(`${NYS_LIDAR_INDEX_SERVICE}/`), 'resolved LiDAR layer must stay inside the official NYS LAS index service');
 assert.equal(lidar.coverageStatus, 'covered', 'the 618 Main reference point must intersect at least one official LAS tile');
 assert.ok(lidar.tiles.length > 0, 'at least one authoritative LAS tile must cover the parcel reference point');
 assert.ok(lidar.tiles.some((tile) => tile.filename), 'covered LAS evidence must include an official filename');
@@ -117,7 +128,7 @@ assert.equal(lidar.measurementStatus, 'coverage_only', 'LiDAR must remain covera
 assert.equal(lidar.measurementMethod, null, 'no measurement method may be claimed before LAS processing');
 assert.equal(lidar.legalEffects.establishesBuildingHeight, false, 'tile discovery alone must not establish building height');
 assert.equal(lidar.legalEffects.establishesDeedOwnership, false, 'LiDAR can never establish deed ownership');
-assert.equal(lidar.source.sourceUrl, NYS_ERIE_LIDAR_INDEX_LAYER, 'LiDAR lineage must retain the official NYS index layer');
+assert.equal(lidar.source.sourceUrl, lidar.resolvedLayer.layerUrl, 'LiDAR lineage must retain the dynamically resolved official NYS layer');
 
 console.log(JSON.stringify({
   forcingFunction: 'first-real-erie-parcel',
@@ -138,6 +149,7 @@ console.log(JSON.stringify({
   buildingSource: twin.structure.source,
   lidar: {
     collection: lidar.collection,
+    resolvedLayer: lidar.resolvedLayer,
     coverageStatus: lidar.coverageStatus,
     measurementStatus: lidar.measurementStatus,
     tileCount: lidar.tiles.length,
