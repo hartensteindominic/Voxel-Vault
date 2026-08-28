@@ -51,19 +51,19 @@ export default function GeoReferenceModel({ reference }) {
       ground.position.y = -0.25;
       root.add(ground);
 
-      const ringGeometry = new THREE.RingGeometry(5.8, 6.0, 72);
-      geometries.push(ringGeometry);
-      const ring = new THREE.Mesh(ringGeometry, mat({ color: 0x7ce9c4, emissive: 0x164c3c, emissiveIntensity: 1.1, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = -0.06;
-      root.add(ring);
+      const orbitGeometry = new THREE.RingGeometry(5.8, 6.0, 72);
+      geometries.push(orbitGeometry);
+      const orbitRing = new THREE.Mesh(orbitGeometry, mat({ color: 0x7ce9c4, emissive: 0x164c3c, emissiveIntensity: 1.1, side: THREE.DoubleSide }));
+      orbitRing.rotation.x = -Math.PI / 2;
+      orbitRing.position.y = -0.06;
+      root.add(orbitRing);
 
-      const ring = outerRing(reference?.geometry);
-      if (reference?.found && ring.length >= 4) {
-        const lat0 = Number(ring[0][1]);
-        const lon0 = Number(ring[0][0]);
+      const polygonRing = outerRing(reference?.geometry);
+      if (reference?.found && polygonRing.length >= 4) {
+        const lat0 = Number(polygonRing[0][1]);
+        const lon0 = Number(polygonRing[0][0]);
         const cosLat = Math.max(0.2, Math.cos(lat0 * Math.PI / 180));
-        const points = ring.slice(0, -1).map(([lon, lat]) => ({
+        const points = polygonRing.slice(0, -1).map(([lon, lat]) => ({
           x: (Number(lon) - lon0) * 111320 * cosLat,
           y: (Number(lat) - lat0) * 111320,
         }));
@@ -85,10 +85,8 @@ export default function GeoReferenceModel({ reference }) {
         const visualDepth = Math.max(0.55, Math.min(8, sourceHeight * scale));
         const buildingGeometry = new THREE.ExtrudeGeometry(shape, { depth: visualDepth, bevelEnabled: false, curveSegments: 1, steps: 1 });
         buildingGeometry.rotateX(-Math.PI / 2);
-        buildingGeometry.translate(0, 0, -visualDepth / 2);
         geometries.push(buildingGeometry);
         const building = new THREE.Mesh(buildingGeometry, mat({ color: 0xd7ddd9, roughness: 0.48, metalness: 0.08 }));
-        building.position.y = 0;
         root.add(building);
 
         const edgesGeometry = new THREE.EdgesGeometry(buildingGeometry, 28);
@@ -135,7 +133,7 @@ export default function GeoReferenceModel({ reference }) {
       let frame = 0;
       const animate = () => {
         frame = requestAnimationFrame(animate);
-        ring.rotation.z += 0.0018;
+        orbitRing.rotation.z += 0.0018;
         renderer.render(scene, camera);
       };
       animate();
