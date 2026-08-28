@@ -94,7 +94,8 @@ requireText(passport, 'propertyRegistry.getProperty(propertyId)', 'property pass
 requireText(distribution, 'ClaimantNotAllowed', 'distribution vault');
 requireText(distribution, 'interestToken.isAllowed(msg.sender)', 'distribution vault');
 requireText(distribution, 'InvalidStatementHash', 'distribution vault');
-requireText(root, "import RealEstatePlatformPage from './real-estate/page'", 'root homepage');
+requireText(root, "href: '/real-estate/reits'", 'root homepage');
+requireText(root, 'provider-backed real-estate investment workflows', 'root homepage');
 requireText(home, 'Demo data only', 'property homepage');
 requireText(home, 'Live investing is locked', 'property homepage');
 requireText(home, '/real-estate/property/', 'property homepage');

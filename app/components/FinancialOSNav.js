@@ -2,48 +2,28 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-const PRIMARY = [
-  { href: '/', label: 'Home', icon: 'V' },
-  { href: '/geo', label: 'Explore', icon: '◎' },
-  { href: '/real-estate/reits', label: 'Invest', icon: '$' },
-  { href: '/vault', label: 'Vault', icon: '◇' },
-  { href: '/vault/income', label: 'Income', icon: '↗' },
-];
-
-const FINANCIAL_PREFIXES = ['/geo', '/real-estate', '/vault', '/admin/digital-reits'];
-
-function activeFor(pathname, href) {
-  if (href === '/') return pathname === '/';
-  if (href === '/real-estate/reits') {
-    return pathname.startsWith('/real-estate/reits') || pathname.startsWith('/real-estate/invest');
-  }
-  if (href === '/vault') {
-    return pathname === '/vault' || pathname.startsWith('/vault/properties') || pathname.startsWith('/vault/estates');
-  }
-  return pathname.startsWith(href);
-}
+import { APP_DOCK, dockItemForPath, isOrganizedUserRoute } from '../../lib/product-map';
 
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
-  const financialRoute = pathname === '/' || FINANCIAL_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-  if (!financialRoute) return null;
+  if (!isOrganizedUserRoute(pathname)) return null;
+  const active = dockItemForPath(pathname);
 
   return (
     <>
-      <div aria-hidden="true" style={{height:'calc(82px + env(safe-area-inset-bottom))'}} />
-      <nav aria-label="Voxel Vault financial navigation" style={styles.nav}>
-        {PRIMARY.map((item) => {
-          const active = activeFor(pathname, item.href);
+      <div aria-hidden="true" style={{ height: 'calc(82px + env(safe-area-inset-bottom))' }} />
+      <nav aria-label="Voxel Vault primary navigation" style={styles.nav}>
+        {APP_DOCK.map((item) => {
+          const selected = item.id === active.id;
           return (
             <Link
-              key={item.href}
+              key={item.id}
               href={item.href}
-              aria-current={active ? 'page' : undefined}
-              style={{ ...styles.item, ...(active ? styles.itemActive : {}) }}
+              aria-current={selected ? 'page' : undefined}
+              style={{ ...styles.item, ...(selected ? styles.itemActive : {}) }}
             >
-              <span style={{ ...styles.icon, ...(active ? styles.iconActive : {}) }}>{item.icon}</span>
-              <b style={{ ...styles.label, ...(active ? styles.labelActive : {}) }}>{item.label}</b>
+              <span style={{ ...styles.icon, ...(selected ? styles.iconActive : {}) }}>{item.icon}</span>
+              <b style={{ ...styles.label, ...(selected ? styles.labelActive : {}) }}>{item.label}</b>
             </Link>
           );
         })}
@@ -67,7 +47,7 @@ const styles = {
     boxSizing: 'border-box',
     border: '1px solid rgba(171,235,212,.17)',
     borderRadius: 22,
-    background: 'rgba(5,9,8,.92)',
+    background: 'rgba(5,9,8,.93)',
     boxShadow: '0 18px 50px rgba(0,0,0,.38)',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
@@ -92,13 +72,15 @@ const styles = {
     background: 'linear-gradient(180deg, rgba(159,245,223,.11), rgba(159,245,223,.045))',
   },
   icon: {
-    width: 25,
+    minWidth: 26,
     height: 25,
+    padding: '0 5px',
     borderRadius: 9,
     display: 'grid',
     placeItems: 'center',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 950,
+    letterSpacing: '-.04em',
     color: 'rgba(255,255,255,.54)',
     background: 'rgba(255,255,255,.045)',
   },
