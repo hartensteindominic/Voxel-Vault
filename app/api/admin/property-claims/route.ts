@@ -102,30 +102,26 @@ export async function POST(request: Request) {
   }
 
   if (decision === 'needs-evidence') {
-    const current = await auth.admin
-      .from('vault_property_claims')
-      .select('id,claim_status')
-      .eq('id', claimId)
-      .maybeSingle();
-
-    if (current.error || !current.data) {
-      if (setupMissing(current.error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migrations 015 and 016 before reviewing property claims.' }, 503);
-      return response({ ok: false, error: 'Property claim was not found.' }, 404);
-    }
-
-    if (!['needs-evidence', 'under-review'].includes(String(current.data.claim_status || ''))) {
-      return response({ ok: false, error: 'This claim is already in a terminal state and cannot be moved back to evidence collection.' }, 409);
-    }
-
     const reviewedAt = new Date().toISOString();
     const updated = await auth.admin
       .from('vault_property_claims')
       .update({ claim_status: 'needs-evidence', reviewer_note: reviewerNote, reviewed_at: reviewedAt, updated_at: reviewedAt })
       .eq('id', claimId)
+      .in('claim_status', ['needs-evidence', 'under-review'])
       .select('id,claim_status,reviewer_note,reviewed_at')
-      .single();
+      .maybeSingle();
 
-    if (updated.error || !updated.data) return response({ ok: false, error: 'The request for additional evidence could not be stored.' }, 500);
+    if (updated.error) {
+      if (setupMissing(updated.error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migrations 015 and 016 before reviewing property claims.' }, 503);
+      return response({ ok: false, error: 'The request for additional evidence could not be stored.' }, 500);
+    }
+
+    if (!updated.data) {
+      return response({
+        ok: false,
+        error: 'This claim is no longer reviewable. It may have reached a terminal state in another review request.',
+      }, 409);
+    }
 
     return response({
       ok: true,
