@@ -135,6 +135,11 @@ function pointInPolygon(east, north, polygon) {
   return inside;
 }
 
+function visualHash(value) {
+  const x = Math.sin(value * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function terrainRelativeMeters(terrain, eastMeters, northMeters) {
   const samples = Array.isArray(terrain?.samples) ? terrain.samples : [];
   if (!terrain?.available || !samples.length) return 0;
@@ -446,9 +451,9 @@ function addVoxelShell({ THREE, root, local, baseY, visualHeight, compactMode, g
   if (!bounds) return;
   const width = Math.max(1, bounds.maxEast - bounds.minEast);
   const depth = Math.max(1, bounds.maxNorth - bounds.minNorth);
-  const cellMeters = Math.max(compactMode ? 2.1 : 1.5, width / (compactMode ? 38 : 56), depth / (compactMode ? 38 : 56));
+  const cellMeters = Math.max(compactMode ? 1.35 : 0.95, width / (compactMode ? 46 : 70), depth / (compactMode ? 46 : 70));
   const cellScene = cellMeters * METERS_TO_SCENE;
-  const heightCells = Math.max(3, Math.min(compactMode ? 26 : 38, Math.round(visualHeight / Math.max(0.045, cellScene * 0.72))));
+  const heightCells = Math.max(4, Math.min(compactMode ? 32 : 52, Math.round(visualHeight / Math.max(0.035, cellScene * 0.58))));
   const cellHeight = visualHeight / heightCells;
   const columns = [];
 
@@ -463,34 +468,48 @@ function addVoxelShell({ THREE, root, local, baseY, visualHeight, compactMode, g
 
   if (!columns.length) return;
   const requested = columns.reduce((sum, column) => sum + (column.boundary ? heightCells : 1), 0);
-  const maxInstances = compactMode ? 950 : 1900;
+  const maxInstances = compactMode ? 1450 : 3400;
   const stride = Math.max(1, Math.ceil(requested / maxInstances));
-  const geometry = new THREE.BoxGeometry(cellScene * 0.9, Math.max(0.03, cellHeight * 0.86), cellScene * 0.9);
+  const geometry = new THREE.BoxGeometry(cellScene * 0.91, Math.max(0.025, cellHeight * 0.82), cellScene * 0.91);
   const material = new THREE.MeshStandardMaterial({
-    color: 0xf2e7d4,
-    roughness: 0.61,
-    metalness: 0.02,
-    emissive: 0x1d231f,
-    emissiveIntensity: 0.04,
+    color: 0xffffff,
+    vertexColors: true,
+    roughness: 0.73,
+    metalness: 0.012,
+    emissive: 0x161916,
+    emissiveIntensity: 0.028,
   });
   geometries.push(geometry);
   materials.push(material);
 
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, Math.ceil(requested / stride)));
   const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  const color = new THREE.Color();
+  const palette = [0xefe3cf, 0xddceb5, 0xc7b79f, 0xf5ead9, 0xbda98d, 0xd6c2a2];
   let cursor = 0;
   let sourceIndex = 0;
+
   for (const column of columns) {
     const start = column.boundary ? 0 : heightCells - 1;
     for (let level = start; level < heightCells; level += 1) {
       if (!column.boundary && level !== heightCells - 1) continue;
+      const hash = visualHash((column.east + 190) * 13 + (column.north + 270) * 17 + level * 37);
       if (sourceIndex % stride === 0 && cursor < mesh.count) {
-        matrix.makeTranslation(
+        const inset = column.boundary ? 0.985 + hash * 0.018 : 0.97;
+        position.set(
           column.east * METERS_TO_SCENE,
           baseY + cellHeight * (level + 0.5),
           -column.north * METERS_TO_SCENE,
         );
+        scale.set(inset, 0.965 + hash * 0.025, inset);
+        matrix.compose(position, quaternion, scale);
         mesh.setMatrixAt(cursor, matrix);
+        const levelShade = level === heightCells - 1 ? 0.91 : 1;
+        color.setHex(palette[Math.floor(hash * palette.length) % palette.length]).multiplyScalar(levelShade);
+        mesh.setColorAt(cursor, color);
         cursor += 1;
       }
       sourceIndex += 1;
@@ -498,7 +517,8 @@ function addVoxelShell({ THREE, root, local, baseY, visualHeight, compactMode, g
   }
   mesh.count = cursor;
   mesh.instanceMatrix.needsUpdate = true;
-  mesh.castShadow = !compactMode;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.castShadow = true;
   mesh.receiveShadow = true;
   root.add(mesh);
 }
@@ -510,7 +530,7 @@ function addSilhouetteLines({ THREE, root, local, baseY, visualHeight, geometrie
   footprint.push(footprint[0].clone());
   roof.push(roof[0].clone());
 
-  const lineMaterial = new THREE.LineBasicMaterial({ color: 0xfff2d8, transparent: true, opacity: 0.88 });
+  const lineMaterial = new THREE.LineBasicMaterial({ color: 0xfff2d8, transparent: true, opacity: 0.58 });
   materials.push(lineMaterial);
   const footprintGeometry = new THREE.BufferGeometry().setFromPoints(footprint);
   const roofGeometry = new THREE.BufferGeometry().setFromPoints(roof);
@@ -631,9 +651,9 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       renderer.setSize(width, height);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = viewMode === 'top' ? 1.12 : 1.08;
-      renderer.shadowMap.enabled = !compactMode;
-      if (!compactMode) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMappingExposure = viewMode === 'top' ? 1.16 : 1.18;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.style.touchAction = 'none';
       renderer.domElement.style.cursor = 'grab';
       renderer.domElement.style.width = '100%';
@@ -643,24 +663,26 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       mount.replaceChildren(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(viewMode === 'top' ? 0x0f1816 : 0x101716);
-      scene.fog = new THREE.FogExp2(0x101716, compactMode ? 0.021 : 0.017);
+      scene.background = new THREE.Color(viewMode === 'top' ? 0x0c1311 : 0x0d1211);
+      scene.fog = new THREE.FogExp2(0x0d1211, compactMode ? 0.021 : 0.017);
       const camera = new THREE.PerspectiveCamera(viewMode === 'top' ? (compactMode ? 35 : 31) : (compactMode ? 42 : 37), width / height, 0.05, 170);
       const root = new THREE.Group();
       scene.add(root);
-      scene.add(new THREE.HemisphereLight(0xf8f0df, 0x26352f, viewMode === 'top' ? 2.45 : 2.2));
+      scene.add(new THREE.HemisphereLight(0xf8efdd, 0x24312c, viewMode === 'top' ? 2.2 : 1.9));
 
-      const sun = new THREE.DirectionalLight(0xffeed2, compactMode ? 3.6 : 4.3);
+      const sun = new THREE.DirectionalLight(0xffe7c5, compactMode ? 3.9 : 4.8);
       sun.position.set(10, 18, 7);
-      sun.castShadow = !compactMode;
-      if (!compactMode) {
-        sun.shadow.mapSize.set(1024, 1024);
-        Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18 });
-      }
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(compactMode ? 512 : 1536, compactMode ? 512 : 1536);
+      Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18 });
+      sun.shadow.bias = -0.00035;
       scene.add(sun);
-      const fill = new THREE.DirectionalLight(0xa6d2c8, 1.25);
+      const fill = new THREE.DirectionalLight(0x93c1b5, 0.95);
       fill.position.set(-9, 7, -8);
       scene.add(fill);
+      const warmRim = new THREE.PointLight(0xffc98b, compactMode ? 0.75 : 1.55, 26, 2);
+      warmRim.position.set(-5, 8, 6);
+      scene.add(warmRim);
 
       const geometries = [];
       const materials = [];
@@ -809,16 +831,23 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         const centerZ = -primaryCenter.north * METERS_TO_SCENE;
         focusTarget.set(centerX, baseY + Math.max(0.09, visualHeight * 0.5), centerZ);
         const sourceAddress = [reference?.tags?.houseNumber, reference?.tags?.street].filter(Boolean).join(' ');
+        const exactReferenceMatch = reference?.matchStrategy === 'exact_source_address_match';
+        const safePrimaryTitle = authoritativeGeometry && !exactReferenceMatch
+          ? 'Parcel-linked building'
+          : reference?.tags?.name || sourceAddress || 'Selected property';
         const primaryFeature = {
           type: authoritativeGeometry ? 'Selected parcel building' : 'Selected mapped building',
-          title: reference?.tags?.name || sourceAddress || 'Selected property',
+          title: safePrimaryTitle,
           subtitle: label.title,
           facts: [
             Number.isFinite(Number(heightInfo.meters)) && heightInfo.meters > 0 ? `Displayed height: ${Number(heightInfo.meters).toFixed(1)} m (${heightInfo.status.replaceAll('_', ' ')})` : null,
             reference?.matchStrategy === 'exact_source_address_match' ? 'Exact source address match' : reference?.matchStrategy === 'nearest_source_building_within_neighborhood' ? 'Nearest source building; exact address match not proven' : null,
+            'Voxel color and block relief are visual styling only',
           ].filter(Boolean),
-          note: label.detail,
-          sourceUrl: reference?.source?.sourceUrl || '',
+          note: `${label.detail} Voxel surface color, block relief, lighting and shadow are rendering style only; they do not assert facade material, windows, roof form, chimneys or current condition.`,
+          sourceUrl: authoritativeGeometry
+            ? authoritativeTwin?.structure?.source?.sourceUrl || authoritativeTwin?.location?.source?.sourceUrl || ''
+            : reference?.source?.sourceUrl || '',
         };
 
         for (const local of primaryPolygons) {
@@ -826,12 +855,12 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
           if (shape) {
             const coreGeometry = new THREE.ExtrudeGeometry(shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
             coreGeometry.rotateX(-Math.PI / 2);
-            const coreMaterial = new THREE.MeshStandardMaterial({ color: 0x9c9585, roughness: 0.7, metalness: 0, transparent: true, opacity: 0.62 });
+            const coreMaterial = new THREE.MeshStandardMaterial({ color: 0x7a7468, roughness: 0.84, metalness: 0, transparent: true, opacity: 0.24 });
             geometries.push(coreGeometry);
             materials.push(coreMaterial);
             const core = new THREE.Mesh(coreGeometry, coreMaterial);
             core.position.y = baseY;
-            core.castShadow = !compactMode;
+            core.castShadow = true;
             core.receiveShadow = true;
             core.userData.feature = primaryFeature;
             root.add(core);
@@ -841,7 +870,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
           addSilhouetteLines({ THREE, root, local, baseY, visualHeight, geometries, materials });
         }
 
-        const propertyLabelText = reference?.tags?.name || sourceAddress;
+        const propertyLabelText = authoritativeGeometry && !exactReferenceMatch ? '' : reference?.tags?.name || sourceAddress;
         if (propertyLabelText) {
           const propertyLabel = createTextSprite({
             THREE,
@@ -1169,6 +1198,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
     },
     createElement('div', { style: { fontSize: 12, fontWeight: 800, letterSpacing: '0.01em' } }, label.title),
     createElement('div', { style: { marginTop: 2, fontSize: 10, lineHeight: 1.35, color: 'rgba(246, 239, 225, 0.68)' } }, label.detail),
+    hasPrimary ? createElement('div', { style: { marginTop: 5, fontSize: 9, color: 'rgba(242, 224, 196, 0.78)' } }, 'Dense voxel masonry, color variation, lighting + shadow = visual rendering only · no facade, window, roof-form or material facts inferred') : null,
     authoritativeTwin?.location?.parcelGeometry ? createElement('div', { style: { marginTop: 5, fontSize: 9, color: 'rgba(183, 240, 213, 0.92)' } }, 'Mint outline + translucent fill = source-backed parcel boundary') : null,
     publicRealmFound ? createElement('div', { style: { marginTop: 4, fontSize: 9, color: 'rgba(232, 207, 166, 0.92)' } }, 'Sand/peach dashes = mapped street/path centerlines · stroke thickness is visual only') : null,
     publicRealmFound ? createElement('div', { style: { marginTop: 4, fontSize: 9, color: 'rgba(238, 220, 186, 0.72)' } }, 'Dash rhythm and color distinguish mapped road/path classes without inventing road width. Source street names appear as you zoom closer; tap mapped features for evidence context.') : null,
