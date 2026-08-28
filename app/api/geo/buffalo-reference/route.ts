@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchBuffaloPropertyReference } from '../../../../../lib/real-estate/buffalo-property-reference.js';
+import { fetchBuffaloPropertyReference } from '../../../../lib/real-estate/buffalo-property-reference.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
