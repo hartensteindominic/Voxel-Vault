@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 
+const METERS_TO_SCENE = 0.075;
+
 function outerRing(geometry) {
   if (!geometry || !Array.isArray(geometry.coordinates)) return [];
   if (geometry.type === 'Polygon') return Array.isArray(geometry.coordinates[0]) ? geometry.coordinates[0] : [];
@@ -16,6 +18,47 @@ function numericLevels(reference, sourceHeightMeters) {
   return 1;
 }
 
+function toLocalMeters(longitude, latitude, originLongitude, originLatitude) {
+  const cosLat = Math.max(0.15, Math.cos(originLatitude * Math.PI / 180));
+  return {
+    east: (Number(longitude) - originLongitude) * 111320 * cosLat,
+    north: (Number(latitude) - originLatitude) * 111320,
+  };
+}
+
+function terrainRelativeMeters(terrain, eastMeters, northMeters) {
+  const samples = Array.isArray(terrain?.samples) ? terrain.samples : [];
+  if (!terrain?.available || !samples.length) return 0;
+  let weighted = 0;
+  let weightTotal = 0;
+  for (const sample of samples) {
+    const dx = eastMeters - Number(sample.eastMeters || 0);
+    const dz = northMeters - Number(sample.northMeters || 0);
+    const distanceSquared = dx * dx + dz * dz;
+    const weight = 1 / Math.max(1, distanceSquared);
+    weighted += Number(sample.relativeElevationMeters || 0) * weight;
+    weightTotal += weight;
+  }
+  return weightTotal > 0 ? weighted / weightTotal : 0;
+}
+
+function shapeFromGeometry(THREE, geometry, originLongitude, originLatitude) {
+  const ring = outerRing(geometry);
+  if (ring.length < 4) return null;
+  const local = ring.slice(0, -1)
+    .map(([lon, lat]) => toLocalMeters(lon, lat, originLongitude, originLatitude))
+    .filter((point) => Number.isFinite(point.east) && Number.isFinite(point.north));
+  if (local.length < 3) return null;
+  const shape = new THREE.Shape();
+  local.forEach((point, index) => {
+    const x = point.east * METERS_TO_SCENE;
+    const zAsShapeY = -point.north * METERS_TO_SCENE;
+    if (index === 0) shape.moveTo(x, zAsShapeY); else shape.lineTo(x, zAsShapeY);
+  });
+  shape.closePath();
+  return { shape, local };
+}
+
 export default function GeoReferenceModel({ reference }) {
   const mountRef = useRef(null);
 
@@ -28,7 +71,7 @@ export default function GeoReferenceModel({ reference }) {
       const width = Math.max(300, mount.clientWidth || 320);
       const height = Math.max(320, mount.clientHeight || 400);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
       renderer.setSize(width, height);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = false;
@@ -37,14 +80,14 @@ export default function GeoReferenceModel({ reference }) {
       mount.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x07100d, 22, 44);
-      const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-      scene.add(new THREE.HemisphereLight(0xf5fff9, 0x06100d, 2.35));
-      const sun = new THREE.DirectionalLight(0xffffff, 3.2);
-      sun.position.set(8, 12, 9);
+      scene.fog = new THREE.Fog(0x07100d, 20, 39);
+      const camera = new THREE.PerspectiveCamera(37, width / height, 0.1, 120);
+      scene.add(new THREE.HemisphereLight(0xf5fff9, 0x06100d, 2.15));
+      const sun = new THREE.DirectionalLight(0xffffff, 3.1);
+      sun.position.set(10, 16, 10);
       scene.add(sun);
-      const accent = new THREE.PointLight(0x7ce9c4, 24, 28);
-      accent.position.set(-6, 6, 7);
+      const accent = new THREE.PointLight(0x7ce9c4, 18, 32);
+      accent.position.set(-7, 7, 8);
       scene.add(accent);
 
       const root = new THREE.Group();
@@ -54,107 +97,144 @@ export default function GeoReferenceModel({ reference }) {
       const mat = (params) => { const material = new THREE.MeshStandardMaterial(params); materials.push(material); return material; };
       const lineMat = (params) => { const material = new THREE.LineBasicMaterial(params); materials.push(material); return material; };
 
-      const groundGeometry = new THREE.CylinderGeometry(6.65, 6.95, 0.32, 64);
-      geometries.push(groundGeometry);
-      const ground = new THREE.Mesh(groundGeometry, mat({ color: 0x13231d, roughness: 0.92, metalness: 0.03 }));
-      ground.position.y = -0.27;
-      root.add(ground);
+      const originLatitude = Number(reference?.latitude);
+      const originLongitude = Number(reference?.longitude);
+      const validOrigin = Number.isFinite(originLatitude) && Number.isFinite(originLongitude);
+      const terrain = reference?.terrain || null;
+      const terrainRadiusMeters = Math.max(60, Math.min(180, Number(terrain?.radiusMeters) || 90));
+      const sceneRadius = terrainRadiusMeters * METERS_TO_SCENE;
 
-      const grid = new THREE.GridHelper(11.8, 18, 0x315d4f, 0x1a332a);
-      grid.position.y = -0.095;
-      const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
-      gridMaterials.forEach((material) => { material.transparent = true; material.opacity = 0.22; materials.push(material); });
-      root.add(grid);
+      const baseGeometry = new THREE.CylinderGeometry(sceneRadius * 1.08, sceneRadius * 1.13, 0.26, 72);
+      geometries.push(baseGeometry);
+      const base = new THREE.Mesh(baseGeometry, mat({ color: 0x101d18, roughness: 0.95, metalness: 0.02 }));
+      base.position.y = -0.32;
+      root.add(base);
 
-      const orbitGeometry = new THREE.RingGeometry(5.9, 6.02, 96);
-      geometries.push(orbitGeometry);
-      const orbitRing = new THREE.Mesh(orbitGeometry, mat({ color: 0x7ce9c4, emissive: 0x164c3c, emissiveIntensity: 0.9, transparent: true, opacity: 0.72, side: THREE.DoubleSide }));
-      orbitRing.rotation.x = -Math.PI / 2;
-      orbitRing.position.y = -0.075;
-      root.add(orbitRing);
-
-      const polygonRing = outerRing(reference?.geometry);
-      if (reference?.found && polygonRing.length >= 4) {
-        const lat0 = Number(polygonRing[0][1]);
-        const lon0 = Number(polygonRing[0][0]);
-        const cosLat = Math.max(0.2, Math.cos(lat0 * Math.PI / 180));
-        const rawPoints = polygonRing.slice(0, -1).map(([lon, lat]) => ({
-          x: (Number(lon) - lon0) * 111320 * cosLat,
-          y: (Number(lat) - lat0) * 111320,
-        })).filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-
-        if (rawPoints.length >= 3) {
-          const xs = rawPoints.map((point) => point.x);
-          const ys = rawPoints.map((point) => point.y);
-          const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-          const span = Math.max(maxX - minX, maxY - minY, 1);
-          const scale = 7.1 / span;
-          const centerX = (minX + maxX) / 2;
-          const centerY = (minY + maxY) / 2;
-          const points = rawPoints.map((point) => ({ x: (point.x - centerX) * scale, y: (point.y - centerY) * scale }));
-          const shape = new THREE.Shape();
-          points.forEach((point, index) => {
-            if (index === 0) shape.moveTo(point.x, point.y); else shape.lineTo(point.x, point.y);
-          });
-          shape.closePath();
-
-          const sourceHeight = Math.max(0.5, Number(reference?.height?.referenceHeightMeters) || 3);
-          const visualHeight = Math.max(0.8, Math.min(8.2, sourceHeight * scale));
-          const levels = numericLevels(reference, sourceHeight);
-
-          const footprintPoints = points.map((point) => new THREE.Vector3(point.x, 0.015, -point.y));
-          if (footprintPoints.length) footprintPoints.push(footprintPoints[0].clone());
-          const footprintGeometry = new THREE.BufferGeometry().setFromPoints(footprintPoints);
-          geometries.push(footprintGeometry);
-          root.add(new THREE.Line(footprintGeometry, lineMat({ color: 0x7ce9c4, transparent: true, opacity: 0.9 })));
-
-          const buildingGeometry = new THREE.ExtrudeGeometry(shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
-          buildingGeometry.rotateX(-Math.PI / 2);
-          geometries.push(buildingGeometry);
-          const buildingMaterial = mat({ color: 0xcbd4d0, roughness: 0.58, metalness: 0.06, transparent: true, opacity: 0.96 });
-          const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-          root.add(building);
-
-          const edgesGeometry = new THREE.EdgesGeometry(buildingGeometry, 18);
-          geometries.push(edgesGeometry);
-          root.add(new THREE.LineSegments(edgesGeometry, lineMat({ color: 0x8bf1ce, transparent: true, opacity: 0.72 })));
-
-          const roofGeometry = new THREE.ShapeGeometry(shape);
-          roofGeometry.rotateX(-Math.PI / 2);
-          geometries.push(roofGeometry);
-          const roof = new THREE.Mesh(roofGeometry, mat({ color: 0xe6eeea, roughness: 0.4, metalness: 0.08, transparent: true, opacity: 0.95, side: THREE.DoubleSide }));
-          roof.position.y = visualHeight + 0.012;
-          root.add(roof);
-
-          const bandCount = Math.min(levels - 1, 11);
-          for (let floor = 1; floor <= bandCount; floor += 1) {
-            const y = visualHeight * (floor / levels);
-            const bandPoints = points.map((point) => new THREE.Vector3(point.x, y, -point.y));
-            if (bandPoints.length) bandPoints.push(bandPoints[0].clone());
-            const bandGeometry = new THREE.BufferGeometry().setFromPoints(bandPoints);
-            geometries.push(bandGeometry);
-            root.add(new THREE.Line(bandGeometry, lineMat({ color: 0x5cae93, transparent: true, opacity: 0.34 })));
+      if (terrain?.available && Array.isArray(terrain.samples) && terrain.samples.length >= 4) {
+        const sorted = [...terrain.samples].sort((a, b) => Number(a.row) - Number(b.row) || Number(a.column) - Number(b.column));
+        const vertices = [];
+        for (let row = 0; row < 3; row += 1) {
+          for (let column = 0; column < 3; column += 1) {
+            const sample = sorted.find((item) => Number(item.row) === row && Number(item.column) === column);
+            const east = Number(sample?.eastMeters ?? (column - 1) * terrainRadiusMeters);
+            const north = Number(sample?.northMeters ?? (row - 1) * terrainRadiusMeters);
+            const elevation = Number(sample?.relativeElevationMeters || 0);
+            vertices.push(east * METERS_TO_SCENE, elevation * METERS_TO_SCENE, -north * METERS_TO_SCENE);
           }
-
-          const pillarGeometry = new THREE.CylinderGeometry(0.025, 0.025, visualHeight, 5);
-          geometries.push(pillarGeometry);
-          const pillarMaterial = mat({ color: 0x7ce9c4, emissive: 0x173d32, emissiveIntensity: 0.5, roughness: 0.45 });
-          const stride = Math.max(1, Math.ceil(points.length / 18));
-          points.filter((_, index) => index % stride === 0).slice(0, 18).forEach((point) => {
-            const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
-            pillar.position.set(point.x, visualHeight / 2, -point.y);
-            root.add(pillar);
-          });
-
-          const beaconGeometry = new THREE.RingGeometry(Math.max(0.35, Math.min(2.4, span * scale * 0.23)), Math.max(0.41, Math.min(2.48, span * scale * 0.23 + 0.08)), 64);
-          geometries.push(beaconGeometry);
-          const beacon = new THREE.Mesh(beaconGeometry, mat({ color: 0xffffff, emissive: 0x356f5e, emissiveIntensity: 0.8, transparent: true, opacity: 0.32, side: THREE.DoubleSide }));
-          beacon.rotation.x = -Math.PI / 2;
-          beacon.position.y = visualHeight + 0.075;
-          root.add(beacon);
         }
+        const indices = [];
+        for (let row = 0; row < 2; row += 1) {
+          for (let column = 0; column < 2; column += 1) {
+            const a = row * 3 + column;
+            const b = a + 1;
+            const c = a + 3;
+            const d = c + 1;
+            indices.push(a, c, b, b, c, d);
+          }
+        }
+        const terrainGeometry = new THREE.BufferGeometry();
+        terrainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        terrainGeometry.setIndex(indices);
+        terrainGeometry.computeVertexNormals();
+        geometries.push(terrainGeometry);
+        const terrainMesh = new THREE.Mesh(terrainGeometry, mat({ color: 0x1d3028, roughness: 0.96, metalness: 0.01, side: THREE.DoubleSide }));
+        root.add(terrainMesh);
+        const terrainEdges = new THREE.EdgesGeometry(terrainGeometry, 1);
+        geometries.push(terrainEdges);
+        root.add(new THREE.LineSegments(terrainEdges, lineMat({ color: 0x4f8b76, transparent: true, opacity: 0.34 })));
       } else {
-        const markerGeometry = new THREE.TorusGeometry(2.3, 0.1, 12, 72);
+        const flatGeometry = new THREE.CircleGeometry(sceneRadius, 64);
+        flatGeometry.rotateX(-Math.PI / 2);
+        geometries.push(flatGeometry);
+        const flat = new THREE.Mesh(flatGeometry, mat({ color: 0x172720, roughness: 0.96, metalness: 0.01 }));
+        flat.position.y = -0.04;
+        root.add(flat);
+      }
+
+      const compassGeometry = new THREE.RingGeometry(sceneRadius * 0.97, sceneRadius, 96);
+      geometries.push(compassGeometry);
+      const compass = new THREE.Mesh(compassGeometry, mat({ color: 0x7ce9c4, emissive: 0x123b30, emissiveIntensity: 0.7, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+      compass.rotation.x = -Math.PI / 2;
+      compass.position.y = -0.025;
+      root.add(compass);
+
+      const surroundings = Array.isArray(reference?.neighborhoodBuildings) ? reference.neighborhoodBuildings.slice(0, 20) : [];
+      const primaryRecordId = String(reference?.source?.recordId || '');
+
+      if (validOrigin) {
+        for (const buildingRef of surroundings) {
+          if (!buildingRef?.geometry) continue;
+          const isPrimary = buildingRef.selected === true || String(buildingRef.id || '') === primaryRecordId;
+          if (isPrimary) continue;
+          const shaped = shapeFromGeometry(THREE, buildingRef.geometry, originLongitude, originLatitude);
+          if (!shaped) continue;
+          const center = buildingRef.center || {};
+          const localCenter = toLocalMeters(center.longitude ?? originLongitude, center.latitude ?? originLatitude, originLongitude, originLatitude);
+          const baseY = terrainRelativeMeters(terrain, localCenter.east, localCenter.north) * METERS_TO_SCENE;
+          const sourceHeight = Math.max(2.2, Math.min(120, Number(buildingRef?.height?.referenceHeightMeters) || 3));
+          const visualHeight = Math.max(0.18, sourceHeight * METERS_TO_SCENE);
+          const geometry = new THREE.ExtrudeGeometry(shaped.shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
+          geometry.rotateX(-Math.PI / 2);
+          geometries.push(geometry);
+          const mesh = new THREE.Mesh(geometry, mat({ color: 0x465b53, roughness: 0.76, metalness: 0.03, transparent: true, opacity: 0.7 }));
+          mesh.position.y = baseY;
+          root.add(mesh);
+          const edges = new THREE.EdgesGeometry(geometry, 28);
+          geometries.push(edges);
+          const lines = new THREE.LineSegments(edges, lineMat({ color: 0x76988b, transparent: true, opacity: 0.25 }));
+          lines.position.y = baseY;
+          root.add(lines);
+        }
+      }
+
+      const primaryGeometry = reference?.geometry;
+      const shapedPrimary = validOrigin ? shapeFromGeometry(THREE, primaryGeometry, originLongitude, originLatitude) : null;
+      if (reference?.found && shapedPrimary) {
+        const sourceHeight = Math.max(2.2, Math.min(500, Number(reference?.height?.referenceHeightMeters) || 3));
+        const visualHeight = Math.max(0.24, sourceHeight * METERS_TO_SCENE);
+        const levels = numericLevels(reference, sourceHeight);
+        const center = reference?.neighborhoodBuildings?.[0]?.center || { longitude: originLongitude, latitude: originLatitude };
+        const localCenter = toLocalMeters(center.longitude ?? originLongitude, center.latitude ?? originLatitude, originLongitude, originLatitude);
+        const baseY = terrainRelativeMeters(terrain, localCenter.east, localCenter.north) * METERS_TO_SCENE;
+
+        const buildingGeometry = new THREE.ExtrudeGeometry(shapedPrimary.shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
+        buildingGeometry.rotateX(-Math.PI / 2);
+        geometries.push(buildingGeometry);
+        const building = new THREE.Mesh(buildingGeometry, mat({ color: 0xd7e0dc, roughness: 0.54, metalness: 0.06, transparent: true, opacity: 0.98 }));
+        building.position.y = baseY;
+        root.add(building);
+
+        const edgesGeometry = new THREE.EdgesGeometry(buildingGeometry, 18);
+        geometries.push(edgesGeometry);
+        const edges = new THREE.LineSegments(edgesGeometry, lineMat({ color: 0x8bf1ce, transparent: true, opacity: 0.86 }));
+        edges.position.y = baseY;
+        root.add(edges);
+
+        const footprintPoints = shapedPrimary.local.map((point) => new THREE.Vector3(point.east * METERS_TO_SCENE, baseY + 0.018, -point.north * METERS_TO_SCENE));
+        if (footprintPoints.length) footprintPoints.push(footprintPoints[0].clone());
+        const footprintGeometry = new THREE.BufferGeometry().setFromPoints(footprintPoints);
+        geometries.push(footprintGeometry);
+        root.add(new THREE.Line(footprintGeometry, lineMat({ color: 0x7ce9c4, transparent: true, opacity: 0.95 })));
+
+        const bandCount = Math.min(levels - 1, 12);
+        for (let floor = 1; floor <= bandCount; floor += 1) {
+          const y = baseY + visualHeight * (floor / levels);
+          const bandPoints = shapedPrimary.local.map((point) => new THREE.Vector3(point.east * METERS_TO_SCENE, y, -point.north * METERS_TO_SCENE));
+          if (bandPoints.length) bandPoints.push(bandPoints[0].clone());
+          const bandGeometry = new THREE.BufferGeometry().setFromPoints(bandPoints);
+          geometries.push(bandGeometry);
+          root.add(new THREE.Line(bandGeometry, lineMat({ color: 0x6fc4a7, transparent: true, opacity: 0.42 })));
+        }
+
+        const beaconRadius = Math.max(0.45, Math.min(2.4, 1.2 + Number(reference?.distanceMeters || 0) * 0.002));
+        const beaconGeometry = new THREE.RingGeometry(beaconRadius, beaconRadius + 0.08, 72);
+        geometries.push(beaconGeometry);
+        const beacon = new THREE.Mesh(beaconGeometry, mat({ color: 0xffffff, emissive: 0x356f5e, emissiveIntensity: 0.9, transparent: true, opacity: 0.44, side: THREE.DoubleSide }));
+        beacon.rotation.x = -Math.PI / 2;
+        beacon.position.set(localCenter.east * METERS_TO_SCENE, baseY + visualHeight + 0.08, -localCenter.north * METERS_TO_SCENE);
+        root.add(beacon);
+      } else {
+        const markerGeometry = new THREE.TorusGeometry(1.2, 0.08, 12, 72);
         geometries.push(markerGeometry);
         const marker = new THREE.Mesh(markerGeometry, mat({ color: 0x7ce9c4, emissive: 0x164c3c, emissiveIntensity: 1.15 }));
         marker.rotation.x = -Math.PI / 2;
@@ -163,8 +243,8 @@ export default function GeoReferenceModel({ reference }) {
       }
 
       let azimuth = 0.72;
-      let elevation = 0.5;
-      let radius = 17;
+      let elevation = 0.53;
+      let radius = Math.max(14, sceneRadius * 2.25);
       let dragging = false;
       let autoOrbit = true;
       let lastX = 0;
@@ -172,7 +252,7 @@ export default function GeoReferenceModel({ reference }) {
       const updateCamera = () => {
         const c = Math.cos(elevation);
         camera.position.set(Math.sin(azimuth) * c * radius, Math.sin(elevation) * radius, Math.cos(azimuth) * c * radius);
-        camera.lookAt(0, 1.55, 0);
+        camera.lookAt(0, 0.8, 0);
       };
       updateCamera();
       const down = (event) => {
@@ -185,7 +265,7 @@ export default function GeoReferenceModel({ reference }) {
       const move = (event) => {
         if (!dragging) return;
         azimuth -= (event.clientX - lastX) * 0.008;
-        elevation = Math.max(0.18, Math.min(1.08, elevation + (event.clientY - lastY) * 0.005));
+        elevation = Math.max(0.16, Math.min(1.08, elevation + (event.clientY - lastY) * 0.005));
         lastX = event.clientX;
         lastY = event.clientY;
         updateCamera();
@@ -196,7 +276,7 @@ export default function GeoReferenceModel({ reference }) {
       };
       const wheel = (event) => {
         autoOrbit = false;
-        radius = Math.max(8.5, Math.min(26, radius + event.deltaY * 0.012));
+        radius = Math.max(sceneRadius * 1.15, Math.min(sceneRadius * 3.5, radius + event.deltaY * 0.014));
         updateCamera();
       };
       renderer.domElement.addEventListener('pointerdown', down);
@@ -208,9 +288,9 @@ export default function GeoReferenceModel({ reference }) {
       let frame = 0;
       const animate = () => {
         frame = requestAnimationFrame(animate);
-        orbitRing.rotation.z += 0.00125;
+        compass.rotation.z += 0.00075;
         if (autoOrbit) {
-          azimuth += 0.0011;
+          azimuth += 0.00085;
           updateCamera();
         }
         renderer.render(scene, camera);
@@ -241,7 +321,7 @@ export default function GeoReferenceModel({ reference }) {
       };
     });
     return () => { disposed = true; cleanup(); };
-  }, [reference?.source?.recordId, reference?.height?.referenceHeightMeters, reference?.tags?.levels]);
+  }, [reference?.source?.recordId, reference?.height?.referenceHeightMeters, reference?.neighborhoodBuildingCount, reference?.terrain?.source?.observedAt, reference?.measuredHeight?.status]);
 
   return <div ref={mountRef} style={{ position: 'absolute', inset: 0 }} />;
 }
