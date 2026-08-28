@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAddress } from 'ethers';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { assertDigitalEstatePricing, getDigitalEstate } from '../../../../lib/digital-estates';
-import { digitalEstateMintReady, isDigitalEstateMinted } from '../../../../lib/digital-estate-mint';
+import { isDigitalEstateMinted } from '../../../../lib/digital-estate-mint';
 import { acquireDigitalEstateReservation } from '../../../../lib/digital-estate-reservations';
 import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
 
@@ -32,10 +32,6 @@ export async function POST(request: Request) {
     if (!ADDRESS_RE.test(walletRaw)) return NextResponse.json({ error: 'Connect a valid EVM wallet first.' }, { status: 400 });
     const wallet = getAddress(walletRaw);
 
-    if (!digitalEstateMintReady()) {
-      return NextResponse.json({ error: 'Digital Estate minting is not configured, so USDC transfer is disabled.' }, { status: 503 });
-    }
-
     let minted = false;
     try { minted = await isDigitalEstateMinted(estate.id); }
     catch (error) {
@@ -46,23 +42,12 @@ export async function POST(request: Request) {
 
     const deployment = await getVoxelFlipDeployment();
     const recipientRaw = process.env.DIGITAL_ESTATE_USDC_RECIPIENT?.trim() || deployment.royaltyReceiver;
-    if (!ADDRESS_RE.test(recipientRaw)) {
-      return NextResponse.json({ error: 'The reviewed USDC recipient is not configured. No transfer should be sent.' }, { status: 503 });
-    }
+    if (!ADDRESS_RE.test(recipientRaw)) return NextResponse.json({ error: 'The reviewed USDC recipient is not configured. No transfer should be sent.' }, { status: 503 });
     const recipient = getAddress(recipientRaw);
 
-    const hold = await acquireDigitalEstateReservation({
-      estateId: estate.id,
-      buyerId: user.id,
-      wallet,
-      source: 'base-usdc',
-    });
+    const hold = await acquireDigitalEstateReservation({ estateId: estate.id, buyerId: user.id, wallet, source: 'base-usdc' });
     if (!hold.acquired && !hold.reservedByYou) {
-      return NextResponse.json({
-        error: hold.sold ? 'This Digital Estate has already been purchased.' : 'This Digital Estate is temporarily reserved by another buyer.',
-        sold: hold.sold,
-        reserved: !hold.sold,
-      }, { status: 409 });
+      return NextResponse.json({ error: hold.sold ? 'This Digital Estate has already been purchased.' : 'This Digital Estate is temporarily reserved by another buyer.', sold: hold.sold, reserved: !hold.sold }, { status: 409 });
     }
     if (!hold.acquired && hold.reservation?.source !== 'base-usdc') {
       return NextResponse.json({ error: 'Your existing reservation is using another payment rail. Finish or let that checkout expire first.' }, { status: 409 });
@@ -84,7 +69,8 @@ export async function POST(request: Request) {
       amountUsdcUnits: amountUsdcUnits.toString(),
       amountUsdCents: estate.purchasePriceCents,
       amountUsd: estate.purchasePriceCents / 100,
-      warning: 'This is a real USDC transfer for a digital-only NFT estate. It does not purchase physical real estate, a deed, rent rights, or an investment interest.',
+      mintOptional: true,
+      warning: 'This is a real USDC transfer for a digital-only NFT estate. The purchase secures the estate first. Minting to Base is optional and can be done later.',
     });
   } catch (error) {
     console.error('Digital Estate USDC preflight failed', error);
