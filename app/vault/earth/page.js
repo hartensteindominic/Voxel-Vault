@@ -17,7 +17,7 @@ const CATEGORIES = [
 ];
 
 const QUICK_LOCATIONS = [
-  { id: 'kensington', label: '1047 Kensington', query: '1047 Kensington Ave, Buffalo, NY 14215', lat: 42.9382, lng: -78.8206 },
+  { id: 'kensington', label: '1047 Kensington', query: '1047 Kensington Ave, Buffalo, NY 14215', addressOnly: true },
   { id: 'buffalo', label: 'Buffalo', query: 'Buffalo, NY', lat: 42.8864, lng: -78.8784 },
   { id: 'new-york', label: 'New York', query: 'New York, NY', lat: 40.7128, lng: -74.0060 },
   { id: 'london', label: 'London', query: 'London, UK', lat: 51.5074, lng: -0.1278 },
@@ -112,7 +112,7 @@ function capabilityLabel(capabilities, key) {
 export default function EarthPropertiesPage() {
   const starter = QUICK_LOCATIONS[0];
   const [query, setQuery] = useState(starter.query);
-  const [focus, setFocus] = useState({ lat: starter.lat, lng: starter.lng, label: starter.query });
+  const [focus, setFocus] = useState({ lat: null, lng: null, label: starter.query, resolved: false });
   const [view, setView] = useState(GOOGLE_3D_ENABLED ? 'reality' : 'voxel');
   const [category, setCategory] = useState('all');
   const [type, setType] = useState('all');
@@ -125,7 +125,7 @@ export default function EarthPropertiesPage() {
   const [lastSearch, setLastSearch] = useState(null);
   const [atlas, setAtlas] = useState(null);
   const [atlasBusy, setAtlasBusy] = useState(false);
-  const [atlasMessage, setAtlasMessage] = useState('Loading the 1047 Kensington starter region…');
+  const [atlasMessage, setAtlasMessage] = useState('Resolving the exact 1047 Kensington address…');
   const [selectedAtlasId, setSelectedAtlasId] = useState('');
   const [capabilities, setCapabilities] = useState(null);
 
@@ -138,9 +138,10 @@ export default function EarthPropertiesPage() {
   );
   const atlasReference = useMemo(() => atlasReferenceForSelection(atlas, selectedAtlas), [atlas, selectedAtlas]);
   const mode = sourceMode(atlas);
-  const visualLat = Number.isFinite(Number(selectedAtlas?.latitude)) ? Number(selectedAtlas.latitude) : focus.lat;
-  const visualLng = Number.isFinite(Number(selectedAtlas?.longitude)) ? Number(selectedAtlas.longitude) : focus.lng;
-  const visualLabel = selected?.address || atlasBuildingLabel(selectedAtlas) || focus.label;
+  const visualLat = Number.isFinite(Number(selectedAtlas?.latitude)) ? Number(selectedAtlas.latitude) : (focus.resolved ? Number(focus.lat) : NaN);
+  const visualLng = Number.isFinite(Number(selectedAtlas?.longitude)) ? Number(selectedAtlas.longitude) : (focus.resolved ? Number(focus.lng) : NaN);
+  const visualReady = Number.isFinite(visualLat) && Number.isFinite(visualLng);
+  const visualLabel = selected?.address || (selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label);
 
   async function loadCapabilities() {
     try {
@@ -156,8 +157,7 @@ export default function EarthPropertiesPage() {
       const search = new URLSearchParams({ category: nextCategory, type: nextType });
       if (params?.query) search.set('q', params.query);
       if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
-        search.set('lat', String(params.lat));
-        search.set('lng', String(params.lng));
+        search.set('lat', String(params.lat)); search.set('lng', String(params.lng));
       }
       const response = await fetch(`/api/earth-properties/search?${search.toString()}`, { cache: 'no-store' });
       const data = await response.json().catch(() => ({}));
@@ -168,21 +168,19 @@ export default function EarthPropertiesPage() {
       setSelectedId(data.listings?.[0]?.id || '');
       setListingMessage(data.message || 'Market search complete.');
     } catch (error) {
-      setListings([]);
-      setSelectedId('');
+      setListings([]); setSelectedId('');
       setListingMessage(String(error?.message || error || 'Market search failed. The map remains available.'));
     } finally { setListingBusy(false); }
   }
 
   async function loadAtlas(params = {}) {
     setAtlasBusy(true);
-    setAtlasMessage('Reading a small source-backed building region…');
+    setAtlasMessage(params?.address ? `Resolving ${params.address}…` : 'Reading a small source-backed building region…');
     try {
       const search = new URLSearchParams({ radius: '180' });
       if (params?.address && !Number.isFinite(params?.lat)) search.set('address', String(params.address));
       if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
-        search.set('lat', String(params.lat));
-        search.set('lng', String(params.lng));
+        search.set('lat', String(params.lat)); search.set('lng', String(params.lng));
       }
       const response = await fetch(`/api/world-atlas/inspect?${search.toString()}`, { cache: 'no-store' });
       const data = await response.json().catch(() => ({}));
@@ -190,31 +188,32 @@ export default function EarthPropertiesPage() {
       setAtlas(data);
       setSelectedAtlasId(data.selectedBuilding?.atlasId || data.buildings?.[0]?.atlasId || '');
       if (Number.isFinite(Number(data.latitude)) && Number.isFinite(Number(data.longitude))) {
-        setFocus({ lat: Number(data.latitude), lng: Number(data.longitude), label: data.address || params?.query || params?.address || 'Selected Earth location' });
+        setFocus({ lat: Number(data.latitude), lng: Number(data.longitude), label: data.address || params?.query || params?.address || 'Selected Earth location', resolved: true });
       }
       const source = data?.sourceStatus?.fallbackUsed ? 'OpenStreetMap fallback' : 'Overture';
       setAtlasMessage(data.buildingCount
         ? `${data.buildingCount} source-backed building${data.buildingCount === 1 ? '' : 's'} loaded from ${source}.`
         : `Location resolved through ${source}, but no building footprint was returned. Nothing was invented.`);
     } catch (error) {
-      setAtlas(null);
-      setSelectedAtlasId('');
-      setAtlasMessage(`${String(error?.message || error || 'World atlas lookup failed.')} Reality links and authorized market search remain usable.`);
+      setAtlas(null); setSelectedAtlasId('');
+      setAtlasMessage(`${String(error?.message || error || 'World atlas lookup failed.')} Reality/source links and authorized market search remain usable.`);
     } finally { setAtlasBusy(false); }
   }
 
   async function explore(params = {}) {
     setLastSearch(params);
     if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
-      setFocus({ lat: Number(params.lat), lng: Number(params.lng), label: params.query || `${params.lat}, ${params.lng}` });
+      setFocus({ lat: Number(params.lat), lng: Number(params.lng), label: params.query || `${params.lat}, ${params.lng}`, resolved: true });
+    } else if (params?.address || params?.query) {
+      setFocus({ lat: null, lng: null, label: params.address || params.query, resolved: false });
     }
     await Promise.allSettled([loadListings(params), loadAtlas(params)]);
   }
 
   useEffect(() => {
     loadCapabilities();
-    loadListings({ query: starter.query, lat: starter.lat, lng: starter.lng });
-    loadAtlas({ lat: starter.lat, lng: starter.lng, query: starter.query });
+    loadListings({ query: starter.query });
+    loadAtlas({ address: starter.query, query: starter.query });
   }, []);
 
   function submit(event) {
@@ -228,32 +227,26 @@ export default function EarthPropertiesPage() {
 
   function quickExplore(location) {
     setQuery(location.query);
-    setFocus({ lat: location.lat, lng: location.lng, label: location.query });
-    explore({ lat: location.lat, lng: location.lng, query: location.query });
+    if (Number.isFinite(location.lat) && Number.isFinite(location.lng)) {
+      explore({ lat: location.lat, lng: location.lng, query: location.query });
+    } else {
+      explore({ query: location.query, address: location.query });
+    }
   }
 
   function nearMe() {
     if (!navigator.geolocation) { setAtlasMessage('Location services are unavailable in this browser.'); return; }
-    setAtlasBusy(true);
-    setAtlasMessage('Getting your location…');
+    setAtlasBusy(true); setAtlasMessage('Getting your location…');
     navigator.geolocation.getCurrentPosition((position) => {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
+      const lat = position.coords.latitude, lng = position.coords.longitude;
       const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      setQuery(label);
-      setFocus({ lat, lng, label });
-      explore({ lat, lng, query: label });
-    }, (error) => {
-      setAtlasBusy(false);
-      setAtlasMessage(error.message || 'Location permission was not granted.');
-    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+      setQuery(label); explore({ lat, lng, query: label });
+    }, (error) => { setAtlasBusy(false); setAtlasMessage(error.message || 'Location permission was not granted.'); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   }
 
   function globeLocation({ latitude, longitude }) {
     const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-    setQuery(label);
-    setFocus({ lat: latitude, lng: longitude, label });
-    setAtlasMessage(`Exploring source-backed buildings around ${label}…`);
+    setQuery(label); setAtlasMessage(`Exploring source-backed buildings around ${label}…`);
     explore({ lat: latitude, lng: longitude, query: label });
   }
 
@@ -264,117 +257,62 @@ export default function EarthPropertiesPage() {
     setSelectedId(item.id);
     if (Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) {
       const lat = Number(item.latitude), lng = Number(item.longitude);
-      setFocus({ lat, lng, label: addressLine(item) || 'Selected listing' });
+      setFocus({ lat, lng, label: addressLine(item) || 'Selected listing', resolved: true });
       loadAtlas({ lat, lng, query: addressLine(item) });
     }
   }
 
   function downloadRegion() {
-    if (!atlasBuildings.length) return;
+    if (!atlasBuildings.length || !visualReady) return;
     const geojson = {
-      type: 'FeatureCollection',
-      name: 'Voxel Vault loaded atlas region',
-      generatedAt: new Date().toISOString(),
-      sourceStatus: atlas?.sourceStatus || null,
-      rights: atlas?.rights || null,
+      type: 'FeatureCollection', name: 'Voxel Vault loaded atlas region', generatedAt: new Date().toISOString(),
+      sourceStatus: atlas?.sourceStatus || null, rights: atlas?.rights || null,
       features: atlasBuildings.map((building) => ({
         type: 'Feature', id: building.atlasId, geometry: building.geometry,
-        properties: {
-          atlasId: building.atlasId, name: building.tags?.name || null, building: building.tags?.building || null,
-          levels: building.tags?.levels || null, referenceHeightMeters: building.height?.referenceHeightMeters ?? null,
-          heightStatus: building.height?.heightStatus || null, sourceAuthority: building.source?.authority || null,
-          sourceRecordId: building.source?.recordId || null, sourceLicense: building.source?.license || null,
-          sourceUrl: building.source?.sourceUrl || null, mapReferenceOnly: true,
-        },
+        properties: { atlasId: building.atlasId, name: building.tags?.name || null, building: building.tags?.building || null, levels: building.tags?.levels || null, referenceHeightMeters: building.height?.referenceHeightMeters ?? null, heightStatus: building.height?.heightStatus || null, sourceAuthority: building.source?.authority || null, sourceRecordId: building.source?.recordId || null, sourceLicense: building.source?.license || null, sourceUrl: building.source?.sourceUrl || null, mapReferenceOnly: true },
       })),
     };
     const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
-    const href = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = href;
-    anchor.download = `voxel-vault-region-${Number(focus.lat).toFixed(4)}-${Number(focus.lng).toFixed(4)}.geojson`;
-    document.body.appendChild(anchor); anchor.click(); anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+    const href = URL.createObjectURL(blob), anchor = document.createElement('a');
+    anchor.href = href; anchor.download = `voxel-vault-region-${visualLat.toFixed(4)}-${visualLng.toFixed(4)}.geojson`;
+    document.body.appendChild(anchor); anchor.click(); anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(href), 1000);
   }
 
   return <main className="page">
-    <header>
-      <Link className="brand" href="/vault">VOXEL VAULT</Link>
-      <nav><Link href="/geo">GEO</Link><Link href="/vault/estates/mine">MY TWINS</Link><Link href="/vault/properties/claim">VERIFY</Link></nav>
-    </header>
+    <header><Link className="brand" href="/vault">VOXEL VAULT</Link><nav><Link href="/geo">GEO</Link><Link href="/vault/estates/mine">MY TWINS</Link><Link href="/vault/properties/claim">VERIFY</Link></nav></header>
 
     <section className="hero">
       <div className="kicker"><i/> VOXEL VAULT WORLD ATLAS</div>
       <h1>The whole Earth.<br/><em>Reality + data + 3D.</em></h1>
       <p>Search a real address and inspect the same place three ways: Google Photorealistic 3D when configured, Voxel Vault source-backed geometry, and the global navigation globe. Real listings only come from authorized market providers.</p>
-      <form onSubmit={submit} className="search">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Address, city, postcode · or latitude, longitude" aria-label="Search Earth" />
-        <button disabled={atlasBusy || listingBusy}>{atlasBusy ? 'LOADING…' : 'EXPLORE'}</button>
-        <button className="near" type="button" onClick={nearMe} disabled={atlasBusy}>NEAR ME</button>
-      </form>
+      <form onSubmit={submit} className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Address, city, postcode · or latitude, longitude" aria-label="Search Earth"/><button disabled={atlasBusy || listingBusy}>{atlasBusy ? 'LOADING…' : 'EXPLORE'}</button><button className="near" type="button" onClick={nearMe} disabled={atlasBusy}>NEAR ME</button></form>
       <div className="quickRail">{QUICK_LOCATIONS.map((location) => <button type="button" key={location.id} onClick={() => quickExplore(location)} disabled={atlasBusy}>{location.label}</button>)}</div>
-      <div className="capabilityRail">
-        <div><b>WORLD DATA</b><span>{capabilityLabel(capabilities, 'worldAtlas')}</span></div>
-        <div><b>GOOGLE 3D</b><span>{capabilityLabel(capabilities, 'googleReality')}</span></div>
-        <div><b>MESHY 7</b><span>{capabilityLabel(capabilities, 'meshy')}</span></div>
-        <div><b>MARKET</b><span>{liveProviders.length ? `${liveProviders.length} LIVE` : 'AWAITING ACCESS'}</span></div>
-      </div>
+      <div className="capabilityRail"><div><b>WORLD DATA</b><span>{capabilityLabel(capabilities, 'worldAtlas')}</span></div><div><b>GOOGLE 3D</b><span>{capabilityLabel(capabilities, 'googleReality')}</span></div><div><b>MESHY 7</b><span>{capabilityLabel(capabilities, 'meshy')}</span></div><div><b>MARKET</b><span>{liveProviders.length ? `${liveProviders.length} LIVE` : 'AWAITING ACCESS'}</span></div></div>
     </section>
 
     <section className="explorer">
-      <div className="explorerTop">
-        <div><small>WORLD BUILDING ATLAS</small><h2>{visualLabel}</h2><p>{atlasMessage}</p></div>
-        <div className="viewTabs">
-          <button className={view === 'reality' ? 'active' : ''} onClick={() => setView('reality')}>REALITY</button>
-          <button className={view === 'voxel' ? 'active' : ''} onClick={() => setView('voxel')}>VOXEL</button>
-          <button className={view === 'globe' ? 'active' : ''} onClick={() => setView('globe')}>GLOBE</button>
-        </div>
-      </div>
-
+      <div className="explorerTop"><div><small>WORLD BUILDING ATLAS</small><h2>{visualLabel}</h2><p>{atlasMessage}</p></div><div className="viewTabs"><button className={view === 'reality' ? 'active' : ''} onClick={() => setView('reality')}>REALITY</button><button className={view === 'voxel' ? 'active' : ''} onClick={() => setView('voxel')}>VOXEL</button><button className={view === 'globe' ? 'active' : ''} onClick={() => setView('globe')}>GLOBE</button></div></div>
       <div className="explorerGrid">
         <div className="visualStage">
-          {view === 'reality' ? <GoogleRealityMap latitude={visualLat} longitude={visualLng} label={visualLabel} active /> : null}
-          {view === 'voxel' ? <div className="voxelStage">{atlasReference?.found
-            ? <GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={selectedAtlas?.atlasId || 'atlas'} />
-            : <div className="stageFallback"><b>{atlasBusy ? 'READING BUILDING DATA…' : 'SOURCE GEOMETRY UNAVAILABLE'}</b><span>Reality and source links still work. Voxel Vault will not invent a footprint.</span></div>}</div> : null}
-          {view === 'globe' ? <div className="globeStage"><GlobalEarthGlobe listings={listings} selectedId={selected?.id || ''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId || ''} onAtlasSelect={setSelectedAtlasId} onLocation={globeLocation} /><div className="globeHint">DRAG · PINCH · TAP EARTH · PEACH = MAP · MINT = LISTING</div></div> : null}
+          {view === 'reality' ? <GoogleRealityMap latitude={visualReady ? visualLat : null} longitude={visualReady ? visualLng : null} label={visualLabel} active /> : null}
+          {view === 'voxel' ? <div className="voxelStage">{atlasReference?.found ? <GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={selectedAtlas?.atlasId || 'atlas'} /> : <div className="stageFallback"><b>{atlasBusy ? 'RESOLVING + READING BUILDING DATA…' : 'SOURCE GEOMETRY UNAVAILABLE'}</b><span>Reality/source links still work. Voxel Vault will not invent a footprint or coordinate.</span></div>}</div> : null}
+          {view === 'globe' ? <div className="globeStage"><GlobalEarthGlobe listings={listings} selectedId={selected?.id || ''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId || ''} onAtlasSelect={setSelectedAtlasId} onLocation={globeLocation}/><div className="globeHint">DRAG · PINCH · TAP EARTH · PEACH = MAP · MINT = LISTING</div></div> : null}
         </div>
-
-        <aside className="propertyCard">
-          <div className="sourceRow"><span className={mode.fallback ? 'fallback' : ''}>{mode.label}</span><span>{atlasBuildings.length} BUILDINGS</span></div>
-          <small>SELECTED PLACE</small>
-          <h3>{atlasBuildingLabel(selectedAtlas)}</h3>
-          <p>{visualLat.toFixed(5)}, {visualLng.toFixed(5)}</p>
-          <div className="facts"><div><b>{selectedAtlas?.tags?.levels || '—'}</b><span>FLOORS</span></div><div><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div><div><b>{selectedAtlas?.source?.license || '—'}</b><span>MAP LICENSE</span></div></div>
-          <div className="truthBox"><b>WHAT IS VERIFIED?</b><span>Location and map geometry are source-backed when shown. Facade appearance, exact roof/windows/materials, title, and sale status require their own evidence layers.</span></div>
-          <button type="button" className="download" onClick={downloadRegion} disabled={!atlasBuildings.length}>DOWNLOAD LOADED REGION · GEOJSON</button>
-          {selectedAtlas?.source?.sourceUrl ? <a className="sourceLink" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}
-        </aside>
+        <aside className="propertyCard"><div className="sourceRow"><span className={mode.fallback ? 'fallback' : ''}>{mode.label}</span><span>{atlasBuildings.length} BUILDINGS</span></div><small>SELECTED PLACE</small><h3>{selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label}</h3><p>{visualReady ? `${visualLat.toFixed(5)}, ${visualLng.toFixed(5)}` : 'RESOLVING EXACT LOCATION'}</p><div className="facts"><div><b>{selectedAtlas?.tags?.levels || '—'}</b><span>FLOORS</span></div><div><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div><div><b>{selectedAtlas?.source?.license || '—'}</b><span>MAP LICENSE</span></div></div><div className="truthBox"><b>WHAT IS VERIFIED?</b><span>Location and map geometry are source-backed when shown. Facade appearance, exact roof/windows/materials, title, and sale status require their own evidence layers.</span></div><button type="button" className="download" onClick={downloadRegion} disabled={!atlasBuildings.length || !visualReady}>DOWNLOAD LOADED REGION · GEOJSON</button>{selectedAtlas?.source?.sourceUrl ? <a className="sourceLink" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}</aside>
       </div>
 
-      <PropertyEvidencePanel listing={selected} building={selectedAtlas} fallbackLabel={focus.label} />
-
-      <div className="meshyZone">
-        <div className="meshyIntro"><small>MESHY · THE PERFECT AMOUNT</small><h2>Use AI detail only on selected buildings.</h2><p>Google Maps stays the live photorealistic reality layer. Meshy 7 creates a cached property model only from 2–4 user-owned, open-licensed, or explicitly derivative-licensed views. Normal browsing never spends Meshy credits.</p></div>
-        <MeshyHeroPanel building={selectedAtlas} listing={selected} />
-      </div>
+      <PropertyEvidencePanel listing={selected} building={selectedAtlas} fallbackLabel={focus.label}/>
+      <div className="meshyZone"><div className="meshyIntro"><small>MESHY · THE PERFECT AMOUNT</small><h2>Use AI detail only on selected buildings.</h2><p>Google Maps stays the live photorealistic reality layer. Meshy 7 creates a cached property model only from 2–4 user-owned, open-licensed, or explicitly derivative-licensed views. Normal browsing never spends Meshy credits.</p></div><MeshyHeroPanel building={selectedAtlas} listing={selected}/></div>
     </section>
 
     <section className="marketSection">
       <div className="sectionHead"><div><small>AUTHORIZED REAL-ESTATE MARKET</small><h2>Real listings only.</h2><p>{listingMessage}</p></div><div className="marketState"><b>{listings.length}</b><span>LIVE RESULTS</span></div></div>
       <div className="coverage"><b>LIVE COVERAGE</b><span>{liveProviders.length ? liveProviders.map((p) => p.name).join(' · ') : 'No licensed listing provider is connected in this deployment.'}</span><b>AWAITING ACCESS</b><span>{providers.filter((p) => !p.configured).map((p) => p.name).join(' · ') || 'Additional licensed markets can be added without changing the map layer.'}</span></div>
-      <div className="filters"><div>{[['all', 'Buy + Rent'], ['sale', 'For Sale'], ['rent', 'For Rent']].map(([id, label]) => <button key={id} className={type === id ? 'active' : ''} onClick={() => chooseType(id)}>{label}</button>)}</div><div>{CATEGORIES.map(([id, label]) => <button key={id} className={category === id ? 'active' : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div></div>
-      <div className="marketGrid">
-        <div className="results">{listings.length === 0 ? <div className="empty"><b>{configured === false ? 'MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS HERE'}</b><span>Mapped buildings can still be explored. Voxel Vault does not fabricate listing inventory.</span></div> : listings.map((item) => <button key={item.id} className={selected?.id === item.id ? 'listing active' : 'listing'} onClick={() => chooseListing(item)}><div className="photo">{listingVisual(item)}</div><div className="listingBody"><div className="sourceTag">{shortProvider(item.provider)} · {item.country || 'Earth'}</div><strong>{money(item)}</strong><b>{item.address || 'Address from source'}</b><small>{[item.city, item.region, item.postalCode].filter(Boolean).join(', ')}</small><div>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</div></div></button>)}</div>
-        <aside className="detail">{selected ? <><div className="detailVisual">{listingVisual(selected)}<span>AUTHORIZED LISTING MEDIA</span></div><div className="detailBody"><div className="source"><i/>{selected.provider} · {selected.status}</div><h2>{selected.address || 'Real Earth property'}</h2><p>{[selected.city, selected.region, selected.postalCode, selected.country].filter(Boolean).join(', ')}</p><div className="price"><span>{selected.marketValueLabel}</span><strong>{money(selected)}</strong></div><div className="listingFacts"><div><b>{selected.beds ?? '—'}</b><span>BEDS</span></div><div><b>{selected.baths ?? '—'}</b><span>BATHS</span></div><div><b>{selected.livingAreaSqft ? Math.round(selected.livingAreaSqft).toLocaleString() : '—'}</b><span>SQ FT</span></div></div><a className="primaryButton" href={selected.sourceUrl || safeMapUrl(selected)} target="_blank" rel="noreferrer">{selected.sourceUrl ? 'OPEN REAL SOURCE LISTING' : 'OPEN EARTH LOCATION'} ↗</a><Link className="secondary" href="/vault/properties/claim">MINTING RECOMMENDED AFTER VERIFICATION</Link><p className="fine"><b>Physical purchase:</b> broker → contract → title → closing → deed-recording. A Voxel Vault twin or NFT does not replace the deed.</p></div></> : <div className="detailEmpty"><b>MAP ≠ MARKET INVENTORY</b><span>A mapped building can exist without being for sale or rent.</span></div>}</aside>
-      </div>
+      <div className="filters"><div>{[['all','Buy + Rent'],['sale','For Sale'],['rent','For Rent']].map(([id,label]) => <button key={id} className={type === id ? 'active' : ''} onClick={() => chooseType(id)}>{label}</button>)}</div><div>{CATEGORIES.map(([id,label]) => <button key={id} className={category === id ? 'active' : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div></div>
+      <div className="marketGrid"><div className="results">{listings.length === 0 ? <div className="empty"><b>{configured === false ? 'MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS HERE'}</b><span>Mapped buildings can still be explored. Voxel Vault does not fabricate listing inventory.</span></div> : listings.map((item) => <button key={item.id} className={selected?.id === item.id ? 'listing active' : 'listing'} onClick={() => chooseListing(item)}><div className="photo">{listingVisual(item)}</div><div className="listingBody"><div className="sourceTag">{shortProvider(item.provider)} · {item.country || 'Earth'}</div><strong>{money(item)}</strong><b>{item.address || 'Address from source'}</b><small>{[item.city,item.region,item.postalCode].filter(Boolean).join(', ')}</small><div>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</div></div></button>)}</div><aside className="detail">{selected ? <><div className="detailVisual">{listingVisual(selected)}<span>AUTHORIZED LISTING MEDIA</span></div><div className="detailBody"><div className="source"><i/>{selected.provider} · {selected.status}</div><h2>{selected.address || 'Real Earth property'}</h2><p>{[selected.city,selected.region,selected.postalCode,selected.country].filter(Boolean).join(', ')}</p><div className="price"><span>{selected.marketValueLabel}</span><strong>{money(selected)}</strong></div><div className="listingFacts"><div><b>{selected.beds ?? '—'}</b><span>BEDS</span></div><div><b>{selected.baths ?? '—'}</b><span>BATHS</span></div><div><b>{selected.livingAreaSqft ? Math.round(selected.livingAreaSqft).toLocaleString() : '—'}</b><span>SQ FT</span></div></div><a className="primaryButton" href={selected.sourceUrl || safeMapUrl(selected)} target="_blank" rel="noreferrer">{selected.sourceUrl ? 'OPEN REAL SOURCE LISTING' : 'OPEN EARTH LOCATION'} ↗</a><Link className="secondary" href="/vault/properties/claim">MINTING RECOMMENDED AFTER VERIFICATION</Link><p className="fine"><b>Physical purchase:</b> broker → contract → title → closing → deed-recording. A Voxel Vault twin or NFT does not replace the deed.</p></div></> : <div className="detailEmpty"><b>MAP ≠ MARKET INVENTORY</b><span>A mapped building can exist without being for sale or rent.</span></div>}</aside></div>
     </section>
 
-    <section className="governance">
-      <article><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More claims, higher marginal fee.</h2><p>The proposed digital-stewardship schedule is <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local region. Regional cap: 20. No owner/admin exemption.</p><div className="policyTruth"><b>POLICY MODEL · BILLING DISABLED</b><span>This is not a government tax and does not create rights in physical property.</span></div></article>
-      <article><small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2><p>Voxel Vault can own its software, interface, original metadata, compliant model cache and workflows. Google, Overture, OpenStreetMap, municipalities and listing providers keep their own data and licenses.</p></article>
-    </section>
-
+    <section className="governance"><article><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More claims, higher marginal fee.</h2><p>The proposed digital-stewardship schedule is <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local region. Regional cap: 20. No owner/admin exemption.</p><div className="policyTruth"><b>POLICY MODEL · BILLING DISABLED</b><span>This is not a government tax and does not create rights in physical property.</span></div></article><article><small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2><p>Voxel Vault can own its software, interface, original metadata, compliant model cache and workflows. Google, Overture, OpenStreetMap, municipalities and listing providers keep their own data and licenses.</p></article></section>
     <footer><b>REALITY ≠ TITLE ≠ INVESTMENT</b><span>Physical-market value and digital twin resale value remain separate. Google imagery is used only through permitted live visualization; map geometry, listing photos, Meshy models, legal ownership and investment rights remain separate evidence layers.</span></footer>
 
     <style jsx>{`
