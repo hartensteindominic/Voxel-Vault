@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Your existing reservation is using another payment rail. Finish or let that checkout expire first.' }, { status: 409 });
     }
 
-    const amountUsdcUnits = BigInt(estate.purchasePriceCents) * 10_000n;
+    const amountUsdcUnits = BigInt(estate.purchasePriceCents) * BigInt(10_000);
     return NextResponse.json({
       ready: true,
       estateId: estate.id,
