@@ -1,5 +1,7 @@
 const BRIDGE_BASE_URL = 'https://api.bridgedataoutput.com/api/v2/OData';
-const MAX_RESULTS = 20;
+const DOMAIN_API_URL = 'https://api.domain.com.au';
+const DOMAIN_AUTH_URL = 'https://auth.domain.com.au/v1/connect/token';
+const MAX_RESULTS = 40;
 
 export type EarthPropertyCategory =
   | 'house'
@@ -23,6 +25,7 @@ export type EarthProperty = {
   region: string;
   postalCode: string;
   country: string;
+  currency: string;
   latitude: number | null;
   longitude: number | null;
   category: EarthPropertyCategory;
@@ -32,6 +35,7 @@ export type EarthProperty = {
   listPriceCents: number | null;
   rentCentsMonthly: number | null;
   marketValueCents: number | null;
+  marketValueText: string | null;
   marketValueLabel: string;
   beds: number | null;
   baths: number | null;
@@ -45,6 +49,25 @@ export type EarthProperty = {
   modifiedAt: string | null;
   sourceDisclosure: string;
 };
+
+export type EarthProviderCoverage = {
+  id: string;
+  name: string;
+  configured: boolean;
+  regions: string[];
+  mode: string;
+};
+
+type PartnerFeedConfig = {
+  id?: string;
+  name?: string;
+  url?: string;
+  token?: string;
+  regions?: string[];
+  currency?: string;
+};
+
+let domainTokenCache: { token: string; expiresAt: number } | null = null;
 
 function finiteNumber(value: unknown): number | null {
   const n = Number(value);
@@ -61,31 +84,30 @@ function safeText(value: unknown, max = 240) {
   return String(value ?? '').trim().slice(0, max);
 }
 
+function safeCurrency(value: unknown, fallback = 'USD') {
+  const currency = safeText(value || fallback, 3).toUpperCase();
+  return /^[A-Z]{3}$/.test(currency) ? currency : fallback;
+}
+
 function categoryFrom(typeRaw: unknown, subTypeRaw: unknown): EarthPropertyCategory {
   const value = `${safeText(typeRaw)} ${safeText(subTypeRaw)}`.toLowerCase();
   if (/manufactured|mobile|trailer/.test(value)) return 'mobile-home';
-  if (/condo|condominium/.test(value)) return 'condo';
+  if (/condo|condominium|apartment|unit|flat/.test(value)) return 'condo';
   if (/multi.?family|duplex|triplex|quadruplex|apartment building/.test(value)) return 'multifamily';
-  if (/warehouse|industrial/.test(value)) return 'warehouse';
-  if (/retail|storefront|shopping|restaurant/.test(value)) return 'storefront';
-  if (/farm|ranch|agricultural|agriculture|barn/.test(value)) return 'barn-farm';
-  if (/land|vacant|lot/.test(value)) return 'land';
+  if (/warehouse|industrial|factory/.test(value)) return 'warehouse';
+  if (/retail|storefront|shopping|restaurant|hospitality|cafe/.test(value)) return 'storefront';
+  if (/farm|ranch|agricultural|agriculture|barn|rural/.test(value)) return 'barn-farm';
+  if (/land|vacant|lot|acreage/.test(value)) return 'land';
   if (/commercial|office|business/.test(value)) return 'commercial';
-  if (/residential|single.?family|house|townhouse|townhome/.test(value)) return 'house';
+  if (/residential|single.?family|house|townhouse|townhome|terrace/.test(value)) return 'house';
   return 'other';
 }
 
 function firstMediaUrl(row: any): string | null {
-  const media = Array.isArray(row?.Media) ? row.Media : [];
-  const candidate = media.find((item: any) => item?.MediaURL || item?.MediaURLLarge || item?.MediaURLThumb);
-  const value = candidate?.MediaURL || candidate?.MediaURLLarge || candidate?.MediaURLThumb || row?.PhotoURL || row?.ImageURL;
-  if (!value) return null;
-  try {
-    const url = new URL(String(value));
-    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null;
-  } catch {
-    return null;
-  }
+  const media = Array.isArray(row?.Media) ? row.Media : Array.isArray(row?.media) ? row.media : [];
+  const candidate = media.find((item: any) => item?.MediaURL || item?.MediaURLLarge || item?.MediaURLThumb || item?.url || item?.imageUrl);
+  const value = candidate?.MediaURL || candidate?.MediaURLLarge || candidate?.MediaURLThumb || candidate?.url || candidate?.imageUrl || row?.PhotoURL || row?.ImageURL;
+  return safeSourceUrl(value);
 }
 
 function safeSourceUrl(value: unknown): string | null {
@@ -107,14 +129,14 @@ function normalizeBridgeProperty(row: any, dataset: string): EarthProperty {
   const listingId = safeText(row?.ListingId || row?.ListingKey || row?.ListingKeyNumeric, 160);
   const listingKey = safeText(row?.ListingKey || listingId, 180);
   const address = safeText(
-    row?.UnparsedAddress
-      || [row?.StreetNumber, row?.StreetDirPrefix, row?.StreetName, row?.StreetSuffix].filter(Boolean).join(' '),
+    row?.UnparsedAddress || [row?.StreetNumber, row?.StreetDirPrefix, row?.StreetName, row?.StreetSuffix].filter(Boolean).join(' '),
     260,
   );
   const city = safeText(row?.City, 100);
   const region = safeText(row?.StateOrProvince, 80);
   const postalCode = safeText(row?.PostalCode, 32);
   const country = safeText(row?.Country || 'US', 40);
+  const currency = safeCurrency(row?.ListPriceCurrency || row?.Currency || (country.toUpperCase() === 'CA' ? 'CAD' : 'USD'));
   const sourceUrl = safeSourceUrl(row?.ListingURL || row?.SourceURL || row?.BuyerAgencyCompensationRemarksURL);
   const virtualTourUrl = safeSourceUrl(row?.VirtualTourURLUnbranded || row?.VirtualTourURLBranded);
 
@@ -128,6 +150,7 @@ function normalizeBridgeProperty(row: any, dataset: string): EarthProperty {
     region,
     postalCode,
     country,
+    currency,
     latitude: finiteNumber(row?.Latitude),
     longitude: finiteNumber(row?.Longitude),
     category: categoryFrom(type, subType),
@@ -137,6 +160,7 @@ function normalizeBridgeProperty(row: any, dataset: string): EarthProperty {
     listPriceCents,
     rentCentsMonthly,
     marketValueCents: transactionType === 'sale' ? listPriceCents : rentCentsMonthly,
+    marketValueText: null,
     marketValueLabel: transactionType === 'sale' ? 'MLS list price' : 'Monthly asking rent',
     beds: finiteNumber(row?.BedroomsTotal),
     baths: finiteNumber(row?.BathroomsTotalInteger ?? row?.BathroomsFull ?? row?.BathroomsTotalDecimal),
@@ -162,7 +186,7 @@ function bridgeFilter({ query, latitude, longitude }: { query?: string; latitude
   if (q) {
     const escaped = escapeODataString(q);
     if (/^\d{5}(?:-\d{4})?$/.test(q)) clauses.push(`PostalCode eq '${escaped}'`);
-    else clauses.push(`(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(StateOrProvince,'${escaped}'))`);
+    else clauses.push(`(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(StateOrProvince,'${escaped}') or contains(Country,'${escaped}'))`);
   } else if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     const lat = Number(latitude);
     const lon = Number(longitude);
@@ -189,7 +213,7 @@ async function searchBridge({ query, latitude, longitude, category, transactionT
   if (!dataset || !token) return [] as EarthProperty[];
 
   const endpoint = new URL(`${BRIDGE_BASE_URL}/${encodeURIComponent(dataset)}/Property`);
-  endpoint.searchParams.set('$top', '40');
+  endpoint.searchParams.set('$top', '60');
   endpoint.searchParams.set('$orderby', 'ModificationTimestamp desc');
   endpoint.searchParams.set('$filter', bridgeFilter({ query, latitude, longitude }));
   endpoint.searchParams.set('$select', [
@@ -198,10 +222,7 @@ async function searchBridge({ query, latitude, longitude, category, transactionT
   endpoint.searchParams.set('$expand', 'Media($top=1)');
 
   const response = await fetch(endpoint, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     cache: 'no-store',
   });
   if (!response.ok) {
@@ -218,6 +239,293 @@ async function searchBridge({ query, latitude, longitude, category, transactionT
     .slice(0, MAX_RESULTS);
 }
 
+function domainConfigured() {
+  return Boolean(process.env.DOMAIN_CLIENT_ID?.trim() && process.env.DOMAIN_CLIENT_SECRET?.trim());
+}
+
+async function getDomainToken() {
+  if (domainTokenCache && domainTokenCache.expiresAt > Date.now() + 60_000) return domainTokenCache.token;
+  const clientId = process.env.DOMAIN_CLIENT_ID?.trim();
+  const secret = process.env.DOMAIN_CLIENT_SECRET?.trim();
+  if (!clientId || !secret) throw new Error('Domain credentials are not configured.');
+
+  const body = new URLSearchParams({ grant_type: 'client_credentials', scope: 'api_listings_read' });
+  const response = await fetch(DOMAIN_AUTH_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    },
+    body,
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`Domain authentication failed (${response.status}).`);
+  const payload = await response.json();
+  const token = safeText(payload?.access_token, 4096);
+  const expiresIn = Math.max(300, Number(payload?.expires_in || 3600));
+  if (!token) throw new Error('Domain authentication returned no access token.');
+  domainTokenCache = { token, expiresAt: Date.now() + expiresIn * 1000 };
+  return token;
+}
+
+async function resolveDomainLocation(query: string, token: string) {
+  const q = safeText(query, 80);
+  if (!q) return null;
+  const endpoint = new URL(`${DOMAIN_API_URL}/v1/listings/locations`);
+  endpoint.searchParams.set('terms', q);
+  const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' });
+  if (!response.ok) return null;
+  const rows = await response.json();
+  const location = Array.isArray(rows) ? rows.find((item: any) => item?.type === 'suburb') || rows[0] : null;
+  if (!location) return null;
+  return {
+    state: safeText(location.state, 20),
+    region: safeText(location.region, 80),
+    area: safeText(location.area, 80),
+    suburb: safeText(location.name, 80),
+    postCode: safeText(location.postcode, 20),
+    includeSurroundingSuburbs: true,
+  };
+}
+
+function domainPropertyTypes(category?: string) {
+  const map: Record<string, string[]> = {
+    house: ['House', 'Townhouse', 'Terrace'],
+    condo: ['ApartmentUnitFlat', 'NewApartments'],
+    'mobile-home': ['Retirement'],
+    multifamily: ['BlockOfUnits'],
+    land: ['VacantLand'],
+  };
+  return category && category !== 'all' ? map[category] || undefined : undefined;
+}
+
+function parseDomainPriceText(value: unknown) {
+  const text = safeText(value, 120);
+  if (!text) return { cents: null as number | null, text: null as string | null };
+  const match = text.replace(/,/g, '').match(/\$\s*([0-9]+(?:\.[0-9]+)?)/);
+  return { cents: match ? Math.round(Number(match[1]) * 100) : null, text };
+}
+
+function normalizeDomainProperty(item: any): EarthProperty | null {
+  const listing = item?.listing || item;
+  if (!listing || item?.type === 'Project') return null;
+  const listingId = safeText(listing.id, 80);
+  if (!listingId) return null;
+  const propertyType = safeText(listing.propertyType || listing.propertyTypes?.[0], 120);
+  const listingType = safeText(listing.listingType || listing.objective || listing.saleMode, 40).toLowerCase();
+  const transactionType: 'sale' | 'rent' = /rent|lease/.test(listingType) ? 'rent' : 'sale';
+  const price = parseDomainPriceText(listing?.priceDetails?.displayPrice || listing?.price || listing?.displayPrice);
+  const address = safeText(listing.displayableAddress || listing?.addressParts?.displayAddress || [listing.streetNumber, listing.street].filter(Boolean).join(' '), 260);
+  const city = safeText(listing.suburb || listing?.addressParts?.suburb, 100);
+  const region = safeText(listing.state || listing?.addressParts?.stateAbbreviation || listing.region, 80).toUpperCase();
+  const postalCode = safeText(listing.postcode || listing?.addressParts?.postcode, 32);
+  const latitude = finiteNumber(listing.latitude ?? listing?.geoLocation?.latitude);
+  const longitude = finiteNumber(listing.longitude ?? listing?.geoLocation?.longitude);
+  const slug = safeText(listing.listingSlug, 300);
+  const sourceUrl = safeSourceUrl(listing.seoUrl) || (slug ? `https://www.domain.com.au/${slug.replace(/^\/+/, '')}` : null);
+
+  let monthlyRent = transactionType === 'rent' ? price.cents : null;
+  if (monthlyRent && /week|weekly|pw\b/i.test(price.text || '')) monthlyRent = Math.round(monthlyRent * 52 / 12);
+
+  return {
+    id: `domain:au:${listingId}`,
+    provider: 'Domain Australia',
+    providerDataset: 'domain-au',
+    listingId,
+    address,
+    city,
+    region,
+    postalCode,
+    country: 'AU',
+    currency: 'AUD',
+    latitude,
+    longitude,
+    category: categoryFrom(propertyType, listing?.allPropertyTypes?.join(' ')),
+    propertyType,
+    propertySubType: safeText(listing?.allPropertyTypes?.join(', '), 160),
+    transactionType,
+    listPriceCents: transactionType === 'sale' ? price.cents : null,
+    rentCentsMonthly: monthlyRent,
+    marketValueCents: transactionType === 'sale' ? price.cents : monthlyRent,
+    marketValueText: price.text,
+    marketValueLabel: transactionType === 'sale' ? 'Domain asking price' : 'Domain asking rent',
+    beds: finiteNumber(listing.bedrooms),
+    baths: finiteNumber(listing.bathrooms),
+    livingAreaSqft: null,
+    lotAreaSqft: finiteNumber(listing.landArea) === null ? null : Math.round(Number(listing.landArea) * 10.7639),
+    stories: null,
+    status: safeText(listing.status || 'Live', 80),
+    imageUrl: firstMediaUrl(listing),
+    sourceUrl,
+    virtualTourUrl: null,
+    modifiedAt: listing.dateUpdated ? safeText(listing.dateUpdated, 80) : null,
+    sourceDisclosure: 'Live Australian listing data supplied by the authorized Domain API. Availability, price and property facts can change at Domain.',
+  };
+}
+
+async function searchDomain(input: {
+  query?: string;
+  category?: string;
+  transactionType?: string;
+}) {
+  if (!domainConfigured() || !input.query) return [] as EarthProperty[];
+  const token = await getDomainToken();
+  const location = await resolveDomainLocation(input.query, token);
+  if (!location) return [];
+
+  const listingTypes = input.transactionType === 'rent' ? ['Rent'] : input.transactionType === 'sale' ? ['Sale'] : ['Sale', 'Rent'];
+  const batches = await Promise.all(listingTypes.map(async (listingType) => {
+    const requestBody: Record<string, unknown> = {
+      listingType,
+      locations: [location],
+      pageSize: 30,
+    };
+    const propertyTypes = domainPropertyTypes(input.category);
+    if (propertyTypes) requestBody.propertyTypes = propertyTypes;
+
+    const response = await fetch(`${DOMAIN_API_URL}/v1/listings/residential/_search`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(requestBody),
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240);
+      throw new Error(`Domain listing search failed (${response.status}): ${detail}`);
+    }
+    const payload = await response.json();
+    return Array.isArray(payload) ? payload : [];
+  }));
+
+  return batches.flat()
+    .map(normalizeDomainProperty)
+    .filter((property): property is EarthProperty => Boolean(property))
+    .filter((property) => !input.category || input.category === 'all' || property.category === input.category)
+    .slice(0, MAX_RESULTS);
+}
+
+function partnerFeeds(): PartnerFeedConfig[] {
+  const raw = process.env.EARTH_PARTNER_FEEDS_JSON?.trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => {
+      try {
+        return item && typeof item === 'object' && new URL(String(item.url)).protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }).slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+function normalizePartnerProperty(row: any, feed: PartnerFeedConfig): EarthProperty | null {
+  const listingId = safeText(row?.listingId || row?.id, 160);
+  if (!listingId) return null;
+  const transactionType: 'sale' | 'rent' = safeText(row?.transactionType, 20).toLowerCase() === 'rent' ? 'rent' : 'sale';
+  const currency = safeCurrency(row?.currency, safeCurrency(feed.currency, 'USD'));
+  const listPriceCents = finiteNumber(row?.listPriceCents);
+  const rentCentsMonthly = finiteNumber(row?.rentCentsMonthly);
+  const providerId = safeText(feed.id || feed.name || 'partner', 50).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+  const propertyType = safeText(row?.propertyType, 120);
+  const propertySubType = safeText(row?.propertySubType, 120);
+  return {
+    id: `partner:${providerId}:${listingId}`,
+    provider: safeText(feed.name || row?.provider || 'Authorized property partner', 100),
+    providerDataset: providerId,
+    listingId,
+    address: safeText(row?.address, 260),
+    city: safeText(row?.city, 100),
+    region: safeText(row?.region, 80),
+    postalCode: safeText(row?.postalCode, 32),
+    country: safeText(row?.country, 60),
+    currency,
+    latitude: finiteNumber(row?.latitude),
+    longitude: finiteNumber(row?.longitude),
+    category: categoryFrom(row?.category || propertyType, propertySubType),
+    propertyType,
+    propertySubType,
+    transactionType,
+    listPriceCents,
+    rentCentsMonthly,
+    marketValueCents: finiteNumber(row?.marketValueCents) ?? (transactionType === 'sale' ? listPriceCents : rentCentsMonthly),
+    marketValueText: safeText(row?.marketValueText, 120) || null,
+    marketValueLabel: safeText(row?.marketValueLabel, 80) || (transactionType === 'sale' ? 'Source asking price' : 'Source asking rent'),
+    beds: finiteNumber(row?.beds),
+    baths: finiteNumber(row?.baths),
+    livingAreaSqft: finiteNumber(row?.livingAreaSqft),
+    lotAreaSqft: finiteNumber(row?.lotAreaSqft),
+    stories: finiteNumber(row?.stories),
+    status: safeText(row?.status || 'Active', 80),
+    imageUrl: safeSourceUrl(row?.imageUrl),
+    sourceUrl: safeSourceUrl(row?.sourceUrl),
+    virtualTourUrl: safeSourceUrl(row?.virtualTourUrl),
+    modifiedAt: row?.modifiedAt ? safeText(row.modifiedAt, 80) : null,
+    sourceDisclosure: safeText(row?.sourceDisclosure, 300) || 'Live listing data supplied by an authorized Voxel Vault property-data partner. Verify availability and facts at the original source.',
+  };
+}
+
+async function searchPartnerFeed(feed: PartnerFeedConfig, input: {
+  query?: string;
+  latitude?: number;
+  longitude?: number;
+  category?: string;
+  transactionType?: string;
+}) {
+  if (!feed.url) return [] as EarthProperty[];
+  const endpoint = new URL(feed.url);
+  if (input.query) endpoint.searchParams.set('q', safeText(input.query, 80));
+  if (Number.isFinite(input.latitude)) endpoint.searchParams.set('lat', String(input.latitude));
+  if (Number.isFinite(input.longitude)) endpoint.searchParams.set('lng', String(input.longitude));
+  if (input.category) endpoint.searchParams.set('category', input.category);
+  if (input.transactionType) endpoint.searchParams.set('type', input.transactionType);
+  endpoint.searchParams.set('limit', String(MAX_RESULTS));
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (feed.token) headers.Authorization = `Bearer ${feed.token}`;
+  const response = await fetch(endpoint, { headers, cache: 'no-store' });
+  if (!response.ok) throw new Error(`${safeText(feed.name || 'Partner feed', 80)} search failed (${response.status}).`);
+  const payload = await response.json();
+  const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.listings) ? payload.listings : [];
+  return rows
+    .map((row: any) => normalizePartnerProperty(row, feed))
+    .filter((property): property is EarthProperty => Boolean(property))
+    .filter((property) => !input.category || input.category === 'all' || property.category === input.category)
+    .filter((property) => !input.transactionType || input.transactionType === 'all' || property.transactionType === input.transactionType)
+    .slice(0, MAX_RESULTS);
+}
+
+export function getEarthProviderCoverage(): EarthProviderCoverage[] {
+  const partners = partnerFeeds();
+  return [
+    {
+      id: 'bridge',
+      name: 'Bridge / authorized MLS',
+      configured: bridgeConfigured(),
+      regions: ['United States', 'Canada (participating MLS datasets)'],
+      mode: 'MLS / RESO listing feed',
+    },
+    {
+      id: 'domain-au',
+      name: 'Domain Australia',
+      configured: domainConfigured(),
+      regions: ['Australia'],
+      mode: 'Official Domain listings API',
+    },
+    ...partners.map((feed, index) => ({
+      id: safeText(feed.id || `partner-${index + 1}`, 50),
+      name: safeText(feed.name || `Authorized partner ${index + 1}`, 100),
+      configured: Boolean(feed.url),
+      regions: Array.isArray(feed.regions) ? feed.regions.map((region) => safeText(region, 80)).filter(Boolean) : ['Configured partner region'],
+      mode: 'Authorized normalized partner feed',
+    })),
+  ];
+}
+
 export async function searchEarthProperties(input: {
   query?: string;
   latitude?: number;
@@ -225,23 +533,39 @@ export async function searchEarthProperties(input: {
   category?: string;
   transactionType?: string;
 }) {
-  if (!bridgeConfigured()) {
+  const coverage = getEarthProviderCoverage();
+  const partners = partnerFeeds();
+  const jobs: Promise<EarthProperty[]>[] = [];
+  if (bridgeConfigured()) jobs.push(searchBridge(input));
+  if (domainConfigured()) jobs.push(searchDomain(input));
+  for (const feed of partners) jobs.push(searchPartnerFeed(feed, input));
+
+  if (!jobs.length) {
     return {
       configured: false,
-      provider: 'Bridge / authorized MLS',
+      provider: 'Global authorized property federation',
+      providers: coverage,
       listings: [] as EarthProperty[],
-      message: 'Real-property feed is not connected yet. Add an authorized Bridge/MLS dataset token; Voxel Vault will not fabricate listings.',
+      message: 'The Earth interface is global, but no licensed listing feeds are connected yet. Voxel Vault will not fabricate inventory.',
     };
   }
 
-  const listings = await searchBridge(input);
+  const settled = await Promise.allSettled(jobs);
+  const listings = settled.flatMap((result) => result.status === 'fulfilled' ? result.value : []);
+  const providerErrors = settled.filter((result) => result.status === 'rejected').map((result: PromiseRejectedResult) => safeText(result.reason?.message || result.reason, 180));
+  const unique = Array.from(new Map(listings.map((listing) => [listing.id, listing])).values()).slice(0, MAX_RESULTS);
+
   return {
     configured: true,
-    provider: 'Bridge / authorized MLS',
-    listings,
-    message: listings.length
-      ? `Showing ${listings.length} live authorized listing${listings.length === 1 ? '' : 's'}.`
-      : 'No active authorized listings matched this search.',
+    provider: 'Global authorized property federation',
+    providers: coverage,
+    listings: unique,
+    providerErrors,
+    message: unique.length
+      ? `Showing ${unique.length} live authorized listing${unique.length === 1 ? '' : 's'} across connected Earth data providers.`
+      : providerErrors.length === settled.length
+        ? 'Connected property providers are temporarily unavailable. No fabricated replacements were returned.'
+        : 'No active authorized listings matched this location across the connected providers.',
   };
 }
 
