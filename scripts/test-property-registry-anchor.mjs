@@ -77,6 +77,10 @@ assert.doesNotMatch(helper, /MAINNET/i, 'Canonical registry helper must not expo
 const route = fs.readFileSync(new URL('../app/api/admin/property-registry/route.ts', import.meta.url), 'utf8');
 assert.match(route, /requireVoxelVaultAdmin/);
 assert.match(route, /Number\(network\.chainId\) !== BASE_SEPOLIA_CHAIN_ID/);
+assert.match(route, /vault_property_registry_deployments/, 'Anchor preparation must use the independently verified deployment locked in Supabase.');
+assert.match(route, /CANONICAL_REGISTRY_RUNTIME_BYTECODE_SHA256/, 'Anchor preparation must verify the reviewed runtime bytecode before using a registry.');
+assert.match(route, /sha256HexBytes\(code\)/, 'Anchor preparation must hash the deployed runtime code itself.');
+assert.doesNotMatch(route, /registryAddressFromEnvironment/, 'Anchoring must not depend on a manually typed Vercel registry address.');
 assert.match(route, /receipt\.status !== 1/);
 assert.match(route, /getAddress\(tx\.from\) !== owner/);
 assert.match(route, /PropertyIdentityRegistered/);
