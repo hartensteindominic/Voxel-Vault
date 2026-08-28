@@ -9,6 +9,7 @@ on:
       - 'scripts/**'
       - 'public/forge/bytecode-*.txt'
       - 'public/profit-engine/**'
+      - 'public/test-land/**'
       - 'package.json'
       - '.github/workflows/contracts.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'scripts/**'
       - 'public/forge/bytecode-*.txt'
       - 'public/profit-engine/**'
+      - 'public/test-land/**'
       - 'package.json'
       - '.github/workflows/contracts.yml'
 
@@ -37,6 +39,7 @@ jobs:
       - run: npm run chain:test:forge
       - run: npm run chain:test:liquidity
       - run: npm run chain:test:property
+      - run: npm run chain:test:test-land
       - name: Upload production Forge artifact
         uses: actions/upload-artifact@v4
         with:
@@ -48,4 +51,10 @@ jobs:
         with:
           name: base-multi-arb-executor-artifact
           path: artifacts/contracts/BaseMultiArbExecutor.sol/BaseMultiArbExecutor.json
+          if-no-files-found: error
+      - name: Upload Base Sepolia test land artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxel-test-land-artifact
+          path: artifacts/contracts/VoxelTestLand.sol/VoxelTestLand.json
           if-no-files-found: error
