@@ -17,7 +17,7 @@ const CATEGORIES = [
 ];
 
 const QUICK_LOCATIONS = [
-  { id: 'kensington', label: '1047 Kensington', query: '1047 Kensington Ave, Buffalo, NY 14215', addressOnly: true },
+  { id: 'kensington', label: '1047 Kensington', query: '1047 Kensington Ave, Buffalo, NY 14215', authoritative: { type: 'buffalo-parcel', sbl: '90.32-8-4', pin: '1402000903200008004000' } },
   { id: 'buffalo', label: 'Buffalo', query: 'Buffalo, NY', lat: 42.8864, lng: -78.8784 },
   { id: 'new-york', label: 'New York', query: 'New York, NY', lat: 40.7128, lng: -74.0060 },
   { id: 'london', label: 'London', query: 'London, UK', lat: 51.5074, lng: -0.1278 },
@@ -112,7 +112,7 @@ function capabilityLabel(capabilities, key) {
 export default function EarthPropertiesPage() {
   const starter = QUICK_LOCATIONS[0];
   const [query, setQuery] = useState(starter.query);
-  const [focus, setFocus] = useState({ lat: null, lng: null, label: starter.query, resolved: false });
+  const [focus, setFocus] = useState({ lat: null, lng: null, label: starter.query, resolved: false, authority: null });
   const [view, setView] = useState(GOOGLE_3D_ENABLED ? 'reality' : 'voxel');
   const [category, setCategory] = useState('all');
   const [type, setType] = useState('all');
@@ -125,7 +125,7 @@ export default function EarthPropertiesPage() {
   const [lastSearch, setLastSearch] = useState(null);
   const [atlas, setAtlas] = useState(null);
   const [atlasBusy, setAtlasBusy] = useState(false);
-  const [atlasMessage, setAtlasMessage] = useState('Resolving the exact 1047 Kensington address…');
+  const [atlasMessage, setAtlasMessage] = useState('Resolving 1047 Kensington from its Buffalo parcel reference…');
   const [selectedAtlasId, setSelectedAtlasId] = useState('');
   const [capabilities, setCapabilities] = useState(null);
 
@@ -188,7 +188,7 @@ export default function EarthPropertiesPage() {
       setAtlas(data);
       setSelectedAtlasId(data.selectedBuilding?.atlasId || data.buildings?.[0]?.atlasId || '');
       if (Number.isFinite(Number(data.latitude)) && Number.isFinite(Number(data.longitude))) {
-        setFocus({ lat: Number(data.latitude), lng: Number(data.longitude), label: data.address || params?.query || params?.address || 'Selected Earth location', resolved: true });
+        setFocus((current) => ({ lat: Number(data.latitude), lng: Number(data.longitude), label: current.label || data.address || params?.query || params?.address || 'Selected Earth location', resolved: true, authority: current.authority }));
       }
       const source = data?.sourceStatus?.fallbackUsed ? 'OpenStreetMap fallback' : 'Overture';
       setAtlasMessage(data.buildingCount
@@ -203,17 +203,44 @@ export default function EarthPropertiesPage() {
   async function explore(params = {}) {
     setLastSearch(params);
     if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
-      setFocus({ lat: Number(params.lat), lng: Number(params.lng), label: params.query || `${params.lat}, ${params.lng}`, resolved: true });
+      setFocus({ lat: Number(params.lat), lng: Number(params.lng), label: params.query || `${params.lat}, ${params.lng}`, resolved: true, authority: params.authority || null });
     } else if (params?.address || params?.query) {
-      setFocus({ lat: null, lng: null, label: params.address || params.query, resolved: false });
+      setFocus({ lat: null, lng: null, label: params.address || params.query, resolved: false, authority: null });
     }
     await Promise.allSettled([loadListings(params), loadAtlas(params)]);
+  }
+
+  async function exploreAuthoritative(location) {
+    const authoritative = location?.authoritative;
+    if (authoritative?.type !== 'buffalo-parcel') return explore({ query: location.query, address: location.query });
+    setLastSearch({ query: location.query });
+    setAtlasBusy(true);
+    setAtlasMessage(`Resolving ${location.label} from Buffalo parcel ${authoritative.sbl}…`);
+    try {
+      const response = await fetch('/api/geo/buffalo-reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sbl: authoritative.sbl, pin: authoritative.pin }),
+      });
+      const data = await response.json().catch(() => ({}));
+      const result = data?.result;
+      const lat = Number(result?.latitude), lng = Number(result?.longitude);
+      if (!response.ok || !data?.ok || !result?.found || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error(data?.error || 'The authoritative Buffalo parcel reference did not return usable coordinates.');
+      }
+      const params = { lat, lng, query: location.query, authority: `City of Buffalo parcel ${result.printKey || authoritative.sbl}` };
+      setFocus({ lat, lng, label: location.query, resolved: true, authority: params.authority });
+      await Promise.allSettled([loadListings(params), loadAtlas(params)]);
+    } catch (error) {
+      setAtlasMessage(`${String(error?.message || error)} Falling back to exact-address geocoding; no coordinate is being guessed.`);
+      await explore({ query: location.query, address: location.query });
+    }
   }
 
   useEffect(() => {
     loadCapabilities();
     loadListings({ query: starter.query });
-    loadAtlas({ address: starter.query, query: starter.query });
+    exploreAuthoritative(starter);
   }, []);
 
   function submit(event) {
@@ -222,11 +249,14 @@ export default function EarthPropertiesPage() {
     if (!value) { setAtlasMessage('Enter a city, country, postcode, address, or latitude/longitude pair.'); return; }
     const coordinates = parseCoordinateQuery(value);
     if (coordinates) { explore({ ...coordinates, query: value }); return; }
+    const known = QUICK_LOCATIONS.find((item) => item.authoritative && item.query.toLowerCase() === value.toLowerCase());
+    if (known) { exploreAuthoritative(known); return; }
     explore({ query: value, address: value });
   }
 
   function quickExplore(location) {
     setQuery(location.query);
+    if (location.authoritative) { exploreAuthoritative(location); return; }
     if (Number.isFinite(location.lat) && Number.isFinite(location.lng)) {
       explore({ lat: location.lat, lng: location.lng, query: location.query });
     } else {
@@ -257,7 +287,7 @@ export default function EarthPropertiesPage() {
     setSelectedId(item.id);
     if (Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) {
       const lat = Number(item.latitude), lng = Number(item.longitude);
-      setFocus({ lat, lng, label: addressLine(item) || 'Selected listing', resolved: true });
+      setFocus({ lat, lng, label: addressLine(item) || 'Selected listing', resolved: true, authority: item.provider || null });
       loadAtlas({ lat, lng, query: addressLine(item) });
     }
   }
@@ -298,7 +328,7 @@ export default function EarthPropertiesPage() {
           {view === 'voxel' ? <div className="voxelStage">{atlasReference?.found ? <GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={selectedAtlas?.atlasId || 'atlas'} /> : <div className="stageFallback"><b>{atlasBusy ? 'RESOLVING + READING BUILDING DATA…' : 'SOURCE GEOMETRY UNAVAILABLE'}</b><span>Reality/source links still work. Voxel Vault will not invent a footprint or coordinate.</span></div>}</div> : null}
           {view === 'globe' ? <div className="globeStage"><GlobalEarthGlobe listings={listings} selectedId={selected?.id || ''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId || ''} onAtlasSelect={setSelectedAtlasId} onLocation={globeLocation}/><div className="globeHint">DRAG · PINCH · TAP EARTH · PEACH = MAP · MINT = LISTING</div></div> : null}
         </div>
-        <aside className="propertyCard"><div className="sourceRow"><span className={mode.fallback ? 'fallback' : ''}>{mode.label}</span><span>{atlasBuildings.length} BUILDINGS</span></div><small>SELECTED PLACE</small><h3>{selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label}</h3><p>{visualReady ? `${visualLat.toFixed(5)}, ${visualLng.toFixed(5)}` : 'RESOLVING EXACT LOCATION'}</p><div className="facts"><div><b>{selectedAtlas?.tags?.levels || '—'}</b><span>FLOORS</span></div><div><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div><div><b>{selectedAtlas?.source?.license || '—'}</b><span>MAP LICENSE</span></div></div><div className="truthBox"><b>WHAT IS VERIFIED?</b><span>Location and map geometry are source-backed when shown. Facade appearance, exact roof/windows/materials, title, and sale status require their own evidence layers.</span></div><button type="button" className="download" onClick={downloadRegion} disabled={!atlasBuildings.length || !visualReady}>DOWNLOAD LOADED REGION · GEOJSON</button>{selectedAtlas?.source?.sourceUrl ? <a className="sourceLink" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}</aside>
+        <aside className="propertyCard"><div className="sourceRow"><span className={mode.fallback ? 'fallback' : ''}>{mode.label}</span><span>{atlasBuildings.length} BUILDINGS</span>{focus.authority ? <span>{focus.authority}</span> : null}</div><small>SELECTED PLACE</small><h3>{selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label}</h3><p>{visualReady ? `${visualLat.toFixed(5)}, ${visualLng.toFixed(5)}` : 'RESOLVING EXACT LOCATION'}</p><div className="facts"><div><b>{selectedAtlas?.tags?.levels || '—'}</b><span>FLOORS</span></div><div><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div><div><b>{selectedAtlas?.source?.license || '—'}</b><span>MAP LICENSE</span></div></div><div className="truthBox"><b>WHAT IS VERIFIED?</b><span>Location and map geometry are source-backed when shown. Facade appearance, exact roof/windows/materials, title, and sale status require their own evidence layers.</span></div><button type="button" className="download" onClick={downloadRegion} disabled={!atlasBuildings.length || !visualReady}>DOWNLOAD LOADED REGION · GEOJSON</button>{selectedAtlas?.source?.sourceUrl ? <a className="sourceLink" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}</aside>
       </div>
 
       <PropertyEvidencePanel listing={selected} building={selectedAtlas} fallbackLabel={focus.label}/>
