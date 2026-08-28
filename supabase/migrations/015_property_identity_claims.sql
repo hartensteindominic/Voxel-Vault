@@ -50,3 +50,9 @@ create index if not exists vault_property_claims_user_idx
 
 create index if not exists vault_property_claims_identity_idx
   on public.vault_property_claims(property_identity_id, claim_status);
+
+-- Multiple parties may submit competing claims for review, but only one claim may ever
+-- become the verified canonical claim for a property identity.
+create unique index if not exists vault_property_claims_one_verified_identity_idx
+  on public.vault_property_claims(property_identity_id)
+  where claim_status = 'verified';
