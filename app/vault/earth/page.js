@@ -2,18 +2,21 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import BuffaloCalibratedReferenceModel from '../../geo/BuffaloCalibratedReferenceModel';
 import GeoReferenceModel from '../../geo/GeoReferenceModel';
 import GlobalEarthGlobe from './GlobalEarthGlobe';
 import GoogleRealityMap from './GoogleRealityMap';
 import MeshyHeroPanel from './MeshyHeroPanel';
 import PropertyEvidencePanel from './PropertyEvidencePanel';
+import PropertyTruthStack from './PropertyTruthStack';
+import styles from './earth-experience.module.css';
 
 const GOOGLE_3D_ENABLED = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY);
 
 const CATEGORIES = [
-  ['all', 'All'], ['house', 'Houses'], ['condo', 'Condos'], ['mobile-home', 'Mobile'],
+  ['all', 'All'], ['house', 'Houses'], ['condo', 'Condos'], ['mobile-home', 'Mobile / Trailer'],
   ['multifamily', 'Multifamily'], ['storefront', 'Storefronts'], ['commercial', 'Commercial'],
-  ['warehouse', 'Warehouses'], ['barn-farm', 'Farms'], ['land', 'Land'],
+  ['warehouse', 'Warehouses'], ['barn-farm', 'Barns / Farms'], ['land', 'Land'],
 ];
 
 const QUICK_LOCATIONS = [
@@ -42,15 +45,18 @@ function addressLine(property) {
   return [property?.address, property?.city, property?.region, property?.postalCode, property?.country].filter(Boolean).join(', ');
 }
 
-function safeMapUrl(property) {
-  if (Number.isFinite(Number(property?.latitude)) && Number.isFinite(Number(property?.longitude))) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${property.latitude},${property.longitude}`)}`;
-  }
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressLine(property))}`;
+function categoryLabel(category) {
+  return CATEGORIES.find(([id]) => id === category)?.[1] || 'Property';
 }
 
-function categoryLabel(category) { return CATEGORIES.find(([id]) => id === category)?.[1] || 'Property'; }
-function shortProvider(provider) { return String(provider || 'Authorized source').replace(' / authorized MLS', ' MLS'); }
+function parseCoordinateQuery(value) {
+  const match = String(value || '').trim().match(/^(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
 
 function atlasBuildingLabel(building) {
   if (!building) return 'Mapped building';
@@ -69,7 +75,7 @@ function atlasReferenceForSelection(atlas, selected) {
     geometry: selected.geometry,
     tags: selected.tags || {},
     height: selected.height || null,
-    matchStrategy: 'world_atlas_selected_building',
+    matchStrategy: selected.source?.authority?.includes('Erie County') ? 'erie_county_parcel_linked_building' : 'world_atlas_selected_building',
     source: selected.source || atlas.reference.source,
     neighborhoodBuildings: (atlas.buildings || []).map((building) => ({
       id: building.atlasId,
@@ -77,31 +83,18 @@ function atlasReferenceForSelection(atlas, selected) {
       distanceMeters: building.distanceMeters,
       center: { latitude: building.latitude, longitude: building.longitude },
       geometry: building.geometry,
-      tags: building.tags,
-      height: building.height,
+      tags: building.tags || {},
+      height: building.height || null,
       sourceUrl: building.source?.sourceUrl || '',
     })),
   };
 }
 
-function parseCoordinateQuery(value) {
-  const match = String(value || '').trim().match(/^(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
-  if (!match) return null;
-  const lat = Number(match[1]);
-  const lng = Number(match[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  return { lat, lng };
-}
-
 function sourceMode(atlas) {
+  if (atlas?.sourceStatus?.authoritativeLocal) return { label: 'ERIE LOCAL AUTHORITY', fallback: false };
   if (!atlas?.sourceStatus) return { label: 'WAITING FOR REGION', fallback: false };
   if (atlas.sourceStatus.primary === 'overture-pmtiles' && !atlas.sourceStatus.fallbackUsed) return { label: 'OVERTURE PRIMARY', fallback: false };
   return { label: 'OSM FALLBACK', fallback: true };
-}
-
-function listingVisual(item) {
-  if (item?.imageUrl) return <img src={item.imageUrl} alt="" referrerPolicy="no-referrer" />;
-  return <div className="listingPlaceholder"><span>{categoryLabel(item?.category)}</span><div className="miniBuilding"><i/><i/><i/></div></div>;
 }
 
 function capabilityLabel(capabilities, key) {
@@ -113,23 +106,26 @@ export default function EarthPropertiesPage() {
   const starter = QUICK_LOCATIONS[0];
   const [query, setQuery] = useState(starter.query);
   const [focus, setFocus] = useState({ lat: null, lng: null, label: starter.query, resolved: false, authority: null });
-  const [view, setView] = useState(GOOGLE_3D_ENABLED ? 'reality' : 'voxel');
+  const [view, setView] = useState(GOOGLE_3D_ENABLED ? 'compare' : 'voxel');
   const [category, setCategory] = useState('all');
   const [type, setType] = useState('all');
   const [listings, setListings] = useState([]);
   const [providers, setProviders] = useState([]);
   const [selectedId, setSelectedId] = useState('');
-  const [listingMessage, setListingMessage] = useState('Real listings only. Authorized market feeds are checked separately from the world map.');
+  const [listingMessage, setListingMessage] = useState('Listings are not fabricated. Authorized market feeds are checked separately from the map.');
   const [configured, setConfigured] = useState(null);
   const [listingBusy, setListingBusy] = useState(false);
-  const [lastSearch, setLastSearch] = useState(null);
+  const [lastSearch, setLastSearch] = useState({ query: starter.query });
   const [atlas, setAtlas] = useState(null);
   const [atlasBusy, setAtlasBusy] = useState(false);
-  const [atlasMessage, setAtlasMessage] = useState('Resolving 1047 Kensington from its Buffalo parcel reference…');
+  const [atlasMessage, setAtlasMessage] = useState('Resolving 1047 Kensington from City + County property sources…');
   const [selectedAtlasId, setSelectedAtlasId] = useState('');
   const [capabilities, setCapabilities] = useState(null);
+  const [authoritativeEvidence, setAuthoritativeEvidence] = useState(null);
+  const [buffaloReference, setBuffaloReference] = useState(null);
+  const [resetKey, setResetKey] = useState(0);
 
-  const selected = useMemo(() => listings.find((item) => item.id === selectedId) || listings[0] || null, [listings, selectedId]);
+  const selected = useMemo(() => listings.find((item) => item.id === selectedId) || null, [listings, selectedId]);
   const liveProviders = providers.filter((provider) => provider.configured);
   const atlasBuildings = useMemo(() => Array.isArray(atlas?.buildings) ? atlas.buildings : [], [atlas]);
   const selectedAtlas = useMemo(
@@ -141,7 +137,8 @@ export default function EarthPropertiesPage() {
   const visualLat = Number.isFinite(Number(selectedAtlas?.latitude)) ? Number(selectedAtlas.latitude) : (focus.resolved ? Number(focus.lat) : NaN);
   const visualLng = Number.isFinite(Number(selectedAtlas?.longitude)) ? Number(selectedAtlas.longitude) : (focus.resolved ? Number(focus.lng) : NaN);
   const visualReady = Number.isFinite(visualLat) && Number.isFinite(visualLng);
-  const visualLabel = selected?.address || (selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label);
+  const visualLabel = selected ? addressLine(selected) : (selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label);
+  const hasAuthoritativeBuilding = Boolean(authoritativeEvidence?.twin?.structure?.buildingGeometry);
 
   async function loadCapabilities() {
     try {
@@ -157,7 +154,8 @@ export default function EarthPropertiesPage() {
       const search = new URLSearchParams({ category: nextCategory, type: nextType });
       if (params?.query) search.set('q', params.query);
       if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
-        search.set('lat', String(params.lat)); search.set('lng', String(params.lng));
+        search.set('lat', String(params.lat));
+        search.set('lng', String(params.lng));
       }
       const response = await fetch(`/api/earth-properties/search?${search.toString()}`, { cache: 'no-store' });
       const data = await response.json().catch(() => ({}));
@@ -165,22 +163,26 @@ export default function EarthPropertiesPage() {
       setConfigured(Boolean(data.configured));
       setProviders(Array.isArray(data.providers) ? data.providers : []);
       setListings(Array.isArray(data.listings) ? data.listings : []);
-      setSelectedId(data.listings?.[0]?.id || '');
+      setSelectedId('');
       setListingMessage(data.message || 'Market search complete.');
     } catch (error) {
-      setListings([]); setSelectedId('');
-      setListingMessage(String(error?.message || error || 'Market search failed. The map remains available.'));
-    } finally { setListingBusy(false); }
+      setListings([]);
+      setSelectedId('');
+      setListingMessage(String(error?.message || error || 'Market search failed. Reality and map exploration remain available.'));
+    } finally {
+      setListingBusy(false);
+    }
   }
 
   async function loadAtlas(params = {}) {
     setAtlasBusy(true);
-    setAtlasMessage(params?.address ? `Resolving ${params.address}…` : 'Reading a small source-backed building region…');
+    setAtlasMessage(params?.address ? `Resolving ${params.address}…` : 'Reading a bounded source-backed building region…');
     try {
       const search = new URLSearchParams({ radius: '180' });
       if (params?.address && !Number.isFinite(params?.lat)) search.set('address', String(params.address));
       if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
-        search.set('lat', String(params.lat)); search.set('lng', String(params.lng));
+        search.set('lat', String(params.lat));
+        search.set('lng', String(params.lng));
       }
       const response = await fetch(`/api/world-atlas/inspect?${search.toString()}`, { cache: 'no-store' });
       const data = await response.json().catch(() => ({}));
@@ -188,24 +190,30 @@ export default function EarthPropertiesPage() {
       setAtlas(data);
       setSelectedAtlasId(data.selectedBuilding?.atlasId || data.buildings?.[0]?.atlasId || '');
       if (Number.isFinite(Number(data.latitude)) && Number.isFinite(Number(data.longitude))) {
-        setFocus((current) => ({ lat: Number(data.latitude), lng: Number(data.longitude), label: current.label || data.address || params?.query || params?.address || 'Selected Earth location', resolved: true, authority: current.authority }));
+        setFocus((current) => ({ ...current, lat: Number(data.latitude), lng: Number(data.longitude), resolved: true }));
       }
       const source = data?.sourceStatus?.fallbackUsed ? 'OpenStreetMap fallback' : 'Overture';
       setAtlasMessage(data.buildingCount
         ? `${data.buildingCount} source-backed building${data.buildingCount === 1 ? '' : 's'} loaded from ${source}.`
-        : `Location resolved through ${source}, but no building footprint was returned. Nothing was invented.`);
+        : `The location resolved, but those global map sources returned no building footprint here. Nothing was invented.`);
+      setResetKey((value) => value + 1);
     } catch (error) {
-      setAtlas(null); setSelectedAtlasId('');
-      setAtlasMessage(`${String(error?.message || error || 'World atlas lookup failed.')} Reality/source links and authorized market search remain usable.`);
-    } finally { setAtlasBusy(false); }
+      setAtlas(null);
+      setSelectedAtlasId('');
+      setAtlasMessage(`${String(error?.message || error || 'World atlas lookup failed.')} Google/source links and authorized market search remain usable.`);
+    } finally {
+      setAtlasBusy(false);
+    }
   }
 
   async function explore(params = {}) {
+    setAuthoritativeEvidence(null);
+    setBuffaloReference(null);
     setLastSearch(params);
     if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
       setFocus({ lat: Number(params.lat), lng: Number(params.lng), label: params.query || `${params.lat}, ${params.lng}`, resolved: true, authority: params.authority || null });
-    } else if (params?.address || params?.query) {
-      setFocus({ lat: null, lng: null, label: params.address || params.query, resolved: false, authority: null });
+    } else {
+      setFocus({ lat: null, lng: null, label: params.address || params.query || 'Selected Earth location', resolved: false, authority: null });
     }
     await Promise.allSettled([loadListings(params), loadAtlas(params)]);
   }
@@ -213,142 +221,289 @@ export default function EarthPropertiesPage() {
   async function exploreAuthoritative(location) {
     const authoritative = location?.authoritative;
     if (authoritative?.type !== 'buffalo-parcel') return explore({ query: location.query, address: location.query });
-    setLastSearch({ query: location.query });
     setAtlasBusy(true);
-    setAtlasMessage(`Resolving ${location.label} from Buffalo parcel ${authoritative.sbl}…`);
+    setLastSearch({ query: location.query });
+    setAtlasMessage(`Resolving ${location.label} from City parcel ${authoritative.sbl} + Erie County GIS…`);
     try {
-      const response = await fetch('/api/geo/buffalo-reference', {
+      const response = await fetch('/api/world-atlas/property-anchor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sbl: authoritative.sbl, pin: authoritative.pin }),
+        body: JSON.stringify({ ...authoritative, address: location.query, radiusMeters: 180 }),
       });
       const data = await response.json().catch(() => ({}));
-      const result = data?.result;
-      const lat = Number(result?.latitude), lng = Number(result?.longitude);
-      if (!response.ok || !data?.ok || !result?.found || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-        throw new Error(data?.error || 'The authoritative Buffalo parcel reference did not return usable coordinates.');
-      }
-      const params = { lat, lng, query: location.query, authority: `City of Buffalo parcel ${result.printKey || authoritative.sbl}` };
-      setFocus({ lat, lng, label: location.query, resolved: true, authority: params.authority });
-      await Promise.allSettled([loadListings(params), loadAtlas(params)]);
+      if (!response.ok || !data?.ok) throw new Error(data?.error || 'Authoritative property anchor failed.');
+      const lat = Number(data?.anchor?.latitude);
+      const lng = Number(data?.anchor?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('Authoritative property sources did not return usable coordinates.');
+
+      setAuthoritativeEvidence(data.authoritativeEvidence || null);
+      setBuffaloReference(data.cityReference || null);
+      setAtlas(data.atlas || null);
+      setSelectedAtlasId(data.atlas?.selectedBuilding?.atlasId || data.atlas?.buildings?.[0]?.atlasId || '');
+      setFocus({ lat, lng, label: location.query, resolved: true, authority: data.anchor?.authority || 'Buffalo / Erie jurisdiction GIS' });
+      setResetKey((value) => value + 1);
+      setAtlasMessage(data.localBuildingStatus === 'parcel_linked_building'
+        ? `1047 is anchored to the City parcel and a parcel-linked Erie County BUILDING footprint. ${data.atlas?.buildingCount || 1} building${Number(data.atlas?.buildingCount || 1) === 1 ? '' : 's'} available with neighborhood context.`
+        : `1047 is anchored to the authoritative parcel location. No exact county BUILDING footprint is attached yet, so Reality remains the visual reference instead of inventing architecture.`);
+      await loadListings({ lat, lng, query: location.query });
     } catch (error) {
-      setAtlasMessage(`${String(error?.message || error)} Falling back to exact-address geocoding; no coordinate is being guessed.`);
+      setAuthoritativeEvidence(null);
+      setBuffaloReference(null);
+      setAtlasMessage(`${String(error?.message || error)} Falling back to exact-address geocoding; no coordinate is guessed.`);
       await explore({ query: location.query, address: location.query });
+    } finally {
+      setAtlasBusy(false);
     }
   }
 
   useEffect(() => {
     loadCapabilities();
-    loadListings({ query: starter.query });
     exploreAuthoritative(starter);
   }, []);
 
   function submit(event) {
     event.preventDefault();
     const value = query.trim();
-    if (!value) { setAtlasMessage('Enter a city, country, postcode, address, or latitude/longitude pair.'); return; }
+    if (!value) return;
     const coordinates = parseCoordinateQuery(value);
-    if (coordinates) { explore({ ...coordinates, query: value }); return; }
+    if (coordinates) return explore({ ...coordinates, query: value });
     const known = QUICK_LOCATIONS.find((item) => item.authoritative && item.query.toLowerCase() === value.toLowerCase());
-    if (known) { exploreAuthoritative(known); return; }
-    explore({ query: value, address: value });
+    if (known) return exploreAuthoritative(known);
+    return explore({ query: value, address: value });
   }
 
   function quickExplore(location) {
     setQuery(location.query);
-    if (location.authoritative) { exploreAuthoritative(location); return; }
-    if (Number.isFinite(location.lat) && Number.isFinite(location.lng)) {
-      explore({ lat: location.lat, lng: location.lng, query: location.query });
-    } else {
-      explore({ query: location.query, address: location.query });
-    }
+    if (location.authoritative) return exploreAuthoritative(location);
+    return explore({ lat: location.lat, lng: location.lng, query: location.query });
   }
 
   function nearMe() {
-    if (!navigator.geolocation) { setAtlasMessage('Location services are unavailable in this browser.'); return; }
-    setAtlasBusy(true); setAtlasMessage('Getting your location…');
+    if (!navigator.geolocation) {
+      setAtlasMessage('Location services are unavailable in this browser.');
+      return;
+    }
+    setAtlasBusy(true);
+    setAtlasMessage('Getting your location…');
     navigator.geolocation.getCurrentPosition((position) => {
-      const lat = position.coords.latitude, lng = position.coords.longitude;
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
       const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      setQuery(label); explore({ lat, lng, query: label });
-    }, (error) => { setAtlasBusy(false); setAtlasMessage(error.message || 'Location permission was not granted.'); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+      setQuery(label);
+      explore({ lat, lng, query: label });
+    }, (error) => {
+      setAtlasBusy(false);
+      setAtlasMessage(error.message || 'Location permission was not granted.');
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   }
 
   function globeLocation({ latitude, longitude }) {
     const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-    setQuery(label); setAtlasMessage(`Exploring source-backed buildings around ${label}…`);
+    setQuery(label);
     explore({ lat: latitude, lng: longitude, query: label });
   }
-
-  function chooseCategory(next) { setCategory(next); loadListings(lastSearch || {}, next, type); }
-  function chooseType(next) { setType(next); loadListings(lastSearch || {}, category, next); }
 
   function chooseListing(item) {
     setSelectedId(item.id);
     if (Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) {
-      const lat = Number(item.latitude), lng = Number(item.longitude);
+      const lat = Number(item.latitude);
+      const lng = Number(item.longitude);
       setFocus({ lat, lng, label: addressLine(item) || 'Selected listing', resolved: true, authority: item.provider || null });
+      setAuthoritativeEvidence(null);
+      setBuffaloReference(null);
       loadAtlas({ lat, lng, query: addressLine(item) });
     }
+  }
+
+  function chooseAtlas(atlasId) {
+    setSelectedAtlasId(atlasId);
+    setResetKey((value) => value + 1);
+  }
+
+  function chooseCategory(next) {
+    setCategory(next);
+    loadListings(lastSearch || {}, next, type);
+  }
+
+  function chooseType(next) {
+    setType(next);
+    loadListings(lastSearch || {}, category, next);
   }
 
   function downloadRegion() {
     if (!atlasBuildings.length || !visualReady) return;
     const geojson = {
-      type: 'FeatureCollection', name: 'Voxel Vault loaded atlas region', generatedAt: new Date().toISOString(),
-      sourceStatus: atlas?.sourceStatus || null, rights: atlas?.rights || null,
+      type: 'FeatureCollection',
+      name: 'Voxel Vault loaded atlas region',
+      generatedAt: new Date().toISOString(),
+      sourceStatus: atlas?.sourceStatus || null,
+      rights: atlas?.rights || null,
       features: atlasBuildings.map((building) => ({
-        type: 'Feature', id: building.atlasId, geometry: building.geometry,
-        properties: { atlasId: building.atlasId, name: building.tags?.name || null, building: building.tags?.building || null, levels: building.tags?.levels || null, referenceHeightMeters: building.height?.referenceHeightMeters ?? null, heightStatus: building.height?.heightStatus || null, sourceAuthority: building.source?.authority || null, sourceRecordId: building.source?.recordId || null, sourceLicense: building.source?.license || null, sourceUrl: building.source?.sourceUrl || null, mapReferenceOnly: true },
+        type: 'Feature',
+        id: building.atlasId,
+        geometry: building.geometry,
+        properties: {
+          atlasId: building.atlasId,
+          name: building.tags?.name || null,
+          building: building.tags?.building || null,
+          levels: building.tags?.levels || null,
+          referenceHeightMeters: building.height?.referenceHeightMeters ?? null,
+          heightStatus: building.height?.heightStatus || null,
+          sourceAuthority: building.source?.authority || null,
+          sourceRecordId: building.source?.recordId || null,
+          sourceLicense: building.source?.license || null,
+          sourceUrl: building.source?.sourceUrl || null,
+          mapReferenceOnly: true,
+        },
       })),
     };
-    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
-    const href = URL.createObjectURL(blob), anchor = document.createElement('a');
-    anchor.href = href; anchor.download = `voxel-vault-region-${visualLat.toFixed(4)}-${visualLng.toFixed(4)}.geojson`;
-    document.body.appendChild(anchor); anchor.click(); anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+    const href = URL.createObjectURL(new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' }));
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `voxel-vault-region-${visualLat.toFixed(4)}-${visualLng.toFixed(4)}.geojson`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000);
   }
 
-  return <main className="page">
-    <header><Link className="brand" href="/vault">VOXEL VAULT</Link><nav><Link href="/geo">GEO</Link><Link href="/vault/estates/mine">MY TWINS</Link><Link href="/vault/properties/claim">VERIFY</Link></nav></header>
+  function voxelStage(compactLabel = false) {
+    if (hasAuthoritativeBuilding) {
+      return <div className={styles.stageCard}>
+        <BuffaloCalibratedReferenceModel
+          reference={atlasReference}
+          authoritativeTwin={authoritativeEvidence?.twin || null}
+          buffaloReference={buffaloReference}
+          addressLabel={focus.label}
+          viewMode="orbit"
+          resetKey={resetKey}
+        />
+        {compactLabel ? <span className={styles.paneLabel}>SOURCE + LOCAL AUTHORITY</span> : null}
+      </div>;
+    }
+    if (atlasReference?.found) {
+      return <div className={styles.stageCard}>
+        <GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={resetKey} />
+        {compactLabel ? <span className={styles.paneLabel}>SOURCE-BACKED VOXEL</span> : null}
+      </div>;
+    }
+    return <div className={`${styles.stageCard} ${styles.stageEmpty}`}>
+      <b>{atlasBusy ? 'RESOLVING PROPERTY EVIDENCE…' : 'NO VERIFIED BUILDING FOOTPRINT'}</b>
+      <span>The location can still be inspected in Reality and external evidence sources. Voxel Vault will not invent a house just to fill this panel.</span>
+    </div>;
+  }
 
-    <section className="hero">
-      <div className="kicker"><i/> VOXEL VAULT WORLD ATLAS</div>
-      <h1>The whole Earth.<br/><em>Reality + data + 3D.</em></h1>
-      <p>Search a real address and inspect the same place three ways: Google Photorealistic 3D when configured, Voxel Vault source-backed geometry, and the global navigation globe. Real listings only come from authorized market providers.</p>
-      <form onSubmit={submit} className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Address, city, postcode · or latitude, longitude" aria-label="Search Earth"/><button disabled={atlasBusy || listingBusy}>{atlasBusy ? 'LOADING…' : 'EXPLORE'}</button><button className="near" type="button" onClick={nearMe} disabled={atlasBusy}>NEAR ME</button></form>
-      <div className="quickRail">{QUICK_LOCATIONS.map((location) => <button type="button" key={location.id} onClick={() => quickExplore(location)} disabled={atlasBusy}>{location.label}</button>)}</div>
-      <div className="capabilityRail"><div><b>WORLD DATA</b><span>{capabilityLabel(capabilities, 'worldAtlas')}</span></div><div><b>GOOGLE 3D</b><span>{capabilityLabel(capabilities, 'googleReality')}</span></div><div><b>MESHY 7</b><span>{capabilityLabel(capabilities, 'meshy')}</span></div><div><b>MARKET</b><span>{liveProviders.length ? `${liveProviders.length} LIVE` : 'AWAITING ACCESS'}</span></div></div>
+  return <main className={styles.page}>
+    <header className={styles.header}>
+      <Link className={styles.brand} href="/vault">VOXEL VAULT</Link>
+      <nav className={styles.nav}><Link href="/geo">GEO</Link><Link href="/vault/estates/mine">MY TWINS</Link><Link href="/vault/properties/claim">VERIFY</Link></nav>
+    </header>
+
+    <section className={styles.hero}>
+      <div className={styles.eyebrow}><i className={styles.pulse}/> VOXEL VAULT WORLD ATLAS</div>
+      <h1>See the real world.<br/><em>Then build its twin.</em></h1>
+      <p className={styles.heroText}>One address, synchronized across live Reality, source-backed Voxel geometry, the world Globe, visual evidence and selective Meshy 7 reconstruction. The system prefers jurisdiction evidence where available and fails visibly instead of inventing architecture.</p>
+      <form className={styles.search} onSubmit={submit}>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="City, address, postcode · or latitude, longitude" aria-label="Search Earth" />
+        <button disabled={atlasBusy || listingBusy}>{atlasBusy ? 'RESOLVING…' : 'EXPLORE'}</button>
+        <button type="button" onClick={nearMe} disabled={atlasBusy}>NEAR ME</button>
+      </form>
+      <div className={styles.quick}>{QUICK_LOCATIONS.map((location) => <button type="button" key={location.id} onClick={() => quickExplore(location)} disabled={atlasBusy}>{location.label}</button>)}</div>
+      <div className={styles.capabilities}>
+        <div className={styles.capability}><b>WORLD DATA</b><span>{capabilityLabel(capabilities, 'worldAtlas')}</span></div>
+        <div className={styles.capability}><b>GOOGLE 3D</b><span>{capabilityLabel(capabilities, 'googleReality')}</span></div>
+        <div className={styles.capability}><b>MESHY 7</b><span>{capabilityLabel(capabilities, 'meshy')}</span></div>
+        <div className={styles.capability}><b>MARKET</b><span>{liveProviders.length ? `${liveProviders.length} LIVE` : 'AWAITING ACCESS'}</span></div>
+      </div>
     </section>
 
-    <section className="explorer">
-      <div className="explorerTop"><div><small>WORLD BUILDING ATLAS</small><h2>{visualLabel}</h2><p>{atlasMessage}</p></div><div className="viewTabs"><button className={view === 'reality' ? 'active' : ''} onClick={() => setView('reality')}>REALITY</button><button className={view === 'voxel' ? 'active' : ''} onClick={() => setView('voxel')}>VOXEL</button><button className={view === 'globe' ? 'active' : ''} onClick={() => setView('globe')}>GLOBE</button></div></div>
-      <div className="explorerGrid">
-        <div className="visualStage">
-          {view === 'reality' ? <GoogleRealityMap latitude={visualReady ? visualLat : null} longitude={visualReady ? visualLng : null} label={visualLabel} active /> : null}
-          {view === 'voxel' ? <div className="voxelStage">{atlasReference?.found ? <GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={selectedAtlas?.atlasId || 'atlas'} /> : <div className="stageFallback"><b>{atlasBusy ? 'RESOLVING + READING BUILDING DATA…' : 'SOURCE GEOMETRY UNAVAILABLE'}</b><span>Reality/source links still work. Voxel Vault will not invent a footprint or coordinate.</span></div>}</div> : null}
-          {view === 'globe' ? <div className="globeStage"><GlobalEarthGlobe listings={listings} selectedId={selected?.id || ''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId || ''} onAtlasSelect={setSelectedAtlasId} onLocation={globeLocation}/><div className="globeHint">DRAG · PINCH · TAP EARTH · PEACH = MAP · MINT = LISTING</div></div> : null}
+    <section className={styles.shell}>
+      <div className={styles.topbar}>
+        <div className={styles.title}><small>WORLD BUILDING ATLAS</small><h2>{visualLabel || 'Selected Earth location'}</h2><p>{atlasMessage}</p></div>
+        <div className={styles.tabs} role="group" aria-label="Property visualization mode">
+          <button className={view === 'compare' ? styles.active : ''} onClick={() => setView('compare')}>COMPARE</button>
+          <button className={view === 'reality' ? styles.active : ''} onClick={() => setView('reality')}>REALITY</button>
+          <button className={view === 'voxel' ? styles.active : ''} onClick={() => setView('voxel')}>VOXEL</button>
+          <button className={view === 'globe' ? styles.active : ''} onClick={() => setView('globe')}>GLOBE</button>
         </div>
-        <aside className="propertyCard"><div className="sourceRow"><span className={mode.fallback ? 'fallback' : ''}>{mode.label}</span><span>{atlasBuildings.length} BUILDINGS</span>{focus.authority ? <span>{focus.authority}</span> : null}</div><small>SELECTED PLACE</small><h3>{selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label}</h3><p>{visualReady ? `${visualLat.toFixed(5)}, ${visualLng.toFixed(5)}` : 'RESOLVING EXACT LOCATION'}</p><div className="facts"><div><b>{selectedAtlas?.tags?.levels || '—'}</b><span>FLOORS</span></div><div><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div><div><b>{selectedAtlas?.source?.license || '—'}</b><span>MAP LICENSE</span></div></div><div className="truthBox"><b>WHAT IS VERIFIED?</b><span>Location and map geometry are source-backed when shown. Facade appearance, exact roof/windows/materials, title, and sale status require their own evidence layers.</span></div><button type="button" className="download" onClick={downloadRegion} disabled={!atlasBuildings.length || !visualReady}>DOWNLOAD LOADED REGION · GEOJSON</button>{selectedAtlas?.source?.sourceUrl ? <a className="sourceLink" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}</aside>
       </div>
 
+      <div className={styles.atlasGrid}>
+        <div className={styles.stage}>
+          {view === 'compare' ? <div className={styles.compare}>
+            <div className={styles.comparePane}><GoogleRealityMap latitude={visualReady ? visualLat : null} longitude={visualReady ? visualLng : null} label={visualLabel} active /><span className={styles.paneLabel}>GOOGLE LIVE REALITY</span></div>
+            <div className={styles.comparePane}>{voxelStage(true)}</div>
+          </div> : null}
+          {view === 'reality' ? <GoogleRealityMap latitude={visualReady ? visualLat : null} longitude={visualReady ? visualLng : null} label={visualLabel} active /> : null}
+          {view === 'voxel' ? voxelStage(false) : null}
+          {view === 'globe' ? <div className={`${styles.stageCard} ${styles.globeWrap}`}>
+            <GlobalEarthGlobe listings={listings} selectedId={selected?.id || ''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId || ''} onAtlasSelect={chooseAtlas} onLocation={globeLocation} />
+            <div className={styles.globeHint}>DRAG · PINCH · TAP EARTH · PEACH = MAP · MINT = LISTING</div>
+          </div> : null}
+        </div>
+
+        <aside className={styles.side}>
+          <div className={styles.badgeRow}>
+            <span className={styles.badge}>{mode.label}</span>
+            <span className={styles.badge}>{atlasBuildings.length} BUILDINGS</span>
+            {focus.authority ? <span className={styles.badge}>{focus.authority}</span> : null}
+            {atlas?.sourceStatus?.fallbackUsed ? <span className={`${styles.badge} ${styles.badgeWarm}`}>FALLBACK USED</span> : null}
+          </div>
+          <small>SELECTED PLACE</small>
+          <h3>{selectedAtlas ? atlasBuildingLabel(selectedAtlas) : focus.label}</h3>
+          <p className={styles.coord}>{visualReady ? `${visualLat.toFixed(6)}, ${visualLng.toFixed(6)}` : 'RESOLVING EXACT LOCATION'}</p>
+          <div className={styles.facts}>
+            <div className={styles.fact}><b>{buffaloReference?.stories || selectedAtlas?.tags?.levels || '—'}</b><span>FLOORS</span></div>
+            <div className={styles.fact}><b>{buffaloReference?.totalLivingAreaSqFt ? `${Math.round(buffaloReference.totalLivingAreaSqFt).toLocaleString()} ft²` : '—'}</b><span>CITY AREA REF</span></div>
+            <div className={styles.fact}><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div>
+            <div className={styles.fact}><b>{authoritativeEvidence?.countyRecord?.buildingMatchStrategy || selectedAtlas?.source?.license || '—'}</b><span>GEOMETRY STATUS</span></div>
+          </div>
+          <div className={styles.sourceNote}><b>FAIL-SAFE PROPERTY TRUTH</b><span>Reality imagery, map geometry, assessment characteristics, listing photos, AI models, legal title and investment rights are separate evidence layers. Missing layers stay missing.</span></div>
+          <button className={styles.download} type="button" onClick={downloadRegion} disabled={!atlasBuildings.length || !visualReady}>DOWNLOAD LOADED REGION · GEOJSON</button>
+          {selectedAtlas?.source?.sourceUrl ? <a className={styles.sourceLink} href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}
+          <Link className={styles.sourceLink} href="/vault/properties/claim">VERIFY OWNER · CREATE PROPERTY PASSPORT</Link>
+        </aside>
+      </div>
+
+      <PropertyTruthStack
+        building={selectedAtlas}
+        authoritativeEvidence={authoritativeEvidence}
+        buffaloReference={buffaloReference}
+        listing={selected}
+        googleConfigured={Boolean(capabilities?.googleReality?.configured)}
+        meshyConfigured={Boolean(capabilities?.meshy?.configured)}
+        focusAuthority={focus.authority || ''}
+      />
+
       <PropertyEvidencePanel listing={selected} building={selectedAtlas} fallbackLabel={focus.label}/>
-      <div className="meshyZone"><div className="meshyIntro"><small>MESHY · THE PERFECT AMOUNT</small><h2>Use AI detail only on selected buildings.</h2><p>Google Maps stays the live photorealistic reality layer. Meshy 7 creates a cached property model only from 2–4 user-owned, open-licensed, or explicitly derivative-licensed views. Normal browsing never spends Meshy credits.</p></div><MeshyHeroPanel building={selectedAtlas} listing={selected}/></div>
+
+      <div className={styles.meshZone}>
+        <div className={styles.meshCopy}><small>MESHY · THE PERFECT AMOUNT</small><h2>Spend AI detail only where evidence earns it.</h2><p>Normal Earth browsing spends zero Meshy credits. Meshy 7 is reserved for a selected hero property with 2–4 user-owned, open-licensed or explicitly derivative-licensed views. Google/Zillow/Redfin remain visual reference surfaces unless separate rights permit reconstruction.</p></div>
+        <MeshyHeroPanel building={selectedAtlas} listing={selected}/>
+      </div>
     </section>
 
-    <section className="marketSection">
-      <div className="sectionHead"><div><small>AUTHORIZED REAL-ESTATE MARKET</small><h2>Real listings only.</h2><p>{listingMessage}</p></div><div className="marketState"><b>{listings.length}</b><span>LIVE RESULTS</span></div></div>
-      <div className="coverage"><b>LIVE COVERAGE</b><span>{liveProviders.length ? liveProviders.map((p) => p.name).join(' · ') : 'No licensed listing provider is connected in this deployment.'}</span><b>AWAITING ACCESS</b><span>{providers.filter((p) => !p.configured).map((p) => p.name).join(' · ') || 'Additional licensed markets can be added without changing the map layer.'}</span></div>
-      <div className="filters"><div>{[['all','Buy + Rent'],['sale','For Sale'],['rent','For Rent']].map(([id,label]) => <button key={id} className={type === id ? 'active' : ''} onClick={() => chooseType(id)}>{label}</button>)}</div><div>{CATEGORIES.map(([id,label]) => <button key={id} className={category === id ? 'active' : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div></div>
-      <div className="marketGrid"><div className="results">{listings.length === 0 ? <div className="empty"><b>{configured === false ? 'MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS HERE'}</b><span>Mapped buildings can still be explored. Voxel Vault does not fabricate listing inventory.</span></div> : listings.map((item) => <button key={item.id} className={selected?.id === item.id ? 'listing active' : 'listing'} onClick={() => chooseListing(item)}><div className="photo">{listingVisual(item)}</div><div className="listingBody"><div className="sourceTag">{shortProvider(item.provider)} · {item.country || 'Earth'}</div><strong>{money(item)}</strong><b>{item.address || 'Address from source'}</b><small>{[item.city,item.region,item.postalCode].filter(Boolean).join(', ')}</small><div>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</div></div></button>)}</div><aside className="detail">{selected ? <><div className="detailVisual">{listingVisual(selected)}<span>AUTHORIZED LISTING MEDIA</span></div><div className="detailBody"><div className="source"><i/>{selected.provider} · {selected.status}</div><h2>{selected.address || 'Real Earth property'}</h2><p>{[selected.city,selected.region,selected.postalCode,selected.country].filter(Boolean).join(', ')}</p><div className="price"><span>{selected.marketValueLabel}</span><strong>{money(selected)}</strong></div><div className="listingFacts"><div><b>{selected.beds ?? '—'}</b><span>BEDS</span></div><div><b>{selected.baths ?? '—'}</b><span>BATHS</span></div><div><b>{selected.livingAreaSqft ? Math.round(selected.livingAreaSqft).toLocaleString() : '—'}</b><span>SQ FT</span></div></div><a className="primaryButton" href={selected.sourceUrl || safeMapUrl(selected)} target="_blank" rel="noreferrer">{selected.sourceUrl ? 'OPEN REAL SOURCE LISTING' : 'OPEN EARTH LOCATION'} ↗</a><Link className="secondary" href="/vault/properties/claim">MINTING RECOMMENDED AFTER VERIFICATION</Link><p className="fine"><b>Physical purchase:</b> broker → contract → title → closing → deed-recording. A Voxel Vault twin or NFT does not replace the deed.</p></div></> : <div className="detailEmpty"><b>MAP ≠ MARKET INVENTORY</b><span>A mapped building can exist without being for sale or rent.</span></div>}</aside></div>
+    <section className={styles.market}>
+      <div className={styles.marketHead}><div><small>AUTHORIZED REAL-ESTATE MARKET</small><h2>Listings are not fabricated.</h2><p>{listingMessage}</p></div><div className={styles.marketCount}><b>{listings.length}</b><span>LIVE RESULTS</span></div></div>
+      <div className={styles.providerBar}><b>LIVE COVERAGE</b><span>{liveProviders.length ? liveProviders.map((provider) => provider.name).join(' · ') : 'No licensed listing feed is connected on this deployment.'}</span><b>MAP COVERAGE</b><span>World exploration remains independent from market inventory.</span></div>
+      <div className={styles.filters}>
+        <div>{[['all','Buy + Rent'],['sale','For Sale'],['rent','For Rent']].map(([id,label]) => <button key={id} className={type === id ? styles.activeFilter : ''} onClick={() => chooseType(id)}>{label}</button>)}</div>
+        <div>{CATEGORIES.map(([id,label]) => <button key={id} className={category === id ? styles.activeFilter : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div>
+      </div>
+      <div className={styles.marketGrid}>
+        {listings.length === 0 ? <div className={styles.emptyMarket}><b>{configured === false ? 'MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS HERE'}</b><span>A mapped building is not automatically for sale. Try another place or connect an authorized provider.</span></div> : listings.map((item) => <button type="button" key={item.id} className={styles.listing} onClick={() => chooseListing(item)}>
+          {item.imageUrl ? <img src={item.imageUrl} alt="" referrerPolicy="no-referrer"/> : <div className={styles.listingPlaceholder}>{categoryLabel(item.category)}</div>}
+          <div className={styles.listingBody}><small>{item.provider} · {item.country || 'Earth'}</small><strong>{money(item)}</strong><b>{item.address || 'Address from source'}</b><span>{[item.city,item.region,item.postalCode].filter(Boolean).join(', ')}</span><span>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</span>{item.sourceUrl ? <a className={styles.marketLink} href={item.sourceUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>OPEN SOURCE LISTING ↗</a> : null}</div>
+        </button>)}
+      </div>
+      <div className={styles.sourceNote}><b>REAL-PROPERTY BOUNDARY</b><span>A real-property acquisition still requires the normal broker/contract, title, closing and recording process. A digital twin does not replace the deed, and a map/listing/AI model does not create ownership.</span></div>
     </section>
 
-    <section className="governance"><article><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More claims, higher marginal fee.</h2><p>The proposed digital-stewardship schedule is <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local region. Regional cap: 20. No owner/admin exemption.</p><div className="policyTruth"><b>POLICY MODEL · BILLING DISABLED</b><span>This is not a government tax and does not create rights in physical property.</span></div></article><article><small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2><p>Voxel Vault can own its software, interface, original metadata, compliant model cache and workflows. Google, Overture, OpenStreetMap, municipalities and listing providers keep their own data and licenses.</p></article></section>
-    <footer><b>REALITY ≠ TITLE ≠ INVESTMENT</b><span>Physical-market value and digital twin resale value remain separate. Google imagery is used only through permitted live visualization; map geometry, listing photos, Meshy models, legal ownership and investment rights remain separate evidence layers.</span></footer>
+    <section className={styles.governance}>
+      <article><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More digital claims, higher marginal fee.</h2><p>The proposed Voxel Vault stewardship schedule stays <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local region. Regional cap: 20. No owner/admin exemption. Billing remains disabled until an authoritative claim ledger exists.</p></article>
+      <article><small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2><p>Voxel Vault can own its software, interface, original metadata, compliant caches and workflows. Google, Overture, OpenStreetMap, municipalities and listing providers keep their source data and licenses.</p></article>
+    </section>
 
-    <style jsx>{`
-      :global(body){margin:0;background:#07100f;color:#f4f7f6;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:0 clamp(12px,3vw,38px) 90px;background:radial-gradient(circle at 80% 2%,rgba(105,82,214,.13),transparent 24%),radial-gradient(circle at 12% 20%,rgba(75,202,154,.08),transparent 26%),#07100f}.page *{box-sizing:border-box}header{height:62px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.055);position:sticky;top:0;background:rgba(7,16,15,.86);backdrop-filter:blur(18px);z-index:20}.brand{color:#fff;text-decoration:none;font-size:10px;font-weight:1000;letter-spacing:.16em}nav{display:flex;gap:16px}nav a{color:#8e9b95;text-decoration:none;font-size:8px;font-weight:850;letter-spacing:.08em}.hero{max-width:1180px;margin:0 auto;padding:54px 0 28px;display:grid;gap:15px}.kicker,.explorerTop small,.sectionHead small,.meshyIntro small,.governance small{font-size:7px;letter-spacing:.15em;font-weight:950;color:#79ddb7}.kicker i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#79efbc;box-shadow:0 0 18px #79efbc;margin-right:6px}.hero h1{font-size:clamp(42px,7vw,88px);line-height:.92;letter-spacing:-.065em;margin:0;max-width:900px}.hero h1 em{font-style:normal;color:#8fe3c2}.hero>p{max-width:800px;color:#89958f;font-size:12px;line-height:1.65;margin:0}.search{display:grid;grid-template-columns:1fr auto auto;gap:8px;max-width:920px}.search input{min-width:0;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:#0a1513;color:#f4f7f6;padding:15px;font-size:11px;outline:none}.search button,.quickRail button,.viewTabs button,.filters button,.download{border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#101c19;color:#cbd7d2;padding:12px 14px;font-size:7px;font-weight:950;letter-spacing:.08em}.search button:first-of-type{background:#fff;color:#07100f}.search button:disabled,.quickRail button:disabled,.download:disabled{opacity:.45}.quickRail{display:flex;gap:7px;flex-wrap:wrap}.quickRail button{padding:9px 11px;background:rgba(255,255,255,.035)}.capabilityRail{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;max-width:920px}.capabilityRail>div{display:flex;justify-content:space-between;gap:8px;padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:rgba(255,255,255,.02)}.capabilityRail b,.capabilityRail span{font-size:6px;letter-spacing:.1em}.capabilityRail span{color:#88d8b9}.explorer,.marketSection{max-width:1180px;margin:0 auto;padding:32px 0;border-top:1px solid rgba(255,255,255,.065);display:grid;gap:16px}.explorerTop,.sectionHead{display:flex;justify-content:space-between;gap:16px;align-items:end}.explorerTop h2,.sectionHead h2,.meshyIntro h2,.governance h2{font-size:clamp(25px,4vw,42px);letter-spacing:-.05em;margin:4px 0}.explorerTop p,.sectionHead p,.meshyIntro p,.governance p{color:#83908a;font-size:10px;line-height:1.6;margin:0;max-width:760px}.viewTabs{display:flex;gap:6px;padding:4px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:#08110f}.viewTabs button{padding:9px 12px;border:0;background:transparent}.viewTabs button.active{background:#fff;color:#07100f}.explorerGrid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(250px,.65fr);gap:12px}.visualStage{min-height:430px}.voxelStage,.globeStage{height:min(58vh,650px);min-height:430px;position:relative;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:#0a1412}.stageFallback{height:100%;display:grid;place-content:center;text-align:center;gap:8px;padding:30px}.stageFallback b{font-size:9px;letter-spacing:.12em}.stageFallback span{font-size:9px;color:#7b8782}.globeHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;padding:8px;border-radius:10px;background:rgba(4,8,7,.7);font-size:6px;color:#9aa7a1;letter-spacing:.08em}.propertyCard{border:1px solid rgba(255,255,255,.08);border-radius:24px;background:rgba(255,255,255,.022);padding:16px;display:grid;align-content:start;gap:11px}.propertyCard small{font-size:7px;color:#718078;letter-spacing:.12em;font-weight:950}.propertyCard h3{font-size:25px;line-height:1.02;letter-spacing:-.045em;margin:0}.propertyCard>p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;color:#809088;margin:0}.sourceRow{display:flex;gap:6px;flex-wrap:wrap}.sourceRow span{border:1px solid rgba(121,239,188,.12);background:rgba(121,239,188,.05);color:#80d9b6;border-radius:999px;padding:6px 8px;font-size:6px;font-weight:950;letter-spacing:.08em}.sourceRow span.fallback{color:#f1b08e;border-color:rgba(241,176,142,.15);background:rgba(241,176,142,.05)}.facts,.listingFacts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.facts>div,.listingFacts>div{display:grid;gap:3px;padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:rgba(0,0,0,.13)}.facts b,.listingFacts b{font-size:14px}.facts span,.listingFacts span{font-size:6px;color:#718078;letter-spacing:.09em}.truthBox,.policyTruth{display:grid;gap:4px;padding:11px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:rgba(0,0,0,.16)}.truthBox b,.policyTruth b{font-size:7px;letter-spacing:.1em}.truthBox span,.policyTruth span{font-size:8px;line-height:1.55;color:#84918b}.download{width:100%;background:#12231e}.sourceLink,.secondary{color:#cfeee1;text-decoration:none;font-size:7px;font-weight:900;letter-spacing:.08em}.meshyZone{display:grid;grid-template-columns:.7fr 1.3fr;gap:12px;align-items:start;margin-top:4px}.meshyIntro{padding:18px}.marketState{display:grid;text-align:right}.marketState b{font-size:30px}.marketState span{font-size:6px;color:#748079;letter-spacing:.1em}.coverage{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;padding:11px;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(255,255,255,.018)}.coverage b{font-size:6px;letter-spacing:.11em;color:#80d9b6}.coverage span{font-size:8px;color:#7e8b85}.filters{display:grid;gap:7px}.filters>div{display:flex;gap:6px;overflow:auto;padding-bottom:2px}.filters button{white-space:nowrap;padding:8px 10px;background:rgba(255,255,255,.025)}.filters button.active{background:#fff;color:#07100f}.marketGrid{display:grid;grid-template-columns:1.35fr .75fr;gap:12px}.results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}.listing{display:grid;grid-template-columns:110px 1fr;gap:9px;text-align:left;border:1px solid rgba(255,255,255,.06);border-radius:16px;background:rgba(255,255,255,.018);color:#eaf2ef;padding:7px;overflow:hidden}.listing.active{border-color:rgba(121,239,188,.35);background:rgba(121,239,188,.045)}.photo{height:108px;border-radius:11px;overflow:hidden;background:#101a18}.photo :global(img),.detailVisual :global(img){width:100%;height:100%;object-fit:cover}.listingPlaceholder{height:100%;display:grid;place-content:center;text-align:center;gap:7px;color:#7e8b85;font-size:7px}.miniBuilding{display:flex;gap:2px;justify-content:center;align-items:end;height:34px}.miniBuilding i{display:block;width:13px;background:#3b5f52;border-radius:2px 2px 0 0}.miniBuilding i:nth-child(1){height:18px}.miniBuilding i:nth-child(2){height:30px}.miniBuilding i:nth-child(3){height:23px}.listingBody{min-width:0;display:grid;align-content:center;gap:3px}.sourceTag{font-size:6px;color:#77cba9;letter-spacing:.08em}.listingBody strong{font-size:15px}.listingBody b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.listingBody small,.listingBody>div:last-child{font-size:7px;color:#7d8984}.detail{border:1px solid rgba(255,255,255,.07);border-radius:20px;overflow:hidden;background:rgba(255,255,255,.02);min-height:360px}.detailVisual{height:190px;position:relative;background:#0d1715}.detailVisual>span{position:absolute;left:9px;bottom:8px;background:rgba(4,8,7,.8);padding:6px 8px;border-radius:8px;font-size:6px;letter-spacing:.08em}.detailBody{padding:15px;display:grid;gap:10px}.source{font-size:7px;color:#7ccfac}.source i{display:inline-block;width:5px;height:5px;border-radius:50%;background:#79efbc;margin-right:5px}.detailBody h2{font-size:25px;line-height:.98;letter-spacing:-.05em;margin:0}.detailBody>p{font-size:8px;color:#7c8983;margin:0}.price{display:grid;gap:2px}.price span{font-size:6px;color:#6e7b75;letter-spacing:.08em}.price strong{font-size:24px}.primaryButton{display:block;text-align:center;background:#fff;color:#07100f;text-decoration:none;border-radius:12px;padding:12px;font-size:7px;font-weight:950;letter-spacing:.08em}.fine{font-size:7px!important;line-height:1.55!important;color:#6d7a74!important}.empty,.detailEmpty{min-height:250px;display:grid;place-content:center;text-align:center;gap:7px;padding:24px;border:1px dashed rgba(255,255,255,.08);border-radius:18px}.empty b,.detailEmpty b{font-size:8px;letter-spacing:.1em}.empty span,.detailEmpty span{font-size:8px;color:#7c8983;line-height:1.55}.governance{max-width:1180px;margin:0 auto;padding:32px 0;border-top:1px solid rgba(255,255,255,.065);display:grid;grid-template-columns:1fr 1fr;gap:10px}.governance article{padding:20px;border:1px solid rgba(255,255,255,.07);border-radius:22px;background:rgba(255,255,255,.018)}footer{max-width:1180px;margin:20px auto 0;padding:18px;border-top:1px solid rgba(255,255,255,.06);display:grid;gap:5px}footer b{font-size:7px;letter-spacing:.12em}footer span{font-size:8px;line-height:1.55;color:#6f7c76}
-      @media(max-width:900px){.explorerGrid,.marketGrid,.meshyZone{grid-template-columns:1fr}.propertyCard{order:-1}.results{grid-template-columns:1fr}.governance{grid-template-columns:1fr}.capabilityRail{grid-template-columns:repeat(2,1fr)}}
-      @media(max-width:680px){.page{padding-left:11px;padding-right:11px}header{height:56px}nav{gap:10px}nav a{font-size:7px}.hero{padding-top:34px}.hero h1{font-size:48px}.search{grid-template-columns:1fr 1fr}.search input{grid-column:1/-1}.search button{min-height:44px}.capabilityRail{grid-template-columns:1fr 1fr}.explorerTop,.sectionHead{display:grid}.viewTabs{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.viewTabs button{min-height:42px}.visualStage,.voxelStage,.globeStage{min-height:360px;height:50vh}.propertyCard{border-radius:20px}.listing{grid-template-columns:92px 1fr}.photo{height:96px}.governance article{padding:16px}}
-    `}</style>
+    <footer className={styles.footer}><b>REALITY ≠ TITLE ≠ INVESTMENT</b><span>Physical-market value and digital twin resale value remain separate. Map geometry, listing photos, Meshy models, legal ownership and investment rights stay separate evidence layers; none guarantees appreciation or income.</span></footer>
   </main>;
 }
