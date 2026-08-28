@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAddress } from 'ethers';
-import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
-import { assertDigitalEstatePricing, getDigitalEstate } from '../../../../../lib/digital-estates';
-import { digitalEstateMintReady, isDigitalEstateMinted } from '../../../../../lib/digital-estate-mint';
-import { acquireDigitalEstateReservation } from '../../../../../lib/digital-estate-reservations';
-import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
+import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
+import { assertDigitalEstatePricing, getDigitalEstate } from '../../../../lib/digital-estates';
+import { digitalEstateMintReady, isDigitalEstateMinted } from '../../../../lib/digital-estate-mint';
+import { acquireDigitalEstateReservation } from '../../../../lib/digital-estate-reservations';
+import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
 
 export const runtime = 'nodejs';
 
