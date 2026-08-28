@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getDigitalRealEstatePortfolio, getDinariConfig } from '../../../../lib/real-estate/dinari';
-import { reconcileDigitalReitPosition } from '../../../../lib/real-estate/reconciliation';
+import { getDigitalRealEstatePortfolio, getDinariConfig } from '../../../../lib/real-estate/dinari.js';
+import { reconcileDigitalReitPosition } from '../../../../lib/real-estate/reconciliation.js';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function sameOrigin(request: Request) {
   const origin = request.headers.get('origin');
@@ -10,19 +11,25 @@ function sameOrigin(request: Request) {
   return origin === new URL(request.url).origin;
 }
 
+function noStoreJson(body: unknown, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set('Cache-Control', 'no-store, max-age=0');
+  return response;
+}
+
 export async function POST(request: Request) {
   const config = getDinariConfig(process.env);
 
   if (config.environment !== 'sandbox') {
-    return NextResponse.json({ ok: false, error: 'Live Dinari environments are not accepted by this route.' }, { status: 423 });
+    return noStoreJson({ ok: false, error: 'Live Dinari environments are not accepted by this route.' }, { status: 423 });
   }
 
   if (!sameOrigin(request)) {
-    return NextResponse.json({ ok: false, error: 'Reconciliation must originate from this Voxel Vault deployment.' }, { status: 403 });
+    return noStoreJson({ ok: false, error: 'Reconciliation must originate from this Voxel Vault deployment.' }, { status: 403 });
   }
 
   if (!config.credentialsConfigured || !config.accountConfigured) {
-    return NextResponse.json({ ok: false, error: 'Dinari sandbox credentials and account ID are required for reconciliation.' }, { status: 423 });
+    return noStoreJson({ ok: false, error: 'Dinari sandbox credentials and account ID are required for reconciliation.' }, { status: 423 });
   }
 
   try {
@@ -35,13 +42,13 @@ export async function POST(request: Request) {
       portfolio,
     });
 
-    return NextResponse.json({
+    return noStoreJson({
       ok: true,
       environment: 'sandbox',
       realMoney: false,
       reconciliation,
     });
   } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Sandbox reconciliation failed.' }, { status: 422 });
+    return noStoreJson({ ok: false, error: error?.message || 'Sandbox reconciliation failed.' }, { status: 422 });
   }
 }
