@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../lib/admin-auth';
-import { persistModelBinary, readCatalog3D, readCatalog3DByTask, saveCatalog3D } from '../../../../lib/catalog3dStore';
+import {
+  createModelSignedUrl,
+  persistModelBinary,
+  readCatalog3D,
+  readCatalog3DByTask,
+  saveCatalog3D,
+} from '../../../../lib/catalog3dStore';
 import { WORLD_ATLAS_MESH_POLICY } from '../../../../lib/world-atlas.js';
 
 export const runtime = 'nodejs';
@@ -56,6 +62,28 @@ function rawTaskId(taskId: string) {
   return String(taskId || '').replace(/^world-multi:/, '');
 }
 
+async function displayUrlFor(saved: any) {
+  if (saved?.model_storage_path) {
+    const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
+    if (signed) return signed;
+  }
+  return saved?.model_url || null;
+}
+
+function safeMeshState(saved: any, displayModelUrl: string | null = null) {
+  return {
+    itemId: saved?.item_id || null,
+    taskId: saved?.task_id || null,
+    status: saved?.status || 'NOT_STARTED',
+    progress: Number(saved?.progress || 0),
+    displayModelUrl,
+    modelStored: Boolean(saved?.model_storage_path),
+    thumbnailUrl: saved?.thumbnail_url || null,
+    error: saved?.error || null,
+    meshPolicy: WORLD_ATLAS_MESH_POLICY,
+  };
+}
+
 export async function POST(request: Request) {
   const admin = await requireVoxelVaultAdmin(request);
   if (admin.ok === false) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
@@ -71,10 +99,15 @@ export async function POST(request: Request) {
     if (!forceRestart) {
       const saved = await readCatalog3D(itemId);
       if (saved?.model_url || saved?.model_storage_path) {
-        return NextResponse.json({ configured: true, reused: true, itemId, modelUrl: saved.model_url || null, modelStored: Boolean(saved.model_storage_path), taskId: saved.task_id || null, progress: 100, meshPolicy: WORLD_ATLAS_MESH_POLICY });
+        return NextResponse.json({
+          configured: true,
+          reused: true,
+          ...safeMeshState(saved, await displayUrlFor(saved)),
+          progress: 100,
+        });
       }
       if (saved?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(saved.status || '').toUpperCase())) {
-        return NextResponse.json({ configured: true, reused: true, itemId, taskId: saved.task_id, progress: saved.progress || 0, meshPolicy: WORLD_ATLAS_MESH_POLICY });
+        return NextResponse.json({ configured: true, reused: true, ...safeMeshState(saved) });
       }
     }
 
@@ -110,7 +143,7 @@ export async function POST(request: Request) {
     const providerTaskId = String(data?.result || data?.id || '').trim();
     if (!providerTaskId) throw new Error('Meshy did not return a task ID.');
     const taskId = taskKey(providerTaskId);
-    await saveCatalog3D(itemId, {
+    const saved = await saveCatalog3D(itemId, {
       task_id: taskId,
       source_image_url: imageUrls[0],
       source_image_urls: imageUrls,
@@ -126,7 +159,12 @@ export async function POST(request: Request) {
       error: null,
     });
 
-    return NextResponse.json({ configured: true, reused: false, itemId, taskId, referenceCount: references.length, meshPolicy: WORLD_ATLAS_MESH_POLICY });
+    return NextResponse.json({
+      configured: true,
+      reused: false,
+      referenceCount: references.length,
+      ...safeMeshState(saved || { item_id: itemId, task_id: taskId, status: 'PENDING' }),
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'World-atlas Meshy request failed.' }, { status: 400 });
   }
@@ -135,11 +173,27 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const admin = await requireVoxelVaultAdmin(request);
   if (admin.ok === false) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
+
+  const url = new URL(request.url);
+  const atlasIdRaw = url.searchParams.get('atlasId') || '';
+  const taskId = url.searchParams.get('taskId') || '';
+
+  if (atlasIdRaw && !taskId) {
+    try {
+      const atlasId = cleanAtlasId(atlasIdRaw);
+      const saved = await readCatalog3D(`world-atlas:${atlasId}`);
+      if (!saved) {
+        return NextResponse.json({ configured: true, exists: false, status: 'NOT_STARTED', progress: 0, displayModelUrl: null, meshPolicy: WORLD_ATLAS_MESH_POLICY });
+      }
+      return NextResponse.json({ configured: true, exists: true, ...safeMeshState(saved, await displayUrlFor(saved)) });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to read cached world model.' }, { status: 400 });
+    }
+  }
+
+  if (!taskId) return NextResponse.json({ error: 'atlasId or taskId is required.' }, { status: 400 });
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) return NextResponse.json({ configured: false, error: 'MESHY_API_KEY is not configured server-side.' }, { status: 503 });
-
-  const taskId = new URL(request.url).searchParams.get('taskId') || '';
-  if (!taskId) return NextResponse.json({ error: 'taskId is required.' }, { status: 400 });
 
   try {
     const response = await fetch(`${ENDPOINT}/${encodeURIComponent(rawTaskId(taskId))}`, {
@@ -159,8 +213,9 @@ export async function GET(request: Request) {
     if (providerModelUrl && saved?.item_id && !modelStoragePath) {
       modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
     }
+    let updated = saved;
     if (saved?.item_id) {
-      await saveCatalog3D(saved.item_id, {
+      updated = await saveCatalog3D(saved.item_id, {
         task_id: taskId,
         provider: 'meshy-world-atlas',
         status,
@@ -170,18 +225,26 @@ export async function GET(request: Request) {
         thumbnail_url: thumbnailUrl || saved.thumbnail_url || null,
         completed_at: providerModelUrl ? new Date().toISOString() : saved.completed_at || null,
         error: data?.task_error?.message || null,
-      });
+      }) || saved;
     }
 
     return NextResponse.json({
       configured: true,
-      status,
-      progress: providerModelUrl ? 100 : progress,
-      modelUrl: providerModelUrl,
-      modelStored: Boolean(modelStoragePath),
-      thumbnailUrl,
-      error: data?.task_error?.message || null,
-      meshPolicy: WORLD_ATLAS_MESH_POLICY,
+      exists: true,
+      ...safeMeshState({
+        ...(updated || {}),
+        task_id: taskId,
+        status,
+        progress: providerModelUrl ? 100 : progress,
+        model_storage_path: modelStoragePath,
+        model_url: providerModelUrl || updated?.model_url || null,
+        thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
+        error: data?.task_error?.message || null,
+      }, await displayUrlFor({
+        ...(updated || {}),
+        model_storage_path: modelStoragePath,
+        model_url: providerModelUrl || updated?.model_url || null,
+      })),
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'World-atlas Meshy status request failed.' }, { status: 500 });
