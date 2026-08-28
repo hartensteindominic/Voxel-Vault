@@ -6,6 +6,11 @@ import GeoReferenceModel from './GeoReferenceModel';
 import styles from './page.module.css';
 
 const STARTER_AMOUNTS = [5, 10, 25, 50];
+const VIEW_MODES = [
+  { id: 'orbit', label: 'Orbit', icon: '✦' },
+  { id: 'street', label: 'Street', icon: '⌂' },
+  { id: 'top', label: 'Top', icon: '◎' },
+];
 
 function dollars(cents) {
   const value = Number(cents);
@@ -20,18 +25,26 @@ function statusClass(status) {
 }
 
 function starterStateLabel(result) {
-  if (!result) return 'CHECK OFFERING';
-  if (result.state === 'provider_handoff_ready') return 'PROVIDER CHECKOUT READY';
-  if (result.state === 'below_provider_minimum') return 'BUILDING TOWARD MINIMUM';
-  if (result.state === 'provider_minimum_unknown') return 'MINIMUM NOT VERIFIED';
-  if (result.state === 'provider_requirements_pending') return 'PROVIDER REQUIREMENTS PENDING';
-  return 'GOAL ONLY · NO OWNERSHIP YET';
+  if (!result) return 'Not checked yet';
+  if (result.state === 'provider_handoff_ready') return 'Provider checkout ready';
+  if (result.state === 'below_provider_minimum') return 'Building toward minimum';
+  if (result.state === 'provider_minimum_unknown') return 'Minimum not verified';
+  if (result.state === 'provider_requirements_pending') return 'Provider requirements pending';
+  return 'Goal only · no ownership yet';
+}
+
+function humanHeight(reference) {
+  const status = reference?.height?.heightStatus;
+  if (status === 'source_reported') return 'Source-reported height';
+  if (status === 'derived_from_levels') return 'Height estimated from reported floors';
+  if (status === 'illustrative_default') return 'Illustrative height';
+  return 'Height still being verified';
 }
 
 export default function GeoPage() {
   const [form, setForm] = useState({ address: '618 Main Street, Buffalo, NY', latitude: '', longitude: '', countryCode: 'US', subdivisionCode: 'NY', countyCode: 'ERIE', pin: '', sbl: '111.38-3-8' });
   const [result, setResult] = useState(null);
-  const [message, setMessage] = useState('Add a property. GEO will fetch live reference geometry and use a jurisdiction parcel source when one is supported.');
+  const [message, setMessage] = useState('Search a place to build its little 3D world.');
   const [busy, setBusy] = useState(false);
   const [factBusy, setFactBusy] = useState(false);
   const [goalBusy, setGoalBusy] = useState(false);
@@ -42,12 +55,14 @@ export default function GeoPage() {
   const [starterResult, setStarterResult] = useState(null);
   const [cash, setCash] = useState({ settledDollars: '0', pendingDollars: '0', projectedDollars: '0', requestedDollars: '0' });
   const [cashResult, setCashResult] = useState(null);
+  const [viewMode, setViewMode] = useState('orbit');
+  const [resetKey, setResetKey] = useState(0);
 
   const reference = result?.globalReference || null;
   const factReport = result?.factCheck || null;
   const readiness = result?.readiness || null;
   const offering = result?.investmentOffering || null;
-  const factRows = useMemo(() => Array.isArray(factReport?.facts) ? factReport.facts.slice(0, 12) : [], [factReport]);
+  const factRows = useMemo(() => Array.isArray(factReport?.facts) ? factReport.facts.slice(0, 10) : [], [factReport]);
 
   function change(key, value) { setForm((current) => ({ ...current, [key]: value })); }
 
@@ -55,7 +70,7 @@ export default function GeoPage() {
     event?.preventDefault?.();
     setBusy(true);
     setStarterResult(null);
-    setMessage('Checking global geometry and any supported authoritative parcel source…');
+    setMessage('Finding the place and checking its sources…');
     try {
       const payload = {
         ...form,
@@ -66,11 +81,13 @@ export default function GeoPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'GEO intake failed.');
       setResult(data);
+      setViewMode('orbit');
+      setResetKey((value) => value + 1);
       setMessage(data.authoritativeEvidence
-        ? 'Global reference + jurisdiction evidence loaded. Ownership is still a separate legal check.'
+        ? 'Found it ✦ Global 3D reference plus local parcel evidence loaded. Ownership is checked separately.'
         : data.globalReference?.found
-          ? 'Source-backed global building reference loaded. Jurisdiction parcel verification is still pending or unsupported for this location.'
-          : 'Location loaded, but no nearby source building footprint was returned. GEO did not invent one.');
+          ? 'Found it ✦ A source-backed 3D building reference is ready. Local parcel verification is still pending or unavailable here.'
+          : 'Place found, but no source building footprint was returned. GEO left it empty instead of making one up.');
     } catch (error) {
       setResult(null);
       setMessage(error instanceof Error ? error.message : 'GEO intake failed.');
@@ -85,7 +102,7 @@ export default function GeoPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Fact check failed.');
       setResult((current) => ({ ...current, factCheck: data.report }));
-      setMessage(`Fact Check complete: ${data.report.verdict}`);
+      setMessage(`Fact Check finished ✦ ${data.report.verdict}`);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Fact check failed.'); }
     finally { setFactBusy(false); }
   }
@@ -126,7 +143,7 @@ export default function GeoPage() {
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Starter investment check failed.');
       setStarterResult(data.result);
       setMessage(data.result.canOpenProviderCheckout
-        ? 'This amount meets the attached verified offering requirements. Provider checkout can be the next step; ownership still requires position verification.'
+        ? 'This amount fits the attached verified offering. Checkout can be next; ownership still needs position verification.'
         : data.result.nextStep);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Starter investment check failed.'); }
     finally { setStarterBusy(false); }
@@ -152,131 +169,139 @@ export default function GeoPage() {
   return <main className={styles.page}>
     <div className={styles.shell}>
       <nav className={styles.nav}>
-        <Link className={styles.brand} href="/geo">GEO</Link>
-        <div className={styles.navLinks}><Link href="/vault/earth">EXPLORE EARTH</Link><Link href="/vault">VAULT</Link><Link href="/real-estate/property/erie-618-main">618 MAIN</Link></div>
+        <Link className={styles.brand} href="/geo"><span className={styles.brandOrb}>✦</span> GEO</Link>
+        <div className={styles.navLinks}><Link href="/vault/earth">Explore</Link><Link href="/vault">My Vault</Link><Link href="/real-estate/property/erie-618-main">618 Main</Link></div>
       </nav>
 
       <section className={styles.hero}>
         <article className={styles.heroCopy}>
-          <div className={styles.kicker}>GEO · WORKING NAME · GLOBAL PROPERTY LAYER</div>
-          <h1>See the property.<br/><em>Know what is real.</em></h1>
-          <p className={styles.lead}>Add a property anywhere. GEO looks up a real global building reference on demand, upgrades to authoritative parcel evidence where a jurisdiction adapter exists, and keeps 3D truth, investment rights, and title ownership separate.</p>
-          <div className={styles.truthLine}>
-            <span className={styles.pill}>{readiness?.threeD?.label || '3D SOURCE CHECK'}</span>
-            <span className={styles.pill}>{readiness?.investment?.label || 'START SMALL · PROVIDER MINIMUMS APPLY'}</span>
-            <span className={styles.pill}>{factReport?.verdict || 'FACT CHECK READY'}</span>
+          <div className={styles.kicker}>A little world for real places</div>
+          <h1>Find a place.<br/><em>See what’s real.</em></h1>
+          <p className={styles.lead}>Search an address and GEO builds a source-backed 3D view around it. Then you can check the facts, save toward it, or see whether a real investment offering exists.</p>
+
+          <form onSubmit={intake} className={styles.heroSearch}>
+            <div className={styles.heroSearchInput}><span>⌕</span><input aria-label="Property address" value={form.address} onChange={(e) => change('address', e.target.value)} placeholder="Search an address…" /></div>
+            <button className={styles.searchButton} disabled={busy}>{busy ? 'Finding it…' : 'See in 3D'}</button>
+          </form>
+
+          <div className={styles.miniSteps}>
+            <div><span>1</span><b>Search</b><small>any address</small></div>
+            <div><span>2</span><b>Explore</b><small>the 3D world</small></div>
+            <div><span>3</span><b>Check</b><small>facts & rights</small></div>
           </div>
-          <p className={styles.disclaimer}><span className={styles.brandPending}>Brand note:</span> GEO is a working name, not a claim of trademark clearance. Property investment availability, minimums, resale, withdrawals, and reinvestment depend on the actual legal offering and provider.</p>
+
+          <details className={styles.advanced}>
+            <summary>Advanced parcel details</summary>
+            <div className={styles.formGrid}>
+              <div className={styles.field}><label>Latitude</label><input inputMode="decimal" value={form.latitude} onChange={(e)=>change('latitude',e.target.value)} placeholder="optional"/></div>
+              <div className={styles.field}><label>Longitude</label><input inputMode="decimal" value={form.longitude} onChange={(e)=>change('longitude',e.target.value)} placeholder="optional"/></div>
+              <div className={styles.field}><label>Country</label><input value={form.countryCode} onChange={(e)=>change('countryCode',e.target.value)} placeholder="US"/></div>
+              <div className={styles.field}><label>State / region</label><input value={form.subdivisionCode} onChange={(e)=>change('subdivisionCode',e.target.value)} placeholder="NY"/></div>
+              <div className={styles.field}><label>County / jurisdiction</label><input value={form.countyCode} onChange={(e)=>change('countyCode',e.target.value)} placeholder="ERIE"/></div>
+              <div className={styles.field}><label>SBL</label><input value={form.sbl} onChange={(e)=>change('sbl',e.target.value)} placeholder="if known"/></div>
+              <div className={`${styles.field} ${styles.fieldWide}`}><label>Parcel PIN</label><input value={form.pin} onChange={(e)=>change('pin',e.target.value)} placeholder="if known"/></div>
+            </div>
+          </details>
+
+          <div className={`${styles.status} ${message.toLowerCase().includes('failed') ? styles.error : ''}`}>{message}</div>
         </article>
+
         <aside className={styles.modelCard}>
-          <GeoReferenceModel reference={reference}/>
-          <div className={styles.modelTopBadge}>{reference?.found ? 'SOURCE FOOTPRINT · INTERACTIVE 3D' : 'SOURCE GEOMETRY REQUIRED'}</div>
+          <GeoReferenceModel reference={reference} viewMode={viewMode} resetKey={resetKey}/>
+          <div className={styles.modelTopRow}>
+            <div className={styles.modelTopBadge}>{reference?.found ? '✦ Source-backed place' : '✦ Your 3D place appears here'}</div>
+            <button className={styles.resetView} onClick={() => setResetKey((value) => value + 1)} type="button">↺</button>
+          </div>
+          <div className={styles.viewControls}>
+            {VIEW_MODES.map((mode) => <button key={mode.id} type="button" className={`${styles.viewButton} ${viewMode === mode.id ? styles.viewButtonActive : ''}`} onClick={() => setViewMode(mode.id)}><span>{mode.icon}</span>{mode.label}</button>)}
+          </div>
           <div className={styles.modelMeta}>
-            <strong>{reference?.found ? 'LIVE 3D REFERENCE' : '3D SOURCE AREA'}</strong>
-            <span>{reference?.found ? `${reference.height?.heightStatus?.replaceAll('_',' ')} · ${Number(reference.distanceMeters || 0).toFixed(1)} m from lookup point · drag to orbit` : 'No fake building is substituted when source geometry is missing.'}</span>
+            <div><small>{reference?.found ? 'Selected place' : '3D preview'}</small><strong>{reference?.tags?.name || form.address || 'Search a property'}</strong></div>
+            <span>{reference?.found ? `${humanHeight(reference)} · drag to move · pinch to zoom` : 'Search a place, then drag, pinch and explore.'}</span>
           </div>
         </aside>
       </section>
 
-      <section className={styles.grid}>
-        <article className={styles.panel}>
-          <div className={styles.kicker}>ADD A PROPERTY</div><h2>Download the evidence around it.</h2>
-          <p>Use an address anywhere. Coordinates are optional. For Erie County you can also provide the official PIN or SBL to trigger the stricter county parcel path.</p>
-          <form onSubmit={intake} className={styles.formGrid}>
-            <div className={`${styles.field} ${styles.fieldWide}`}><label>ADDRESS</label><input value={form.address} onChange={(e)=>change('address',e.target.value)} placeholder="Address, city, region, country"/></div>
-            <div className={styles.field}><label>LATITUDE · OPTIONAL</label><input inputMode="decimal" value={form.latitude} onChange={(e)=>change('latitude',e.target.value)} placeholder="42.8908"/></div>
-            <div className={styles.field}><label>LONGITUDE · OPTIONAL</label><input inputMode="decimal" value={form.longitude} onChange={(e)=>change('longitude',e.target.value)} placeholder="-78.8731"/></div>
-            <div className={styles.field}><label>COUNTRY</label><input value={form.countryCode} onChange={(e)=>change('countryCode',e.target.value)} placeholder="US"/></div>
-            <div className={styles.field}><label>STATE / REGION</label><input value={form.subdivisionCode} onChange={(e)=>change('subdivisionCode',e.target.value)} placeholder="NY"/></div>
-            <div className={styles.field}><label>COUNTY / JURISDICTION</label><input value={form.countyCode} onChange={(e)=>change('countyCode',e.target.value)} placeholder="ERIE"/></div>
-            <div className={styles.field}><label>SBL · IF KNOWN</label><input value={form.sbl} onChange={(e)=>change('sbl',e.target.value)} placeholder="111.38-3-8"/></div>
-            <div className={`${styles.field} ${styles.fieldWide}`}><label>PIN · IF KNOWN</label><input value={form.pin} onChange={(e)=>change('pin',e.target.value)} placeholder="Official parcel PIN"/></div>
-            <div className={`${styles.actions} ${styles.fieldWide}`}><button className={styles.button} disabled={busy}>{busy?'CHECKING SOURCES…':'ADD TO GEO'}</button><Link className={styles.secondary} href="/vault/earth">BROWSE LIVE LISTINGS</Link></div>
-          </form>
-          <div className={`${styles.status} ${message.toLowerCase().includes('failed') ? styles.error : ''}`}>{message}</div>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.kicker}>FACT CHECK</div><h2>Every fact keeps its source.</h2>
-          <p>GEO does not flatten asking prices, tax assessments, community map geometry, title records, and user claims into one fake “truth” score.</p>
-          <div className={styles.metrics}>
-            <div className={styles.metric}><small>AUTHORITATIVE</small><strong>{factReport?.authoritativeFactCount ?? 0}</strong></div>
-            <div className={styles.metric}><small>SOURCE-REPORTED</small><strong>{factReport?.sourceReportedFactCount ?? 0}</strong></div>
-            <div className={styles.metric}><small>CONFLICT</small><strong>{factReport?.hasConflict ? 'YES' : 'NO'}</strong></div>
-          </div>
-          <div className={styles.factRows}>{factRows.length ? factRows.map((fact,index)=><div className={styles.fact} key={`${fact.field}-${index}`}><b>{fact.label}</b><span className={statusClass(fact.status)}>{fact.status.replaceAll('_',' ')}</span></div>) : <div className={styles.status}>Add a property to build its source ledger.</div>}</div>
-          <div className={styles.actions}><button className={styles.secondary} onClick={factCheck} disabled={!factRows.length||factBusy}>{factBusy?'CHECKING…':'FACT CHECK'}</button>{reference?.source?.sourceUrl ? <a className={styles.sourceLink} href={reference.source.sourceUrl} target="_blank" rel="noreferrer">OPEN GEOMETRY SOURCE ↗</a> : null}</div>
-        </article>
+      <section className={styles.truthStrip}>
+        <div><span className={styles.truthIcon}>⌂</span><p><b>3D</b><small>{readiness?.threeD?.label || 'Waiting for a place'}</small></p></div>
+        <div><span className={styles.truthIcon}>✓</span><p><b>Facts</b><small>{factReport?.verdict || 'Ready to check sources'}</small></p></div>
+        <div><span className={styles.truthIcon}>$</span><p><b>Investing</b><small>{readiness?.investment?.label || 'Only through a verified offering'}</small></p></div>
       </section>
 
       <section className={styles.grid}>
-        <article className={styles.panel}>
-          <div className={styles.kicker}>STARTER INVESTING</div><h2>Start small. Scale when you trust it.</h2>
-          <p>Choose an amount you are comfortable with. GEO only calls it an investment when a verified property offering actually supports that amount; otherwise it stays a property goal.</p>
+        <article className={`${styles.panel} ${styles.friendlyPanel}`}>
+          <div className={styles.cardIcon}>✓</div>
+          <div className={styles.kicker}>Fact Check</div><h2>What do we actually know?</h2>
+          <p>Every property fact keeps its source. A map shape, tax assessment, listing price and legal ownership are not treated as the same thing.</p>
+          <div className={styles.metrics}>
+            <div className={styles.metric}><small>Verified source</small><strong>{factReport?.authoritativeFactCount ?? 0}</strong></div>
+            <div className={styles.metric}><small>Source reported</small><strong>{factReport?.sourceReportedFactCount ?? 0}</strong></div>
+            <div className={styles.metric}><small>Needs review</small><strong>{factReport?.hasConflict ? 'Yes' : 'No'}</strong></div>
+          </div>
+          <div className={styles.factRows}>{factRows.length ? factRows.map((fact,index)=><div className={styles.fact} key={`${fact.field}-${index}`}><b>{fact.label}</b><span className={statusClass(fact.status)}>{fact.status.replaceAll('_',' ')}</span></div>) : <div className={styles.emptyState}>Search a place and its source cards will show up here.</div>}</div>
+          <div className={styles.actions}><button className={styles.secondary} onClick={factCheck} disabled={!factRows.length||factBusy}>{factBusy?'Checking…':'Run Fact Check'}</button>{reference?.source?.sourceUrl ? <a className={styles.sourceLink} href={reference.source.sourceUrl} target="_blank" rel="noreferrer">View map source ↗</a> : null}</div>
+        </article>
+
+        <article className={`${styles.panel} ${styles.friendlyPanel}`}>
+          <div className={styles.cardIcon}>$</div>
+          <div className={styles.kicker}>Start small</div><h2>Pick an amount that feels comfortable.</h2>
+          <p>GEO first checks whether this property has a verified offering and whether that offering actually supports your amount. If not, it simply stays a goal.</p>
           <div className={styles.presetRow}>
             {STARTER_AMOUNTS.map((amount)=><button key={amount} type="button" className={`${styles.preset} ${Number(starterAmount)===amount ? styles.presetActive : ''}`} onClick={()=>setStarterAmount(String(amount))}>${amount}</button>)}
           </div>
           <div className={styles.formGrid}>
-            <div className={`${styles.field} ${styles.fieldWide}`}><label>STARTER AMOUNT $</label><input inputMode="decimal" value={starterAmount} onChange={(e)=>setStarterAmount(e.target.value)} placeholder="10"/></div>
+            <div className={`${styles.field} ${styles.fieldWide}`}><label>Or enter your own amount</label><input inputMode="decimal" value={starterAmount} onChange={(e)=>setStarterAmount(e.target.value)} placeholder="10"/></div>
           </div>
-          <button className={`${styles.button} ${styles.fullButton}`} onClick={checkStarterInvestment} disabled={starterBusy}>{starterBusy?'CHECKING OFFERING…':`CHECK $${starterAmount || '0'} STARTER AMOUNT`}</button>
+          <button className={`${styles.button} ${styles.fullButton}`} onClick={checkStarterInvestment} disabled={starterBusy}>{starterBusy?'Checking offering…':`Check $${starterAmount || '0'}`}</button>
           <div className={styles.investmentState}>
-            <small>RIGHT NOW</small><strong>{starterStateLabel(starterResult)}</strong>
-            <span>{starterResult?.providerMinimumKnown ? `Provider minimum ${dollars(starterResult.providerMinimumCents)} · ` : 'Provider minimum loads from the verified offering · '}{starterResult?.nextStep || 'No verified offering is attached to this property yet, so this remains a goal and does not move money.'}</span>
+            <small>Right now</small><strong>{starterStateLabel(starterResult)}</strong>
+            <span>{starterResult?.providerMinimumKnown ? `Verified provider minimum: ${dollars(starterResult.providerMinimumCents)}. ` : ''}{starterResult?.nextStep || 'No verified offering is attached yet, so no money moves and no ownership is created.'}</span>
           </div>
-          <p className={styles.disclaimer}>A checkout-ready amount is still not proof of ownership. GEO changes the ownership badge only after the resulting provider position or deed/title right is independently verified.</p>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.kicker}>PROPERTY GOAL</div><h2>Keep building toward what you want.</h2>
-          <p>A goal can accept very small amounts, but the actual investment minimum comes from the specific legal offering. This keeps progress easy without inventing fractional shares.</p>
-          <form onSubmit={calculateGoal} className={styles.formGrid}>
-            <div className={styles.field}><label>TARGET PROPERTY $</label><input inputMode="decimal" value={goal.targetDollars} onChange={(e)=>setGoal({...goal,targetDollars:e.target.value})}/></div>
-            <div className={styles.field}><label>ALREADY SAVED $</label><input inputMode="decimal" value={goal.savedDollars} onChange={(e)=>setGoal({...goal,savedDollars:e.target.value})}/></div>
-            <div className={`${styles.field} ${styles.fieldWide}`}><label>ADD TO GOAL $</label><input inputMode="decimal" value={goal.contributionDollars} onChange={(e)=>setGoal({...goal,contributionDollars:e.target.value})}/></div>
-            <button className={`${styles.button} ${styles.fieldWide}`} disabled={goalBusy}>{goalBusy?'CALCULATING…':'UPDATE PROPERTY GOAL'}</button>
-          </form>
-          {goalResult ? <div className={styles.goalResult}><strong>{dollars(goalResult.nextSavedCents)} toward {dollars(goalResult.targetPropertyPriceCents)}</strong><p>{goalResult.progressPercent.toFixed(6)}% progress · {dollars(goalResult.remainingCents)} remaining. No ownership is created by this goal.</p><div className={styles.goalBar}><div className={styles.goalFill} style={{width:`${Math.max(.2,Math.min(100,goalResult.progressPercent))}%`}}/></div></div> : null}
         </article>
       </section>
 
       <section className={styles.grid}>
-        <article className={styles.panel}>
-          <div className={styles.kicker}>SETTLED CASH CONTROL</div><h2>Withdraw or compound what actually settled.</h2>
-          <p>Projected rent or paper gains never become spendable cash in GEO. A provider must confirm settlement and the withdrawal/reinvestment rail before the button can execute.</p>
+        <article className={`${styles.panel} ${styles.friendlyPanel}`}>
+          <div className={styles.cardIcon}>♡</div>
+          <div className={styles.kicker}>Property goal</div><h2>Save toward a place you like.</h2>
+          <p>This is a savings-style goal inside GEO. It can track progress without pretending that saving money already bought a share.</p>
+          <form onSubmit={calculateGoal} className={styles.formGrid}>
+            <div className={styles.field}><label>Property target $</label><input inputMode="decimal" value={goal.targetDollars} onChange={(e)=>setGoal({...goal,targetDollars:e.target.value})}/></div>
+            <div className={styles.field}><label>Already saved $</label><input inputMode="decimal" value={goal.savedDollars} onChange={(e)=>setGoal({...goal,savedDollars:e.target.value})}/></div>
+            <div className={`${styles.field} ${styles.fieldWide}`}><label>Add to goal $</label><input inputMode="decimal" value={goal.contributionDollars} onChange={(e)=>setGoal({...goal,contributionDollars:e.target.value})}/></div>
+            <button className={`${styles.button} ${styles.fieldWide}`} disabled={goalBusy}>{goalBusy?'Updating…':'Update my goal'}</button>
+          </form>
+          {goalResult ? <div className={styles.goalResult}><strong>{dollars(goalResult.nextSavedCents)} saved toward {dollars(goalResult.targetPropertyPriceCents)}</strong><p>{goalResult.progressPercent.toFixed(4)}% complete · {dollars(goalResult.remainingCents)} to go. This goal does not create ownership.</p><div className={styles.goalBar}><div className={styles.goalFill} style={{width:`${Math.max(.2,Math.min(100,goalResult.progressPercent))}%`}}/></div></div> : null}
+        </article>
+
+        <article className={`${styles.panel} ${styles.friendlyPanel}`}>
+          <div className={styles.cardIcon}>↗</div>
+          <div className={styles.kicker}>Money controls</div><h2>Only use money that really settled.</h2>
+          <p>Projected rent or paper gains stay separate. GEO only unlocks withdrawal or reinvestment when a real provider confirms settled money and the rail is ready.</p>
           <div className={styles.formGrid}>
-            <div className={styles.field}><label>SETTLED $</label><input inputMode="decimal" value={cash.settledDollars} onChange={(e)=>setCash({...cash,settledDollars:e.target.value})}/></div>
-            <div className={styles.field}><label>PENDING $</label><input inputMode="decimal" value={cash.pendingDollars} onChange={(e)=>setCash({...cash,pendingDollars:e.target.value})}/></div>
-            <div className={styles.field}><label>PROJECTED $</label><input inputMode="decimal" value={cash.projectedDollars} onChange={(e)=>setCash({...cash,projectedDollars:e.target.value})}/></div>
-            <div className={styles.field}><label>REQUESTED $</label><input inputMode="decimal" value={cash.requestedDollars} onChange={(e)=>setCash({...cash,requestedDollars:e.target.value})}/></div>
+            <div className={styles.field}><label>Settled $</label><input inputMode="decimal" value={cash.settledDollars} onChange={(e)=>setCash({...cash,settledDollars:e.target.value})}/></div>
+            <div className={styles.field}><label>Pending $</label><input inputMode="decimal" value={cash.pendingDollars} onChange={(e)=>setCash({...cash,pendingDollars:e.target.value})}/></div>
+            <div className={styles.field}><label>Projected $</label><input inputMode="decimal" value={cash.projectedDollars} onChange={(e)=>setCash({...cash,projectedDollars:e.target.value})}/></div>
+            <div className={styles.field}><label>Amount to use $</label><input inputMode="decimal" value={cash.requestedDollars} onChange={(e)=>setCash({...cash,requestedDollars:e.target.value})}/></div>
           </div>
-          <div className={styles.twoActions}><button className={styles.secondary} onClick={()=>cashAction('withdraw')}>CHECK WITHDRAW</button><button className={styles.secondary} onClick={()=>cashAction('reinvest')}>CHECK REINVEST</button></div>
-          {cashResult ? <div className={styles.status}><b>{cashResult.canExecute?'READY':'LOCKED'}</b> · available now {dollars(cashResult.availableNowCents)}. {cashResult.blockers?.join(' · ') || cashResult.note}</div> : null}
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.kicker}>TRUST LADDER</div><h2>Every step earns a stronger badge.</h2>
-          <div className={styles.trustLadder}>
-            <div><b>1 · EXPLORE</b><span>3D reference + sourced property facts.</span></div>
-            <div><b>2 · START SMALL</b><span>Choose an amount without pretending it bought a share.</span></div>
-            <div><b>3 · PROVIDER CHECKOUT</b><span>Only after offering, minimum, eligibility, and authorization pass.</span></div>
-            <div><b>4 · OWNED</b><span>Only after the resulting legal position is independently verified.</span></div>
-          </div>
+          <div className={styles.twoActions}><button className={styles.secondary} onClick={()=>cashAction('withdraw')}>Can I withdraw?</button><button className={styles.secondary} onClick={()=>cashAction('reinvest')}>Can I reinvest?</button></div>
+          {cashResult ? <div className={styles.status}><b>{cashResult.canExecute?'Ready':'Locked'}</b> · available now {dollars(cashResult.availableNowCents)}. {cashResult.blockers?.join(' · ') || cashResult.note}</div> : null}
         </article>
       </section>
 
-      <section className={styles.panel} style={{marginTop:18}}>
-        <div className={styles.kicker}>HOW A DIGITAL ASSET CAN HELP BUY REAL PROPERTY</div><h2>Asset → settled money → starter amount → legal ownership rail.</h2>
+      <section className={`${styles.panel} ${styles.journey}`}>
+        <div className={styles.cardIcon}>✦</div>
+        <div className={styles.kicker}>The simple version</div><h2>How GEO gets from “interesting place” to “real ownership.”</h2>
         <div className={styles.flow}>
-          <div className={styles.step}><small>01</small><b>Create / own an asset</b><span>Voxel, NFT, license, or other digital asset remains separate from the real property.</span></div>
-          <div className={styles.step}><small>02</small><b>Real proceeds settle</b><span>Only completed sales/income become available cash. A price estimate is not cash.</span></div>
-          <div className={styles.step}><small>03</small><b>Pick a starter amount</b><span>$5, $10, $25, $50, or custom — then check the real provider minimum for that offering.</span></div>
-          <div className={styles.step}><small>04</small><b>Acquire verified rights</b><span>Only deed/title evidence or a verified provider position changes the ownership badge.</span></div>
+          <div className={styles.step}><small>01</small><b>Explore</b><span>See the source-backed 3D place and its facts.</span></div>
+          <div className={styles.step}><small>02</small><b>Start small</b><span>Pick an amount or build a goal without pretending it bought a share.</span></div>
+          <div className={styles.step}><small>03</small><b>Use a real offering</b><span>Only continue when provider, minimum and eligibility checks pass.</span></div>
+          <div className={styles.step}><small>04</small><b>Verify ownership</b><span>The badge changes only after the legal position is independently verified.</span></div>
         </div>
-        <p className={styles.disclaimer}>A digital asset can be sold and its settled proceeds can be earmarked toward a property. It should not be marketed as “buy this NFT and you own part of this building” unless the asset is actually part of a legally compliant offering whose documents create and map those rights.</p>
+        <p className={styles.disclaimer}><b>Why GEO is careful:</b> a beautiful 3D model, an NFT, a map polygon or a checkout screen cannot replace a deed or create legal property rights by themselves.</p>
       </section>
 
-      <footer className={styles.footer}>GEO · working name inside Voxel Vault · global reference geometry is not a cadastral survey · 3D reference height may be source-reported, derived, or illustrative and is labeled accordingly · investment availability and liquidity are never guaranteed.</footer>
+      <footer className={styles.footer}>GEO is a working name inside Voxel Vault. Global map geometry is reference data, not a cadastral survey. Investment availability, minimums, income and liquidity depend on the actual legal offering and provider.</footer>
     </div>
   </main>;
 }
