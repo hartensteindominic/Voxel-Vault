@@ -90,7 +90,7 @@ export default async function FirstRealErieParcelPage() {
           <article className={styles.heroCard}>
             <p className={styles.eyebrow}>FIRST REAL PARCEL · ERIE COUNTY, NEW YORK</p>
             <h1>618 Main Street.<br /><em>Evidence before ownership.</em></h1>
-            <p className={styles.lead}>This page does not use the generic house model. It loads the exact known SBL from Erie County GIS at request time and renders only the parcel and building geometry the county actually returns.</p>
+            <p className={styles.lead}>This page does not use the generic house model. It loads the exact County SBL from Erie County GIS at request time and renders only the parcel and building geometry the county actually returns.</p>
           </article>
           <aside className={styles.statusCard}>
             <div>
@@ -98,7 +98,7 @@ export default async function FirstRealErieParcelPage() {
               <strong>{error ? 'EVIDENCE UNAVAILABLE' : 'LIVE COUNTY EVIDENCE'}</strong>
             </div>
             <div className={styles.statusList}>
-              <span>SBL · {FIRST_REAL_ERIE_PARCEL.sbl}</span>
+              <span>COUNTY SBL · {FIRST_REAL_ERIE_PARCEL.countySbl}</span>
               <span>PIN · {FIRST_REAL_ERIE_PARCEL.pin}</span>
               <span>RIGHTS · REFERENCE ONLY</span>
             </div>
@@ -131,7 +131,8 @@ export default async function FirstRealErieParcelPage() {
               <article className={styles.panel}>
                 <p className={styles.eyebrow}>EVIDENCE SNAPSHOT</p>
                 <div className={styles.detailRows}>
-                  <div><span>SBL</span><strong>{record?.sbl || '—'}</strong></div>
+                  <div><span>County SBL</span><strong>{record?.sbl || '—'}</strong></div>
+                  <div><span>City raw SBL</span><strong>{FIRST_REAL_ERIE_PARCEL.cityScheduleRawSbl}</strong></div>
                   <div><span>PIN</span><strong>{record?.pin || '—'}</strong></div>
                   <div><span>Municipality</span><strong>{record?.municipality || '—'}</strong></div>
                   <div><span>Reference point</span><strong>{Number(twin?.location?.latitude).toFixed(6)}, {Number(twin?.location?.longitude).toFixed(6)}</strong></div>
@@ -158,9 +159,9 @@ export default async function FirstRealErieParcelPage() {
               <div className={styles.links}>
                 <a href={evidence?.provenance?.parcelLayer} target="_blank" rel="noreferrer">Erie parcel layer ↗</a>
                 <a href={evidence?.provenance?.buildingLayer} target="_blank" rel="noreferrer">Erie building layer ↗</a>
-                <a href={FIRST_REAL_ERIE_PARCEL.identifierSourceUrl} target="_blank" rel="noreferrer">Buffalo parcel identifier source ↗</a>
+                <a href={FIRST_REAL_ERIE_PARCEL.identifierSourceUrl} target="_blank" rel="noreferrer">Buffalo identifier source ↗</a>
               </div>
-              <p className={styles.note}>Identifier cross-check: the City of Buffalo property schedule associates PIN {FIRST_REAL_ERIE_PARCEL.pin}, SBL {FIRST_REAL_ERIE_PARCEL.sbl}, and street number 618 on Main. Erie County GIS remains the runtime source for the actual parcel and footprint geometry.</p>
+              <p className={styles.note}>Identifier reconciliation: Erie County GIS returns SBL {FIRST_REAL_ERIE_PARCEL.countySbl}; the City schedule stores the same parcel as raw SBL {FIRST_REAL_ERIE_PARCEL.cityScheduleRawSbl}. Both use PIN {FIRST_REAL_ERIE_PARCEL.pin}. The County-formatted SBL is the runtime geometry lookup key.</p>
             </section>
           </>
         )}
