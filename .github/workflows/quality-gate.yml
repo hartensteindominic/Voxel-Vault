@@ -39,6 +39,8 @@ jobs:
       - run: npm run test:acquisition
       - run: npm run test:digital-reits
       - run: npm run test:dinari-onboarding
+      - run: npm run test:provider-binding
+      - run: npm run test:vault
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
