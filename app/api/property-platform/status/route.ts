@@ -73,6 +73,19 @@ export async function GET() {
         rightsType: 'future deed/entity-linked property rights after title and legal closing',
       },
     },
+    spatialPropertyIntake: {
+      erieCountyNy: {
+        implementationReady: true,
+        access: 'owner-only',
+        sourceType: 'official county parcel and building GIS reference',
+        accepts: ['PIN', 'SBL'],
+        ownerIdentityFieldsReturned: false,
+        legalSurvey: false,
+        establishesTitle: false,
+        establishesOwnershipRights: false,
+        physicalHeightSourceConnected: false,
+      },
+    },
     digitalReits: {
       provider: dinari.provider,
       environment: dinari.environment,
@@ -87,6 +100,8 @@ export async function GET() {
     capabilities: {
       threeDimensionalPropertyTwin: true,
       verifiedSpatialTruthModel: true,
+      authoritativeCountyGisReferenceIntake: true,
+      ownerOnlyParcelLookup: true,
       geographicParcelVerificationGate: true,
       physicalBuildingVerificationGate: true,
       explicitPropertyRightsClassification: true,
@@ -126,12 +141,14 @@ export async function GET() {
       digitalReitStatus: '/api/digital-reits',
       digitalReitSandboxFunding: '/api/digital-reits/sandbox-fund',
       ownerLiveDigitalReitConsole: '/admin/digital-reits/live',
+      ownerErieCountySpatialIntake: '/admin/property-spatial-intake',
+      ownerErieCountySpatialIntakeApi: '/api/admin/property-platform/erie-county',
       propertyVault: '/real-estate/property/[propertyId]',
     },
     note: liveSecuritiesProviderActivated
       ? 'The approved owner-only real-estate securities rail is activated. This does not activate direct deed-linked property investing.'
       : directPropertyInvestingActivated
         ? 'A controlled direct-property launch is active under its separate approved legal/provider gates.'
-        : 'Fail-closed regulated launch build: the real-estate securities execution implementation exists, but provider activation remains separate from direct property ownership. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
+        : 'Fail-closed regulated launch build: source-backed spatial parcel intake and the real-estate securities execution implementation exist, but neither county GIS data nor provider readiness creates direct property ownership. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
   });
 }
