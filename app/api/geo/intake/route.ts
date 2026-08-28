@@ -70,6 +70,36 @@ function erieFacts(evidence: any) {
   return facts;
 }
 
+function addressAnchor(value: unknown) {
+  const normalized = String(value ?? '').toUpperCase().replace(/[^A-Z0-9 -]/g, ' ').replace(/\s+/g, ' ').trim();
+  const match = normalized.match(/^(\d+[A-Z-]*)\s+([A-Z0-9]+)/);
+  return match ? { number: match[1], street: match[2] } : null;
+}
+
+function locationDistanceMeters(aLat: unknown, aLon: unknown, bLat: unknown, bLon: unknown) {
+  const values = [aLat, aLon, bLat, bLon].map(Number);
+  if (!values.every(Number.isFinite)) return null;
+  const [lat1, lon1, lat2, lon2] = values;
+  const toRad = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function parcelMatchesSubmittedLocation(intake: any, evidence: any) {
+  const submittedAddress = addressAnchor(intake?.address);
+  const countyAddress = addressAnchor(evidence?.countyRecord?.parcelAddress);
+  if (submittedAddress && countyAddress && (submittedAddress.number !== countyAddress.number || submittedAddress.street !== countyAddress.street)) {
+    return { matches: false, reason: 'submitted address anchor does not match the county parcel address' };
+  }
+  const distance = locationDistanceMeters(intake?.latitude, intake?.longitude, evidence?.twin?.location?.latitude, evidence?.twin?.location?.longitude);
+  if (distance !== null && distance > 250) {
+    return { matches: false, reason: `submitted/geocoded point is ${Math.round(distance)} m from the county parcel reference point` };
+  }
+  return { matches: true, reason: '' };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -96,7 +126,10 @@ export async function POST(request: Request) {
     const isErie = intake.countryCode === 'US' && intake.subdivisionCode === 'NY' && intake.countyCode === 'ERIE';
     if (isErie && (intake.pin || intake.sbl)) {
       try {
-        authoritativeEvidence = await fetchErieCountyEvidence(intake.pin ? { pin: intake.pin } : { sbl: intake.sbl });
+        const candidate = await fetchErieCountyEvidence(intake.pin ? { pin: intake.pin } : { sbl: intake.sbl });
+        const locationCheck = parcelMatchesSubmittedLocation(intake, candidate);
+        if (!locationCheck.matches) authoritativeError = `Parcel identifier conflict: ${locationCheck.reason}. GEO did not attach the county parcel evidence.`;
+        else authoritativeEvidence = candidate;
       } catch (error) {
         authoritativeError = error instanceof Error ? error.message : 'Erie County parcel verification failed.';
       }
