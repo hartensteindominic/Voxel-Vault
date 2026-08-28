@@ -4,11 +4,15 @@ import {
 import {
   fetchNysErieLidarCoverage,
 } from '../lib/real-estate/nys-lidar-evidence.js';
+import { sha256CanonicalJson } from '../lib/real-estate/lidar-height-evidence.js';
 
 const property = await fetchFirstRealErieParcel();
 const twin = property?.twin;
 if (!twin?.structure?.buildingGeometry) {
   throw new Error('First real Erie parcel has no source-backed building footprint.');
+}
+if (!twin?.location?.parcelGeometry) {
+  throw new Error('First real Erie parcel has no source-backed parcel geometry.');
 }
 
 const lidar = await fetchNysErieLidarCoverage({
@@ -41,11 +45,17 @@ const payload = {
   },
   building: {
     geometryWgs84: twin.structure.buildingGeometry,
-    source: twin.structure.source,
+    source: {
+      ...twin.structure.source,
+      geometrySha256: sha256CanonicalJson(twin.structure.buildingGeometry),
+    },
   },
   parcel: {
     geometryWgs84: twin.location.parcelGeometry,
-    source: twin.location.source,
+    source: {
+      ...twin.location.source,
+      geometrySha256: sha256CanonicalJson(twin.location.parcelGeometry),
+    },
   },
   lidar: {
     collection: lidar.collection,
