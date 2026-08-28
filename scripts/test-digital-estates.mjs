@@ -45,12 +45,13 @@ assert.match(claim, /from === wallet && to === recipient && value === expectedUn
 assert.match(claim, /digital-estate-usdc-payment/, 'USDC transaction hashes must be one-time idempotency keys.');
 assert.match(claim, /block\.timestamp < reservedAtSeconds - 120/, 'Old unrelated USDC transfers must not satisfy a new reservation.');
 assert.match(claim, /buildDigitalEstateVoucher/, 'Only verified payment should reach voucher issuance.');
+assert.match(claim, /requestedWallet && \(!ADDRESS_RE\.test\(requestedWallet\)/, 'Stripe claim must reject malformed or different browser wallets cleanly.');
 
 const crypto = fs.readFileSync(new URL('../app/api/digital-estates/crypto-config/route.ts', import.meta.url), 'utf8');
 assert.match(crypto, /digitalEstateMintReady/, 'USDC transfer must preflight mint readiness.');
 assert.match(crypto, /isDigitalEstateMinted/, 'USDC transfer must preflight onchain availability.');
 assert.match(crypto, /acquireDigitalEstateReservation/, 'USDC transfer must reserve inventory before showing transfer details.');
-assert.match(crypto, /BigInt\(estate\.purchasePriceCents\) \* 10_000n/, 'USD cents must convert exactly to 6-decimal USDC units.');
+assert.match(crypto, /BigInt\(estate\.purchasePriceCents\) \* BigInt\(10_000\)/, 'USD cents must convert exactly to 6-decimal USDC units.');
 assert.match(crypto, /DIGITAL_ESTATE_USDC_RECIPIENT/, 'USDC payout recipient must support explicit server configuration.');
 
 const metadata = fs.readFileSync(new URL('../app/api/digital-estates/metadata/route.ts', import.meta.url), 'utf8');
