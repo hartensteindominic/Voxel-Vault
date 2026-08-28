@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../lib/admin-auth';
-import { fetchErieCountySpatialIntake } from '../../../../../lib/real-estate/erie-county-gis.js';
+import { fetchErieCountyEvidence } from '../../../../../lib/real-estate/erie-county-evidence.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   const sbl = String(url.searchParams.get('sbl') || '').trim();
 
   try {
-    const intake = await fetchErieCountySpatialIntake({ pin, sbl });
+    const intake = await fetchErieCountyEvidence({ pin, sbl });
     return response({
       ...intake,
       authorized: true,
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
         humanTitleReviewRequired: true,
         separateLegalRightsEvidenceRequired: true,
       },
-      nextStep: 'Review the source-backed spatial record, then add a separate trusted building-height source and separate title/legal-rights evidence before any ownership status can advance beyond REFERENCE ONLY.',
+      nextStep: 'Review the source-backed spatial record, then add a separate trusted measured-height source and separate title/legal-rights evidence before any ownership status can advance beyond REFERENCE ONLY.',
     });
   } catch (error) {
     const status = statusFor(error);
