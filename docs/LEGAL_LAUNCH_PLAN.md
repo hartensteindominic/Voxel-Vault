@@ -6,6 +6,31 @@ Turn the current real-property/tokenization prototype into a U.S. investment pro
 
 This document is an engineering/compliance implementation plan, not legal advice. Final offering structure, documents, marketing and launch approval must come from licensed securities and real-estate/title counsel plus the selected registered intermediary.
 
+## Official legal-readiness sources
+
+Use primary sources for the first pass and have counsel update the final legal matrix before launch:
+
+- [SEC Regulation Crowdfunding](https://www.sec.gov/resources-small-businesses/exempt-offerings/regulation-crowdfunding) - online Reg CF securities offerings require an SEC-registered intermediary, investor limits, issuer disclosure and filings.
+- [SEC Regulation Crowdfunding guidance for issuers](https://www.sec.gov/resources-small-businesses/small-business-compliance-guides/regulation-crowdfunding-guidance-issuers) - issuer eligibility, filing, disclosure, advertising and bad-actor requirements need review before any raise.
+- [FINRA Funding Portals](https://www.finra.org/registration-exams-ce/funding-portals) - funding portal members are regulated by FINRA and are not interchangeable with an ordinary website checkout.
+- [SEC digital asset investment-contract framework](https://www.sec.gov/files/dlt-framework.pdf) - tokenized rights tied to profit expectations require securities analysis.
+- [FinCEN convertible virtual currency guidance](https://www.fincen.gov/system/files/2019-05/FinCEN%20CVC%20Guidance%20FINAL.pdf) - fiat, stablecoin, wallet, custody and transfer flows need Bank Secrecy Act / money-services analysis.
+- [New York DFS Virtual Currency Business Activity](https://www.dfs.ny.gov/apps_and_licensing/virtual_currency_businesses) - New York-facing virtual-currency activity may need licensing or an approved exemption path.
+- [IRS digital assets](https://www.irs.gov/filing/digital-assets) - digital-asset and distribution records need tax-reporting design before production.
+
+## Shared Founder + Codex workroom
+
+This is the working split. Codex can make the product safer, clearer and review-ready; licensed professionals and regulated providers still control the legal green lights.
+
+| Workstream | Founder lane | Codex lane | Evidence before live |
+| --- | --- | --- | --- |
+| Offering path | Choose the first property/offering goal, collect business facts and approve only counsel-reviewed marketing. | Keep investing disabled, document gates, expose provider status and prevent any client-side payment from creating ownership. | Counsel memo, intermediary acceptance, approved Form C or selected filing path, marketing review record. |
+| Property and issuer | Identify one real property, collect parcel/title/entity documents and confirm the operator/property manager. | Store only public hashes/references on-chain and keep private title, lease, tenant and identity documents out of public metadata. | Title commitment/search, issuer/property LLC records, insurance confirmation, property-management agreement. |
+| Investor onboarding | Select the provider workflow and avoid accepting money outside the approved subscription path. | Bind wallet/account state only to provider-confirmed identity, eligibility and subscription status. | KYC/AML/sanctions configuration, investor-limit or accreditation workflow, subscription document flow, jurisdiction rules. |
+| Funds, custody and settlement | Select where investor funds legally sit before closing and who controls refunds/cancellations. | Require provider-authoritative settled funds and closing allocations before minting or recording investment units. | Escrow agreement, custody/on-ramp review, settlement reconciliation, refund/cancellation procedure. |
+| Token recordkeeping | Approve exactly what the token represents and whether transfers are allowed. | Keep tokens permissioned, capped and separated from the non-economic Property Passport. | Executed rights map, transfer restriction rules, cap-table reconciliation plan, audit-reviewed contracts. |
+| Rent distributions | Confirm rent, expenses, reserves and distributable net income before any investor statement. | Distribute only from approved net-income statements and record-date/cap-table snapshots. | Operating account records, expense/reserve policy, approved accounting statement, tax-reporting workflow. |
+
 ## Recommended first launch path: retail Regulation Crowdfunding through a registered intermediary
 
 For the first property, the default product path is:

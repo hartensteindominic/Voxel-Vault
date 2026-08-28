@@ -1,3 +1,5 @@
+import { legalReadinessWorkstreams, officialRegulatoryReferences } from '../../../lib/real-estate/legal-launch';
+
 const gates = [
   ['01', 'Registered intermediary', 'Contract with a FINRA/SEC-registered broker-dealer or funding portal for the chosen offering path.', 'EXTERNAL'],
   ['02', 'Property + issuer', 'One actual property, dedicated issuer/property LLC, title review, insurance and property-management agreements.', 'EXTERNAL'],
@@ -74,6 +76,37 @@ export default function LegalLaunchPage() {
         </article>)}</div>
       </section>
 
+      <section style={{padding:'42px 0'}}>
+        <div style={{maxWidth:820}}>
+          <div style={eyebrow}>FOUNDER + CODEX WORKROOM</div>
+          <h2 style={sectionTitle}>We can build the product. The live offering needs evidence.</h2>
+          <p style={{...muted,marginTop:12}}>This page separates what we can safely build in GitHub from what licensed counsel, title professionals and regulated providers must approve before any investor money, tokenized rights or distributions go live.</p>
+        </div>
+        <div style={workstreamGrid}>{legalReadinessWorkstreams.map(workstream => <article key={workstream.name} style={workstreamCard}>
+          <div style={{fontSize:12,fontWeight:950,letterSpacing:'.11em',color:'#b8ff55'}}>WORKSTREAM</div>
+          <h3 style={{fontSize:24,letterSpacing:'-.04em',margin:'10px 0 6px'}}>{workstream.name}</h3>
+          <p style={{...muted,fontSize:13}}>Accountable: {workstream.accountable}</p>
+          <div style={laneGrid}>
+            <div><b style={laneTitle}>Founder lane</b><p style={laneCopy}>{workstream.founderLane}</p></div>
+            <div><b style={laneTitle}>Codex lane</b><p style={laneCopy}>{workstream.codexLane}</p></div>
+          </div>
+          <div style={evidenceBox}>
+            <b style={laneTitle}>Evidence before live</b>
+            <ul style={list}>{workstream.evidence.map(item => <li key={item}>{item}</li>)}</ul>
+          </div>
+        </article>)}</div>
+      </section>
+
+      <section style={{padding:'24px 0 42px'}}>
+        <div style={eyebrow}>OFFICIAL SOURCE CHECK</div>
+        <h2 style={sectionTitle}>Build around primary sources.</h2>
+        <div style={referenceGrid}>{officialRegulatoryReferences.map(reference => <a key={reference.name} href={reference.url} target="_blank" rel="noreferrer" style={referenceCard}>
+          <small style={small}>{reference.agency}</small>
+          <strong style={{display:'block',fontSize:19,letterSpacing:'-.025em',margin:'7px 0'}}>{reference.name}</strong>
+          <p style={{...muted,fontSize:13}}>{reference.productImpact}</p>
+        </a>)}</div>
+      </section>
+
       <section style={callout}>
         <div>
           <small style={small}>THE FIRST TRUE LIVE MILESTONE</small>
@@ -105,3 +138,12 @@ const card={border:'1px solid rgba(255,255,255,.11)',borderRadius:22,padding:20,
 const muted={color:'#97a293',lineHeight:1.6,margin:0};
 const sectionTitle={fontSize:'clamp(2rem,5vw,3.7rem)',letterSpacing:'-.05em',margin:'7px 0 0'};
 const gate={display:'grid',gridTemplateColumns:'36px minmax(0,1fr) auto',gap:14,alignItems:'center',border:'1px solid rgba(255,255,255,.1)',borderRadius:18,padding:'15px 16px',background:'rgba(255,255,255,.025)'};
+const workstreamGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:12,marginTop:20};
+const workstreamCard={border:'1px solid rgba(184,255,85,.16)',borderRadius:22,padding:20,background:'linear-gradient(145deg,rgba(184,255,85,.055),rgba(255,255,255,.025))'};
+const laneGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:12,marginTop:16};
+const laneTitle={display:'block',fontSize:11,letterSpacing:'.1em',textTransform:'uppercase',color:'#dce6d7'};
+const laneCopy={margin:'7px 0 0',color:'#9aa695',lineHeight:1.55,fontSize:13};
+const evidenceBox={marginTop:16,padding:14,border:'1px solid rgba(255,255,255,.1)',borderRadius:16,background:'rgba(7,10,8,.45)'};
+const list={margin:'9px 0 0',paddingLeft:18,color:'#aeb9aa',fontSize:13,lineHeight:1.55};
+const referenceGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:12,marginTop:18};
+const referenceCard={display:'block',color:'inherit',textDecoration:'none',border:'1px solid rgba(255,255,255,.1)',borderRadius:18,padding:17,background:'rgba(255,255,255,.03)'};
