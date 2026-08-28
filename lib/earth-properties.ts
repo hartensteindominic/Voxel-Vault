@@ -1,7 +1,7 @@
 const BRIDGE_BASE_URL = 'https://api.bridgedataoutput.com/api/v2/OData';
 const DOMAIN_API_URL = 'https://api.domain.com.au';
 const DOMAIN_AUTH_URL = 'https://auth.domain.com.au/v1/connect/token';
-const MAX_RESULTS = 40;
+const MAX_RESULTS = 20;
 
 export type EarthPropertyCategory = 'house'|'condo'|'mobile-home'|'multifamily'|'storefront'|'commercial'|'warehouse'|'barn-farm'|'land'|'other';
 
