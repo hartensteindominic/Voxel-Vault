@@ -24,6 +24,7 @@ Use these working documents before any live investment build:
 
 - [Regulated Launch Packet](./REGULATED_LAUNCH_PACKET.md) - product posture, partner diligence questions, launch locks and first outreach note.
 - [Legal Review Data Room](./LEGAL_REVIEW_DATA_ROOM.md) - evidence categories, gate mapping and public/private handling rules.
+- [Legal Approval Evidence Specification](./LEGAL_APPROVAL_EVIDENCE_SPEC.md) - public-safe record shape, acceptance rules, authority mapping and activation boundary.
 
 ## Shared Founder + Codex workroom
 
@@ -204,9 +205,10 @@ A live investment checkout is blocked unless all required gates are true in an a
 - smart contracts independently audited;
 - incident response/pause procedures approved;
 - privacy/security review completed;
+- public terms, risk disclosures and investor communications approved;
 - production provider integration verified end-to-end.
 
-Environment variables alone must never satisfy this list.
+Environment variables alone must never satisfy this list. They are operational assertions only; every gate stays unsatisfied until scoped authority evidence is independently verified under the [Legal Approval Evidence Specification](./LEGAL_APPROVAL_EVIDENCE_SPEC.md).
 
 ## First real property milestone
 
