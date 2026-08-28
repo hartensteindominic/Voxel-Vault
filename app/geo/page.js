@@ -59,6 +59,8 @@ export default function GeoPage() {
   const [resetKey, setResetKey] = useState(0);
 
   const reference = result?.globalReference || null;
+  const authoritativeTwin = result?.authoritativeEvidence?.twin || null;
+  const hasRenderableBuilding = Boolean(reference?.found || authoritativeTwin?.structure?.buildingGeometry);
   const factReport = result?.factCheck || null;
   const readiness = result?.readiness || null;
   const offering = result?.investmentOffering || null;
@@ -84,11 +86,13 @@ export default function GeoPage() {
       setResult(data);
       setViewMode('orbit');
       setResetKey((value) => value + 1);
-      setMessage(data.authoritativeEvidence
-        ? 'Found it ✦ Global 3D reference plus local parcel evidence loaded. Ownership is checked separately.'
-        : data.globalReference?.found
-          ? 'Found it ✦ A source-backed 3D building reference is ready. Local parcel verification is still pending or unavailable here.'
-          : 'Place found, but no source building footprint was returned. GEO left it empty instead of making one up.');
+      setMessage(data.authoritativeEvidence?.twin?.structure?.buildingGeometry
+        ? 'Found it ✦ Parcel-linked building geometry plus neighborhood context loaded. Height stays separate until it is source-backed or measured.'
+        : data.authoritativeEvidence
+          ? 'Found the parcel ✦ Local evidence loaded, but a parcel-linked building footprint is not verified yet.'
+          : data.globalReference?.found
+            ? 'Found it ✦ A source-backed 3D building reference is ready. Local parcel verification is still pending or unavailable here.'
+            : 'Place found, but no source building footprint was returned. GEO left it empty instead of making one up.');
     } catch (error) {
       setResult(null);
       setMessage(error instanceof Error ? error.message : 'GEO intake failed.');
@@ -208,19 +212,19 @@ export default function GeoPage() {
         </article>
 
         <aside className={styles.modelCard} aria-label="GEO 3D property viewer">
-          <GeoReferenceModel reference={reference} viewMode={viewMode} resetKey={resetKey}/>
+          <GeoReferenceModel reference={reference} authoritativeTwin={authoritativeTwin} viewMode={viewMode} resetKey={resetKey}/>
           <div className={styles.modelTopRow}>
-            <div className={styles.modelTopBadge}>{reference?.found ? '✦ Source-backed geometry' : '✦ 3D preview'}</div>
+            <div className={styles.modelTopBadge}>{authoritativeTwin?.structure?.buildingGeometry ? '✦ Parcel-linked building' : reference?.found ? '✦ Source-backed geometry' : '✦ 3D preview'}</div>
             <button className={styles.resetView} onClick={() => setResetKey((value) => value + 1)} type="button" aria-label="Reset 3D view" title="Reset view">↺</button>
           </div>
           <div className={styles.viewControls} role="group" aria-label="3D camera view">
             {VIEW_MODES.map((mode) => <button key={mode.id} type="button" aria-pressed={viewMode === mode.id} title={mode.hint} className={`${styles.viewButton} ${viewMode === mode.id ? styles.viewButtonActive : ''}`} onClick={() => setViewMode(mode.id)}><span>{mode.icon}</span>{mode.label}</button>)}
           </div>
           <div className={styles.modelMeta}>
-            <div className={styles.modelIdentity}><small>{reference?.found ? 'Selected property' : 'Search to begin'}</small><strong>{reference?.tags?.name || form.address || 'Search a property'}</strong></div>
+            <div className={styles.modelIdentity}><small>{hasRenderableBuilding ? 'Selected property' : 'Search to begin'}</small><strong>{reference?.tags?.name || form.address || 'Search a property'}</strong></div>
             <div className={styles.modelContext}>
-              <span>{reference?.found ? humanHeight(reference) : activeView.hint}</span>
-              <span className={styles.gestureHint}>{reference?.found ? 'Drag to orbit · pinch to zoom' : 'Orbit, Street and Top keep the scene easy to inspect.'}</span>
+              <span>{hasRenderableBuilding ? authoritativeTwin?.structure?.buildingGeometry && !reference?.measuredHeight?.verifiedMeasuredHeight ? 'Parcel footprint · height not yet measured' : humanHeight(reference) : activeView.hint}</span>
+              <span className={styles.gestureHint}>{hasRenderableBuilding ? 'Drag to orbit · pinch to zoom' : 'Orbit, Street and Top keep the scene easy to inspect.'}</span>
             </div>
           </div>
         </aside>
