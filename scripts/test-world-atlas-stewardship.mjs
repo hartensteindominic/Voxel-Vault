@@ -13,7 +13,8 @@ const quoteRoute = fs.readFileSync(new URL('../app/api/world-atlas/stewardship/q
 const meshRoute = fs.readFileSync(new URL('../app/api/world-atlas/mesh/route.ts', import.meta.url), 'utf8');
 const page = fs.readFileSync(new URL('../app/vault/earth/page.js', import.meta.url), 'utf8');
 const anchor = fs.readFileSync(new URL('../lib/real-estate/buffalo-atlas-anchor.js', import.meta.url), 'utf8');
-const globe = fs.readFileSync(new URL('../app/vault/earth/GlobalEarthGlobe.js', import.meta.url), 'utf8');
+const globeController = fs.readFileSync(new URL('../app/vault/earth/GlobalEarthGlobe.js', import.meta.url), 'utf8');
+const planetGlobe = fs.readFileSync(new URL('../app/vault/earth/PlanetStreamGlobe.js', import.meta.url), 'utf8');
 
 assert.equal(WORLD_STEWARDSHIP_POLICY.ownerOrAdminExemption, false, 'owner/admin accounts must not bypass anti-concentration policy');
 assert.equal(WORLD_STEWARDSHIP_POLICY.billingEnabled, false, 'stewardship billing must remain disabled until an authoritative claim ledger exists');
@@ -87,10 +88,15 @@ assert.match(page, /MeshyHeroPanel/, 'selected buildings must expose controlled 
 assert.match(anchor, /createsGovernmentTax:\s*false/, 'jurisdiction map anchoring must never create a government tax');
 assert.match(anchor, /createsExclusiveMapDataOwnership:\s*false/, 'local anchoring must not create exclusive source-map ownership');
 
-assert.match(globe, /atlasId/, 'globe must render source-backed atlas building markers');
-assert.match(globe, /onAtlasSelectRef/, 'atlas marker taps must be handled separately from listing markers');
-assert.match(globe, /compact \? 1\.18 : 1\.35/, 'world globe should retain strict compact pixel-ratio cap');
-assert.match(globe, /time - lastRender < 33/, 'compact world globe should cap dense rendering near 30fps');
-assert.match(globe, /prefers-reduced-motion/, 'world globe must respect reduced motion');
+assert.match(globeController, /atlasId/, 'globe controller must retain source-backed atlas building identities');
+assert.match(globeController, /const local = atlasBuildings\.find/, 'local detailed atlas markers must be selected through the detailed atlas callback');
+assert.match(globeController, /onAtlasSelect\?\.\(atlasId\)/, 'local atlas selection must remain distinct from listing selection');
+assert.match(globeController, /const streamed = streamedRef\.current\.find/, 'streamed atlas markers must be handled separately from local detailed atlas markers');
+assert.match(globeController, /onLocation\?\.\(\{ latitude:/, 'streamed marker selection must deepen through the normal geographic evidence lookup');
+assert.match(planetGlobe, /listingHit[\s\S]*listingId/, 'listing markers must retain a separate selection path');
+assert.match(planetGlobe, /atlasHit[\s\S]*atlasId/, 'atlas markers must retain a separate selection path');
+assert.match(planetGlobe, /compact \? 1\.15 : 1\.35/, 'world globe should retain strict compact pixel-ratio cap');
+assert.match(planetGlobe, /time - lastRender < 33/, 'compact world globe should cap dense rendering near 30fps');
+assert.match(planetGlobe, /prefers-reduced-motion/, 'world globe must respect reduced motion');
 
-console.log('World atlas stewardship checks passed: global streaming + local authority, fail-closed sources, selective Meshy 7, linear anti-concentration pricing, hard regional caps, no owner exemption, and no false physical/map ownership claims.');
+console.log('World atlas stewardship checks passed: global streaming + local authority, separate listing/atlas marker selection, fail-closed sources, selective Meshy 7, linear anti-concentration pricing, hard regional caps, no owner exemption, and no false physical/map ownership claims.');
