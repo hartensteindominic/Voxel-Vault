@@ -7,9 +7,9 @@ import styles from './page.module.css';
 
 const STARTER_AMOUNTS = [5, 10, 25, 50];
 const VIEW_MODES = [
-  { id: 'orbit', label: 'Orbit', icon: '✦' },
-  { id: 'street', label: 'Street', icon: '⌂' },
-  { id: 'top', label: 'Top', icon: '◎' },
+  { id: 'orbit', label: 'Orbit', icon: '✦', hint: 'Best overall view' },
+  { id: 'street', label: 'Street', icon: '⌂', hint: 'Lower angle' },
+  { id: 'top', label: 'Top', icon: '◎', hint: 'Footprint view' },
 ];
 
 function dollars(cents) {
@@ -63,6 +63,7 @@ export default function GeoPage() {
   const readiness = result?.readiness || null;
   const offering = result?.investmentOffering || null;
   const factRows = useMemo(() => Array.isArray(factReport?.facts) ? factReport.facts.slice(0, 10) : [], [factReport]);
+  const activeView = VIEW_MODES.find((mode) => mode.id === viewMode) || VIEW_MODES[0];
 
   function change(key, value) { setForm((current) => ({ ...current, [key]: value })); }
 
@@ -206,18 +207,21 @@ export default function GeoPage() {
           <div className={`${styles.status} ${message.toLowerCase().includes('failed') ? styles.error : ''}`}>{message}</div>
         </article>
 
-        <aside className={styles.modelCard}>
+        <aside className={styles.modelCard} aria-label="GEO 3D property viewer">
           <GeoReferenceModel reference={reference} viewMode={viewMode} resetKey={resetKey}/>
           <div className={styles.modelTopRow}>
-            <div className={styles.modelTopBadge}>{reference?.found ? '✦ Source-backed place' : '✦ Your 3D place appears here'}</div>
-            <button className={styles.resetView} onClick={() => setResetKey((value) => value + 1)} type="button">↺</button>
+            <div className={styles.modelTopBadge}>{reference?.found ? '✦ Source-backed geometry' : '✦ 3D preview'}</div>
+            <button className={styles.resetView} onClick={() => setResetKey((value) => value + 1)} type="button" aria-label="Reset 3D view" title="Reset view">↺</button>
           </div>
-          <div className={styles.viewControls}>
-            {VIEW_MODES.map((mode) => <button key={mode.id} type="button" className={`${styles.viewButton} ${viewMode === mode.id ? styles.viewButtonActive : ''}`} onClick={() => setViewMode(mode.id)}><span>{mode.icon}</span>{mode.label}</button>)}
+          <div className={styles.viewControls} role="group" aria-label="3D camera view">
+            {VIEW_MODES.map((mode) => <button key={mode.id} type="button" aria-pressed={viewMode === mode.id} title={mode.hint} className={`${styles.viewButton} ${viewMode === mode.id ? styles.viewButtonActive : ''}`} onClick={() => setViewMode(mode.id)}><span>{mode.icon}</span>{mode.label}</button>)}
           </div>
           <div className={styles.modelMeta}>
-            <div><small>{reference?.found ? 'Selected place' : '3D preview'}</small><strong>{reference?.tags?.name || form.address || 'Search a property'}</strong></div>
-            <span>{reference?.found ? `${humanHeight(reference)} · drag to move · pinch to zoom` : 'Search a place, then drag, pinch and explore.'}</span>
+            <div className={styles.modelIdentity}><small>{reference?.found ? 'Selected property' : 'Search to begin'}</small><strong>{reference?.tags?.name || form.address || 'Search a property'}</strong></div>
+            <div className={styles.modelContext}>
+              <span>{reference?.found ? humanHeight(reference) : activeView.hint}</span>
+              <span className={styles.gestureHint}>{reference?.found ? 'Drag to orbit · pinch to zoom' : 'Orbit, Street and Top keep the scene easy to inspect.'}</span>
+            </div>
           </div>
         </aside>
       </section>
