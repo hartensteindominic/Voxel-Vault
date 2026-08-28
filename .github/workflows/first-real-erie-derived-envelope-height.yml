@@ -12,7 +12,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,3 +27,6 @@ jobs:
 
       - name: Probe parcel-clipped envelope against authoritative LAS
         run: python scripts/probe-618-main-derived-envelope-height.py
+
+      - name: Derive 2019 roof extent inside exact parcel
+        run: python scripts/probe-618-main-lidar-roof-extent.py
