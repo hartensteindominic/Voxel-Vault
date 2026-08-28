@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import GeoReferenceModel from './GeoReferenceModel';
+import BuffaloCalibratedReferenceModel from './BuffaloCalibratedReferenceModel';
 import styles from './page.module.css';
 
 const STARTER_AMOUNTS = [5, 10, 25, 50];
@@ -42,9 +42,10 @@ function humanHeight(reference) {
 }
 
 export default function GeoPage() {
-  const [form, setForm] = useState({ address: '618 Main Street, Buffalo, NY', latitude: '', longitude: '', countryCode: 'US', subdivisionCode: 'NY', countyCode: 'ERIE', pin: '', sbl: '111.38-3-8' });
+  const [form, setForm] = useState({ address: '1047 Kensington Avenue, Buffalo, NY 14215', latitude: '', longitude: '', countryCode: 'US', subdivisionCode: 'NY', countyCode: 'ERIE', pin: '', sbl: '90.32-8-4' });
   const [result, setResult] = useState(null);
-  const [message, setMessage] = useState('Search a place to build its little 3D world.');
+  const [buffaloReference, setBuffaloReference] = useState(null);
+  const [message, setMessage] = useState('1047 Kensington is loaded as the GEO calibration property. Tap See in 3D to resolve its current sources.');
   const [busy, setBusy] = useState(false);
   const [factBusy, setFactBusy] = useState(false);
   const [goalBusy, setGoalBusy] = useState(false);
@@ -73,6 +74,7 @@ export default function GeoPage() {
     event?.preventDefault?.();
     setBusy(true);
     setStarterResult(null);
+    setBuffaloReference(null);
     setMessage('Finding the place and checking its sources…');
     try {
       const payload = {
@@ -83,11 +85,32 @@ export default function GeoPage() {
       const response = await fetch('/api/geo/intake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'GEO intake failed.');
+
+      let cityCalibration = null;
+      const countyRecord = data.authoritativeEvidence?.countyRecord || null;
+      const isBuffaloParcel = String(countyRecord?.municipality || '').toUpperCase().includes('BUFFALO');
+      if (isBuffaloParcel && (countyRecord?.sbl || countyRecord?.pin || form.sbl || form.pin)) {
+        try {
+          const cityResponse = await fetch('/api/geo/buffalo-reference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sbl: countyRecord?.sbl || form.sbl, pin: countyRecord?.pin || form.pin }),
+          });
+          const cityData = await cityResponse.json().catch(() => ({}));
+          if (cityResponse.ok && cityData?.ok && cityData?.result?.found) cityCalibration = cityData.result;
+        } catch {
+          cityCalibration = null;
+        }
+      }
+
+      setBuffaloReference(cityCalibration);
       setResult(data);
       setViewMode('orbit');
       setResetKey((value) => value + 1);
       setMessage(data.authoritativeEvidence?.twin?.structure?.buildingGeometry
-        ? 'Found it ✦ Parcel-linked building geometry plus neighborhood context loaded. Height stays separate until it is source-backed or measured.'
+        ? cityCalibration?.found
+          ? 'Found it ✦ Erie parcel-linked building geometry plus current Buffalo assessment calibration loaded. Story count and material class improve the render without pretending they are a measured architectural survey.'
+          : 'Found it ✦ Parcel-linked building geometry plus neighborhood context loaded. Height stays separate until it is source-backed or measured.'
         : data.authoritativeEvidence
           ? 'Found the parcel ✦ Local evidence loaded, but a parcel-linked building footprint is not verified yet.'
           : data.globalReference?.found
@@ -95,6 +118,7 @@ export default function GeoPage() {
             : 'Place found, but no source building footprint was returned. GEO left it empty instead of making one up.');
     } catch (error) {
       setResult(null);
+      setBuffaloReference(null);
       setMessage(error instanceof Error ? error.message : 'GEO intake failed.');
     } finally { setBusy(false); }
   }
@@ -175,7 +199,7 @@ export default function GeoPage() {
     <div className={styles.shell}>
       <nav className={styles.nav}>
         <Link className={styles.brand} href="/geo"><span className={styles.brandOrb}>✦</span> GEO</Link>
-        <div className={styles.navLinks}><Link href="/vault/earth">Explore</Link><Link href="/vault">My Vault</Link><Link href="/real-estate/property/erie-618-main">618 Main</Link></div>
+        <div className={styles.navLinks}><Link href="/vault/earth">Explore</Link><Link href="/vault">My Vault</Link><Link href="/real-estate/property/erie-618-main">Evidence demo</Link></div>
       </nav>
 
       <section className={styles.hero}>
@@ -212,9 +236,9 @@ export default function GeoPage() {
         </article>
 
         <aside className={styles.modelCard} aria-label="GEO 3D property viewer">
-          <GeoReferenceModel reference={reference} authoritativeTwin={authoritativeTwin} viewMode={viewMode} resetKey={resetKey}/>
+          <BuffaloCalibratedReferenceModel reference={reference} authoritativeTwin={authoritativeTwin} buffaloReference={buffaloReference} addressLabel={form.address} viewMode={viewMode} resetKey={resetKey}/>
           <div className={styles.modelTopRow}>
-            <div className={styles.modelTopBadge}>{authoritativeTwin?.structure?.buildingGeometry ? '✦ Parcel-linked building' : reference?.found ? '✦ Source-backed geometry' : '✦ 3D preview'}</div>
+            <div className={styles.modelTopBadge}>{buffaloReference?.found ? '✦ Parcel + Buffalo calibration' : authoritativeTwin?.structure?.buildingGeometry ? '✦ Parcel-linked building' : reference?.found ? '✦ Source-backed geometry' : '✦ 3D preview'}</div>
             <button className={styles.resetView} onClick={() => setResetKey((value) => value + 1)} type="button" aria-label="Reset 3D view" title="Reset view">↺</button>
           </div>
           <div className={styles.viewControls} role="group" aria-label="3D camera view">
@@ -223,7 +247,7 @@ export default function GeoPage() {
           <div className={styles.modelMeta}>
             <div className={styles.modelIdentity}><small>{hasRenderableBuilding ? 'Selected property' : 'Search to begin'}</small><strong>{reference?.tags?.name || form.address || 'Search a property'}</strong></div>
             <div className={styles.modelContext}>
-              <span>{hasRenderableBuilding ? authoritativeTwin?.structure?.buildingGeometry && !reference?.measuredHeight?.verifiedMeasuredHeight ? 'Parcel footprint · height not yet measured' : humanHeight(reference) : activeView.hint}</span>
+              <span>{hasRenderableBuilding ? buffaloReference?.found ? `${buffaloReference.stories || '?'} stories · ${buffaloReference.exteriorWallDescription || buffaloReference.buildingStyleDescription || 'Buffalo assessment calibrated'}` : authoritativeTwin?.structure?.buildingGeometry && !reference?.measuredHeight?.verifiedMeasuredHeight ? 'Parcel footprint · height not yet measured' : humanHeight(reference) : activeView.hint}</span>
               <span className={styles.gestureHint}>{hasRenderableBuilding ? 'Drag to orbit · pinch to zoom' : 'Orbit, Street and Top keep the scene easy to inspect.'}</span>
             </div>
           </div>
@@ -309,7 +333,7 @@ export default function GeoPage() {
         <p className={styles.disclaimer}><b>Why GEO is careful:</b> a beautiful 3D model, an NFT, a map polygon or a checkout screen cannot replace a deed or create legal property rights by themselves.</p>
       </section>
 
-      <footer className={styles.footer}>GEO is a working name inside Voxel Vault. Global map geometry is reference data, not a cadastral survey. Investment availability, minimums, income and liquidity depend on the actual legal offering and provider.</footer>
+      <footer className={styles.footer}>GEO is a working name inside Voxel Vault. Global map geometry is reference data, not a cadastral survey. Buffalo assessment characteristics may calibrate rendering but are not a current architectural survey. Investment availability, minimums, income and liquidity depend on the actual legal offering and provider.</footer>
     </div>
   </main>;
 }
