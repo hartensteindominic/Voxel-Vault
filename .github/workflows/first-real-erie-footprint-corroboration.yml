@@ -1,0 +1,29 @@
+name: First real Erie footprint corroboration
+
+on:
+  push:
+    branches:
+      - erie-618-main-footprint-corroboration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corroborate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install geometry dependencies
+        run: python -m pip install "shapely>=2,<3" "pyproj>=3.6,<4"
+
+      - name: Compare official parcel with corroboration footprints
+        run: python scripts/diagnose-618-main-footprint-corroboration.py
