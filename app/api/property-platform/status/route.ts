@@ -23,6 +23,13 @@ export async function GET() {
     missingGates: launch.missing,
     allExternalGatesSatisfied: launch.allExternalGatesSatisfied,
     reinvestmentMode: launch.reinvestmentMode,
+    legalReadiness: {
+      environmentVariablesAreNotAuthority: launch.environmentVariablesAreNotAuthority,
+      evidenceRequiredBeforeLive: launch.evidenceRequiredBeforeLive,
+      productionDecisionAuthorities: launch.productionDecisionAuthorities,
+      workstreams: launch.legalReadinessWorkstreams,
+      officialReferences: launch.officialRegulatoryReferences,
+    },
     digitalReits: {
       provider: dinari.provider,
       environment: dinari.environment,

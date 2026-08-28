@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 
 function read(path) {
   return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -20,6 +21,14 @@ const home = read('app/real-estate/page.js');
 const vault = read('app/real-estate/property/[propertyId]/page.js');
 const invest = read('app/real-estate/invest/page.js');
 const wallet = read('app/real-estate/invest/AutoCompoundWallet.js');
+const legalPlan = read('docs/LEGAL_LAUNCH_PLAN.md');
+
+function loadLaunchPolicyForTest(source) {
+  const executable = source
+    .replace(/export const /g, 'const ')
+    .replace(/export function /g, 'function ');
+  return Function(`${executable}\nreturn { evaluateLegalLaunch, launchGateDefinitions, officialRegulatoryReferences, legalReadinessWorkstreams };`)();
+}
 
 requireText(launch, 'LIVE_INVESTMENT_IMPLEMENTATION_READY = false', 'legal launch engine');
 requireText(launch, 'LIVE_AUTO_REINVESTMENT_IMPLEMENTATION_READY = false', 'legal launch engine');
@@ -28,10 +37,16 @@ requireText(launch, 'REAL_ESTATE_OFFERING_AUTHORIZED', 'legal launch engine');
 requireText(launch, 'REAL_ESTATE_ESCROW_SETTLEMENT_CONFIGURED', 'legal launch engine');
 requireText(launch, 'REAL_ESTATE_PROVIDER_INTEGRATION_VERIFIED', 'legal launch engine');
 requireText(launch, 'Regulation Crowdfunding through a registered intermediary', 'legal launch engine');
+requireText(launch, 'officialRegulatoryReferences', 'legal launch engine');
+requireText(launch, 'productionDecisionAuthorities', 'legal launch engine');
+requireText(launch, 'New York-facing virtual-currency activity', 'legal launch engine');
+requireText(launch, 'environmentVariablesAreNotAuthority: true', 'legal launch engine');
 requireText(status, 'liveInvestmentCheckout: false', 'property status route');
 requireText(status, 'liveAutomaticReinvestment: false', 'property status route');
 requireText(status, 'mainnetPropertyTokenDeployment: false', 'property status route');
 requireText(status, 'evaluateLegalLaunch(process.env)', 'property status route');
+requireText(status, 'legalReadiness', 'property status route');
+requireText(status, 'officialReferences', 'property status route');
 requireText(deploy, 'network.chainId !== 84532n', 'property deploy script');
 requireText(deploy, 'Base Sepolia only', 'property deploy script');
 requireText(deploy, 'PROPERTY_PASSPORT_ADDRESS', 'property deploy script');
@@ -60,5 +75,33 @@ requireText(wallet, 'Confirm each', 'auto-compound wallet');
 requireText(launchPage, 'Regulation Crowdfunding + registered partner', 'legal launch page');
 requireText(launchPage, 'REAL-MONEY EXECUTION · LOCKED', 'legal launch page');
 requireText(launchPage, 'One real property. One real closing. One reconciled rent distribution.', 'legal launch page');
+requireText(launchPage, 'FOUNDER + CODEX WORKROOM', 'legal launch page');
+requireText(launchPage, 'Build around primary sources.', 'legal launch page');
+requireText(legalPlan, 'Shared Founder + Codex workroom', 'legal launch plan');
+requireText(legalPlan, 'SEC Regulation Crowdfunding', 'legal launch plan');
+requireText(legalPlan, 'New York DFS Virtual Currency Business Activity', 'legal launch plan');
+
+const {
+  evaluateLegalLaunch,
+  launchGateDefinitions,
+  officialRegulatoryReferences,
+  legalReadinessWorkstreams,
+} = loadLaunchPolicyForTest(launch);
+
+const allExternalGatesTrueEnv = Object.fromEntries(
+  launchGateDefinitions.map(([, envKey]) => [envKey, 'true'])
+);
+allExternalGatesTrueEnv.REAL_ESTATE_LIVE_INVESTING_ENABLED = 'true';
+allExternalGatesTrueEnv.REAL_ESTATE_LIVE_AUTO_REINVESTMENT_ENABLED = 'true';
+
+const evaluatedLaunch = evaluateLegalLaunch(allExternalGatesTrueEnv);
+assert.equal(evaluatedLaunch.allExternalGatesSatisfied, true, 'test env should satisfy every external gate');
+assert.equal(evaluatedLaunch.liveInvestingEnabled, false, 'implementation constant must keep live investing fail-closed');
+assert.equal(evaluatedLaunch.liveAutomaticReinvestmentEnabled, false, 'implementation constant must keep auto-reinvestment fail-closed');
+assert.equal(evaluatedLaunch.environmentVariablesAreNotAuthority, true, 'env vars are evidence inputs, not legal authority');
+assert.equal(evaluatedLaunch.officialRegulatoryReferences, officialRegulatoryReferences, 'policy should return the shared official references');
+assert.equal(evaluatedLaunch.legalReadinessWorkstreams, legalReadinessWorkstreams, 'policy should return the shared workstreams');
+assert.ok(officialRegulatoryReferences.length >= 6, 'official regulatory references should stay visible');
+assert.ok(legalReadinessWorkstreams.length >= 6, 'shared workstreams should stay visible');
 
 console.log('Property-platform safety checks passed: regulated launch gates are explicit, the verified Property Passport cannot be used as a transferable deed proxy, live investing and auto-reinvestment remain fail-closed, distribution claims remain permissioned, and property deployment is Base Sepolia-only.');
