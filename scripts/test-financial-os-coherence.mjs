@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 const nav = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
 const commandCenter = fs.readFileSync(new URL('../app/components/AppCommandCenter.js', import.meta.url), 'utf8');
 const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
+const interactions = fs.readFileSync(new URL('../app/spatial-os-interactions.css', import.meta.url), 'utf8');
 const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
 const more = fs.readFileSync(new URL('../app/more/page.js', import.meta.url), 'utf8');
 const integrationsPage = fs.readFileSync(new URL('../app/admin/integrations/page.js', import.meta.url), 'utf8');
@@ -30,8 +31,16 @@ assert.match(nav, /safe-area-inset-bottom/);
 assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should no longer be restricted to a finance-only prefix list');
 assert.match(layout, /FinancialOSNav/);
 assert.match(layout, /AppCommandCenter/);
+assert.match(layout, /spatial-os-interactions\.css/);
 assert.match(layout, /Spatial Asset OS/);
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
+
+assert.match(interactions, /--vv-tap-min:\s*44px/, 'coarse-pointer controls should keep an iPhone-friendly minimum target');
+assert.match(interactions, /@media \(pointer: coarse\)/, 'shared interactions should adapt to touch devices');
+assert.match(interactions, /:focus-visible/, 'keyboard focus must stay visible across the app shell');
+assert.match(interactions, /prefers-reduced-motion: reduce/, 'shared shell must respect reduced motion');
+assert.match(interactions, /-webkit-text-size-adjust:\s*100%/, 'iPhone text resizing should remain stable');
+assert.doesNotMatch(interactions, /background:\s*#(?:000|05060b)|color-scheme:/i, 'shared interaction polish must not force one visual theme onto every subsystem');
 
 assert.match(commandCenter, /APP_DOCK, APP_SECTIONS/, 'command center should index the canonical product map instead of maintaining another route list');
 assert.match(commandCenter, /metaKey \|\| event\.ctrlKey/, 'command center should support desktop keyboard invocation');
@@ -83,4 +92,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault app organization + command center + Financial OS coherence regression tests passed');
+console.log('Voxel Vault app organization + command center + shared interaction + Financial OS coherence regression tests passed');
