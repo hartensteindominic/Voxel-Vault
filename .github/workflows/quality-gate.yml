@@ -49,6 +49,7 @@ jobs:
       - run: npm run test:property-passport
       - run: npm run test:property-claims
       - run: npm run test:test-land
+      - run: npm run test:digital-estates
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
