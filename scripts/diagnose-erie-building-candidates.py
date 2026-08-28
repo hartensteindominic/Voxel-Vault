@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Inspect official Erie BUILDING candidates for the first real parcel.
+"""Inspect official Erie building-footprint candidates for the first real parcel.
 
-Diagnostic only. It never changes the property twin. The purpose is to determine whether an
-exact source-backed address candidate exists and whether each official footprint has meaningful
-positive-area overlap with the already-resolved official parcel polygon.
+Diagnostic only. It never changes the property twin. It compares the current 2025 DSM BUILDING
+layer with Erie County's separate CPS/ErieCountyBase BuildingFootprints layer before any LiDAR
+height is trusted.
 """
 
 from __future__ import annotations
@@ -18,21 +18,22 @@ from pyproj import Transformer
 from shapely.geometry import shape
 from shapely.ops import transform as transform_geometry
 
-BUILDING_LAYER = "https://gis.erie.gov/server/rest/services/DSM/DSM_Basemap_2025/MapServer/120"
+DSM_BUILDING_LAYER = "https://gis.erie.gov/server/rest/services/DSM/DSM_Basemap_2025/MapServer/120"
+CPS_BUILDING_LAYER = "https://gis.erie.gov/server/rest/services/CPS/ErieCountyBase/MapServer/9"
 LOCAL_METRIC_CRS = "EPSG:32617"
-FIELDS = "OBJECTID_12,OBJECTID,GlobalID,PIN,SBL,ADDNAME,ADDRESS,YEARBLT,SFLA,DATE_,EDITEDDATE,erie_DWQMADMIN_Building_AREA"
+DSM_FIELDS = "OBJECTID_12,OBJECTID,GlobalID,PIN,SBL,ADDNAME,ADDRESS,YEARBLT,SFLA,DATE_,EDITEDDATE,erie_DWQMADMIN_Building_AREA"
 
 
-def fetch_geojson(params: dict) -> dict:
+def fetch_geojson(layer: str, params: dict) -> dict:
     query = urllib.parse.urlencode(params)
     request = urllib.request.Request(
-        f"{BUILDING_LAYER}/query?{query}",
+        f"{layer}/query?{query}",
         headers={"Accept": "application/geo+json, application/json", "User-Agent": "VoxelVault-Spatial-Diagnostic/1.0"},
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         data = json.load(response)
     if not isinstance(data, dict) or data.get("error"):
-        raise RuntimeError(f"Erie BUILDING query failed: {data.get('error') if isinstance(data, dict) else 'invalid response'}")
+        raise RuntimeError(f"Erie footprint query failed for {layer}: {data.get('error') if isinstance(data, dict) else 'invalid response'}")
     return data
 
 
@@ -40,7 +41,7 @@ def metric(geometry, transformer):
     return transform_geometry(transformer.transform, shape(geometry))
 
 
-def summarize(label: str, data: dict, parcel_m, transformer) -> dict:
+def summarize(source: str, label: str, data: dict, parcel_m, transformer) -> dict:
     results = []
     for feature in data.get("features") or []:
         geometry = feature.get("geometry")
@@ -52,14 +53,14 @@ def summarize(label: str, data: dict, parcel_m, transformer) -> dict:
         intersection_area = float(intersection.area)
         overlap = intersection_area / area if area else 0.0
         parcel_coverage = intersection_area / float(parcel_m.area) if parcel_m.area else 0.0
-        centroid_distance = float(candidate.centroid.distance(parcel_m.centroid))
         props = feature.get("properties") or {}
         results.append({
+            "source": source,
             "query": label,
-            "objectId": props.get("OBJECTID") or props.get("OBJECTID_12"),
+            "objectId": props.get("OBJECTID") or props.get("OBJECTID_12") or props.get("FID"),
             "pin": str(props.get("PIN") or "").strip(),
             "sbl": str(props.get("SBL") or "").strip(),
-            "address": str(props.get("ADDRESS") or "").strip(),
+            "address": str(props.get("ADDRESS") or props.get("Address") or "").strip(),
             "addname": str(props.get("ADDNAME") or "").strip(),
             "yearBuilt": props.get("YEARBLT"),
             "sfla": props.get("SFLA"),
@@ -70,10 +71,27 @@ def summarize(label: str, data: dict, parcel_m, transformer) -> dict:
             "intersectionAreaSqMeters": round(intersection_area, 3),
             "buildingOverlapRatio": round(overlap, 5),
             "parcelCoverageRatio": round(parcel_coverage, 5),
-            "centroidDistanceMeters": round(centroid_distance, 3),
+            "areaToParcelRatio": round(area / float(parcel_m.area), 5) if parcel_m.area else None,
+            "centroidDistanceMeters": round(float(candidate.centroid.distance(parcel_m.centroid)), 3),
             "containsParcelCentroid": bool(candidate.covers(parcel_m.centroid)),
+            "properties": props,
         })
-    return {"query": label, "featureCount": len(data.get("features") or []), "candidates": results}
+    return {"source": source, "query": label, "featureCount": len(data.get("features") or []), "candidates": results}
+
+
+def spatial_params(parcel_arcgis: dict, out_fields: str) -> dict:
+    return {
+        "f": "geojson",
+        "where": "1=1",
+        "geometry": json.dumps(parcel_arcgis, separators=(",", ":")),
+        "geometryType": "esriGeometryPolygon",
+        "inSR": "4326",
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": out_fields,
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "resultRecordCount": "100",
+    }
 
 
 def main() -> None:
@@ -95,34 +113,24 @@ def main() -> None:
         "spatialReference": {"wkid": 4326},
     }
 
-    common = {
+    dsm_common = {
         "f": "geojson",
-        "outFields": FIELDS,
+        "outFields": DSM_FIELDS,
         "returnGeometry": "true",
         "outSR": "4326",
         "resultRecordCount": "100",
     }
-    queries = [
-        ("exact-address", {**common, "where": f"ADDRESS='{address.replace(chr(39), chr(39) * 2)}'"}),
-        ("exact-addname", {**common, "where": f"ADDNAME='{address.replace(chr(39), chr(39) * 2)}'"}),
-        ("spatial-intersects", {
-            **common,
-            "where": "1=1",
-            "geometry": json.dumps(parcel_arcgis, separators=(",", ":")),
-            "geometryType": "esriGeometryPolygon",
-            "inSR": "4326",
-            "spatialRel": "esriSpatialRelIntersects",
-        }),
-    ]
-
+    escaped_address = address.replace("'", "''")
     report = {
         "property": evidence.get("property"),
         "parcelAreaSqMeters": round(float(parcel_m.area), 3),
-        "queries": [],
+        "queries": [
+            summarize("DSM_BUILDING_2025", "exact-address", fetch_geojson(DSM_BUILDING_LAYER, {**dsm_common, "where": f"ADDRESS='{escaped_address}'"}), parcel_m, transformer),
+            summarize("DSM_BUILDING_2025", "exact-addname", fetch_geojson(DSM_BUILDING_LAYER, {**dsm_common, "where": f"ADDNAME='{escaped_address}'"}), parcel_m, transformer),
+            summarize("DSM_BUILDING_2025", "spatial-intersects", fetch_geojson(DSM_BUILDING_LAYER, spatial_params(parcel_arcgis, DSM_FIELDS)), parcel_m, transformer),
+            summarize("CPS_BUILDING_FOOTPRINTS", "spatial-intersects", fetch_geojson(CPS_BUILDING_LAYER, spatial_params(parcel_arcgis, "*")), parcel_m, transformer),
+        ],
     }
-    for label, params in queries:
-        report["queries"].append(summarize(label, fetch_geojson(params), parcel_m, transformer))
-
     print(json.dumps(report, indent=2, sort_keys=True))
 
 
