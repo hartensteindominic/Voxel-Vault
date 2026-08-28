@@ -37,9 +37,10 @@ jobs:
         run: python scripts/measure-first-real-erie-lidar-height.py --input /tmp/erie-618-main-lidar-input.json --output /tmp/erie-618-main-height.json
 
       - name: Upload measurement evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: erie-618-main-lidar-height-evidence
           path: /tmp/erie-618-main-height.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
