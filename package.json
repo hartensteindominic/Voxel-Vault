@@ -34,14 +34,15 @@
     "chain:compile": "hardhat compile",
     "chain:test:forge": "hardhat test test/VoxelForgeRevenue.test.js",
     "chain:test:liquidity": "hardhat test test/BaseLiquidityManager.test.js",
-    "chain:test:property": "hardhat test test/PropertyPilot.test.js",
+    "chain:test:property": "hardhat test test/PropertyPilot.test.js test/CanonicalPropertyRegistry.test.js",
     "chain:check:forge-bytecode": "node scripts/check-forge-deploy-bytecode.mjs",
     "chain:check:multipair-bytecode": "node scripts/check-multipair-profit-engine-bytecode.mjs",
     "chain:deploy:sepolia": "hardhat run scripts/deploy-sepolia.js --network sepolia",
     "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet",
     "chain:deploy:base-forge": "hardhat run scripts/deploy-base-forge-revenue.js --network base",
     "chain:deploy:base-liquidity": "hardhat run scripts/deploy-base-liquidity-engine.js --network base",
-    "chain:deploy:property-pilot": "hardhat run scripts/deploy-property-pilot.js --network baseSepolia"
+    "chain:deploy:property-pilot": "hardhat run scripts/deploy-property-pilot.js --network baseSepolia",
+    "chain:deploy:canonical-property-registry": "hardhat run scripts/deploy-canonical-property-registry.js --network baseSepolia"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
