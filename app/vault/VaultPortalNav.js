@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 
 const destinations = [
   { href: '/vault', label: 'MY VAULT', detail: 'Portfolio' },
-  { href: '/vault/estates', label: 'ESTATES', detail: 'Digital Homes' },
-  { href: '/vault/properties', label: 'EARTH', detail: 'Property Twins' },
+  { href: '/vault/earth', label: 'EARTH', detail: 'Real Properties' },
+  { href: '/vault/estates/mine', label: 'TWINS', detail: 'My Backups' },
   { href: '/vault/income', label: 'INCOME', detail: 'Payments' },
   { href: '/vault/acquisitions', label: 'ACQUIRE', detail: 'Research' },
 ];

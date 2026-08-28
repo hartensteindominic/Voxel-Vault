@@ -6,6 +6,7 @@ import { getCatalogItem } from '../../../../lib/catalog';
 import { submitPhysicalFulfillment } from '../../../../lib/fulfillment';
 import { buildVerifiedRewardRecord } from '../../../../lib/rewards/stripeWebhook.js';
 import { persistRewardEvent } from '../../../../lib/rewards/persistence.js';
+import { secureStripeDigitalEstatePurchase } from '../../../../lib/digital-estate-purchases';
 
 const WALLET_RE = /^0x[a-f0-9]{40}$/;
 type ShippingDetails = {
@@ -39,9 +40,16 @@ export async function POST(request: Request) {
     if (eventError) throw eventError;
     eventRecorded = true;
     await supabaseAdmin.from('stripe_events').upsert({ id: event.id, type: event.type, livemode: Boolean(event.livemode) }, { onConflict: 'id', ignoreDuplicates: true });
+
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       const session = event.data.object as CheckoutSessionWithShipping;
       if (session.payment_status !== 'paid') return NextResponse.json({ received: true });
+
+      if (session.metadata?.kind === 'digital_estate') {
+        const secured = await secureStripeDigitalEstatePurchase({ session });
+        console.info('Digital Estate secured from signed Stripe webhook', { estateId: secured.estate.id, buyerId: secured.buyerId, sessionId: session.id });
+        return NextResponse.json({ received: true, digitalEstateSecured: true });
+      }
 
       if (session.metadata?.mint_mode === 'physical_nft') {
         const wallet = session.metadata?.wallet?.toLowerCase();
@@ -111,8 +119,6 @@ export async function POST(request: Request) {
             if (fulfillmentTimelineError) throw fulfillmentTimelineError;
           } catch (fulfillmentError) {
             console.error('VoxelVault physical fulfillment submission failed', fulfillmentError);
-            // Stripe retries the signed webhook. The provider adapter uses the
-            // durable Voxel Vault order ID as its idempotency key where supported.
             throw fulfillmentError;
           }
         }
@@ -133,6 +139,7 @@ export async function POST(request: Request) {
         if (entitlementError) throw entitlementError;
       }
     }
+
     if (event.type === 'charge.refunded') {
       const charge = event.data.object as Stripe.Charge;
       const paymentIntent = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;

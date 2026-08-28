@@ -22,12 +22,12 @@ function decode(estateId: string, row: any): EstateReservation | null {
   if (!row) return null;
   try {
     const parsed = JSON.parse(String(row.event_type || ''));
-    if (!parsed?.state || !parsed?.buyerId || !parsed?.wallet) return null;
+    if (!parsed?.state || !parsed?.buyerId || parsed?.wallet === undefined || parsed?.wallet === null) return null;
     return {
       estateId,
       state: parsed.state,
       buyerId: String(parsed.buyerId),
-      wallet: String(parsed.wallet).toLowerCase(),
+      wallet: String(parsed.wallet || '').toLowerCase(),
       source: String(parsed.source || ''),
       sourceId: parsed.sourceId ? String(parsed.sourceId) : undefined,
       processedAt: String(row.processed_at || ''),
@@ -43,9 +43,6 @@ function isPermanent(state: EstateReservationState) {
 
 function isExpired(reservation: EstateReservation) {
   if (isPermanent(reservation.state)) return false;
-  // A Stripe checkout hold is resolved by asking Stripe whether its Checkout
-  // Session is open, expired, or paid. Never delete it based on a local timer,
-  // because a successfully paid buyer might close the browser before minting.
   if (reservation.state === 'checkout') return false;
   const stamp = Date.parse(reservation.processedAt || '');
   return !Number.isFinite(stamp) || Date.now() - stamp > HOLD_MINUTES * 60_000;
@@ -66,16 +63,16 @@ export async function readDigitalEstateReservation(estateId: string) {
 export async function acquireDigitalEstateReservation({
   estateId,
   buyerId,
-  wallet,
+  wallet = '',
   source,
 }: {
   estateId: string;
   buyerId: string;
-  wallet: string;
+  wallet?: string;
   source: string;
 }) {
   const supabase = getSupabaseAdmin();
-  const normalizedWallet = wallet.toLowerCase();
+  const normalizedWallet = String(wallet || '').toLowerCase();
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const existing = await readDigitalEstateReservation(estateId);
@@ -133,21 +130,22 @@ export async function acquireDigitalEstateReservation({
 export async function updateDigitalEstateReservation({
   estateId,
   buyerId,
-  wallet,
+  wallet = '',
   state,
   source,
   sourceId,
 }: {
   estateId: string;
   buyerId: string;
-  wallet: string;
+  wallet?: string;
   state: EstateReservationState;
   source: string;
   sourceId?: string;
 }) {
   const current = await readDigitalEstateReservation(estateId);
+  const normalizedWallet = String(wallet || '').toLowerCase();
   if (!current) throw new Error('Digital estate reservation is missing.');
-  if (current.buyerId !== buyerId || current.wallet !== wallet.toLowerCase()) {
+  if (current.buyerId !== buyerId || current.wallet !== normalizedWallet) {
     throw new Error('Digital estate reservation belongs to another buyer or wallet.');
   }
   if (isPermanent(current.state) && current.state !== state) {
@@ -155,7 +153,7 @@ export async function updateDigitalEstateReservation({
   }
 
   const supabase = getSupabaseAdmin();
-  const payload = { state, buyerId, wallet: wallet.toLowerCase(), source, ...(sourceId ? { sourceId } : {}) };
+  const payload = { state, buyerId, wallet: normalizedWallet, source, ...(sourceId ? { sourceId } : {}) };
   const previous = encode({
     state: current.state,
     buyerId: current.buyerId,
@@ -176,10 +174,59 @@ export async function updateDigitalEstateReservation({
   return { estateId, ...payload };
 }
 
-export async function releaseDigitalEstateReservation({ estateId, buyerId, wallet }: { estateId: string; buyerId: string; wallet: string }) {
+export async function bindDigitalEstateReservationWallet({
+  estateId,
+  buyerId,
+  wallet,
+}: {
+  estateId: string;
+  buyerId: string;
+  wallet: string;
+}) {
+  const normalizedWallet = String(wallet || '').toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(normalizedWallet)) throw new Error('A valid EVM wallet is required.');
   const current = await readDigitalEstateReservation(estateId);
+  if (!current || current.buyerId !== buyerId || !isPermanent(current.state)) {
+    throw new Error('Only the owner of a secured purchase can bind its mint wallet.');
+  }
+  if (current.wallet) {
+    if (current.wallet !== normalizedWallet) throw new Error('This purchase is already bound to a different wallet.');
+    return current;
+  }
+
+  const previous = encode({
+    state: current.state,
+    buyerId: current.buyerId,
+    wallet: current.wallet,
+    source: current.source,
+    ...(current.sourceId ? { sourceId: current.sourceId } : {}),
+  });
+  const next = encode({
+    state: current.state,
+    buyerId: current.buyerId,
+    wallet: normalizedWallet,
+    source: current.source,
+    ...(current.sourceId ? { sourceId: current.sourceId } : {}),
+  });
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('commerce_webhook_events')
+    .update({ event_type: next, processed_at: new Date().toISOString() })
+    .eq('provider', PROVIDER)
+    .eq('event_id', estateId)
+    .eq('event_type', previous)
+    .select('event_id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Digital estate wallet binding changed concurrently.');
+  return { ...current, wallet: normalizedWallet };
+}
+
+export async function releaseDigitalEstateReservation({ estateId, buyerId, wallet = '' }: { estateId: string; buyerId: string; wallet?: string }) {
+  const current = await readDigitalEstateReservation(estateId);
+  const normalizedWallet = String(wallet || '').toLowerCase();
   if (!current || isPermanent(current.state)) return false;
-  if (current.buyerId !== buyerId || current.wallet !== wallet.toLowerCase()) return false;
+  if (current.buyerId !== buyerId || current.wallet !== normalizedWallet) return false;
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
     .from('commerce_webhook_events')
