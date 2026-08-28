@@ -7,6 +7,7 @@ import {
 } from '../lib/world-stewardship.js';
 
 const atlas = fs.readFileSync(new URL('../lib/world-atlas.js', import.meta.url), 'utf8');
+const overture = fs.readFileSync(new URL('../lib/overture-building-tiles.js', import.meta.url), 'utf8');
 const inspectRoute = fs.readFileSync(new URL('../app/api/world-atlas/inspect/route.ts', import.meta.url), 'utf8');
 const quoteRoute = fs.readFileSync(new URL('../app/api/world-atlas/stewardship/quote/route.ts', import.meta.url), 'utf8');
 const meshRoute = fs.readFileSync(new URL('../app/api/world-atlas/mesh/route.ts', import.meta.url), 'utf8');
@@ -43,7 +44,7 @@ const regionB = worldStewardshipRegionId(42.913, -78.813);
 assert.ok(regionA.startsWith('atlas:0.05:'), 'regional anti-concentration grid must be deterministic and explicit');
 assert.equal(regionA, regionB, 'nearby points clearly inside the same grid cell should share the same concentration region');
 
-assert.match(atlas, /WORLD_ATLAS_DATA_RELEASE = '2026-07-22\.0'/, 'world atlas should pin the reviewed Overture release');
+assert.match(overture, /DEFAULT_RELEASE = '2026-07-22\.0'/, 'world atlas should pin the reviewed Overture release');
 assert.match(atlas, /progressive-region-streaming/, 'world atlas must stream regions rather than download the planet into the browser');
 assert.match(atlas, /does not download the whole planet into the browser/i);
 assert.match(atlas, /targetPolycount:\s*30_000/, 'Meshy hero policy should use the balanced 30k target');
@@ -51,9 +52,12 @@ assert.match(atlas, /textureResolution:\s*'2k'/, 'Meshy hero policy should use a
 assert.match(atlas, /automaticGeneration:\s*false/, 'world browsing must not automatically spend Meshy credits');
 assert.match(atlas, /geocodeGeoAddress/, 'text address searches must be able to enter the world atlas without a listing provider');
 assert.match(atlas, /createsExclusiveMapDataOwnership:\s*false/, 'displaying world data must not create source-data monopoly rights');
+assert.match(atlas, /fetchOvertureBuildingNeighborhood/, 'Overture building tiles must be the live atlas path');
+assert.match(atlas, /osm-overpass-fallback/, 'Overpass must remain a fallback rather than a single point of failure');
 
 assert.match(inspectRoute, /inspectWorldAtlas/, 'world atlas must have a real inspection API');
-assert.match(quoteRoute, /quoteWorldStewardship/, 'stewardship quote must be server-derived');
+assert.match(inspectRoute, /maxDuration = 30/, 'global tile lookup should have a bounded server runtime window');
+assert.match(quoteRoute, /quoteWorldStewardship/, 'stewardship quote must remain server-derived');
 
 assert.match(meshRoute, /requireVoxelVaultAdmin/, 'paid Meshy world generation must be owner/admin controlled');
 assert.match(meshRoute, /MESHY_API_KEY/, 'Meshy key must stay server-side');
@@ -64,6 +68,7 @@ for (const blockedHostToken of ['google\\.com', 'zillow\\.com', 'redfin\\.com', 
 }
 assert.match(meshRoute, /BLOCKED_REFERENCE_HOSTS\.test\(host\)/, 'Meshy route must enforce the blocked-host regex before accepting references');
 assert.match(meshRoute, /persistModelBinary/, 'completed Meshy GLBs should be cached into Voxel Vault storage');
+assert.match(meshRoute, /createModelSignedUrl/, 'cached private Meshy GLBs must be viewable through expiring signed URLs');
 
 assert.match(page, /WORLD BUILDING ATLAS/, 'Earth UI must expose the map-building atlas separately from listings');
 assert.match(page, /ANTI-MONOPOLY STEWARDSHIP/, 'Earth UI must explain anti-concentration economics');
@@ -75,10 +80,12 @@ assert.match(page, /MESHY · THE PERFECT AMOUNT/, 'Earth UI should expose the se
 assert.match(page, /atlasBuildings=\{atlasBuildings\}/, 'atlas buildings must actually be passed into the globe');
 assert.match(page, /onAtlasSelect=\{setSelectedAtlasId\}/, 'globe atlas markers must be selectable');
 assert.match(page, /GeoReferenceModel/, 'selected world buildings should use the real GEO voxel renderer');
+assert.match(page, /MeshyHeroPanel/, 'selected buildings must expose the controlled Meshy hero workflow');
 
 assert.match(globe, /atlasId/, 'globe must render source-backed atlas building markers');
 assert.match(globe, /onAtlasSelectRef/, 'atlas marker taps must be handled separately from listing markers');
-assert.match(globe, /1\.25/, 'world globe should retain a mobile-conscious pixel-ratio cap');
+assert.match(globe, /compact \? 1\.18 : 1\.35/, 'world globe should retain a strict compact pixel-ratio cap');
 assert.match(globe, /time - lastRender < 33/, 'compact world globe should cap dense rendering near 30fps');
+assert.match(globe, /prefers-reduced-motion/, 'world globe must respect reduced motion');
 
-console.log('World atlas stewardship checks passed: progressive real-map coverage, selective cached Meshy hero generation, linear anti-concentration pricing, hard regional caps, no owner exemption, and no false physical/map ownership claims.');
+console.log('World atlas stewardship checks passed: Overture-first progressive coverage with fallback, selective cached Meshy hero generation, linear anti-concentration pricing, hard regional caps, no owner exemption, and no false physical/map ownership claims.');
