@@ -1,0 +1,29 @@
+name: First real Erie derived envelope height probe
+
+on:
+  push:
+    branches:
+      - erie-618-main-derived-envelope-height
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install LiDAR dependencies
+        run: python -m pip install "laspy>=2.5,<3" "numpy>=2,<3" "shapely>=2,<3" "pyproj>=3.6,<4"
+
+      - name: Probe parcel-clipped envelope against authoritative LAS
+        run: python scripts/probe-618-main-derived-envelope-height.py
