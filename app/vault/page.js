@@ -89,6 +89,10 @@ function positivePositions(snapshot) {
   return (Array.isArray(snapshot?.portfolio) ? snapshot.portfolio : []).filter((position) => Number(position?.amount || 0) > 0);
 }
 
+function emptyReitState(mode = 'signed-out') {
+  return { mode, snapshot: null, error: '', bound: false, setupRequired: false };
+}
+
 export default function VaultPage() {
   const { address, connected, connect } = useWalletIdentity();
   const [walletState, setWalletState] = useState({ mode: 'idle', items: [] });
@@ -99,13 +103,11 @@ export default function VaultPage() {
   const [accountStatus, setAccountStatus] = useState('');
   const [accountSynced, setAccountSynced] = useState(false);
   const accountClient = useRef(null);
-  const [reitState, setReitState] = useState({ mode: 'signed-out', snapshot: null, error: '' });
+  const [reitState, setReitState] = useState(() => emptyReitState());
 
   const shortWallet = useMemo(() => address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '', [address]);
   const myVoxels = useMemo(() => voxelRecords.map(summarizeVoxel).filter((voxel) => voxel.image), [voxelRecords]);
-  const reitPositions = useMemo(() => positivePositions(reitState.snapshot), [reitState.snapshot]);
-  const providerBound = reitState.snapshot?.bound === true;
-  const bindingSuffix = String(reitState.snapshot?.binding?.accountSuffix || '');
+  const reitPositions = useMemo(() => reitState.bound ? positivePositions(reitState.snapshot) : [], [reitState.bound, reitState.snapshot]);
 
   const manifest = useMemo(() => buildVaultManifest({
     creations: myVoxels,
@@ -115,6 +117,7 @@ export default function VaultPage() {
     walletAddress: address,
     provider: reitState.snapshot?.provider || 'Dinari',
     providerEnvironment: reitState.snapshot?.environment || 'sandbox',
+    providerAccountScope: 'user-bound',
   }), [myVoxels, walletState.items, reitPositions, accountSynced, address, reitState.snapshot?.provider, reitState.snapshot?.environment]);
   const summary = useMemo(() => summarizeVaultManifest(manifest), [manifest]);
 
@@ -133,10 +136,9 @@ export default function VaultPage() {
     }
   }
 
-  async function refreshReits(accessToken = '') {
-    const token = String(accessToken || '').trim();
-    if (!token) {
-      setReitState({ mode: 'signed-out', snapshot: null, error: '' });
+  async function refreshReits(accessToken) {
+    if (!accessToken) {
+      setReitState(emptyReitState('signed-out'));
       return;
     }
 
@@ -144,13 +146,25 @@ export default function VaultPage() {
     try {
       const response = await fetch('/api/vault/digital-reits', {
         cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       const snapshot = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(snapshot?.error || 'Could not read your user-bound Digital REIT provider snapshot.');
-      setReitState({ mode: 'ready', snapshot, error: '' });
+      if (!response.ok || snapshot?.ok === false) throw new Error(snapshot?.error || 'Could not read your user-bound Digital REIT provider snapshot.');
+      setReitState({
+        mode: 'ready',
+        snapshot,
+        error: '',
+        bound: snapshot?.bound === true,
+        setupRequired: snapshot?.setupRequired === true,
+      });
     } catch (error) {
-      setReitState({ mode: 'error', snapshot: null, error: error?.message || 'Could not read your user-bound Digital REIT provider snapshot.' });
+      setReitState({
+        mode: 'error',
+        snapshot: null,
+        error: error?.message || 'Could not read your user-bound Digital REIT provider snapshot.',
+        bound: false,
+        setupRequired: false,
+      });
     }
   }
 
@@ -183,10 +197,11 @@ export default function VaultPage() {
       if (!next?.user) {
         setAccountSynced(false);
         setVoxelRecords((current) => mergeVoxelRecords(current, local));
-        setReitState({ mode: 'signed-out', snapshot: null, error: '' });
+        setReitState(emptyReitState('signed-out'));
         return;
       }
 
+      refreshReits(next.access_token || '');
       setAccountBusy(true);
       try {
         const cloud = await syncLocalVoxelsToAccount(client, next.user);
@@ -205,8 +220,6 @@ export default function VaultPage() {
       } finally {
         if (active) setAccountBusy(false);
       }
-
-      if (active) await refreshReits(next.access_token || '');
     }
 
     getSupabaseBrowserAsync().then(async (client) => {
@@ -232,11 +245,11 @@ export default function VaultPage() {
       const local = readLocalVoxelsWithMints();
       setVoxelRecords((current) => mergeVoxelRecords(current, local));
       if (session?.user && accountClient.current) {
+        refreshReits(session.access_token || '');
         try {
           const cloud = await syncLocalVoxelsToAccount(accountClient.current, session.user);
           setVoxelRecords(mergeVoxelRecords(cloud, readLocalVoxelsWithMints()));
           setAccountSynced(true);
-          await refreshReits(session.access_token || '');
         } catch {}
       }
     };
@@ -274,15 +287,23 @@ export default function VaultPage() {
       if (error) throw error;
       setSession(null);
       setAccountSynced(false);
+      setReitState(emptyReitState('signed-out'));
       setVoxelRecords(readLocalVoxelsWithMints());
-      setReitState({ mode: 'signed-out', snapshot: null, error: '' });
-      setAccountStatus('Signed out of Google. Browser-local creations are still visible on this device.');
+      setAccountStatus('Signed out of Google. Browser-local creations are still visible on this device; personal provider holdings are hidden.');
     } catch (error) {
       setAccountStatus(error instanceof Error ? error.message : 'Could not sign out.');
     } finally {
       setAccountBusy(false);
     }
   }
+
+  const personalReitNote = !session?.user
+    ? 'Google sign-in required'
+    : reitState.bound
+      ? `${reitState.snapshot?.provider || 'Dinari'} ${String(reitState.snapshot?.environment || 'sandbox').toUpperCase()} · user bound`
+      : reitState.setupRequired
+        ? 'Binding storage setup required'
+        : 'No provider account bound';
 
   return (
     <main className="min-h-screen bg-[#05060c] text-white px-4 py-5 md:px-8 md:py-8">
@@ -303,18 +324,14 @@ export default function VaultPage() {
           <div className="text-[10px] tracking-[.28em] font-black text-white/45">MY VAULT · ONE SPATIAL ASSET HOME</div>
           <h1 className="text-5xl md:text-8xl font-black tracking-[-.075em] leading-[.86] mt-4">Everything you can prove,<br /><span className="text-white/45">in one Vault.</span></h1>
           <p className="text-base md:text-lg text-white/55 leading-7 max-w-3xl mt-7">
-            Your Creator Gallery, wallet-verified collectibles and user-bound provider positions share one spatial home—without pretending those asset types are legally the same thing.
+            Your Creator Gallery, wallet-verified collectibles and user-bound provider positions can share one spatial home—without pretending those asset types are legally the same thing.
           </p>
         </header>
 
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
           <TruthStat label="CREATOR GALLERY" value={summary.creations} note={accountSynced ? 'Google-synced + browser' : 'This browser'} />
           <TruthStat label="WALLET COLLECTION" value={connected ? summary.collectibles : '—'} note={connected ? `${shortWallet} · ownerOf checked` : 'Wallet optional'} />
-          <TruthStat
-            label="DIGITAL REITS"
-            value={reitState.mode === 'ready' ? summary.digitalReits : '—'}
-            note={!session?.user ? 'Google sign-in required' : providerBound ? `${reitState.snapshot?.provider || 'Dinari'} ${String(reitState.snapshot?.environment || 'sandbox').toUpperCase()} · user-bound` : 'No verified provider binding'}
-          />
+          <TruthStat label="DIGITAL REITS" value={session?.user && reitState.mode === 'ready' ? summary.digitalReits : '—'} note={personalReitNote} />
           <TruthStat label="DIRECT PROPERTY" value="LOCKED" note="No deed claim in My Vault" />
         </section>
 
@@ -322,7 +339,7 @@ export default function VaultPage() {
 
         <section className="mt-5 grid md:grid-cols-3 gap-3">
           <TruthCard title="Creator asset" copy="A paid/3D/minted creation from VoxelPop. It can be yours as a digital asset without being a financial security or property interest." />
-          <TruthCard title="Digital REIT / dShare" copy="A security position is admitted to My Vault only when the signed-in Voxel Vault user has a verified provider-account binding and that provider account reports a positive holding." />
+          <TruthCard title="Digital REIT / dShare" copy="A security position appears here only when the signed-in identity has a verified server-side provider-account binding and the provider reports a positive balance. It is not a deed." />
           <TruthCard title="Direct property" copy="The property wing stays locked until holder identity, legal entity rights, title, compliance and verified property-interest records can be bound correctly." />
         </section>
 
@@ -409,50 +426,45 @@ export default function VaultPage() {
         </section>
 
         <section id="digital-reits" className="mt-20 scroll-mt-8">
-          <SectionHeading
-            eyebrow="WING 03 · DIGITAL REIT DISTRICT"
-            title="Provider-reported real-estate exposure."
-            copy="This wing is now identity-bound. Voxel Vault withholds all provider holdings until the signed-in Google user has a verified server-side provider-account binding; only then can positive positions from that exact account become buildings in My Vault."
-          />
+          <SectionHeading eyebrow="WING 03 · DIGITAL REIT DISTRICT" title="Your provider-bound real-estate exposure." copy="This personal wing is fail-closed. A position appears only after Google/Supabase verifies the Voxel Vault identity, the server finds a verified provider-account binding for that same user, and Dinari reports a positive position from that bound account." />
           <div className="flex items-center gap-3 flex-wrap mb-6">
-            {session?.user ? (
-              <span className="rounded-full border border-lime-200/20 bg-lime-200/10 px-4 py-2 text-xs font-bold">
-                {providerBound
-                  ? `${reitState.snapshot?.provider || 'DINARI'} · ${String(reitState.snapshot?.environment || 'sandbox').toUpperCase()} · USER-BOUND${bindingSuffix ? ` · …${bindingSuffix}` : ''}`
-                  : 'SIGNED IN · NO VERIFIED PROVIDER BINDING'}
-              </span>
-            ) : (
-              <button onClick={signInGoogle} disabled={accountBusy} className="rounded-full bg-lime-200 text-slate-950 px-5 py-2.5 text-xs font-black disabled:opacity-40">
-                {accountBusy ? 'CONNECTING…' : 'SIGN IN TO LOAD YOUR PROVIDER HOLDINGS'}
-              </button>
-            )}
-            <button
-              onClick={() => refreshReits(session?.access_token || '')}
-              disabled={!session?.access_token || reitState.mode === 'loading'}
-              className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 disabled:opacity-40"
-            >
-              {reitState.mode === 'loading' ? 'REFRESHING…' : 'Refresh my provider account'}
-            </button>
-            <Link href="/real-estate/reits" className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 no-underline">Open Digital REIT Vault →</Link>
+            <span className="rounded-full border border-lime-200/20 bg-lime-200/10 px-4 py-2 text-xs font-bold">
+              {!session?.user
+                ? 'GOOGLE SIGN-IN REQUIRED · PERSONAL HOLDINGS HIDDEN'
+                : reitState.bound
+                  ? `${reitState.snapshot?.provider || 'DINARI'} · ${String(reitState.snapshot?.environment || 'sandbox').toUpperCase()} · USER-BOUND PROVIDER ACCOUNT`
+                  : 'NO VERIFIED USER-BOUND PROVIDER ACCOUNT'}
+            </span>
+            {session?.user ? <button onClick={() => refreshReits(session.access_token || '')} disabled={reitState.mode === 'loading'} className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 disabled:opacity-40">{reitState.mode === 'loading' ? 'REFRESHING…' : 'Refresh personal provider'}</button> : null}
+            <Link href="/real-estate/reits" className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 no-underline">Open Digital REIT pilot →</Link>
           </div>
 
           {reitState.error ? <div role="alert" className="mb-5 rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-100">{reitState.error}</div> : null}
+          {Array.isArray(reitState.snapshot?.errors) && reitState.snapshot.errors.length ? <div className="mb-5 rounded-2xl border border-amber-300/20 bg-amber-300/[.06] p-4 text-sm text-amber-100/80">{reitState.snapshot.errors.join(' · ')}</div> : null}
           {reitState.mode === 'loading' ? <LoadingGrid /> : null}
-          {reitState.mode === 'signed-out' ? (
-            <EmptyState icon="▥" title="Sign in before provider holdings enter My Vault." copy="Voxel Vault no longer reads the global pilot brokerage account into this personal Vault. A signed-in identity and verified provider-account binding are required first." />
+
+          {!session?.user ? (
+            <div className="rounded-[28px] border border-dashed border-lime-200/15 bg-lime-200/[.025] p-8 text-center">
+              <div className="text-4xl text-lime-100/45">▥</div>
+              <h3 className="text-xl font-bold mt-3">Sign in before My Vault loads personal securities.</h3>
+              <p className="text-sm leading-6 text-white/45 max-w-xl mx-auto mt-2">The public Digital REIT pilot may show the configured test account, but My Vault will never attribute that global account to you. Sign in so the server can check for your own verified provider binding.</p>
+              <button onClick={signInGoogle} disabled={accountBusy} className="inline-flex mt-5 rounded-full bg-white text-black px-5 py-2.5 text-xs font-black disabled:opacity-40">{accountBusy ? 'CONNECTING…' : 'Sign in with Google'}</button>
+            </div>
           ) : null}
-          {reitState.mode === 'ready' && !providerBound ? (
+
+          {session?.user && reitState.mode === 'ready' && !reitState.bound ? (
             <EmptyState
               icon="▥"
-              title={reitState.snapshot?.setupRequired ? 'Provider identity binding storage still needs setup.' : 'No verified provider account is bound to this Voxel Vault user.'}
-              copy={reitState.snapshot?.setupRequired
-                ? 'Apply the provider-account binding migration, then use the protected Dinari sandbox onboarding flow to bind the PASSed account. Until then, Voxel Vault intentionally shows zero attributed provider holdings.'
-                : 'Complete or recover the protected sandbox onboarding flow. Voxel Vault will not reuse the owner pilot balance or let the browser claim an arbitrary provider account.'}
-              href="/admin/digital-reits"
-              action="Open protected onboarding"
+              title="No provider account is bound to this Voxel Vault identity."
+              copy={reitState.setupRequired
+                ? 'Provider identity-binding storage is not installed in Supabase yet. My Vault is deliberately showing zero personal provider holdings until migration 014 is applied and the verified account is bound.'
+                : 'My Vault is deliberately withholding provider holdings rather than displaying the global pilot account as yours. A verified server-side user/provider binding must exist first.'}
+              href="/real-estate/reits"
+              action="Open the sandbox pilot"
             />
           ) : null}
-          {reitState.mode === 'ready' && providerBound && reitPositions.length ? (
+
+          {session?.user && reitState.mode === 'ready' && reitState.bound && reitPositions.length ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {reitPositions.map((position, index) => (
                 <article key={position.stockId || `${position.symbol}-${index}`} className="rounded-3xl border border-lime-200/15 bg-lime-200/[.035] p-5">
@@ -463,13 +475,14 @@ export default function VaultPage() {
                     <div className="text-[9px] tracking-[.14em] font-black text-white/35">POSITION</div>
                     <div className="text-xl font-bold mt-1">{Number(position.amount || 0).toFixed(6)} units</div>
                   </div>
-                  <p className="text-[11px] leading-5 text-white/40 mt-4">Provider security position · bound to this signed-in user · not a deed · not direct ownership of a specific property.</p>
+                  <p className="text-[11px] leading-5 text-white/40 mt-4">Bound provider security position · not a deed · not direct ownership of a specific property.</p>
                 </article>
               ))}
             </div>
           ) : null}
-          {reitState.mode === 'ready' && providerBound && !reitPositions.length ? (
-            <EmptyState icon="▥" title="Your bound provider account currently reports no positive Digital REIT position." copy="The identity binding is verified, but Voxel Vault will not light up a building until that exact provider account reports a positive holding." href="/real-estate/reits" action="Open Digital REIT Vault" />
+
+          {session?.user && reitState.mode === 'ready' && reitState.bound && !reitPositions.length ? (
+            <EmptyState icon="▥" title="Your bound provider account reports no positive Digital REIT position yet." copy="The identity link is verified, but Voxel Vault will not light up a REIT building until Dinari actually reports a positive position for that exact bound account." href="/real-estate/reits" action="Open the sandbox pilot" />
           ) : null}
         </section>
 
@@ -498,7 +511,7 @@ export default function VaultPage() {
 
         <footer className="border-t border-white/10 pt-7 pb-8 flex justify-between gap-6 flex-wrap text-[11px] leading-5 text-white/35">
           <div><b className="text-white/60">Voxel Vault · My Vault</b><br />One interface, separate legal/source truth for every asset class.</div>
-          <div className="max-w-xl">Digital REIT holdings are admitted only from a user-bound provider account. Direct-property investing, automatic acquisition/reinvestment and mainnet property-token issuance remain outside this unified display until their production gates are satisfied.</div>
+          <div className="max-w-xl">Personal Digital REIT holdings require a verified user/provider binding and remain read-only here. Direct-property investing, automatic acquisition/reinvestment and mainnet property-token issuance remain outside this unified display until their production gates are satisfied.</div>
         </footer>
       </section>
     </main>
