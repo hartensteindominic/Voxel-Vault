@@ -23,11 +23,16 @@ function shellCard(extra = {}) {
   };
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function DigitalReitDashboard({ snapshot }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState('');
   const [funding, setFunding] = useState(false);
   const [message, setMessage] = useState('');
+  const [reconciliation, setReconciliation] = useState(null);
 
   const portfolioBySymbol = new Map((snapshot.portfolio || []).map((position) => [position.symbol, position]));
   const paidDividends = (snapshot.dividends || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -53,13 +58,49 @@ export default function DigitalReitDashboard({ snapshot }) {
     }
   }
 
+  async function readProviderReconciliation({ asset, previousAmount, orderId, attempts = 1 }) {
+    let last = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const response = await fetch('/api/digital-reits/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stockId: asset.id,
+          symbol: asset.symbol,
+          previousAmount,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Provider reconciliation failed.');
+
+      last = payload.reconciliation;
+      setReconciliation({
+        ...last,
+        orderId,
+        phase: last.confirmed ? 'confirmed' : 'checking',
+        attempt,
+        attempts,
+      });
+
+      if (last.confirmed) return last;
+      if (attempt < attempts) await wait(1250);
+    }
+
+    return last;
+  }
+
   async function sandboxBuy(asset, amount) {
     if (!snapshot.sandboxTradingEnabled || busyId || funding) return;
     const accepted = window.confirm(`Place a $${amount} Dinari SANDBOX market buy for ${asset.symbol}? This uses test funds only.`);
     if (!accepted) return;
 
+    const previousAmount = Number(portfolioBySymbol.get(asset.symbol)?.amount || 0);
     setBusyId(asset.id);
     setMessage('');
+    setReconciliation(null);
+
+    let orderId = 'created';
     try {
       const response = await fetch('/api/digital-reits/sandbox-buy', {
         method: 'POST',
@@ -68,15 +109,81 @@ export default function DigitalReitDashboard({ snapshot }) {
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || 'Sandbox order failed.');
-      const orderId = payload.order?.id || payload.order?.order_request_id || 'created';
-      setMessage(`Sandbox order ${orderId} submitted. Refreshing provider balances…`);
-      router.refresh();
+      orderId = payload.order?.id || payload.order?.order_request_id || 'created';
     } catch (error) {
       setMessage(error?.message || 'Sandbox order failed.');
+      setBusyId('');
+      return;
+    }
+
+    setMessage(`Sandbox order ${orderId} was accepted. Waiting for Dinari's provider portfolio to show the resulting position…`);
+    setReconciliation({
+      stockId: asset.id,
+      symbol: asset.symbol,
+      previousAmount,
+      currentAmount: previousAmount,
+      increase: 0,
+      confirmed: false,
+      orderId,
+      phase: 'checking',
+      attempt: 0,
+      attempts: 6,
+    });
+
+    try {
+      const result = await readProviderReconciliation({ asset, previousAmount, orderId, attempts: 6 });
+      if (result?.confirmed) {
+        setMessage(`Provider confirmed ${asset.symbol}: position increased by ${Number(result.increase).toFixed(6)} dShare units. The spatial Vault can now treat it as held.`);
+        router.refresh();
+      } else {
+        setReconciliation((current) => current ? { ...current, phase: 'pending' } : current);
+        setMessage(`Sandbox order ${orderId} was accepted, but the provider position has not appeared yet. Voxel Vault is not marking it owned until Dinari reports the increase.`);
+        router.refresh();
+      }
+    } catch (error) {
+      setReconciliation((current) => current ? { ...current, phase: 'unverified' } : current);
+      setMessage(`Sandbox order ${orderId} was accepted, but the provider verification read failed: ${error?.message || 'unknown provider error'}. Ownership remains unconfirmed.`);
+      router.refresh();
     } finally {
       setBusyId('');
     }
   }
+
+  async function checkAgain() {
+    if (!reconciliation || reconciliation.confirmed || busyId || funding) return;
+
+    const asset = { id: reconciliation.stockId, symbol: reconciliation.symbol };
+    setBusyId(reconciliation.stockId);
+    setMessage(`Checking Dinari again for the ${reconciliation.symbol} position…`);
+    setReconciliation((current) => current ? { ...current, phase: 'checking', attempt: 0, attempts: 1 } : current);
+
+    try {
+      const result = await readProviderReconciliation({
+        asset,
+        previousAmount: reconciliation.previousAmount,
+        orderId: reconciliation.orderId,
+        attempts: 1,
+      });
+      if (result?.confirmed) {
+        setMessage(`Provider confirmed ${reconciliation.symbol}: position increased by ${Number(result.increase).toFixed(6)} dShare units. The spatial Vault can now treat it as held.`);
+      } else {
+        setReconciliation((current) => current ? { ...current, phase: 'pending' } : current);
+        setMessage(`Dinari still does not report a larger ${reconciliation.symbol} position. Voxel Vault will keep ownership unconfirmed.`);
+      }
+      router.refresh();
+    } catch (error) {
+      setReconciliation((current) => current ? { ...current, phase: 'unverified' } : current);
+      setMessage(`Provider verification is unavailable: ${error?.message || 'unknown provider error'}. Ownership remains unconfirmed.`);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  const reconciliationBorder = reconciliation?.confirmed
+    ? '#5b7940'
+    : reconciliation?.phase === 'checking'
+      ? '#536341'
+      : '#745a3b';
 
   return (
     <div style={{display:'grid',gap:20}}>
@@ -110,6 +217,38 @@ export default function DigitalReitDashboard({ snapshot }) {
 
       {message ? <div style={{...shellCard(),borderColor:'#637a47',color:'#d9f5b1',fontSize:13}}>{message}</div> : null}
 
+      {reconciliation ? (
+        <section style={shellCard({borderColor:reconciliationBorder,padding:24})}>
+          <div style={label}>PROVIDER RECONCILIATION</div>
+          <h3 style={{fontSize:24,letterSpacing:'-.04em',margin:'7px 0 6px'}}>
+            {reconciliation.confirmed
+              ? `${reconciliation.symbol} position confirmed.`
+              : reconciliation.phase === 'checking'
+                ? 'Waiting for the provider position…'
+                : 'Order accepted; ownership still unconfirmed.'}
+          </h3>
+          <p style={{...copy,margin:'0 0 14px'}}>
+            Voxel Vault compares the provider-reported quantity after the order with the quantity immediately before it. A submitted order alone never lights up the asset as owned.
+          </p>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:8}}>
+            <div style={mini}><span style={label}>ORDER</span><b style={{overflowWrap:'anywhere'}}>{reconciliation.orderId}</b></div>
+            <div style={mini}><span style={label}>BEFORE</span><b>{Number(reconciliation.previousAmount || 0).toFixed(6)}</b></div>
+            <div style={mini}><span style={label}>PROVIDER NOW</span><b>{Number(reconciliation.currentAmount || 0).toFixed(6)}</b></div>
+            <div style={mini}><span style={label}>CONFIRMED INCREASE</span><b>{Number(reconciliation.increase || 0).toFixed(6)}</b></div>
+          </div>
+          {!reconciliation.confirmed && reconciliation.phase !== 'checking' ? (
+            <button
+              type="button"
+              onClick={checkAgain}
+              disabled={Boolean(busyId) || funding}
+              style={{...buyButton,width:'auto',minWidth:190,opacity:(busyId || funding) ? .42 : 1,cursor:(busyId || funding) ? 'not-allowed':'pointer'}}
+            >
+              CHECK PROVIDER AGAIN
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
       {!snapshot.credentialsConfigured ? (
         <section style={shellCard({padding:28})}>
           <div style={label}>CONNECTION REQUIRED</div>
@@ -126,8 +265,8 @@ export default function DigitalReitDashboard({ snapshot }) {
           <div style={label}>SANDBOX TEST WALLET</div>
           <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:18,alignItems:'center',marginTop:8}}>
             <div>
-              <h2 style={{fontSize:26,letterSpacing:'-.045em',margin:'0 0 6px'}}>Fund → buy → verify holding.</h2>
-              <p style={{...copy,margin:0}}>Dinari's official sandbox faucet mints 1,000 mockUSD-equivalent test tokens to the configured account. They have no real-world value. After funding, the $5 buttons can exercise the managed sandbox order flow.</p>
+              <h2 style={{fontSize:26,letterSpacing:'-.045em',margin:'0 0 6px'}}>Fund → buy → reconcile → show as held.</h2>
+              <p style={{...copy,margin:0}}>Dinari's official sandbox faucet mints 1,000 mockUSD-equivalent test tokens to the configured account. They have no real-world value. After a $5 test order, Voxel Vault now waits for the provider portfolio to prove the position increased before ownership is confirmed.</p>
             </div>
             <button
               type="button"
@@ -184,7 +323,7 @@ export default function DigitalReitDashboard({ snapshot }) {
                     onClick={() => sandboxBuy(asset, 5)}
                     style={{...buyButton,opacity:(!snapshot.sandboxTradingEnabled || busyId || funding) ? .42 : 1,cursor:(!snapshot.sandboxTradingEnabled || busyId || funding) ? 'not-allowed':'pointer'}}
                   >
-                    {busyId === asset.id ? 'SUBMITTING…' : 'BUY $5 · SANDBOX'}
+                    {busyId === asset.id ? 'VERIFYING…' : 'BUY $5 · SANDBOX'}
                   </button>
                 </article>
               );
