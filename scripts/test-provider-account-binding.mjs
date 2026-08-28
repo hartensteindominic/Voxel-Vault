@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   bindDinariSandboxAccount,
   buildReadOnlyDinariEnvForBinding,
@@ -56,6 +57,14 @@ function makeAdmin() {
   return { admin, read: () => stored };
 }
 
+const migration = readFileSync(new URL('../supabase/migrations/014_provider_account_bindings.sql', import.meta.url), 'utf8').toLowerCase();
+assert.match(migration, /alter table public\.vault_provider_account_bindings enable row level security/, 'provider binding table must have RLS enabled');
+assert.match(migration, /for select to authenticated/, 'users must only get a read-own RLS policy');
+assert.doesNotMatch(migration, /for insert to authenticated/, 'browser users must not get provider binding insert rights');
+assert.doesNotMatch(migration, /for update to authenticated/, 'browser users must not get provider binding update rights');
+assert.doesNotMatch(migration, /for delete to authenticated/, 'browser users must not get provider binding delete rights');
+assert.match(migration, /unique \(provider, environment, account_id\)/, 'one provider account must not bind to multiple Voxel Vault users');
+
 const { admin, read } = makeAdmin();
 const userId = '11111111-1111-4111-8111-111111111111';
 const entityId = 'entity-sandbox-123';
@@ -100,14 +109,20 @@ assert.equal(scoped.DINARI_SANDBOX_ORDER_EXECUTION_ENABLED, 'false', 'user-bound
 assert.equal(scoped.DINARI_SANDBOX_FAUCET_ENABLED, 'false', 'user-bound read route must never inherit sandbox faucet execution');
 assert.equal(scoped.DINARI_PRODUCTION_TRADING_ENABLED, 'false', 'user-bound read route must never inherit production trading execution');
 
+assert.throws(
+  () => buildReadOnlyDinariEnvForBinding({ ...binding, status: 'suspended' }, sandboxEnv),
+  /verified Dinari provider binding/i,
+  'suspended provider bindings must not load holdings'
+);
+
 const summary = publicBindingSummary(binding);
 assert.equal(summary?.status, 'verified');
 assert.equal(summary?.accountSuffix, accountId.slice(-6));
 assert.equal('accountId' in summary, false, 'browser summary must not expose the full provider account ID');
 assert.equal('entityId' in summary, false, 'browser summary must not expose the full provider entity ID');
 
-await assert.rejects(
-  async () => buildReadOnlyDinariEnvForBinding(binding, { ...sandboxEnv, DINARI_ENVIRONMENT: 'live' }),
+assert.throws(
+  () => buildReadOnlyDinariEnvForBinding(binding, { ...sandboxEnv, DINARI_ENVIRONMENT: 'live' }),
   /environment mismatch/i,
   'a sandbox binding must not be read through live provider configuration'
 );
@@ -133,4 +148,4 @@ assert.equal(missing.binding, null);
 assert.equal(missing.setupRequired, true, 'missing binding migration must fail closed and report setup required');
 assert.match(missing.error, /migration 014_provider_account_bindings/i);
 
-console.log('Provider binding safety checks passed: no inherited global holdings, PASS-only sandbox binding, private browser summary, and read-only provider flags.');
+console.log('Provider binding safety checks passed: RLS has no client writes, global holdings are never inherited, binding is PASS-only and sandbox-only, browser summaries are private, suspended bindings fail closed, and user-bound reads force every trading/funding flag off.');
