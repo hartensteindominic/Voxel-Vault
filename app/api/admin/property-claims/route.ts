@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../lib/admin-auth';
-import { PROPERTY_EVIDENCE_TYPES } from '../../../../lib/vault/property-claim.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,14 +11,19 @@ function response(data: any, status = 200) {
 function setupMissing(error: any) {
   const code = String(error?.code || '');
   const message = String(error?.message || '');
-  return code === '42P01' || /vault_property_(claims|identities)/i.test(message);
+  return code === '42P01'
+    || code === '42703'
+    || code === '42883'
+    || /vault_property_(claims|identities)/i.test(message)
+    || /admin_review_property_claim/i.test(message);
 }
 
 function safeClaim(row: any) {
   const identity = row?.vault_property_identities || {};
+  const userId = String(row?.user_id || '');
   return {
     id: String(row?.id || ''),
-    userId: String(row?.user_id || ''),
+    claimantUserSuffix: userId ? userId.slice(-8) : '',
     claimantRole: String(row?.claimant_role || ''),
     ownerAuthorized: row?.owner_authorized === true,
     propertyLabel: String(row?.property_label || ''),
@@ -40,6 +44,7 @@ function safeClaim(row: any) {
       registryVerified: identity?.registry_verified === true,
       registryPropertyId: String(identity?.registry_property_id || ''),
       passportTokenId: String(identity?.canonical_passport_token_id || ''),
+      verifiedClaimId: String(identity?.verified_claim_id || ''),
     },
   };
 }
@@ -50,11 +55,12 @@ export async function GET(request: Request) {
 
   const { data, error } = await auth.admin
     .from('vault_property_claims')
-    .select('id,user_id,claimant_role,owner_authorized,property_label,locality,claim_status,evidence_manifest,reviewer_note,submitted_at,reviewed_at,vault_property_identities!inner(id,property_fingerprint,country_code,subdivision_code,county_code,parcel_id_normalized,canonical_state,registry_verified,registry_property_id,canonical_passport_token_id)')
-    .order('submitted_at', { ascending: false });
+    .select('id,user_id,claimant_role,owner_authorized,property_label,locality,claim_status,evidence_manifest,reviewer_note,submitted_at,reviewed_at,vault_property_identities!inner(id,property_fingerprint,country_code,subdivision_code,county_code,parcel_id_normalized,canonical_state,registry_verified,registry_property_id,canonical_passport_token_id,verified_claim_id)')
+    .order('submitted_at', { ascending: false })
+    .limit(100);
 
   if (error) {
-    if (setupMissing(error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migration 015 before reviewing property claims.' }, 503);
+    if (setupMissing(error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migrations 015 and 016 before reviewing property claims.' }, 503);
     return response({ ok: false, error: 'Property claims could not be loaded for review.' }, 500);
   }
 
@@ -65,7 +71,9 @@ export async function GET(request: Request) {
     controls: {
       canMintPassport: false,
       canSetOnchainRegistryVerified: false,
+      canChangeDeed: false,
       humanEvidenceReviewRequired: true,
+      competingVerifiedClaimsAllowed: false,
     },
   });
 }
@@ -77,69 +85,98 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const claimId = String(body?.claimId || '').trim();
   const decision = String(body?.decision || '').trim().toLowerCase();
-  const reviewerNote = String(body?.reviewerNote || '').trim().slice(0, 1000);
+  const reviewerNote = String(body?.reviewerNote || '').trim();
   const evidenceVerified = body?.evidenceVerified === true;
 
   if (!claimId) return response({ ok: false, error: 'claimId is required.' }, 400);
   if (!['verified', 'rejected', 'needs-evidence'].includes(decision)) return response({ ok: false, error: 'Decision must be verified, rejected or needs-evidence.' }, 400);
-  if (!reviewerNote) return response({ ok: false, error: 'A reviewer note is required for every claim decision.' }, 400);
-
-  const current = await auth.admin
-    .from('vault_property_claims')
-    .select('id,property_identity_id,claim_status,owner_authorized,evidence_manifest')
-    .eq('id', claimId)
-    .maybeSingle();
-
-  if (current.error || !current.data) {
-    if (setupMissing(current.error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migration 015 before reviewing property claims.' }, 503);
-    return response({ ok: false, error: 'Property claim was not found.' }, 404);
+  if (reviewerNote.length < 20 || reviewerNote.length > 1000) {
+    return response({ ok: false, error: 'Reviewer note must be between 20 and 1000 characters and describe the evidence checked.' }, 400);
   }
 
-  if (current.data.claim_status === 'verified') {
-    return response({ ok: false, error: 'A verified claim is immutable in this pilot. Future suspension/revocation requires a separate governed workflow.' }, 409);
+  if (decision === 'verified' && !evidenceVerified) {
+    return response({
+      ok: false,
+      error: 'Verification requires an explicit reviewer confirmation that the external parcel, ownership/control, and model-capture evidence was actually checked.',
+    }, 409);
   }
 
-  if (decision === 'verified') {
-    const evidence = new Set(Array.isArray(current.data.evidence_manifest?.types) ? current.data.evidence_manifest.types : []);
-    const allCategoriesPresent = PROPERTY_EVIDENCE_TYPES.every((type: string) => evidence.has(type));
-    if (current.data.owner_authorized !== true || current.data.claim_status !== 'under-review' || !allCategoriesPresent || !evidenceVerified) {
-      return response({
-        ok: false,
-        error: 'Verification requires an owner-authorized claim already under review, all evidence categories, and an explicit reviewer confirmation that the external evidence was actually checked.',
-      }, 409);
+  if (decision === 'needs-evidence') {
+    const current = await auth.admin
+      .from('vault_property_claims')
+      .select('id,claim_status')
+      .eq('id', claimId)
+      .maybeSingle();
+
+    if (current.error || !current.data) {
+      if (setupMissing(current.error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migrations 015 and 016 before reviewing property claims.' }, 503);
+      return response({ ok: false, error: 'Property claim was not found.' }, 404);
     }
+
+    if (!['needs-evidence', 'under-review'].includes(String(current.data.claim_status || ''))) {
+      return response({ ok: false, error: 'This claim is already in a terminal state and cannot be moved back to evidence collection.' }, 409);
+    }
+
+    const reviewedAt = new Date().toISOString();
+    const updated = await auth.admin
+      .from('vault_property_claims')
+      .update({ claim_status: 'needs-evidence', reviewer_note: reviewerNote, reviewed_at: reviewedAt, updated_at: reviewedAt })
+      .eq('id', claimId)
+      .select('id,claim_status,reviewer_note,reviewed_at')
+      .single();
+
+    if (updated.error || !updated.data) return response({ ok: false, error: 'The request for additional evidence could not be stored.' }, 500);
+
+    return response({
+      ok: true,
+      decision,
+      claim: updated.data,
+      onchainRegistryVerified: false,
+      passportMinted: false,
+      deedChanged: false,
+      propertyRightsCreated: false,
+      nextStep: 'The claimant must add the missing evidence categories before the claim can return to human verification.',
+    });
   }
 
-  const reviewedAt = new Date().toISOString();
-  const updated = await auth.admin
-    .from('vault_property_claims')
-    .update({ claim_status: decision, reviewer_note: reviewerNote, reviewed_at: reviewedAt, updated_at: reviewedAt })
-    .eq('id', claimId)
-    .select('id,user_id,claimant_role,owner_authorized,property_label,locality,claim_status,evidence_manifest,reviewer_note,submitted_at,reviewed_at')
-    .single();
+  const rpcDecision = decision === 'verified' ? 'approve' : 'reject';
+  const { data, error } = await auth.admin.rpc('admin_review_property_claim', {
+    p_claim_id: claimId,
+    p_decision: rpcDecision,
+    p_reviewer_user_id: auth.user.id,
+    p_reviewer_note: reviewerNote,
+  });
 
-  if (updated.error || !updated.data) {
-    if (String(updated.error?.code || '') === '23505') return response({ ok: false, error: 'Another claim is already the verified claim for this canonical property identity.' }, 409);
+  if (error) {
+    if (setupMissing(error)) return response({ ok: false, setupRequired: true, error: 'Apply Supabase migrations 015 and 016 before reviewing property claims.' }, 503);
+
+    const message = String(error.message || '');
+    if (/PROPERTY_ALREADY_VERIFIED_BY_ANOTHER_CLAIM/i.test(message)) {
+      return response({ ok: false, error: 'This parcel already has a different verified canonical claim. The competing claim was not approved.' }, 409);
+    }
+    if (/CLAIM_NOT_READY_FOR_APPROVAL|REQUIRED_EVIDENCE_METADATA_MISSING|OWNER_AUTHORIZATION_REQUIRED/i.test(message)) {
+      return response({ ok: false, error: 'This claim is not eligible for approval yet. Required authorization/evidence gates are incomplete.' }, 409);
+    }
+    if (/CLAIM_NOT_REVIEWABLE/i.test(message)) {
+      return response({ ok: false, error: 'This claim is already in a terminal state and cannot be reviewed again.' }, 409);
+    }
+    if (/PROPERTY_CLAIM_NOT_FOUND/i.test(message)) {
+      return response({ ok: false, error: 'Property claim was not found.' }, 404);
+    }
+
     return response({ ok: false, error: 'Property claim decision could not be stored.' }, 500);
-  }
-
-  if (decision === 'verified') {
-    const identityUpdate = await auth.admin
-      .from('vault_property_identities')
-      .update({ canonical_state: 'verified', updated_at: reviewedAt })
-      .eq('id', current.data.property_identity_id)
-      .eq('registry_verified', false);
-    if (identityUpdate.error) return response({ ok: false, error: 'The claim was reviewed but the canonical identity state could not be updated.' }, 500);
   }
 
   return response({
     ok: true,
     decision,
-    claim: updated.data,
+    review: data,
     onchainRegistryVerified: false,
     passportMinted: false,
+    deedChanged: false,
+    propertyRightsCreated: false,
     nextStep: decision === 'verified'
-      ? 'The off-chain claim is verified. A separate controlled registry-anchoring step is still required before the non-transferable canonical Property Passport can be minted.'
-      : 'The claim remains outside the canonical Passport mint path.',
+      ? 'The off-chain canonical identity is human-verified. A separate controlled registry-anchor step is still required before the non-transferable canonical Property Passport can be minted.'
+      : 'The claim is rejected and remains outside the canonical Property Passport path.',
   });
 }
