@@ -4,12 +4,14 @@ import {
   DINARI_LIVE_TRADING_IMPLEMENTATION_READY,
   getDinariConfig,
 } from '../../../../lib/real-estate/dinari';
+import { publicFractionalBridgeStatus } from '../../../../lib/real-estate/fractional-property-bridge';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const launch = evaluateLegalLaunch(process.env);
   const dinari = getDinariConfig(process.env);
+  const fractionalBridge = publicFractionalBridgeStatus();
 
   const liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true;
   const liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true;
@@ -65,6 +67,22 @@ export async function GET() {
         liveOrderMaxUsd: 700,
         rightsType: 'security/economic exposure; not a deed to a specific parcel',
       },
+      propertySpecificFractionalOwnership: {
+        implementationReady: true,
+        mode: fractionalBridge.implementation,
+        ownerPilotMaxUsd: fractionalBridge.maxOwnerPilotBudgetUsd,
+        positionVerifierImplementationReady: fractionalBridge.positionVerifierImplementationReady,
+        liveExecutionReady: fractionalBridge.liveExecutionReady,
+        automatedTradingEnabled: fractionalBridge.automatedTradingEnabled,
+        scrapingEnabled: fractionalBridge.scrapingEnabled,
+        providerReferences: fractionalBridge.providers.map((provider) => ({
+          id: provider.id,
+          displayName: provider.displayName,
+          executionMode: provider.executionMode,
+          publicExecutionApiVerified: provider.publicExecutionApiVerified,
+        })),
+        rightsType: 'future provider-confirmed property-specific LLC/security interest bound to an exact parcel; pending claims remain reference-only',
+      },
       directSpecificProperty: {
         implementationReady: directPropertyImplementationReady,
         providerActivated: directPropertyInvestingActivated,
@@ -102,6 +120,10 @@ export async function GET() {
       verifiedSpatialTruthModel: true,
       authoritativeCountyGisReferenceIntake: true,
       ownerOnlyParcelLookup: true,
+      ownerFractionalPropertyOwnershipBridge: true,
+      externalProviderPropertyHandoff: true,
+      pendingProviderPositionEvidenceIntake: true,
+      verifiedFractionalPropertyPosition: false,
       geographicParcelVerificationGate: true,
       physicalBuildingVerificationGate: true,
       explicitPropertyRightsClassification: true,
@@ -143,12 +165,14 @@ export async function GET() {
       ownerLiveDigitalReitConsole: '/admin/digital-reits/live',
       ownerErieCountySpatialIntake: '/admin/property-spatial-intake',
       ownerErieCountySpatialIntakeApi: '/api/admin/property-platform/erie-county',
+      ownerFractionalPropertyBridge: '/admin/fractional-property',
+      ownerFractionalPropertyBridgeApi: '/api/admin/fractional-property/bridge',
       propertyVault: '/real-estate/property/[propertyId]',
     },
     note: liveSecuritiesProviderActivated
-      ? 'The approved owner-only real-estate securities rail is activated. This does not activate direct deed-linked property investing.'
+      ? 'The approved owner-only real-estate securities rail is activated. This does not activate direct deed-linked or property-specific fractional investing.'
       : directPropertyInvestingActivated
         ? 'A controlled direct-property launch is active under its separate approved legal/provider gates.'
-        : 'Fail-closed regulated launch build: source-backed spatial parcel intake and the real-estate securities execution implementation exist, but neither county GIS data nor provider readiness creates direct property ownership. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
+        : 'Fail-closed regulated launch build: source-backed spatial parcel intake, an external property-specific fractional ownership handoff, and the real-estate securities execution implementation exist. Provider handoff claims remain reference-only until independently verified; county GIS and user-entered proof do not create property ownership. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
   });
 }
