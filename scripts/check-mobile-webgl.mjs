@@ -13,7 +13,9 @@ assert.match(voxel, /ResizeObserver/, 'VoxelViewer must observe its rendered fra
 assert.match(art, /ResizeObserver/, 'ArtPreview must observe its rendered frame');
 assert.match(propertyTwin, /ResizeObserver/, 'PropertyTwinCanvas must observe its rendered frame');
 assert.match(propertyTwin, /matchMedia\('\(max-width: 680px\)'\)/, 'PropertyTwinCanvas must keep an explicit compact mobile strategy');
-assert.match(propertyTwin, /1\.35/, 'PropertyTwinCanvas must cap compact mobile pixel ratio');
+assert.match(propertyTwin, /1\.25/, 'PropertyTwinCanvas must cap the denser hyperreal compact scene at 1.25 pixel ratio');
+assert.match(propertyTwin, /compactFrameInterval = 1000 \/ 30/, 'PropertyTwinCanvas must cap dense compact rendering at 30fps');
+assert.match(propertyTwin, /prefers-reduced-motion/, 'PropertyTwinCanvas must respect reduced motion');
 assert.match(geoReference, /ResizeObserver/, 'GEO must observe its rendered 3D frame');
 assert.match(geoReference, /matchMedia\?\.\('\(max-width: 680px\)'\)/, 'GEO must keep an explicit compact mobile strategy');
 assert.match(geoReference, /1\.18/, 'GEO must cap compact mobile pixel ratio');
