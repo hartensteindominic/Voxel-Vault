@@ -42,11 +42,22 @@ global.fetch = async (url, options = {}) => {
   if (href.endsWith('/entities/me') && method === 'GET') {
     return json({ id: 'partner-org', entity_type: 'ORGANIZATION', is_kyc_complete: true });
   }
+  if (href.includes('/entities/?') && method === 'GET') {
+    const parsed = new URL(href);
+    const reference = parsed.searchParams.get('reference_id');
+    if (reference === 'voxel-vault-owner-sandbox') {
+      return json({ data: [{ id: 'entity-1', entity_type: 'INDIVIDUAL', is_kyc_complete: kycPassed, reference_id: reference }] });
+    }
+    return json({ data: [] });
+  }
   if (href.endsWith('/entities/') && method === 'POST') {
     return json({ id: 'entity-1', entity_type: 'INDIVIDUAL', is_kyc_complete: false, reference_id: body?.reference_id });
   }
   if (href.endsWith('/entities/entity-1') && method === 'GET') {
-    return json({ id: 'entity-1', entity_type: 'INDIVIDUAL', is_kyc_complete: kycPassed, reference_id: 'owner-test' });
+    return json({ id: 'entity-1', entity_type: 'INDIVIDUAL', is_kyc_complete: kycPassed, reference_id: 'voxel-vault-owner-sandbox' });
+  }
+  if (href.endsWith('/entities/entity-stale') && method === 'GET') {
+    return json({ id: 'entity-stale', entity_type: 'INDIVIDUAL', is_kyc_complete: false, reference_id: 'old-owner-sandbox' });
   }
   if (href.endsWith('/entities/entity-1/kyc/url') && method === 'POST') {
     return json({ embed_url: 'https://kyc.example.test/session/1', expiration_dt: '2026-08-28T00:00:00Z' });
@@ -54,8 +65,14 @@ global.fetch = async (url, options = {}) => {
   if (href.endsWith('/entities/entity-1/kyc') && method === 'GET') {
     return json({ id: 'kyc-1', status: kycPassed ? 'PASS' : 'PENDING', jurisdiction: 'US', checked_dt: '2026-08-27T00:00:00Z' });
   }
+  if (href.endsWith('/entities/entity-stale/kyc') && method === 'GET') {
+    return json({ id: 'kyc-stale', status: 'PENDING', jurisdiction: 'US', checked_dt: '2026-08-26T00:00:00Z' });
+  }
   if (href.includes('/entities/entity-1/accounts') && method === 'GET') {
     return json({ data: accountCreated ? [{ id: 'account-1', entity_id: 'entity-1', is_active: true, jurisdiction: 'US' }] : [] });
+  }
+  if (href.includes('/entities/entity-stale/accounts') && method === 'GET') {
+    return json({ data: [] });
   }
   if (href.endsWith('/entities/entity-1/accounts') && method === 'POST') {
     accountCreated = true;
@@ -96,7 +113,22 @@ try {
   assert.equal(snapshot.entity.id, 'entity-1');
   assert.equal(snapshot.kyc.status, 'PASS');
   assert.equal(snapshot.accounts[0].id, 'account-1');
-  const serialized = JSON.stringify(snapshot);
+
+  const recovered = await getDinariOnboardingSnapshot({ selectedEntityId: 'entity-stale' }, sandboxEnv);
+  assert.equal(recovered.entity.id, 'entity-1', 'canonical provider reference must win over stale browser Entity ID');
+  assert.equal(recovered.kyc.status, 'PASS', 'recovery must read KYC from the canonical verified Entity');
+  assert.equal(recovered.entitySelectionSource, 'provider-reference');
+  assert.equal(recovered.recoveredFromStaleBrowserEntity, true);
+  assert.equal(recovered.browserEntityId, 'entity-stale');
+
+  const configured = await getDinariOnboardingSnapshot(
+    { selectedEntityId: 'entity-stale' },
+    { ...sandboxEnv, DINARI_ENTITY_ID: 'entity-1' },
+  );
+  assert.equal(configured.entity.id, 'entity-1', 'server-configured Entity must have highest priority');
+  assert.equal(configured.entitySelectionSource, 'server-configured');
+
+  const serialized = JSON.stringify(recovered);
   assert.equal(serialized.includes('sandbox-secret-never-return-this'), false, 'API secret must never be returned in onboarding snapshot');
   assert.equal(serialized.includes('sandbox-key-id'), false, 'API Key ID is not needed in browser onboarding snapshot');
 
@@ -106,4 +138,4 @@ try {
   global.fetch = originalFetch;
 }
 
-console.log('Dinari onboarding safety checks passed: live writes are blocked, secrets stay server-side, managed KYC uses US jurisdiction, accounts require KYC PASS, and existing accounts are reused.');
+console.log('Dinari onboarding safety checks passed: live writes are blocked, secrets stay server-side, stale browser Entity IDs recover to the canonical provider Entity, KYC PASS is read from that Entity, and existing accounts are reused.');
