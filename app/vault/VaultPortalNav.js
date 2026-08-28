@@ -3,37 +3,59 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+const destinations = [
+  { href: '/vault', label: 'MY VAULT', detail: 'Portfolio' },
+  { href: '/vault/income', label: 'INCOME', detail: 'Payments' },
+  { href: '/vault/acquisitions', label: 'ACQUIRE', detail: 'Research' },
+];
+
 export default function VaultPortalNav() {
-  const pathname = usePathname();
-  const inIncomeCenter = pathname?.startsWith('/vault/income');
-  const href = inIncomeCenter ? '/vault' : '/vault/income';
-  const label = inIncomeCenter ? 'MY VAULT' : 'INCOME CENTER';
-  const detail = inIncomeCenter ? 'Return to spatial portfolio' : 'Open spatial payment history';
+  const pathname = usePathname() || '/vault';
 
   return (
-    <Link
-      href={href}
-      aria-label={`${label}: ${detail}`}
+    <nav
+      aria-label="Spatial Vault rooms"
       style={{
         position: 'fixed',
         zIndex: 70,
         right: 16,
         bottom: 'max(16px, env(safe-area-inset-bottom))',
-        display: 'grid',
-        gap: 2,
-        minWidth: 170,
-        padding: '11px 14px',
-        border: '1px solid rgba(185,255,240,.2)',
-        borderRadius: 18,
-        background: 'rgba(5,8,10,.86)',
-        color: '#fff',
-        textDecoration: 'none',
+        display: 'flex',
+        gap: 5,
+        padding: 6,
+        border: '1px solid rgba(185,255,240,.16)',
+        borderRadius: 20,
+        background: 'rgba(5,8,10,.88)',
         boxShadow: '0 16px 44px rgba(0,0,0,.34)',
         backdropFilter: 'blur(16px)',
       }}
     >
-      <span style={{ fontSize: 9, fontWeight: 950, letterSpacing: '.15em', color: '#9ff5df' }}>{label}</span>
-      <span style={{ fontSize: 10, color: 'rgba(255,255,255,.52)' }}>{detail} →</span>
-    </Link>
+      {destinations.map((destination) => {
+        const active = destination.href === '/vault'
+          ? pathname === '/vault'
+          : pathname.startsWith(destination.href);
+        return (
+          <Link
+            key={destination.href}
+            href={destination.href}
+            aria-current={active ? 'page' : undefined}
+            style={{
+              display: 'grid',
+              gap: 1,
+              minWidth: 72,
+              padding: '8px 10px',
+              border: active ? '1px solid rgba(185,255,240,.24)' : '1px solid transparent',
+              borderRadius: 14,
+              background: active ? 'rgba(159,245,223,.09)' : 'transparent',
+              color: '#fff',
+              textDecoration: 'none',
+            }}
+          >
+            <span style={{ fontSize: 8, fontWeight: 950, letterSpacing: '.11em', color: active ? '#9ff5df' : 'rgba(255,255,255,.55)' }}>{destination.label}</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,.34)' }}>{destination.detail}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
