@@ -8,7 +8,7 @@ const geoReference = await readFile(new URL('../app/geo/GeoReferenceModel.js', i
 const earthPage = await readFile(new URL('../app/vault/earth/page.js', import.meta.url), 'utf8');
 const earthCss = await readFile(new URL('../app/vault/earth/earth-experience.module.css', import.meta.url), 'utf8');
 const earthGlobe = await readFile(new URL('../app/vault/earth/GlobalEarthGlobe.js', import.meta.url), 'utf8');
-const googleReality = await readFile(new URL('../app/vault/earth/GoogleRealityMap.js', import.meta.url), 'utf8');
+const openReality = await readFile(new URL('../app/vault/earth/OpenRealityPanel.js', import.meta.url), 'utf8');
 const meshyViewer = await readFile(new URL('../app/vault/earth/MeshyModelViewer.js', import.meta.url), 'utf8');
 const meshyPanel = await readFile(new URL('../app/vault/earth/MeshyHeroPanel.js', import.meta.url), 'utf8');
 const realEstateCss = await readFile(new URL('../app/real-estate/real-estate.module.css', import.meta.url), 'utf8');
@@ -31,17 +31,17 @@ assert.match(earthGlobe, /activePointers\.size >= 2/, 'Earth globe must retain t
 assert.match(earthGlobe, /IntersectionObserver/, 'Earth globe must pause offscreen');
 assert.match(earthGlobe, /prefers-reduced-motion/, 'Earth globe must respect reduced motion');
 
-assert.match(googleReality, /height:50vh/, 'Google reality surface must have explicit compact phone height');
-assert.match(googleReality, /min-height:360px/, 'Google reality surface must remain visible on iPhone');
-assert.match(googleReality, /gestureHandling:\s*'COOPERATIVE'/, 'Google 3D must preserve one-finger page scrolling and use deliberate map gestures');
-assert.match(googleReality, /OPEN IN GOOGLE MAPS/, 'Google 3D failure must leave navigable fallback');
+assert.match(openReality, /@media\(max-width:680px\)/, 'open street reality must have explicit compact phone layout');
+assert.match(openReality, /min-height:390px/, 'open street reality must remain visible on iPhone');
+assert.match(openReality, /overflow-x:auto/, 'open street thumbnails must stay horizontally scrollable on narrow screens');
+assert.match(openReality, /NO OPEN STREET PHOTO HERE YET/, 'missing open imagery must keep a visible non-blank fallback');
 assert.match(earthPage, />COMPARE</, 'Earth must expose compare mode on mobile');
-assert.match(earthPage, />REALITY</, 'Earth must expose Reality mode on mobile');
+assert.match(earthPage, />STREET</, 'Earth must expose free street imagery mode on mobile');
 assert.match(earthPage, />VOXEL</, 'Earth must expose Voxel mode on mobile');
 assert.match(earthPage, />GLOBE</, 'Earth must expose Globe mode on mobile');
-assert.match(earthPage, /GOOGLE_3D_ENABLED \? 'compare' : 'voxel'/, 'deployment without Google 3D must start in working Voxel view');
+assert.match(earthPage, /useState\('compare'\)/, 'Earth should start in a useful open comparison without a paid map key');
 assert.match(earthCss, /grid-template-columns:repeat\(4,1fr\)/, 'four view tabs must become equal phone controls');
-assert.match(earthCss, /\.compare\{height:auto;min-height:0;grid-template-columns:1fr/, 'Compare mode must stack Reality and Voxel vertically on compact screens');
+assert.match(earthCss, /\.compare\{height:auto;min-height:0;grid-template-columns:1fr/, 'Compare mode must stack open street evidence and Voxel vertically on compact screens');
 assert.match(earthCss, /safe-area-inset-bottom/, 'Earth page must account for iPhone safe area');
 
 assert.match(meshyViewer, /compact \? 1\.15 : 1\.35/, 'Meshy GLB viewer must keep strict compact pixel ratio');
@@ -51,9 +51,10 @@ assert.match(meshyViewer, /IntersectionObserver/, 'Meshy GLB viewer must pause o
 assert.match(meshyViewer, /prefers-reduced-motion/, 'Meshy GLB viewer must respect reduced motion');
 assert.match(meshyPanel, /maxSide = 2048/, 'iPhone reference photos must normalize to bounded Meshy upload size');
 assert.match(meshyPanel, /image\/jpeg/, 'iPhone reference normalization must output Meshy-compatible JPEG');
+assert.match(meshyPanel, /FREE OPEN KARTAVIEW VIEW/, 'open-licensed street imagery must be loadable into Meshy from a phone');
 
 assert.match(realEstateCss, /mobileTabBar/, 'Real estate homepage must expose mobile quick navigation');
 assert.match(realEstateCss, /safe-area-inset-bottom/, 'Real estate homepage must account for iPhone safe area');
 assert.match(realEstateCss, /calc\(100% - 22px\)/, 'Real estate mobile shell width must use valid CSS math');
 
-console.log('Mobile WebGL source guard passed: Voxel, GEO, Globe, Google Reality/Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks and rendering limits.');
+console.log('Mobile WebGL source guard passed: Voxel, GEO, Globe, free open street Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks and rendering limits.');
