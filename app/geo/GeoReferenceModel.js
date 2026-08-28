@@ -114,9 +114,6 @@ function displayHeight(reference, authoritativeTwin) {
     return { meters: authoritativeHeight, status: 'authoritative_structure' };
   }
 
-  // A parcel-linked county footprint is stronger geometry than a nearest-neighbor map building,
-  // but its height must not inherit an unrelated map building's height. Keep the height explicitly
-  // illustrative until an accepted measurement or parcel-specific source supplies it.
   if (authoritativeTwin?.structure?.buildingGeometry) {
     return { meters: 3, status: 'illustrative_default' };
   }
@@ -130,6 +127,10 @@ function displayHeight(reference, authoritativeTwin) {
 
 function evidenceLabel(reference, authoritativeTwin) {
   const hasCountyBuilding = Boolean(authoritativeTwin?.structure?.buildingGeometry);
+  const hasParcelBoundary = Boolean(authoritativeTwin?.location?.parcelGeometry);
+  const exactAddressMatch = reference?.matchStrategy === 'exact_source_address_match';
+  const nearestOnly = reference?.matchStrategy === 'nearest_source_building_within_neighborhood';
+
   if (reference?.measuredHeight?.verifiedMeasuredHeight === true) {
     return { title: 'Verified measured voxel massing', detail: 'Parcel-linked footprint + accepted measured height · facade details not inferred' };
   }
@@ -137,11 +138,17 @@ function evidenceLabel(reference, authoritativeTwin) {
     return { title: 'County-backed building footprint', detail: 'Parcel-linked building geometry · height remains illustrative until measured' };
   }
   const status = String(reference?.height?.heightStatus || '');
-  if (reference?.found && status === 'source_reported') {
-    return { title: 'Source-backed voxel massing', detail: 'Real footprint + source-reported height · facade details not inferred' };
+  if (reference?.found && exactAddressMatch && status === 'source_reported') {
+    return { title: 'Address-matched voxel massing', detail: `${hasParcelBoundary ? 'Source address match + jurisdiction parcel boundary' : 'Source address match'} · reported height · facade details not inferred` };
   }
-  if (reference?.found && status === 'derived_from_levels') {
-    return { title: 'Source-derived voxel massing', detail: 'Real footprint + height derived from reported floors · facade details not inferred' };
+  if (reference?.found && exactAddressMatch && status === 'derived_from_levels') {
+    return { title: 'Address-matched source massing', detail: `${hasParcelBoundary ? 'Source address match + jurisdiction parcel boundary' : 'Source address match'} · height derived from reported floors` };
+  }
+  if (reference?.found && exactAddressMatch) {
+    return { title: 'Address-matched source footprint', detail: `${hasParcelBoundary ? 'Source address match + jurisdiction parcel boundary' : 'Source address match'} · unsupported architectural details are not invented` };
+  }
+  if (reference?.found && nearestOnly) {
+    return { title: 'Nearest source-backed building', detail: `${hasParcelBoundary ? 'Jurisdiction parcel boundary shown separately · ' : ''}Exact address match not proven; building is neighborhood reference only` };
   }
   if (reference?.found) {
     return { title: 'Source-backed footprint', detail: 'Footprint is sourced; unsupported architectural details are not invented' };
@@ -149,15 +156,17 @@ function evidenceLabel(reference, authoritativeTwin) {
   return { title: '3D reference preview', detail: 'Search for a source-backed property to build its voxel massing' };
 }
 
-function cameraPreset(viewMode, sceneRadius, compactMode, focusRadius) {
+function cameraPreset(viewMode, sceneRadius, compactMode, focusRadius, focusHeight) {
   if (focusRadius > 0) {
+    const verticalExtent = Math.max(0, Number(focusHeight) || 0) * (compactMode ? 0.72 : 0.64);
+    const framingExtent = Math.max(focusRadius, verticalExtent);
     if (viewMode === 'top') {
-      return { azimuth: 0.08, elevation: 1.38, radius: Math.max(compactMode ? 4.6 : 5.2, focusRadius * 2.9), autoOrbit: false };
+      return { azimuth: 0.08, elevation: 1.38, radius: Math.max(compactMode ? 4.6 : 5.2, focusRadius * 3.05), autoOrbit: false };
     }
     if (viewMode === 'street') {
-      return { azimuth: 0.52, elevation: 0.15, radius: Math.max(compactMode ? 3.8 : 4.4, focusRadius * 2.55), autoOrbit: false };
+      return { azimuth: 0.52, elevation: 0.15, radius: Math.max(compactMode ? 4.1 : 4.7, framingExtent * 3.05), autoOrbit: false };
     }
-    return { azimuth: 0.72, elevation: 0.36, radius: Math.max(compactMode ? 4.4 : 5, focusRadius * 3.15), autoOrbit: true };
+    return { azimuth: 0.72, elevation: 0.36, radius: Math.max(compactMode ? 4.7 : 5.2, framingExtent * 3.35), autoOrbit: true };
   }
   if (viewMode === 'top') return { azimuth: 0.08, elevation: 1.36, radius: Math.max(compactMode ? 9.2 : 10, sceneRadius * 1.5), autoOrbit: false };
   if (viewMode === 'street') return { azimuth: 0.5, elevation: 0.17, radius: Math.max(compactMode ? 7.6 : 8.5, sceneRadius * 1.18), autoOrbit: false };
@@ -171,8 +180,6 @@ function addVoxelShell({ THREE, root, local, baseY, visualHeight, compactMode, g
   const depth = Math.max(1, bounds.maxNorth - bounds.minNorth);
   const cellMeters = Math.max(compactMode ? 2.1 : 1.5, width / (compactMode ? 38 : 56), depth / (compactMode ? 38 : 56));
   const cellScene = cellMeters * METERS_TO_SCENE;
-  // Even a truthful 3 m illustrative extrusion needs multiple vertical voxel courses to read as 3D.
-  // This increases visual subdivision only; the total displayed height remains unchanged.
   const heightCells = Math.max(3, Math.min(compactMode ? 26 : 38, Math.round(visualHeight / Math.max(0.045, cellScene * 0.72))));
   const cellHeight = visualHeight / heightCells;
   const columns = [];
@@ -259,6 +266,25 @@ function addSilhouetteLines({ THREE, root, local, baseY, visualHeight, geometrie
   }
 }
 
+function addParcelBoundary({ THREE, root, parcelGeometry, originLongitude, originLatitude, terrain, geometries, materials }) {
+  const parcelPolygons = localPolygons(parcelGeometry, originLongitude, originLatitude);
+  if (!parcelPolygons.length) return;
+  const material = new THREE.LineBasicMaterial({ color: 0xa9d9c8, transparent: true, opacity: 0.9, depthTest: true });
+  materials.push(material);
+  for (const local of parcelPolygons) {
+    const points = local.map((point) => new THREE.Vector3(
+      point.east * METERS_TO_SCENE,
+      terrainRelativeMeters(terrain, point.east, point.north) * METERS_TO_SCENE + 0.035,
+      -point.north * METERS_TO_SCENE,
+    ));
+    if (points.length < 3) continue;
+    points.push(points[0].clone());
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    geometries.push(geometry);
+    root.add(new THREE.Line(geometry, material));
+  }
+}
+
 export default function GeoReferenceModel({ reference, authoritativeTwin = null, viewMode = 'orbit', resetKey = 0 }) {
   const mountRef = useRef(null);
   const label = useMemo(() => evidenceLabel(reference, authoritativeTwin), [reference, authoritativeTwin]);
@@ -286,6 +312,8 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       renderer.domElement.style.cursor = 'grab';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
+      renderer.domElement.tabIndex = 0;
+      renderer.domElement.setAttribute('aria-label', 'Interactive 3D property reference. Drag or use arrow keys to orbit, pinch or plus and minus to zoom.');
       mount.replaceChildren(renderer.domElement);
 
       const scene = new THREE.Scene();
@@ -311,6 +339,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       const geometries = [];
       const materials = [];
       const authoritativeGeometry = authoritativeTwin?.structure?.buildingGeometry || null;
+      const parcelGeometry = authoritativeTwin?.location?.parcelGeometry || null;
       const displayGeometry = authoritativeGeometry || reference?.geometry || null;
       const originLatitude = Number(reference?.latitude ?? authoritativeTwin?.location?.latitude);
       const originLongitude = Number(reference?.longitude ?? authoritativeTwin?.location?.longitude);
@@ -323,6 +352,8 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       const primaryRadius = footprintRadiusScene(primaryPolygons, primaryCenter);
       const primaryRecordId = String(reference?.source?.recordId || '');
       const hasPrimary = primaryPolygons.length > 0;
+      const heightInfo = hasPrimary ? displayHeight(reference, authoritativeTwin) : { meters: 0, status: 'none' };
+      const primaryVisualHeight = hasPrimary ? Math.max(2.2, Math.min(500, Number(heightInfo.meters) || 3)) * METERS_TO_SCENE : 0;
 
       const plinthGeometry = new THREE.CylinderGeometry(sceneRadius * 1.08, sceneRadius * 1.12, 0.3, 84);
       const plinthMaterial = new THREE.MeshStandardMaterial({ color: 0x202a27, roughness: 0.92, metalness: 0.01 });
@@ -374,6 +405,10 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       geometries.push(grid.geometry);
       root.add(grid);
 
+      if (validOrigin && parcelGeometry) {
+        addParcelBoundary({ THREE, root, parcelGeometry, originLongitude, originLatitude, terrain, geometries, materials });
+      }
+
       const surroundings = Array.isArray(reference?.neighborhoodBuildings) ? reference.neighborhoodBuildings
         .filter((item) => item?.geometry)
         .map((buildingRef) => {
@@ -415,13 +450,10 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       const focusTarget = new THREE.Vector3(0, Math.max(0.22, sceneRadius * 0.035), 0);
       let primaryHalo = null;
       if (hasPrimary) {
-        const heightInfo = displayHeight(reference, authoritativeTwin);
-        const sourceHeight = Math.max(2.2, Math.min(500, Number(heightInfo.meters) || 3));
-        const visualHeight = sourceHeight * METERS_TO_SCENE;
+        const visualHeight = primaryVisualHeight;
         const baseY = terrainRelativeMeters(terrain, primaryCenter.east, primaryCenter.north) * METERS_TO_SCENE;
         const centerX = primaryCenter.east * METERS_TO_SCENE;
         const centerZ = -primaryCenter.north * METERS_TO_SCENE;
-        // Aim at the actual middle of a short building instead of above its roof.
         focusTarget.set(centerX, baseY + Math.max(0.09, visualHeight * 0.5), centerZ);
 
         for (const local of primaryPolygons) {
@@ -453,7 +485,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         root.add(primaryHalo);
       }
 
-      const preset = cameraPreset(viewMode, sceneRadius, compactMode, hasPrimary ? primaryRadius : 0);
+      const preset = cameraPreset(viewMode, sceneRadius, compactMode, hasPrimary ? primaryRadius : 0, primaryVisualHeight);
       let { azimuth, elevation, radius } = preset;
       let autoOrbit = preset.autoOrbit && !reducedMotion;
       let dragging = false;
@@ -461,8 +493,9 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       let lastY = 0;
       let pinchDistance = null;
       const pointers = new Map();
+      const framingExtent = Math.max(primaryRadius, primaryVisualHeight * (compactMode ? 0.72 : 0.64));
       const minRadius = hasPrimary
-        ? Math.max(compactMode ? 2.7 : 3.1, primaryRadius * 1.65)
+        ? Math.max(compactMode ? 2.7 : 3.1, framingExtent * 1.65)
         : Math.max(compactMode ? 4.7 : 5.5, sceneRadius * 0.6);
       const maxRadius = Math.max(preset.radius * 2.1, sceneRadius * 3.1);
 
@@ -474,6 +507,13 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
           focusTarget.z + Math.cos(azimuth) * c * radius,
         );
         camera.lookAt(focusTarget);
+      };
+      const resetCamera = () => {
+        azimuth = preset.azimuth;
+        elevation = preset.elevation;
+        radius = preset.radius;
+        autoOrbit = preset.autoOrbit && !reducedMotion;
+        updateCamera();
       };
       updateCamera();
 
@@ -535,21 +575,44 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         updateCamera();
       };
 
+      const keydown = (event) => {
+        const key = event.key;
+        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '=', '-', '_', 'Home'].includes(key)) return;
+        event.preventDefault();
+        autoOrbit = false;
+        if (key === 'ArrowLeft') azimuth += 0.11;
+        if (key === 'ArrowRight') azimuth -= 0.11;
+        if (key === 'ArrowUp') elevation = Math.min(1.44, elevation + 0.08);
+        if (key === 'ArrowDown') elevation = Math.max(0.08, elevation - 0.08);
+        if (key === '+' || key === '=') radius = Math.max(minRadius, radius * 0.9);
+        if (key === '-' || key === '_') radius = Math.min(maxRadius, radius * 1.1);
+        if (key === 'Home') resetCamera(); else updateCamera();
+      };
+
       renderer.domElement.addEventListener('pointerdown', down);
       renderer.domElement.addEventListener('pointermove', move);
       renderer.domElement.addEventListener('pointerup', up);
       renderer.domElement.addEventListener('pointercancel', up);
       renderer.domElement.addEventListener('wheel', wheel, { passive: false });
+      renderer.domElement.addEventListener('keydown', keydown);
 
       const clock = new THREE.Clock();
       let frame = 0;
-      const animate = () => {
+      let inViewport = true;
+      let documentVisible = !document.hidden;
+      let lastRenderAt = 0;
+      const compactFrameInterval = 1000 / 30;
+      const animate = (time = 0) => {
         frame = requestAnimationFrame(animate);
+        if (!inViewport || !documentVisible) return;
+        if (compactMode && time - lastRenderAt < compactFrameInterval) return;
+        lastRenderAt = time;
+        const delta = Math.min(clock.getDelta(), 0.05);
         if (!reducedMotion) {
-          const elapsed = clock.getElapsedTime();
+          const elapsed = clock.elapsedTime;
           if (primaryHalo) primaryHalo.material.opacity = 0.2 + (Math.sin(elapsed * 1.15) + 1) * 0.03;
           if (autoOrbit) {
-            azimuth += 0.00025;
+            azimuth += delta * 0.015;
             updateCamera();
           }
         }
@@ -566,12 +629,24 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       };
       const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
       resizeObserver?.observe(mount);
+      const intersectionObserver = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries) => {
+        inViewport = entries.some((entry) => entry.isIntersecting);
+        if (inViewport) clock.getDelta();
+      }, { threshold: 0.01 }) : null;
+      intersectionObserver?.observe(mount);
+      const visibilityChange = () => {
+        documentVisible = !document.hidden;
+        if (documentVisible) clock.getDelta();
+      };
+      document.addEventListener('visibilitychange', visibilityChange);
       window.addEventListener('resize', resize);
       window.addEventListener('orientationchange', resize);
 
       cleanup = () => {
         cancelAnimationFrame(frame);
         resizeObserver?.disconnect();
+        intersectionObserver?.disconnect();
+        document.removeEventListener('visibilitychange', visibilityChange);
         window.removeEventListener('resize', resize);
         window.removeEventListener('orientationchange', resize);
         renderer.domElement.removeEventListener('pointerdown', down);
@@ -579,6 +654,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         renderer.domElement.removeEventListener('pointerup', up);
         renderer.domElement.removeEventListener('pointercancel', up);
         renderer.domElement.removeEventListener('wheel', wheel);
+        renderer.domElement.removeEventListener('keydown', keydown);
         geometries.forEach((geometry) => geometry.dispose());
         materials.forEach((material) => material.dispose());
         renderer.dispose();
@@ -589,12 +665,14 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
     return () => { disposed = true; cleanup(); };
   }, [
     reference?.source?.recordId,
+    reference?.matchStrategy,
     reference?.height?.referenceHeightMeters,
     reference?.neighborhoodBuildingCount,
     reference?.terrain?.source?.observedAt,
     reference?.measuredHeight?.status,
     reference?.measuredHeight?.heightMeters,
     reference?.measuredHeight?.verifiedMeasuredHeight,
+    authoritativeTwin?.location?.source?.recordId,
     authoritativeTwin?.structure?.source?.recordId,
     authoritativeTwin?.structure?.heightMeters,
     viewMode,
@@ -605,11 +683,12 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
     createElement('div', { ref: mountRef, style: { position: 'absolute', inset: 0 } }),
     createElement('div', {
       style: {
-        position: 'absolute', left: 12, bottom: 12, maxWidth: 'min(78%, 420px)', padding: '9px 11px', borderRadius: 14,
-        border: '1px solid rgba(244, 235, 214, 0.16)', background: 'rgba(12, 18, 17, 0.74)', backdropFilter: 'blur(12px)',
+        position: 'absolute', left: 12, bottom: 12, maxWidth: 'min(82%, 440px)', padding: '9px 11px', borderRadius: 14,
+        border: '1px solid rgba(244, 235, 214, 0.16)', background: 'rgba(12, 18, 17, 0.76)', backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)', color: '#f6efe1', pointerEvents: 'none', boxShadow: '0 12px 34px rgba(0, 0, 0, 0.2)',
       },
     },
     createElement('div', { style: { fontSize: 12, fontWeight: 800, letterSpacing: '0.01em' } }, label.title),
-    createElement('div', { style: { marginTop: 2, fontSize: 10, lineHeight: 1.35, color: 'rgba(246, 239, 225, 0.68)' } }, label.detail)));
+    createElement('div', { style: { marginTop: 2, fontSize: 10, lineHeight: 1.35, color: 'rgba(246, 239, 225, 0.68)' } }, label.detail),
+    authoritativeTwin?.location?.parcelGeometry ? createElement('div', { style: { marginTop: 5, fontSize: 9, color: 'rgba(169, 217, 200, 0.86)' } }, 'Mint outline = source-backed parcel boundary') : null));
 }

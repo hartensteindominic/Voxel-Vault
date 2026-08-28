@@ -23,7 +23,9 @@ function globalFacts(reference: any) {
       recordId: reference.source?.recordId,
       observedAt: reference.source?.observedAt,
       sourceUrl: reference.source?.sourceUrl,
-      note: 'Reference building geometry only; not a cadastral parcel boundary.',
+      note: reference.matchStrategy === 'exact_source_address_match'
+        ? 'Reference building geometry with source-reported address tags matching the requested address; not a cadastral parcel boundary.'
+        : 'Nearest source building reference only; not proven to be the exact address and not a cadastral parcel boundary.',
     },
     {
       field: 'nearby_building_count',
@@ -190,7 +192,7 @@ export async function POST(request: Request) {
 
     if (intake.hasCoordinates) {
       const [neighborhoodResult, terrainResult] = await Promise.allSettled([
-        fetchGlobalNeighborhoodReference({ latitude: intake.latitude, longitude: intake.longitude, radiusMeters: 130 }),
+        fetchGlobalNeighborhoodReference({ address: intake.address, latitude: intake.latitude, longitude: intake.longitude, radiusMeters: 130 }),
         fetchUsgsTerrainReference({ latitude: intake.latitude, longitude: intake.longitude, countryCode: intake.countryCode, radiusMeters: 90 }),
       ]);
       if (neighborhoodResult.status === 'fulfilled') globalReference = neighborhoodResult.value;
@@ -269,7 +271,7 @@ export async function POST(request: Request) {
         overtureRelease: '2026-07-22.0',
         overtureBuildingsPmtiles: 'https://overturemaps-extras-us-west-2.s3.us-west-2.amazonaws.com/tiles/2026-07-22.0/buildings.pmtiles',
         terrainAdapter: intake.countryCode === 'US' ? 'USGS 3DEP EPQS 3×3 ground-elevation reference grid' : 'no authoritative terrain adapter attached for this country yet',
-        neighborhoodAdapter: 'OpenStreetMap / Overpass nearby building footprints',
+        neighborhoodAdapter: 'OpenStreetMap / Overpass nearby building footprints with exact source-address preference and nearest-building fallback',
         measuredHeightPolicy: 'Measured building height requires accepted parcel-specific building geometry plus actual roof/ground LiDAR processing. Coverage or ground elevation alone cannot satisfy the gate.',
         note: 'GEO fetches/cache-bounds around a requested property instead of storing the entire planet in the web app. Overture/OSM are global reference layers; jurisdiction sources remain the parcel authority where available.',
       },
