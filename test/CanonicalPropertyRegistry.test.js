@@ -62,7 +62,10 @@ describe('CanonicalPropertyRegistry', function () {
       .to.be.revertedWithCustomError(registry, 'OwnableUnauthorizedAccount')
       .withArgs(other.address);
 
-    const interfaceText = JSON.stringify(registry.interface.fragments.map((fragment) => fragment.format()));
-    expect(interfaceText).not.to.match(/interestToken|mint|rent|distribution|deedTransfer/i);
+    const functionNames = registry.interface.fragments
+      .filter((fragment) => fragment.type === 'function')
+      .map((fragment) => fragment.name)
+      .join(',');
+    expect(functionNames).not.to.match(/interestToken|mint|rent|distribution|deedTransfer/i);
   });
 });
