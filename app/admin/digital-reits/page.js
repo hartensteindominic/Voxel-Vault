@@ -53,11 +53,14 @@ export default function DinariAdminOnboardingPage() {
   const step2Ref = useRef(null);
   const step3Ref = useRef(null);
   const step4Ref = useRef(null);
+  const bindingRef = useRef(null);
   const finalRef = useRef(null);
 
   const selectedEntityId = state?.entity?.id || state?.configuredEntityId || '';
   const kycStatus = String(state?.kyc?.status || 'NOT_STARTED').trim().toUpperCase();
   const kycPending = kycStatus === 'PENDING' || kycStatus === 'NEEDS_REVIEW';
+  const providerBinding = state?.providerBinding || null;
+  const providerBound = providerBinding?.status === 'verified';
   const usAccount = useMemo(
     () => (state?.accounts || []).find((account) => account.isActive && account.jurisdiction === 'US') || null,
     [state?.accounts]
@@ -179,8 +182,12 @@ export default function DinariAdminOnboardingPage() {
         setNotice(`Sandbox Entity created: ${data.entity.id}. Next: open Dinari KYC once.`);
         setTimeout(() => step3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
       }
-      if (data.account?.id) {
-        setNotice(`${data.created ? 'Created' : 'Reused'} US sandbox Account: ${data.account.id}.`);
+      if (data.account?.id && data.bindingStored !== true) {
+        setNotice(`${data.created ? 'Created' : 'Reused'} US sandbox Account: ${data.account.id}.${data.bindingError ? ` Identity binding is still locked: ${data.bindingError}` : ''}`);
+        setTimeout(() => bindingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+      }
+      if (data.bindingStored === true || data.binding?.status === 'verified') {
+        setNotice('Dinari sandbox account is verified and bound to this Voxel Vault Google identity. My Vault can now read this account through the private read-only endpoint.');
         setTimeout(() => finalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
       }
       return data;
@@ -217,9 +224,16 @@ export default function DinariAdminOnboardingPage() {
 
   async function createAccount() {
     if (!selectedEntityId) return;
-    const accepted = window.confirm('Create or reuse a US Account for this PASSed Dinari SANDBOX Entity? Test environment only.');
+    const accepted = window.confirm('Create or reuse the PASSed Entity’s US Dinari SANDBOX Account and bind that verified provider account to this Voxel Vault Google identity? Test environment only.');
     if (!accepted) return;
     await action('create-account', { entityId: selectedEntityId, jurisdiction: 'US' });
+  }
+
+  async function bindAccount() {
+    if (!selectedEntityId || !usAccount || !kycPass) return;
+    const accepted = window.confirm('Bind the active US Dinari SANDBOX Account returned for this PASSed Entity to this Voxel Vault Google identity? Voxel Vault will not accept a browser-supplied account ID.');
+    if (!accepted) return;
+    await action('bind-account', { entityId: selectedEntityId });
   }
 
   function copy(value) {
@@ -277,12 +291,15 @@ export default function DinariAdminOnboardingPage() {
           ? { label: 'Entity ready — continue to Step 3', detail: 'Open Dinari’s hosted KYC once, complete verification there, then return here. The page will monitor the result.', ref: step3Ref }
           : !usAccount
             ? { label: 'KYC passed — continue to Step 4', detail: 'Create or reuse your US sandbox Account so the Digital REIT Vault has a provider account to read.', ref: step4Ref }
-            : { label: 'Sandbox account ready — finish setup', detail: 'Copy the non-secret Entity and Account IDs into Vercel, then verify read-only portfolio data before enabling mock funding.', ref: finalRef };
+            : !providerBound
+              ? { label: 'Provider account ready — bind it to this Vault identity', detail: 'The Dinari account exists, but My Vault will keep its holdings hidden until the server records a verified user-to-provider binding.', ref: bindingRef }
+              : { label: 'User-bound provider account ready', detail: 'My Vault can now read this exact Dinari sandbox account for this signed-in identity through a read-only route.', ref: finalRef };
 
   return <main style={page}><div style={shell}>
     <nav style={nav}>
       <Link href="/" style={brand}>V · Voxel Vault</Link>
       <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <Link href="/vault#digital-reits" style={navLink}>My Vault</Link>
         <Link href="/real-estate/reits" style={navLink}>Digital REIT Vault</Link>
         <span style={pill}>OWNER · PRIVATE</span>
       </div>
@@ -290,8 +307,8 @@ export default function DinariAdminOnboardingPage() {
 
     <header style={{padding:'48px 0 24px'}}>
       <div style={eyebrow}>DINARI · SANDBOX ACTIVATION</div>
-      <h1 style={h1}>Secret created.<br/><span style={{color:'#b8ff55'}}>Now connect the rails.</span></h1>
-      <p style={copyText}>This wizard verifies your server-side credentials, creates the sandbox customer Entity, opens Dinari's hosted US KYC, then creates/reuses the US sandbox Account. Voxel Vault never asks you to paste the API secret, SSN, tax ID or identity documents into this page.</p>
+      <h1 style={h1}>Connect the rails.<br/><span style={{color:'#b8ff55'}}>Bind the identity.</span></h1>
+      <p style={copyText}>This wizard verifies server-side credentials, creates the sandbox customer Entity, opens Dinari's hosted US KYC, creates/reuses the US sandbox Account, then binds that provider-verified account to this signed-in Voxel Vault identity. Voxel Vault never asks you to paste the API secret, SSN, tax ID or identity documents into this page.</p>
     </header>
 
     {error ? <div style={errorBox}>{error}</div> : null}
@@ -347,21 +364,46 @@ export default function DinariAdminOnboardingPage() {
 
       <article ref={step4Ref} style={{...card,opacity:kycPass?1:.45}}>
         <span style={step}>4</span><div style={eyebrow}>US SANDBOX ACCOUNT</div>
-        <h2 style={h2}>{usAccount ? 'Account ready.' : 'Create the trading Account.'}</h2>
-        <p style={copyText}>{usAccount ? `Active US account ${short(usAccount.id)} is ready to connect to the Digital REIT Vault.` : kycPending ? 'Dinari still reports KYC as pending. Account creation remains safely blocked until Dinari returns PASS.' : 'This stays blocked until Dinari reports KYC PASS.'}</p>
-        {usAccount ? <button style={secondary} onClick={() => copy(usAccount.id)}>Copy Account ID</button> : <button style={primaryButton} disabled={!kycPass || Boolean(busy)} onClick={createAccount}>{busy === 'create-account' ? 'Creating…' : 'Create US sandbox Account'}</button>}
+        <h2 style={h2}>{usAccount ? 'Account ready.' : 'Create the provider Account.'}</h2>
+        <p style={copyText}>{usAccount ? `Dinari reports active US account ${short(usAccount.id)} for this Entity.` : kycPending ? 'Dinari still reports KYC as pending. Account creation remains safely blocked until Dinari returns PASS.' : 'This stays blocked until Dinari reports KYC PASS.'}</p>
+        {usAccount ? <button style={secondary} onClick={() => copy(usAccount.id)}>Copy Account ID</button> : <button style={primaryButton} disabled={!kycPass || Boolean(busy)} onClick={createAccount}>{busy === 'create-account' ? 'Creating + binding…' : 'Create US sandbox Account + bind'}</button>}
       </article>
     </section>
 
-    <section ref={finalRef} style={{...card,marginTop:16,borderColor:usAccount?'#526b3c':'#283126'}}>
-      <div style={eyebrow}>FINAL VERCEL VALUES</div>
-      <h2 style={h2}>Connect the created IDs, then run the $5 test.</h2>
-      <pre style={code}>{`DINARI_ENTITY_ID=${selectedEntityId || '<waiting for entity>'}\nDINARI_ACCOUNT_ID=${usAccount?.id || '<waiting for account>'}\nDINARI_SANDBOX_FAUCET_ENABLED=false\nDINARI_SANDBOX_ORDER_EXECUTION_ENABLED=false`}</pre>
-      <p style={copyText}>First verify `/api/digital-reits` reads correctly with both action flags false. Then enable only the faucet, add mock funds, enable sandbox ordering, and place the $5 test order. Production trading remains code-locked.</p>
-      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><Link href="/real-estate/reits" style={primary}>Open Digital REIT Vault →</Link><button style={secondary} onClick={() => {localStorage.removeItem(ENTITY_STORAGE_KEY); setState(state ? {...state, entity:null, kyc:null, accounts:[]} : state);}}>Forget local Entity selection</button></div>
+    <section ref={bindingRef} style={{...card,marginTop:16,borderColor:providerBound?'#526b3c':state?.providerBindingSetupRequired?'#6a5b35':'#394338'}}>
+      <div style={eyebrow}>STEP 5 · USER / PROVIDER IDENTITY BINDING</div>
+      <h2 style={h2}>{providerBound ? 'Provider account is user-bound.' : 'My Vault is withholding provider holdings.'}</h2>
+      {providerBound ? <>
+        <p style={copyText}>This signed-in Voxel Vault identity is bound server-side to a verified Dinari {String(providerBinding.environment || 'sandbox').toUpperCase()} account ending in <b style={{color:'#fff'}}>{providerBinding.accountSuffix || '—'}</b>. The browser cannot rewrite the account ID.</p>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <span style={{...pill,color:'#b8ff55'}}>USER-BOUND · KYC {providerBinding.kycStatus || 'PASS'}</span>
+          <Link href="/vault#digital-reits" style={primary}>Open personal REIT wing →</Link>
+        </div>
+      </> : <>
+        <p style={copyText}>{state?.providerBindingSetupRequired
+          ? 'The provider account can exist at Dinari, but Voxel Vault will not attribute it to this user until the server-controlled binding table exists. Apply the new Supabase migration, then bind the verified account.'
+          : usAccount
+            ? 'An active provider account exists, but it is not yet bound to this Google/Voxel Vault identity. Personal holdings stay hidden until binding succeeds.'
+            : 'Create/reuse the PASSed provider account first. Binding will remain unavailable until Dinari returns an active US account.'}</p>
+        {state?.providerBindingError ? <div style={pendingBox}>{state.providerBindingError}</div> : null}
+        {state?.providerBindingSetupRequired ? <pre style={code}>supabase/migrations/014_provider_account_bindings.sql</pre> : null}
+        {usAccount && kycPass ? <button style={primaryButton} disabled={Boolean(busy)} onClick={bindAccount}>{busy === 'bind-account' ? 'Binding…' : 'Bind existing sandbox Account to My Vault'}</button> : null}
+      </>}
     </section>
 
-    <footer style={{padding:'26px 0',color:'#71806d',fontSize:12}}>Owner-only setup · Dinari sandbox writes only · no live accounts, real-money orders or identity-document storage enabled here.</footer>
+    <section ref={finalRef} style={{...card,marginTop:16,borderColor:providerBound?'#526b3c':'#283126'}}>
+      <div style={eyebrow}>PILOT EXECUTION VALUES</div>
+      <h2 style={h2}>{providerBound ? 'Identity bound. Now prove the $5 sandbox loop.' : 'Finish identity binding before calling holdings personal.'}</h2>
+      <pre style={code}>{`DINARI_ENTITY_ID=${selectedEntityId || '<waiting for entity>'}\nDINARI_ACCOUNT_ID=${usAccount?.id || '<waiting for account>'}\nDINARI_SANDBOX_FAUCET_ENABLED=false\nDINARI_SANDBOX_ORDER_EXECUTION_ENABLED=false`}</pre>
+      <p style={copyText}>These environment IDs remain the owner/pilot account used by the public Digital REIT test dashboard. Personal My Vault holdings use the separate server-controlled user binding. Keep both action flags false while verifying reads; then enable only the sandbox faucet/order flags for the controlled $5 test. Production trading remains code-locked.</p>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <Link href="/real-estate/reits" style={primary}>Open Digital REIT test Vault →</Link>
+        {providerBound ? <Link href="/vault#digital-reits" style={secondaryLink}>Open My Vault personal wing →</Link> : null}
+        <button style={secondary} onClick={() => {localStorage.removeItem(ENTITY_STORAGE_KEY); setState(state ? {...state, entity:null, kyc:null, accounts:[]} : state);}}>Forget local Entity selection</button>
+      </div>
+    </section>
+
+    <footer style={{padding:'26px 0',color:'#71806d',fontSize:12}}>Owner-only setup · Dinari sandbox writes only · provider bindings are server-controlled · no live accounts, real-money orders or identity-document storage enabled here.</footer>
   </div></main>;
 }
 
