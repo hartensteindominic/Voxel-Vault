@@ -75,8 +75,8 @@ contract VoxelTestLand is ERC721, Ownable, ReentrancyGuard {
             '<rect width="800" height="800" fill="#05060b"/><path d="M100 250 400 90 700 250 400 410Z" fill="url(#g)" stroke="#c5bdff" stroke-width="8"/>',
             '<path d="M100 250v260l300 190V410Z" fill="#171b33"/><path d="M700 250v260L400 700V410Z" fill="#0c1023"/>',
             '<text x="400" y="530" text-anchor="middle" fill="white" font-family="Arial" font-size="46" font-weight="700">TEST LAND #', id, '</text>',
-            '<text x="400" y="590" text-anchor="middle" fill="#aaa3ff" font-family="Arial" font-size="28">ROW ', rowText, ' · COL ', columnText, '</text>',
-            '<text x="400" y="650" text-anchor="middle" fill="#818aa0" font-family="Arial" font-size="20">BASE SEPOLIA · NO REAL PROPERTY RIGHTS</text></svg>'
+            '<text x="400" y="590" text-anchor="middle" fill="#aaa3ff" font-family="Arial" font-size="28">ROW ', rowText, ' - COL ', columnText, '</text>',
+            '<text x="400" y="650" text-anchor="middle" fill="#818aa0" font-family="Arial" font-size="20">BASE SEPOLIA - NO REAL PROPERTY RIGHTS</text></svg>'
         );
 
         string memory json = string.concat(
