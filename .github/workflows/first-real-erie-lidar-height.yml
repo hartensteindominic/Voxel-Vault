@@ -33,6 +33,9 @@ jobs:
       - name: Export live 618 Main source evidence
         run: node scripts/export-first-real-erie-lidar-evidence.mjs > /tmp/erie-618-main-lidar-input.json
 
+      - name: Diagnose official BUILDING candidates
+        run: python scripts/diagnose-erie-building-candidates.py --input /tmp/erie-618-main-lidar-input.json
+
       - name: Validate County footprint overlap
         run: python scripts/diagnose-first-real-erie-footprint.py --input /tmp/erie-618-main-lidar-input.json
 
