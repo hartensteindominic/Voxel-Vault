@@ -50,26 +50,48 @@ export async function POST(request: Request) {
     }
     if (alreadyMinted) return NextResponse.json({ error: 'This Digital Estate is already owned onchain.', sold: true }, { status: 409 });
 
-    let hold = await acquireDigitalEstateReservation({
-      estateId: estate.id,
-      buyerId: user.id,
-      wallet,
-      source: 'stripe',
-    });
+    let hold = await acquireDigitalEstateReservation({ estateId: estate.id, buyerId: user.id, wallet, source: 'stripe' });
 
     if (!hold.acquired && hold.reservedByYou && hold.reservation?.state === 'reserved') {
       await releaseDigitalEstateReservation({ estateId: estate.id, buyerId: user.id, wallet });
       hold = await acquireDigitalEstateReservation({ estateId: estate.id, buyerId: user.id, wallet, source: 'stripe' });
     }
 
-    if (!hold.acquired) {
-      if (hold.reservedByYou && hold.reservation?.state === 'checkout' && hold.reservation.sourceId?.startsWith('cs_')) {
-        const stripe = getStripe();
-        const previous = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
-        if (previous.status === 'open' && previous.url) {
-          return NextResponse.json({ url: previous.url, resumed: true, estateId: estate.id });
-        }
+    if (!hold.acquired && hold.reservation?.state === 'checkout' && hold.reservation.sourceId?.startsWith('cs_')) {
+      const stripe = getStripe();
+      const previous = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
+      if (previous.payment_status === 'paid') {
+        await updateDigitalEstateReservation({
+          estateId: estate.id,
+          buyerId: hold.reservation.buyerId,
+          wallet: hold.reservation.wallet,
+          state: 'paid',
+          source: 'stripe',
+          sourceId: previous.id,
+        });
+        return NextResponse.json({ error: 'This Digital Estate has already been paid for.', sold: true }, { status: 409 });
       }
+      if (previous.status === 'expired') {
+        await releaseDigitalEstateReservation({
+          estateId: estate.id,
+          buyerId: hold.reservation.buyerId,
+          wallet: hold.reservation.wallet,
+        });
+        hold = await acquireDigitalEstateReservation({ estateId: estate.id, buyerId: user.id, wallet, source: 'stripe' });
+      } else if (hold.reservedByYou && previous.status === 'open' && previous.url) {
+        return NextResponse.json({ url: previous.url, resumed: true, estateId: estate.id });
+      } else {
+        return NextResponse.json({
+          error: previous.status === 'complete'
+            ? 'Payment for this Digital Estate is still being confirmed.'
+            : 'This Digital Estate is temporarily reserved by another checkout.',
+          reserved: true,
+          paymentPending: previous.status === 'complete',
+        }, { status: 409 });
+      }
+    }
+
+    if (!hold.acquired) {
       return NextResponse.json({
         error: hold.sold ? 'This Digital Estate has already been purchased.' : 'This Digital Estate is temporarily reserved by another checkout.',
         sold: hold.sold,
@@ -115,22 +137,10 @@ export async function POST(request: Request) {
     });
 
     if (!session.url) throw new Error('Stripe did not return a Checkout URL.');
-    await updateDigitalEstateReservation({
-      estateId: estate.id,
-      buyerId: user.id,
-      wallet,
-      state: 'checkout',
-      source: 'stripe',
-      sourceId: session.id,
-    });
+    await updateDigitalEstateReservation({ estateId: estate.id, buyerId: user.id, wallet, state: 'checkout', source: 'stripe', sourceId: session.id });
     reservation = null;
 
-    return NextResponse.json({
-      url: session.url,
-      estateId: estate.id,
-      amountCents: estate.purchasePriceCents,
-      paymentMethods: 'dynamic-eligible-methods',
-    });
+    return NextResponse.json({ url: session.url, estateId: estate.id, amountCents: estate.purchasePriceCents, paymentMethods: 'dynamic-eligible-methods' });
   } catch (error) {
     console.error('Digital Estate checkout failed', error);
     if (reservation) {
