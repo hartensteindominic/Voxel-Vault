@@ -43,6 +43,10 @@ function isPermanent(state: EstateReservationState) {
 
 function isExpired(reservation: EstateReservation) {
   if (isPermanent(reservation.state)) return false;
+  // A Stripe checkout hold is resolved by asking Stripe whether its Checkout
+  // Session is open, expired, or paid. Never delete it based on a local timer,
+  // because a successfully paid buyer might close the browser before minting.
+  if (reservation.state === 'checkout') return false;
   const stamp = Date.parse(reservation.processedAt || '');
   return !Number.isFinite(stamp) || Date.now() - stamp > HOLD_MINUTES * 60_000;
 }
@@ -99,16 +103,17 @@ export async function acquireDigitalEstateReservation({
       wallet: normalizedWallet,
       source,
     };
+    const processedAt = new Date().toISOString();
     const { error: insertError } = await supabase.from('commerce_webhook_events').insert({
       provider: PROVIDER,
       event_id: estateId,
       event_type: encode(payload),
-      processed_at: new Date().toISOString(),
+      processed_at: processedAt,
     });
     if (!insertError) {
       return {
         acquired: true,
-        reservation: { estateId, ...payload, processedAt: new Date().toISOString() },
+        reservation: { estateId, ...payload, processedAt },
         sold: false,
         reservedByYou: true,
       };
@@ -117,7 +122,12 @@ export async function acquireDigitalEstateReservation({
   }
 
   const reservation = await readDigitalEstateReservation(estateId);
-  return { acquired: false, reservation, sold: Boolean(reservation && isPermanent(reservation.state)), reservedByYou: false };
+  return {
+    acquired: false,
+    reservation,
+    sold: Boolean(reservation && isPermanent(reservation.state)),
+    reservedByYou: Boolean(reservation && reservation.buyerId === buyerId && reservation.wallet === normalizedWallet),
+  };
 }
 
 export async function updateDigitalEstateReservation({
@@ -146,19 +156,23 @@ export async function updateDigitalEstateReservation({
 
   const supabase = getSupabaseAdmin();
   const payload = { state, buyerId, wallet: wallet.toLowerCase(), source, ...(sourceId ? { sourceId } : {}) };
-  const { error } = await supabase
+  const previous = encode({
+    state: current.state,
+    buyerId: current.buyerId,
+    wallet: current.wallet,
+    source: current.source,
+    ...(current.sourceId ? { sourceId: current.sourceId } : {}),
+  });
+  const { data, error } = await supabase
     .from('commerce_webhook_events')
     .update({ event_type: encode(payload), processed_at: new Date().toISOString() })
     .eq('provider', PROVIDER)
     .eq('event_id', estateId)
-    .eq('event_type', encode({
-      state: current.state,
-      buyerId: current.buyerId,
-      wallet: current.wallet,
-      source: current.source,
-      ...(current.sourceId ? { sourceId: current.sourceId } : {}),
-    }));
+    .eq('event_type', previous)
+    .select('event_id')
+    .maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Digital estate reservation changed concurrently.');
   return { estateId, ...payload };
 }
 
@@ -171,7 +185,14 @@ export async function releaseDigitalEstateReservation({ estateId, buyerId, walle
     .from('commerce_webhook_events')
     .delete()
     .eq('provider', PROVIDER)
-    .eq('event_id', estateId);
+    .eq('event_id', estateId)
+    .eq('event_type', encode({
+      state: current.state,
+      buyerId: current.buyerId,
+      wallet: current.wallet,
+      source: current.source,
+      ...(current.sourceId ? { sourceId: current.sourceId } : {}),
+    }));
   if (error) throw error;
   return true;
 }
