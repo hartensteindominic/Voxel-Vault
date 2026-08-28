@@ -10,13 +10,14 @@ import MeshyHeroPanel from './MeshyHeroPanel';
 import PropertyEvidencePanel from './PropertyEvidencePanel';
 import PropertyTruthStack from './PropertyTruthStack';
 import styles from './earth-experience.module.css';
+import extra from './earth-experience-extra.module.css';
 
 const GOOGLE_3D_ENABLED = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY);
 
 const CATEGORIES = [
-  ['all', 'All'], ['house', 'Houses'], ['condo', 'Condos'], ['mobile-home', 'Mobile / Trailer'],
+  ['all', 'All'], ['house', 'Houses'], ['condo', 'Condos'], ['mobile-home', 'Mobile'],
   ['multifamily', 'Multifamily'], ['storefront', 'Storefronts'], ['commercial', 'Commercial'],
-  ['warehouse', 'Warehouses'], ['barn-farm', 'Barns / Farms'], ['land', 'Land'],
+  ['warehouse', 'Warehouses'], ['barn-farm', 'Farms'], ['land', 'Land'],
 ];
 
 const QUICK_LOCATIONS = [
@@ -404,7 +405,7 @@ export default function EarthPropertiesPage() {
       <h1>See the real world.<br/><em>Then build its twin.</em></h1>
       <p className={styles.heroText}>One address, synchronized across live Reality, source-backed Voxel geometry, the world Globe, visual evidence and selective Meshy 7 reconstruction. The system prefers jurisdiction evidence where available and fails visibly instead of inventing architecture.</p>
       <form className={styles.search} onSubmit={submit}>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="City, address, postcode · or latitude, longitude" aria-label="Search Earth" />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Address, city, postcode · or latitude, longitude" aria-label="Search Earth" />
         <button disabled={atlasBusy || listingBusy}>{atlasBusy ? 'RESOLVING…' : 'EXPLORE'}</button>
         <button type="button" onClick={nearMe} disabled={atlasBusy}>NEAR ME</button>
       </form>
@@ -458,7 +459,7 @@ export default function EarthPropertiesPage() {
             <div className={styles.fact}><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div>
             <div className={styles.fact}><b>{authoritativeEvidence?.countyRecord?.buildingMatchStrategy || selectedAtlas?.source?.license || '—'}</b><span>GEOMETRY STATUS</span></div>
           </div>
-          <div className={styles.sourceNote}><b>FAIL-SAFE PROPERTY TRUTH</b><span>Reality imagery, map geometry, assessment characteristics, listing photos, AI models, legal title and investment rights are separate evidence layers. Missing layers stay missing.</span></div>
+          <div className={styles.sourceNote}><b>FAIL-SAFE PROPERTY TRUTH</b><span>Reality imagery, map geometry, assessment characteristics, listing photos, AI models, legal title and investment rights are separate evidence layers. Missing layers stay missing. MINTING RECOMMENDED AFTER VERIFICATION; minting never upgrades title.</span></div>
           <button className={styles.download} type="button" onClick={downloadRegion} disabled={!atlasBuildings.length || !visualReady}>DOWNLOAD LOADED REGION · GEOJSON</button>
           {selectedAtlas?.source?.sourceUrl ? <a className={styles.sourceLink} href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}
           <Link className={styles.sourceLink} href="/vault/properties/claim">VERIFY OWNER · CREATE PROPERTY PASSPORT</Link>
@@ -486,21 +487,24 @@ export default function EarthPropertiesPage() {
     <section className={styles.market}>
       <div className={styles.marketHead}><div><small>AUTHORIZED REAL-ESTATE MARKET</small><h2>Listings are not fabricated.</h2><p>{listingMessage}</p></div><div className={styles.marketCount}><b>{listings.length}</b><span>LIVE RESULTS</span></div></div>
       <div className={styles.providerBar}><b>LIVE COVERAGE</b><span>{liveProviders.length ? liveProviders.map((provider) => provider.name).join(' · ') : 'No licensed listing feed is connected on this deployment.'}</span><b>MAP COVERAGE</b><span>World exploration remains independent from market inventory.</span></div>
-      <div className={styles.filters}>
-        <div>{[['all','Buy + Rent'],['sale','For Sale'],['rent','For Rent']].map(([id,label]) => <button key={id} className={type === id ? styles.activeFilter : ''} onClick={() => chooseType(id)}>{label}</button>)}</div>
-        <div>{CATEGORIES.map(([id,label]) => <button key={id} className={category === id ? styles.activeFilter : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div>
+      <div className={extra.filters}>
+        <div>{[['all','Buy + Rent'],['sale','For Sale'],['rent','For Rent']].map(([id,label]) => <button key={id} className={type === id ? extra.activeFilter : ''} onClick={() => chooseType(id)}>{label}</button>)}</div>
+        <div>{CATEGORIES.map(([id,label]) => <button key={id} className={category === id ? extra.activeFilter : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div>
       </div>
       <div className={styles.marketGrid}>
-        {listings.length === 0 ? <div className={styles.emptyMarket}><b>{configured === false ? 'MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS HERE'}</b><span>A mapped building is not automatically for sale. Try another place or connect an authorized provider.</span></div> : listings.map((item) => <button type="button" key={item.id} className={styles.listing} onClick={() => chooseListing(item)}>
-          {item.imageUrl ? <img src={item.imageUrl} alt="" referrerPolicy="no-referrer"/> : <div className={styles.listingPlaceholder}>{categoryLabel(item.category)}</div>}
-          <div className={styles.listingBody}><small>{item.provider} · {item.country || 'Earth'}</small><strong>{money(item)}</strong><b>{item.address || 'Address from source'}</b><span>{[item.city,item.region,item.postalCode].filter(Boolean).join(', ')}</span><span>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</span>{item.sourceUrl ? <a className={styles.marketLink} href={item.sourceUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>OPEN SOURCE LISTING ↗</a> : null}</div>
-        </button>)}
+        {listings.length === 0 ? <div className={styles.emptyMarket}><b>{configured === false ? 'MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS HERE'}</b><span>A mapped building is not automatically for sale. Try another place or connect an authorized provider.</span></div> : listings.map((item) => <article key={item.id} className={styles.listing}>
+          <button type="button" className={extra.cardSelect} onClick={() => chooseListing(item)}>
+            {item.imageUrl ? <img src={item.imageUrl} alt="" referrerPolicy="no-referrer"/> : <div className={styles.listingPlaceholder}>{categoryLabel(item.category)}</div>}
+            <div className={styles.listingBody}><small>{item.provider} · {item.country || 'Earth'}</small><strong>{money(item)}</strong><b>{item.address || 'Address from source'}</b><span>{[item.city,item.region,item.postalCode].filter(Boolean).join(', ')}</span><span>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</span></div>
+          </button>
+          {item.sourceUrl ? <a className={styles.marketLink} href={item.sourceUrl} target="_blank" rel="noreferrer">OPEN SOURCE LISTING ↗</a> : null}
+        </article>)}
       </div>
       <div className={styles.sourceNote}><b>REAL-PROPERTY BOUNDARY</b><span>A real-property acquisition still requires the normal broker/contract, title, closing and recording process. A digital twin does not replace the deed, and a map/listing/AI model does not create ownership.</span></div>
     </section>
 
-    <section className={styles.governance}>
-      <article><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More digital claims, higher marginal fee.</h2><p>The proposed Voxel Vault stewardship schedule stays <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local region. Regional cap: 20. No owner/admin exemption. Billing remains disabled until an authoritative claim ledger exists.</p></article>
+    <section className={extra.governance}>
+      <article><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More digital claims, higher marginal fee.</h2><p>The proposed Voxel Vault stewardship schedule stays <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local region. Regional cap: 20. No owner/admin exemption. Billing remains disabled until an authoritative claim ledger exists. This is not a government tax and does not create rights in physical property.</p></article>
       <article><small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2><p>Voxel Vault can own its software, interface, original metadata, compliant caches and workflows. Google, Overture, OpenStreetMap, municipalities and listing providers keep their source data and licenses.</p></article>
     </section>
 
