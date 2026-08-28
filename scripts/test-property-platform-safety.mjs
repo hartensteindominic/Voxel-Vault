@@ -98,7 +98,7 @@ requireText(root, "import RealEstatePlatformPage from './real-estate/page'", 'ro
 requireText(home, 'Demo data only', 'property homepage');
 requireText(home, 'Live investing is locked', 'property homepage');
 requireText(home, '/real-estate/property/', 'property homepage');
-requireText(vault, 'REFERENCE ONLY', 'property vault');
+requireText(vault, 'PROPERTY_RIGHT_TYPES.REFERENCE_ONLY', 'property vault');
 requireText(vault, 'geometry not yet verified', 'property vault');
 requireText(vault, 'No deed transfer occurs on-chain', 'property vault');
 requireText(vault, 'Public hashes, private source documents', 'property vault');
