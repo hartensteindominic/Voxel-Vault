@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const nav = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
+const commandCenter = fs.readFileSync(new URL('../app/components/AppCommandCenter.js', import.meta.url), 'utf8');
 const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
 const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
 const more = fs.readFileSync(new URL('../app/more/page.js', import.meta.url), 'utf8');
@@ -15,9 +16,10 @@ for (const label of ['Home', 'Earth', 'Create', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
 assert.match(productMap, /APP_SECTIONS/);
-for (const route of ['/vault/earth', '/geo', '/studio', '/avatar', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
+for (const route of ['/vault/earth', '/geo', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/asset', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
   assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
 }
+assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');
 assert.match(productMap, /isOrganizedUserRoute/);
 assert.match(productMap, /dockItemForPath/);
 
@@ -27,8 +29,16 @@ assert.match(nav, /isOrganizedUserRoute/);
 assert.match(nav, /safe-area-inset-bottom/);
 assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should no longer be restricted to a finance-only prefix list');
 assert.match(layout, /FinancialOSNav/);
+assert.match(layout, /AppCommandCenter/);
 assert.match(layout, /Spatial Asset OS/);
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
+
+assert.match(commandCenter, /APP_DOCK, APP_SECTIONS/, 'command center should index the canonical product map instead of maintaining another route list');
+assert.match(commandCenter, /metaKey \|\| event\.ctrlKey/, 'command center should support desktop keyboard invocation');
+assert.match(commandCenter, /event\.key === '\/'/, 'command center should support fast slash invocation outside text fields');
+assert.match(commandCenter, /safe-area-inset-bottom/, 'command center trigger must respect iPhone safe area');
+assert.match(commandCenter, /Search is navigation only\. It never executes trades, mints, Meshy generations or property actions\./, 'command center must disclose its non-execution boundary');
+assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
 assert.match(rootHome, /SPATIAL ASSET OS/);
 assert.match(rootHome, /Everything you own/);
@@ -73,4 +83,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault app organization + Financial OS coherence regression tests passed');
+console.log('Voxel Vault app organization + command center + Financial OS coherence regression tests passed');

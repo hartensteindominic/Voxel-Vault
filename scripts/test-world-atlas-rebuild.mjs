@@ -4,11 +4,14 @@ import fs from 'node:fs';
 const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const overture = fs.readFileSync(new URL('../lib/overture-building-tiles.js', import.meta.url), 'utf8');
 const atlas = fs.readFileSync(new URL('../lib/world-atlas.js', import.meta.url), 'utf8');
+const streamLib = fs.readFileSync(new URL('../lib/world-atlas-tile-stream.js', import.meta.url), 'utf8');
+const streamRoute = fs.readFileSync(new URL('../app/api/world-atlas/stream/route.ts', import.meta.url), 'utf8');
 const openImagery = fs.readFileSync(new URL('../lib/open-street-imagery.js', import.meta.url), 'utf8');
 const openRoute = fs.readFileSync(new URL('../app/api/world-atlas/open-imagery/route.ts', import.meta.url), 'utf8');
 const anchor = fs.readFileSync(new URL('../lib/real-estate/buffalo-atlas-anchor.js', import.meta.url), 'utf8');
 const anchorRoute = fs.readFileSync(new URL('../app/api/world-atlas/property-anchor/route.ts', import.meta.url), 'utf8');
-const globe = fs.readFileSync(new URL('../app/vault/earth/GlobalEarthGlobe.js', import.meta.url), 'utf8');
+const globeController = fs.readFileSync(new URL('../app/vault/earth/GlobalEarthGlobe.js', import.meta.url), 'utf8');
+const planetGlobe = fs.readFileSync(new URL('../app/vault/earth/PlanetStreamGlobe.js', import.meta.url), 'utf8');
 const page = fs.readFileSync(new URL('../app/vault/earth/page.js', import.meta.url), 'utf8');
 const openReality = fs.readFileSync(new URL('../app/vault/earth/OpenRealityPanel.js', import.meta.url), 'utf8');
 const truthStack = fs.readFileSync(new URL('../app/vault/earth/PropertyTruthStack.js', import.meta.url), 'utf8');
@@ -26,11 +29,32 @@ for (const dependency of ['pmtiles', '@mapbox/vector-tile', 'pbf', 'world-atlas'
 assert.match(overture, /new PMTiles\(url\)/, 'Overture must use bounded PMTiles range reads');
 assert.match(overture, /archive\.getZxy/, 'Overture must read only needed tiles');
 assert.match(overture, /new VectorTile/, 'Overture vector tiles must decode as MVT');
-assert.match(overture, /slice\(0, 36\)/, 'world responses must remain bounded for iPhone rendering');
+assert.match(overture, /slice\(0, 36\)/, 'detailed property responses must remain bounded for iPhone rendering');
 assert.match(atlas, /World building data is temporarily unavailable\. No replacement building was invented\./, 'global dual-source failure must stay explicit and non-fabricating');
 assert.match(atlas, /aiModel:\s*'meshy-7'/, 'Meshy 7 must stay pinned');
 assert.match(atlas, /targetPolycount:\s*30_000/, 'hero meshes must retain balanced 30k target');
 assert.match(atlas, /automaticGeneration:\s*false/, 'ordinary browsing must spend zero Meshy credits');
+
+assert.match(streamLib, /archive\.getZxy/, 'planet streaming must use PMTiles range reads');
+assert.match(streamLib, /MAX_FEATURES_PER_TILE = 120/, 'planet streaming must cap features per tile');
+assert.match(streamLib, /MAX_FEATURES_PER_RESPONSE = 500/, 'planet streaming must cap each response');
+assert.match(streamLib, /MAX_RING = 1/, 'planet streaming must cap neighboring tile fanout');
+assert.match(streamLib, /TILE_CACHE_TTL_MS = 60 \* 60 \* 1000/, 'planet tile cache must expire');
+assert.match(streamLib, /global-on-demand/, 'planet coverage must be explicitly on-demand rather than pretending the whole archive is local');
+assert.match(streamLib, /createsOwnership:\s*false/, 'streamed map data must never create ownership');
+assert.match(streamLib, /createsTitle:\s*false/, 'streamed map data must never create title');
+assert.match(streamRoute, /streamWorldAtlasRegion/, 'Earth must expose the bounded streaming engine');
+assert.match(streamRoute, /s-maxage=300/, 'streamed regions should use a short shared cache');
+assert.match(globeController, /MAX_STREAMED_BUILDINGS = 420/, 'iPhone globe must cap accumulated streamed markers');
+assert.match(globeController, /MAX_VISITED_REGIONS = 96/, 'client visited-region history must be bounded');
+assert.match(globeController, /inflightRef/, 'duplicate visible-region requests must be suppressed');
+assert.match(globeController, /onLocation\?\.\(\{ latitude:/, 'streamed marker selection must deepen through normal geographic lookup');
+assert.match(planetGlobe, /world-atlas\/countries-110m\.json/, 'the globe must contain recognizable geography before lookup');
+assert.match(planetGlobe, /activePointers\.size >= 2/, 'globe must keep two-finger pinch zoom');
+assert.match(planetGlobe, /IntersectionObserver/, 'globe must pause offscreen');
+assert.match(planetGlobe, /onViewport/, 'settled camera movement must be able to stream the visible region');
+assert.match(planetGlobe, /compact \? 1\.15 : 1\.35/, 'streaming globe must retain strict mobile pixel ratio');
+assert.match(planetGlobe, /time - lastRender < 33/, 'streaming globe must remain capped near 30fps on compact devices');
 
 assert.match(openImagery, /api\.openstreetcam\.org\/2\.0\/photo/, 'KartaView public photo API must drive free street reality');
 assert.match(openImagery, /KARTAVIEW_LICENSE = 'CC BY-SA 4\.0'/, 'open imagery license must be explicit');
@@ -53,10 +77,6 @@ assert.match(anchor, /authoritativeLocal:\s*true/, 'atlas must disclose when loc
 assert.match(anchor, /No building was selected|no building was selected/i, 'conflicting local sources must never silently choose a house');
 assert.match(anchorRoute, /resolveBuffaloAtlasAnchor/, 'Earth must expose a dedicated authoritative property-anchor API');
 assert.match(anchorRoute, /Cache-Control.*private, no-store/s, 'property-anchor results must remain uncached private responses');
-
-assert.match(globe, /world-atlas\/countries-110m\.json/, 'the globe must contain recognizable geography before lookup');
-assert.match(globe, /activePointers\.size >= 2/, 'globe must keep two-finger pinch zoom');
-assert.match(globe, /IntersectionObserver/, 'globe must pause offscreen');
 
 assert.match(page, /1047 Kensington Ave, Buffalo, NY 14215/, 'Earth must expose exact 1047 calibration address');
 assert.match(page, /sbl:\s*'90\.32-8-4'/, '1047 must carry exact SBL');
@@ -134,4 +154,4 @@ assert.match(docs, /KartaView/, 'docs must document the free open street imagery
 assert.match(docs, /MESHY_API_KEY=/, 'docs must document server-only Meshy setting');
 assert.match(docs, /CC BY-SA 4\.0/, 'docs must preserve open imagery license obligations');
 
-console.log('World atlas reality-stack checks passed: authoritative 1047 City+County anchor, free KartaView street reality, source-backed globe, evidence ladder, Meshy 7 open-reference rights gates, iPhone normalization, private caching, and fail-safe missing layers.');
+console.log('World atlas reality-stack checks passed: authoritative 1047 City+County anchor, global on-demand Overture streaming, free KartaView street reality, evidence ladder, Meshy 7 rights gates, iPhone limits, private caching, and fail-safe missing layers.');

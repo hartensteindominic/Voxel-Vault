@@ -8,6 +8,7 @@ const geoReference = await readFile(new URL('../app/geo/GeoReferenceModel.js', i
 const earthPage = await readFile(new URL('../app/vault/earth/page.js', import.meta.url), 'utf8');
 const earthCss = await readFile(new URL('../app/vault/earth/earth-experience.module.css', import.meta.url), 'utf8');
 const earthGlobe = await readFile(new URL('../app/vault/earth/GlobalEarthGlobe.js', import.meta.url), 'utf8');
+const planetGlobe = await readFile(new URL('../app/vault/earth/PlanetStreamGlobe.js', import.meta.url), 'utf8');
 const openReality = await readFile(new URL('../app/vault/earth/OpenRealityPanel.js', import.meta.url), 'utf8');
 const meshyViewer = await readFile(new URL('../app/vault/earth/MeshyModelViewer.js', import.meta.url), 'utf8');
 const meshyPanel = await readFile(new URL('../app/vault/earth/MeshyHeroPanel.js', import.meta.url), 'utf8');
@@ -25,11 +26,15 @@ assert.match(geoReference, /matchMedia\?\.\('\(max-width: 680px\)'\)/, 'GEO must
 assert.match(geoReference, /1\.18/, 'GEO must cap compact pixel ratio');
 assert.match(geoReference, /prefers-reduced-motion/, 'GEO must respect reduced motion');
 
-assert.match(earthGlobe, /compact \? 1\.18 : 1\.35/, 'Earth globe must keep strict compact pixel ratio');
-assert.match(earthGlobe, /time - lastRender < 33/, 'Earth globe must cap compact rendering near 30fps');
-assert.match(earthGlobe, /activePointers\.size >= 2/, 'Earth globe must retain two-finger pinch zoom');
-assert.match(earthGlobe, /IntersectionObserver/, 'Earth globe must pause offscreen');
-assert.match(earthGlobe, /prefers-reduced-motion/, 'Earth globe must respect reduced motion');
+assert.match(planetGlobe, /compact \? 1\.15 : 1\.35/, 'streaming Earth globe must keep strict compact pixel ratio');
+assert.match(planetGlobe, /time - lastRender < 33/, 'streaming Earth globe must cap compact rendering near 30fps');
+assert.match(planetGlobe, /activePointers\.size >= 2/, 'streaming Earth globe must retain two-finger pinch zoom');
+assert.match(planetGlobe, /IntersectionObserver/, 'streaming Earth globe must pause offscreen');
+assert.match(planetGlobe, /prefers-reduced-motion/, 'streaming Earth globe must respect reduced motion');
+assert.match(earthGlobe, /MAX_STREAMED_BUILDINGS = 420/, 'client globe cache must remain bounded');
+assert.match(earthGlobe, /MAX_VISITED_REGIONS = 96/, 'visited-region memory must remain bounded');
+assert.match(earthGlobe, /\/api\/world-atlas\/stream/, 'globe must stream visible Earth regions through the bounded API');
+assert.match(earthGlobe, /onLocation\?\.\(\{ latitude:/, 'streamed markers must deepen through location lookup rather than bypass property truth');
 
 assert.match(openReality, /@media\(max-width:680px\)/, 'open street reality must have explicit compact phone layout');
 assert.match(openReality, /min-height:390px/, 'open street reality must remain visible on iPhone');
@@ -57,4 +62,4 @@ assert.match(realEstateCss, /mobileTabBar/, 'Real estate homepage must expose mo
 assert.match(realEstateCss, /safe-area-inset-bottom/, 'Real estate homepage must account for iPhone safe area');
 assert.match(realEstateCss, /calc\(100% - 22px\)/, 'Real estate mobile shell width must use valid CSS math');
 
-console.log('Mobile WebGL source guard passed: Voxel, GEO, Globe, free open street Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks and rendering limits.');
+console.log('Mobile WebGL source guard passed: Voxel, GEO, streaming Globe, free open street Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks, bounded caches and rendering limits.');
