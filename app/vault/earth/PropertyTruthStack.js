@@ -21,7 +21,7 @@ export default function PropertyTruthStack({
   authoritativeEvidence = null,
   buffaloReference = null,
   listing = null,
-  googleConfigured = false,
+  openImagery = null,
   meshyConfigured = false,
   focusAuthority = '',
 }) {
@@ -34,7 +34,10 @@ export default function PropertyTruthStack({
   const calibratedHeight = Number(buffaloReference?.visualHeightReferenceMeters) > 0;
   const globalHeight = Number(building?.height?.referenceHeightMeters) > 0;
   const listingPhoto = Boolean(listing?.imageUrl);
-  const derivativeMedia = Array.isArray(listing?.meshyReferences) && listing.meshyReferences.length >= 2;
+  const listingDerivativeMedia = Array.isArray(listing?.meshyReferences) && listing.meshyReferences.length >= 2;
+  const openPhotos = Array.isArray(openImagery?.photos) ? openImagery.photos.length : 0;
+  const openDerivativeMedia = Array.isArray(openImagery?.meshyReferences) && openImagery.meshyReferences.length >= 2;
+  const derivativeMedia = listingDerivativeMedia || openDerivativeMedia;
 
   const layers = [
     layer(
@@ -63,14 +66,14 @@ export default function PropertyTruthStack({
     ),
     layer(
       'Exterior appearance',
-      derivativeMedia ? 'ready' : listingPhoto || googleConfigured ? 'reference' : 'unknown',
-      derivativeMedia ? 'The provider supplied media with explicit derivative-generation rights.' : listingPhoto || googleConfigured ? 'Live/listing imagery can be compared visually, but does not automatically verify windows, roof, porch, color or materials.' : 'No rights-cleared visual evidence is attached yet.',
-      derivativeMedia ? 'Derivative-licensed provider media' : listingPhoto ? listing?.provider : googleConfigured ? 'Google live visualization' : '',
+      openDerivativeMedia ? 'ready' : openPhotos || listingPhoto ? 'reference' : 'unknown',
+      openDerivativeMedia ? `${openPhotos} nearby KartaView frame${openPhotos === 1 ? '' : 's'} are available under an open derivative-compatible license; proximity still does not prove every frame depicts this exact parcel.` : openPhotos ? `${openPhotos} nearby open street frame${openPhotos === 1 ? '' : 's'} can be compared visually, but are not automatically treated as exact facade verification.` : listingPhoto ? 'Authorized listing imagery can be compared visually, but display rights do not automatically grant reconstruction rights.' : 'No visual evidence is attached yet.',
+      openPhotos ? `${openImagery?.provider || 'KartaView'} · ${openImagery?.license || 'open license'}` : listingPhoto ? listing?.provider : '',
     ),
     layer(
       'Meshy 7 model',
       derivativeMedia && meshyConfigured ? 'ready' : meshyConfigured ? 'locked' : 'unknown',
-      derivativeMedia && meshyConfigured ? 'Ready for controlled 2–4 view reconstruction.' : meshyConfigured ? 'Meshy is connected; generation stays locked until 2–4 rights-cleared views are present.' : 'Meshy is not configured on this deployment.',
+      derivativeMedia && meshyConfigured ? 'Ready for controlled 2–4 view reconstruction using rights-cleared references.' : meshyConfigured ? 'Meshy is connected; generation stays locked until 2–4 rights-cleared views are present.' : 'Meshy is not configured on this deployment.',
       meshyConfigured ? 'Meshy 7' : '',
     ),
     layer(
@@ -87,7 +90,7 @@ export default function PropertyTruthStack({
     ),
   ];
 
-  const strongest = exactFootprint ? 'PARCEL-LINKED 3D' : globalFootprint ? 'SOURCE 3D' : googleConfigured ? 'REALITY REFERENCE' : 'LOCATION ONLY';
+  const strongest = exactFootprint ? 'PARCEL-LINKED 3D' : globalFootprint && openPhotos ? 'SOURCE 3D + OPEN STREET' : globalFootprint ? 'SOURCE 3D' : openPhotos ? 'OPEN STREET REFERENCE' : 'LOCATION ONLY';
 
   return <section className="truthStack">
     <div className="truthHead">

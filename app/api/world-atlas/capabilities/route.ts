@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { WORLD_ATLAS_DATA_RELEASE, WORLD_ATLAS_MESH_POLICY } from '../../../../lib/world-atlas.js';
+import { KARTAVIEW_LICENSE, KARTAVIEW_TERMS_URL } from '../../../../lib/open-street-imagery.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,11 +14,19 @@ export async function GET() {
       fallback: 'OpenStreetMap / Overpass',
       release: WORLD_ATLAS_DATA_RELEASE,
     },
+    openStreetReality: {
+      configured: true,
+      provider: 'KartaView',
+      requiresPaidKey: false,
+      license: KARTAVIEW_LICENSE,
+      termsUrl: KARTAVIEW_TERMS_URL,
+      usage: 'public street-level reference imagery; proximity does not itself verify the selected parcel',
+    },
     googleReality: {
-      configured: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY?.trim()),
-      product: 'Google Maps JavaScript API · Photorealistic 3D',
-      mode: 'HYBRID',
-      usage: 'live visualization only; no extraction, scraping, ML reconstruction, or offline cache',
+      configured: false,
+      required: false,
+      product: 'Optional external Google Maps reference only',
+      usage: 'No Google billing or browser key is required by the Voxel Vault World Atlas.',
     },
     meshy: {
       configured: Boolean(process.env.MESHY_API_KEY?.trim()),
