@@ -15,6 +15,15 @@ import {
   assertSpatialInvariants,
 } from '../lib/real-estate/property-twin.js';
 
+const LIVE_FETCH_TIMEOUT_MS = 20_000;
+
+function liveEvidenceFetch(url, init = {}) {
+  return fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(LIVE_FETCH_TIMEOUT_MS),
+  });
+}
+
 async function discoverAddressCandidates() {
   const url = new URL(`${ERIE_COUNTY_PARCEL_LAYER}/query`);
   url.searchParams.set('f', 'json');
@@ -22,7 +31,7 @@ async function discoverAddressCandidates() {
   url.searchParams.set('outFields', 'OBJECTID,PIN,SBL,ADDNAME,ADDRESS,CITYTOWN,LOCALZIP');
   url.searchParams.set('returnGeometry', 'false');
   url.searchParams.set('resultRecordCount', '25');
-  const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10000) });
+  const response = await liveEvidenceFetch(url, { headers: { Accept: 'application/json' } });
   const body = await response.json().catch(() => null);
   return { status: response.status, ok: response.ok, body };
 }
@@ -31,7 +40,7 @@ async function loadWithRetry() {
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await fetchFirstRealErieParcel();
+      return await fetchFirstRealErieParcel({ fetchImpl: liveEvidenceFetch });
     } catch (error) {
       lastError = error;
       if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
