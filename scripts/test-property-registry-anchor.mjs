@@ -33,10 +33,39 @@ assert.match(migration, /v_property_id <> \('0x' \|\| lower\(v_identity\.verifie
 assert.match(migration, /if v_action = 'register'/i);
 assert.match(migration, /registry_verified = true/i);
 assert.match(migration, /PROPERTY_REGISTRY_REGISTRATION_REQUIRED/i);
-assert.match(migration, /grant execute on function public\.record_canonical_property_registry_deployment.*service_role/is);
-assert.doesNotMatch(migration, /grant execute on function public\.record_canonical_property_registry_deployment.*authenticated/is);
-assert.match(migration, /grant execute on function public\.record_property_registry_anchor.*service_role/is);
-assert.doesNotMatch(migration, /grant execute on function public\.record_property_registry_anchor.*authenticated/is);
+
+const deploymentRpcSignature = 'public\\.record_canonical_property_registry_deployment\\(bigint,text,text,text,text,bigint\\)';
+const anchorRpcSignature = 'public\\.record_property_registry_anchor\\(uuid,text,bigint,text,text,text,bigint,text,text,text,text\\)';
+assert.match(
+  migration,
+  new RegExp(`revoke all on function ${deploymentRpcSignature} from public, anon, authenticated;`, 'i'),
+  'Registry deployment recorder must explicitly revoke authenticated callers.'
+);
+assert.match(
+  migration,
+  new RegExp(`grant execute on function ${deploymentRpcSignature} to service_role;`, 'i'),
+  'Only service_role may record the canonical registry deployment.'
+);
+assert.doesNotMatch(
+  migration,
+  new RegExp(`grant execute on function ${deploymentRpcSignature} to authenticated;`, 'i'),
+  'Authenticated browser clients must never record a registry deployment.'
+);
+assert.match(
+  migration,
+  new RegExp(`revoke all on function ${anchorRpcSignature} from public, anon, authenticated;`, 'i'),
+  'Property anchor recorder must explicitly revoke authenticated callers.'
+);
+assert.match(
+  migration,
+  new RegExp(`grant execute on function ${anchorRpcSignature} to service_role;`, 'i'),
+  'Only service_role may reconcile property anchor transactions.'
+);
+assert.doesNotMatch(
+  migration,
+  new RegExp(`grant execute on function ${anchorRpcSignature} to authenticated;`, 'i'),
+  'Authenticated browser clients must never record property anchors.'
+);
 
 const helper = fs.readFileSync(new URL('../lib/vault/canonical-property-registry.js', import.meta.url), 'utf8');
 assert.match(helper, /BASE_SEPOLIA_CHAIN_ID = 84532/);
