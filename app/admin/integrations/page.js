@@ -125,7 +125,7 @@ export default function IntegrationsPage() {
           <div className={styles.groupHead}><h2>{category}</h2><span>{integrations.length} CONNECTION{integrations.length === 1 ? '' : 'S'}</span></div>
           <div className={styles.grid}>
             {integrations.map((integration) => {
-              const stateClass = goodState.test(integration.state) ? styles.good : lockedState.test(integration.state) ? styles.locked : '';
+              const stateClass = lockedState.test(integration.state) ? styles.locked : goodState.test(integration.state) ? styles.good : '';
               return <article className={styles.card} key={integration.id}>
                 <div className={styles.cardTop}><h3>{integration.label}</h3><span className={`${styles.state} ${stateClass}`}>{integration.state}</span></div>
                 <p>{integration.detail}</p>
