@@ -1,12 +1,30 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import GeoReferenceModel from '../../geo/GeoReferenceModel';
 import GlobalEarthGlobe from './GlobalEarthGlobe';
+import MeshyHeroPanel from './MeshyHeroPanel';
 
 const CATEGORIES = [
-  ['all','All'],['house','Houses'],['condo','Condos'],['mobile-home','Mobile / Trailer'],['multifamily','Multifamily'],['storefront','Storefronts'],['commercial','Commercial'],['warehouse','Warehouses'],['barn-farm','Barns / Farms'],['land','Land'],
+  ['all', 'All'],
+  ['house', 'Houses'],
+  ['condo', 'Condos'],
+  ['mobile-home', 'Mobile / Trailer'],
+  ['multifamily', 'Multifamily'],
+  ['storefront', 'Storefronts'],
+  ['commercial', 'Commercial'],
+  ['warehouse', 'Warehouses'],
+  ['barn-farm', 'Barns / Farms'],
+  ['land', 'Land'],
+];
+
+const QUICK_LOCATIONS = [
+  { id: 'buffalo', label: 'Buffalo', query: 'Buffalo, NY', lat: 42.8864, lng: -78.8784 },
+  { id: 'new-york', label: 'New York', query: 'New York, NY', lat: 40.7128, lng: -74.0060 },
+  { id: 'london', label: 'London', query: 'London, UK', lat: 51.5074, lng: -0.1278 },
+  { id: 'tokyo', label: 'Tokyo', query: 'Tokyo, Japan', lat: 35.6762, lng: 139.6503 },
+  { id: 'sydney', label: 'Sydney', query: 'Sydney, Australia', lat: -33.8688, lng: 151.2093 },
 ];
 
 function money(property) {
@@ -15,15 +33,11 @@ function money(property) {
   if (Number.isFinite(cents)) {
     const currency = /^[A-Z]{3}$/.test(String(property.currency || '')) ? property.currency : 'USD';
     try {
-      return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100) + (property.transactionType === 'rent' ? ' / mo' : '');
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 })
+        .format(cents / 100) + (property.transactionType === 'rent' ? ' / mo' : '');
     } catch {}
   }
   return property.marketValueText || 'Price on request';
-}
-
-function centsMoney(cents) {
-  const value = Number(cents || 0) / 100;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
 function addressLine(property) {
@@ -42,7 +56,7 @@ function categoryLabel(category) {
 }
 
 function shortProvider(provider) {
-  return String(provider || 'Authorized source').replace(' / authorized MLS',' MLS');
+  return String(provider || 'Authorized source').replace(' / authorized MLS', ' MLS');
 }
 
 function atlasBuildingLabel(building) {
@@ -77,254 +91,303 @@ function atlasReferenceForSelection(atlas, selected) {
   };
 }
 
-function PropertyModel({ property }) {
-  const mountRef = useRef(null);
-  useEffect(() => {
-    let dead = false;
-    let cleanup = () => {};
-    import('three').then((THREE) => {
-      if (dead || !mountRef.current) return;
-      const mount = mountRef.current;
-      const width = Math.max(300, mount.clientWidth || 300);
-      const height = Math.max(300, mount.clientHeight || 380);
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-      renderer.setSize(width, height);
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      mount.innerHTML = '';
-      mount.appendChild(renderer.domElement);
+function parseCoordinateQuery(value) {
+  const match = String(value || '').trim().match(/^(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
 
-      const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x080b0f, 18, 42);
-      scene.add(new THREE.HemisphereLight(0xf7fbff, 0x101913, 2.2));
-      const sun = new THREE.DirectionalLight(0xffffff, 3.0);
-      sun.position.set(8, 13, 9);
-      scene.add(sun);
-      const accent = new THREE.PointLight(0x79efbc, 26, 28);
-      accent.position.set(-6, 5, 7);
-      scene.add(accent);
-      const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-      const root = new THREE.Group();
-      scene.add(root);
-      const geometries = [];
-      const materials = [];
-      const mat = (color, roughness = .68, metalness = .04) => { const m = new THREE.MeshStandardMaterial({ color, roughness, metalness }); materials.push(m); return m; };
-      const box = (w,h,d,color,x,y,z) => { const g = new THREE.BoxGeometry(w,h,d); geometries.push(g); const mesh = new THREE.Mesh(g,mat(color)); mesh.position.set(x,y,z); root.add(mesh); return mesh; };
-      const slab = (w,d,color,x=0,z=0) => box(w,.18,d,color,x,-.2,z);
+function sourceMode(atlas) {
+  if (!atlas?.sourceStatus) return { label: 'WAITING FOR REGION', fallback: false };
+  if (atlas.sourceStatus.primary === 'overture-pmtiles') return { label: 'OVERTURE PRIMARY', fallback: false };
+  return { label: 'OSM FALLBACK', fallback: true };
+}
 
-      slab(16,12,0x26362e);
-      const category = property?.category || 'house';
-      if (category === 'land') {
-        slab(12,8,0x536d42);
-        for (let i=0;i<9;i+=1) box(.18,.18,.18,0xb7c999,-5+i*1.2,.05,-2+(i%3)*2);
-      } else if (category === 'barn-farm') {
-        box(7,3.8,5,0x8e4b3a,0,1.6,0);
-        const roofG = new THREE.ConeGeometry(5,2.4,4); geometries.push(roofG); const roof = new THREE.Mesh(roofG,mat(0x4b342d)); roof.rotation.y=Math.PI/4; roof.scale.z=.72; roof.position.set(0,4.35,0); root.add(roof);
-        box(1.8,2.5,.15,0xe2d1bd,0,1.1,2.55);
-      } else if (category === 'mobile-home') {
-        box(9,2.25,3.3,0xd7d9d5,0,1,0); box(9.4,.25,3.7,0x3d4246,0,2.28,0); box(2.4,.16,2.2,0x8b735d,3.1,-.02,2.6);
-      } else if (category === 'storefront') {
-        box(8.5,3.6,4.5,0xb8b3a6,0,1.5,0); box(7.3,2.2,.1,0x6bb4c8,0,1.35,2.28); box(9,.45,4.8,0x25292f,0,3.45,0);
-      } else if (category === 'warehouse' || category === 'commercial') {
-        box(10,4.2,6,category === 'warehouse'?0x8c939a:0xb6b8ba,0,1.8,0); box(3.2,2.7,.12,0x39424d,2.5,1.15,3.02); box(10.4,.3,6.4,0x2b3035,0,4,0);
-      } else if (category === 'condo' || category === 'multifamily') {
-        box(7,6.8,5.3,0xc2c3bf,0,3.1,0); for(let y=0;y<3;y+=1)for(let x=-1;x<=1;x+=1)box(1.2,1,.08,0x6fa8ba,x*1.8,1.2+y*1.8,2.68);
-      } else {
-        box(8.4,2.8,4.7,0xc8c2b6,-.6,1.2,.2); box(5.4,2.35,3.6,0xb2b5b2,1.8,3.65,-.4); box(8.8,.28,5.1,0x32363b,-.6,2.78,.2); box(5.8,.28,4,0x32363b,1.8,5,-.4); box(4.2,1.7,.08,0x77b9cc,-1.3,1.2,2.58);
-      }
-
-      const ringG = new THREE.RingGeometry(6.8,6.95,64); geometries.push(ringG); const ringM = mat(0x78efbd,.32,.1); const ring = new THREE.Mesh(ringG,ringM); ring.rotation.x=-Math.PI/2; ring.position.y=-.1; root.add(ring);
-      let az=.68, el=.46, radius=20, dragging=false, lastX=0, lastY=0;
-      const update=()=>{const c=Math.cos(el);camera.position.set(Math.sin(az)*c*radius,Math.sin(el)*radius,Math.cos(az)*c*radius);camera.lookAt(0,1.4,0)}; update();
-      const down=e=>{dragging=true;lastX=e.clientX;lastY=e.clientY};
-      const move=e=>{if(!dragging)return;az-=(e.clientX-lastX)*.008;el=Math.max(.2,Math.min(.95,el+(e.clientY-lastY)*.005));lastX=e.clientX;lastY=e.clientY;update()};
-      const up=()=>{dragging=false};
-      renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointermove',move);renderer.domElement.addEventListener('pointerup',up);
-      let frame; const animate=()=>{frame=requestAnimationFrame(animate);ring.material.opacity=.88;renderer.render(scene,camera)}; animate();
-      const resize=()=>{if(!mountRef.current)return;const w=Math.max(300,mountRef.current.clientWidth||300),h=Math.max(300,mountRef.current.clientHeight||380);renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()};window.addEventListener('resize',resize);
-      cleanup=()=>{cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerup',up);geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();mount.innerHTML=''};
-    });
-    return()=>{dead=true;cleanup()};
-  },[property?.id,property?.category]);
-  return <div className="model" ref={mountRef}/>;
+function listingVisual(item) {
+  if (item?.imageUrl) return <img src={item.imageUrl} alt="" referrerPolicy="no-referrer" />;
+  return <div className="listingPlaceholder"><span>{categoryLabel(item?.category)}</span><div className="miniBuilding"><i/><i/><i/></div></div>;
 }
 
 export default function EarthPropertiesPage() {
-  const [query,setQuery]=useState('');
-  const [category,setCategory]=useState('all');
-  const [type,setType]=useState('all');
-  const [listings,setListings]=useState([]);
-  const [providers,setProviders]=useState([]);
-  const [selectedId,setSelectedId]=useState('');
-  const [message,setMessage]=useState('Search anywhere on Earth or tap the globe.');
-  const [configured,setConfigured]=useState(null);
-  const [busy,setBusy]=useState(false);
-  const [lastSearch,setLastSearch]=useState(null);
-  const [atlas,setAtlas]=useState(null);
-  const [atlasBusy,setAtlasBusy]=useState(false);
-  const [atlasMessage,setAtlasMessage]=useState('Tap anywhere on Earth or search an address to stream nearby mapped buildings.');
-  const [selectedAtlasId,setSelectedAtlasId]=useState('');
-  const [globalClaims,setGlobalClaims]=useState('0');
-  const [regionalClaims,setRegionalClaims]=useState('0');
-  const [stewardshipQuote,setStewardshipQuote]=useState(null);
-  const [quoteBusy,setQuoteBusy]=useState(false);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const [type, setType] = useState('all');
+  const [listings, setListings] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [listingMessage, setListingMessage] = useState('Authorized market feeds are checked separately from the world map.');
+  const [configured, setConfigured] = useState(null);
+  const [listingBusy, setListingBusy] = useState(false);
+  const [lastSearch, setLastSearch] = useState(null);
+  const [atlas, setAtlas] = useState(null);
+  const [atlasBusy, setAtlasBusy] = useState(false);
+  const [atlasMessage, setAtlasMessage] = useState('Loading a real starter region…');
+  const [selectedAtlasId, setSelectedAtlasId] = useState('');
 
-  const selected=useMemo(()=>listings.find(item=>item.id===selectedId)||listings[0]||null,[listings,selectedId]);
-  const liveProviders=providers.filter(provider=>provider.configured);
-  const atlasBuildings=useMemo(()=>Array.isArray(atlas?.buildings)?atlas.buildings:[],[atlas]);
-  const selectedAtlas=useMemo(()=>atlasBuildings.find(item=>item.atlasId===selectedAtlasId)||atlas?.selectedBuilding||atlasBuildings[0]||null,[atlasBuildings,selectedAtlasId,atlas]);
-  const atlasReference=useMemo(()=>atlasReferenceForSelection(atlas,selectedAtlas),[atlas,selectedAtlas]);
+  const selected = useMemo(() => listings.find((item) => item.id === selectedId) || listings[0] || null, [listings, selectedId]);
+  const liveProviders = providers.filter((provider) => provider.configured);
+  const atlasBuildings = useMemo(() => Array.isArray(atlas?.buildings) ? atlas.buildings : [], [atlas]);
+  const selectedAtlas = useMemo(
+    () => atlasBuildings.find((item) => item.atlasId === selectedAtlasId) || atlas?.selectedBuilding || atlasBuildings[0] || null,
+    [atlasBuildings, selectedAtlasId, atlas],
+  );
+  const atlasReference = useMemo(() => atlasReferenceForSelection(atlas, selectedAtlas), [atlas, selectedAtlas]);
+  const mode = sourceMode(atlas);
 
-  async function loadListings(params={}, nextCategory=category, nextType=type) {
-    setBusy(true);
+  async function loadListings(params = {}, nextCategory = category, nextType = type) {
+    setListingBusy(true);
     try {
       const search = new URLSearchParams({ category: nextCategory, type: nextType });
-      if (params?.query) search.set('q',params.query);
-      if (Number.isFinite(params?.lat)&&Number.isFinite(params?.lng)){search.set('lat',String(params.lat));search.set('lng',String(params.lng));}
-      const response=await fetch(`/api/earth-properties/search?${search.toString()}`,{cache:'no-store'});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data?.error||'Property search failed.');
-      setConfigured(Boolean(data.configured));
-      setProviders(Array.isArray(data.providers)?data.providers:[]);
-      setListings(Array.isArray(data.listings)?data.listings:[]);
-      setSelectedId(data.listings?.[0]?.id||'');
-      setMessage(data.message||'Search complete.');
-      if(params?.query||Number.isFinite(params?.lat))setLastSearch(params);
-    } catch(error){setListings([]);setSelectedId('');setMessage(String(error?.message||error||'Search failed.'));}
-    finally{setBusy(false)}
-  }
-
-  async function loadAtlas(params={}) {
-    setAtlasBusy(true);
-    setAtlasMessage('Streaming source-backed buildings for this part of Earth…');
-    try {
-      const search = new URLSearchParams({ radius: '160' });
-      if (params?.address || params?.query) search.set('address', String(params.address || params.query));
+      if (params?.query) search.set('q', params.query);
       if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
         search.set('lat', String(params.lat));
         search.set('lng', String(params.lng));
       }
-      const response=await fetch(`/api/world-atlas/inspect?${search.toString()}`,{cache:'no-store'});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok||!data?.ok)throw new Error(data?.error||'World atlas lookup failed.');
+      const response = await fetch(`/api/earth-properties/search?${search.toString()}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Property search failed.');
+      setConfigured(Boolean(data.configured));
+      setProviders(Array.isArray(data.providers) ? data.providers : []);
+      setListings(Array.isArray(data.listings) ? data.listings : []);
+      setSelectedId(data.listings?.[0]?.id || '');
+      setListingMessage(data.message || 'Market search complete.');
+    } catch (error) {
+      setListings([]);
+      setSelectedId('');
+      setListingMessage(String(error?.message || error || 'Market search failed. The map remains available.'));
+    } finally {
+      setListingBusy(false);
+    }
+  }
+
+  async function loadAtlas(params = {}) {
+    setAtlasBusy(true);
+    setAtlasMessage('Reading the small global building-tile region around this point…');
+    try {
+      const search = new URLSearchParams({ radius: '180' });
+      if (params?.address && !Number.isFinite(params?.lat)) search.set('address', String(params.address));
+      if (Number.isFinite(params?.lat) && Number.isFinite(params?.lng)) {
+        search.set('lat', String(params.lat));
+        search.set('lng', String(params.lng));
+      }
+      const response = await fetch(`/api/world-atlas/inspect?${search.toString()}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) throw new Error(data?.error || 'World atlas lookup failed.');
       setAtlas(data);
-      setSelectedAtlasId(data.selectedBuilding?.atlasId||data.buildings?.[0]?.atlasId||'');
+      setSelectedAtlasId(data.selectedBuilding?.atlasId || data.buildings?.[0]?.atlasId || '');
+      const source = data?.sourceStatus?.primary === 'overture-pmtiles' ? 'Overture' : 'OpenStreetMap fallback';
       setAtlasMessage(data.buildingCount
-        ? `${data.buildingCount} source-backed building${data.buildingCount===1?'':'s'} streamed for this small region.`
-        : 'Location resolved, but this source returned no building footprints here. Nothing was invented.');
-    } catch(error){setAtlas(null);setSelectedAtlasId('');setAtlasMessage(String(error?.message||error||'World atlas lookup failed.'));}
-    finally{setAtlasBusy(false)}
+        ? `${data.buildingCount} source-backed building${data.buildingCount === 1 ? '' : 's'} loaded from ${source}.`
+        : `Location resolved through ${source}, but no building footprint was returned here. Nothing was invented.`);
+    } catch (error) {
+      setAtlas(null);
+      setSelectedAtlasId('');
+      setAtlasMessage(String(error?.message || error || 'World atlas lookup failed. Try a quick location or coordinates.'));
+    } finally {
+      setAtlasBusy(false);
+    }
   }
 
-  async function explore(params={}) {
-    await Promise.allSettled([loadListings(params),loadAtlas(params)]);
+  async function explore(params = {}) {
+    setLastSearch(params);
+    await Promise.allSettled([loadListings(params), loadAtlas(params)]);
   }
 
-  useEffect(()=>{loadListings({});},[]);
+  useEffect(() => {
+    loadListings({});
+    const starter = QUICK_LOCATIONS[0];
+    loadAtlas({ lat: starter.lat, lng: starter.lng });
+  }, []);
 
-  function submit(event){event.preventDefault();const q=query.trim();if(!q){setMessage('Enter a city, country, ZIP/postcode or address.');return}explore({query:q,address:q});}
-  function nearMe(){
-    if(!navigator.geolocation){setMessage('Location services are unavailable in this browser.');return}
-    setBusy(true);setMessage('Getting your location…');
+  function submit(event) {
+    event.preventDefault();
+    const value = query.trim();
+    if (!value) {
+      setAtlasMessage('Enter a city, country, postcode, address, or latitude/longitude pair.');
+      return;
+    }
+    const coordinates = parseCoordinateQuery(value);
+    if (coordinates) {
+      explore({ ...coordinates });
+      return;
+    }
+    explore({ query: value, address: value });
+  }
+
+  function quickExplore(location) {
+    setQuery(location.query);
+    explore({ lat: location.lat, lng: location.lng, query: location.query });
+  }
+
+  function nearMe() {
+    if (!navigator.geolocation) {
+      setAtlasMessage('Location services are unavailable in this browser.');
+      return;
+    }
+    setAtlasBusy(true);
+    setAtlasMessage('Getting your location…');
     navigator.geolocation.getCurrentPosition(
-      pos=>{setQuery('Near me');explore({lat:pos.coords.latitude,lng:pos.coords.longitude});},
-      err=>{setBusy(false);setMessage(err.message||'Location permission was not granted.');},
-      {enableHighAccuracy:false,timeout:10000,maximumAge:300000},
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setQuery(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        explore({ lat, lng });
+      },
+      (error) => {
+        setAtlasBusy(false);
+        setAtlasMessage(error.message || 'Location permission was not granted.');
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }
-  function globeLocation({latitude,longitude}){
-    const label=`${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`;
-    setQuery(label);setMessage(`Exploring real listings and mapped buildings around ${label}…`);explore({lat:latitude,lng:longitude});
-  }
-  function chooseCategory(next){setCategory(next);if(lastSearch)loadListings(lastSearch,next,type);}
-  function chooseType(next){setType(next);if(lastSearch)loadListings(lastSearch,category,next);}
-  function chooseListing(item){setSelectedId(item.id);if(Number.isFinite(Number(item.latitude))&&Number.isFinite(Number(item.longitude)))loadAtlas({lat:Number(item.latitude),lng:Number(item.longitude),address:addressLine(item)});}
 
-  async function quoteStewardship(){
-    setQuoteBusy(true);
-    try{
-      const response=await fetch('/api/world-atlas/stewardship/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({existingGlobalClaims:Number(globalClaims||0),existingRegionalClaims:Number(regionalClaims||0)})});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok||!data?.ok)throw new Error(data?.error||'Stewardship quote failed.');
-      setStewardshipQuote(data.quote);
-    }catch(error){setStewardshipQuote({error:String(error?.message||error||'Stewardship quote failed.')});}
-    finally{setQuoteBusy(false)}
+  function globeLocation({ latitude, longitude }) {
+    const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+    setQuery(label);
+    setAtlasMessage(`Exploring source-backed buildings around ${label}…`);
+    explore({ lat: latitude, lng: longitude });
+  }
+
+  function chooseCategory(next) {
+    setCategory(next);
+    loadListings(lastSearch || {}, next, type);
+  }
+
+  function chooseType(next) {
+    setType(next);
+    loadListings(lastSearch || {}, category, next);
+  }
+
+  function chooseListing(item) {
+    setSelectedId(item.id);
+    if (Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) {
+      loadAtlas({ lat: Number(item.latitude), lng: Number(item.longitude) });
+    }
+  }
+
+  function downloadRegion() {
+    if (!atlasBuildings.length) return;
+    const geojson = {
+      type: 'FeatureCollection',
+      name: 'Voxel Vault loaded atlas region',
+      generatedAt: new Date().toISOString(),
+      sourceStatus: atlas?.sourceStatus || null,
+      rights: atlas?.rights || null,
+      features: atlasBuildings.map((building) => ({
+        type: 'Feature',
+        id: building.atlasId,
+        geometry: building.geometry,
+        properties: {
+          atlasId: building.atlasId,
+          name: building.tags?.name || null,
+          building: building.tags?.building || null,
+          levels: building.tags?.levels || null,
+          referenceHeightMeters: building.height?.referenceHeightMeters ?? null,
+          heightStatus: building.height?.heightStatus || null,
+          sourceAuthority: building.source?.authority || null,
+          sourceRecordId: building.source?.recordId || null,
+          sourceLicense: building.source?.license || null,
+          sourceUrl: building.source?.sourceUrl || null,
+          mapReferenceOnly: true,
+        },
+      })),
+    };
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `voxel-vault-region-${Number(atlas.latitude).toFixed(4)}-${Number(atlas.longitude).toFixed(4)}.geojson`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000);
   }
 
   return <main className="page">
-    <header><Link href="/vault">VOXEL VAULT</Link><nav><Link href="/geo">GEO</Link><Link href="/vault/estates/mine">MY TWINS</Link><Link href="/vault/properties/claim">VERIFY PROPERTY</Link></nav></header>
+    <header>
+      <Link className="brand" href="/vault">VOXEL VAULT</Link>
+      <nav><Link href="/geo">GEO</Link><Link href="/vault/estates/mine">MY TWINS</Link><Link href="/vault/properties/claim">VERIFY</Link></nav>
+    </header>
 
     <section className="hero">
-      <div className="heroCopy"><div className="kicker"><i/> GLOBAL EARTH · STREAMED MAP + AUTHORIZED MARKET DATA</div><h1>The whole Earth.<br/><em>Real listings only.</em></h1><p>Explore buildings and real-estate opportunities anywhere in the world. The atlas streams small source-backed map regions as you move instead of downloading an impossible whole-planet file to your phone. Listings remain a separate authorized market layer.</p>
-        <form onSubmit={submit} className="heroSearch"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="City, country, postcode or address"/><button disabled={busy||atlasBusy}>{busy||atlasBusy?'LOADING…':'SEARCH EARTH'}</button><button type="button" onClick={nearMe} disabled={busy||atlasBusy}>NEAR ME</button></form>
-        <div className="liveLine"><span>{liveProviders.length} LIVE LISTING PROVIDER{liveProviders.length===1?'':'S'}</span><span>{listings.length} LIVE LISTING{listings.length===1?'':'S'}</span><span>{atlasBuildings.length} ATLAS BUILDING{atlasBuildings.length===1?'':'S'} LOADED</span></div>
+      <div className="heroCopy">
+        <div className="kicker"><i/> VOXEL VAULT WORLD ATLAS</div>
+        <h1>Explore the real world.<br/><em>Building by building.</em></h1>
+        <p>Search anywhere, tap the globe, or use your location. Voxel Vault reads a small source-backed building region on demand instead of trying to download the whole planet to your phone. Real properties for sale or rent remain a separate authorized market layer.</p>
+        <form onSubmit={submit} className="search">
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="City, country, postcode or address · or 42.8864, -78.8784" aria-label="Search Earth" />
+          <button disabled={atlasBusy || listingBusy}>{atlasBusy ? 'LOADING…' : 'SEARCH EARTH'}</button>
+          <button className="near" type="button" onClick={nearMe} disabled={atlasBusy}>NEAR ME</button>
+        </form>
+        <div className="quickRail">{QUICK_LOCATIONS.map((location) => <button type="button" key={location.id} onClick={() => quickExplore(location)} disabled={atlasBusy}>{location.label}</button>)}</div>
+        <div className="statusLine"><span className={mode.fallback ? 'fallback' : 'primary'}>{mode.label}</span><span>{atlasBuildings.length} BUILDINGS LOADED</span><span>{liveProviders.length} LIVE MARKET FEED{liveProviders.length === 1 ? '' : 'S'}</span></div>
       </div>
-      <div className="globeCard"><GlobalEarthGlobe listings={listings} selectedId={selected?.id||''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId||''} onAtlasSelect={setSelectedAtlasId} onLocation={globeLocation}/><div className="globeHint">DRAG TO ROTATE · TAP EARTH TO STREAM REGION · PEACH = MAP BUILDING · MINT = LIVE LISTING</div></div>
-    </section>
-
-    <section className="coverage">
-      <div className="coverageTitle"><b>LIVE COVERAGE</b><span>Worldwide map interface · real listings appear only where an authorized feed is connected.</span></div>
-      <div className="providerRail"><div className="provider live"><i/><div><b>World Building Atlas</b><span>OSM interactive lookup · Overture bulk/tiling path</span></div><strong>WORLDWIDE REFERENCE</strong></div>{providers.length?providers.map(provider=><div key={provider.id} className={provider.configured?'provider live':'provider'}><i/><div><b>{provider.name}</b><span>{provider.regions?.join(' · ')||'Configured region'}</span></div><strong>{provider.configured?'LIVE':'AWAITING ACCESS'}</strong></div>):<div className="provider"><i/><div><b>Listing provider status</b><span>Authorized market feeds are separate from map coverage.</span></div><strong>AWAITING ACCESS</strong></div>}</div>
+      <div className="globeCard">
+        <GlobalEarthGlobe listings={listings} selectedId={selected?.id || ''} onSelect={setSelectedId} atlasBuildings={atlasBuildings} selectedAtlasId={selectedAtlas?.atlasId || ''} onAtlasSelect={setSelectedAtlasId} onLocation={globeLocation} />
+        <div className="globeHint">DRAG · PINCH TO ZOOM · TAP EARTH · PEACH = MAP BUILDING · MINT = LIVE LISTING</div>
+      </div>
     </section>
 
     <section className="atlasSection">
-      <div className="atlasHeader"><div><small>WORLD BUILDING ATLAS</small><h2>Real geometry, streamed where you look.</h2><p>{atlasMessage}</p></div><div className="atlasChips"><span>PROGRESSIVE REGION STREAMING</span><span>OVERTURE 2026-07-22.0 BULK PATH</span><span>MESHY 30K HERO MODE</span></div></div>
+      <div className="sectionHead">
+        <div><small>WORLD BUILDING ATLAS</small><h2>Real geometry where you look.</h2><p>{atlasMessage}</p></div>
+        <div className="sectionActions"><span className={mode.fallback ? 'sourceBadge fallback' : 'sourceBadge'}>{mode.label}</span><button type="button" onClick={downloadRegion} disabled={!atlasBuildings.length}>DOWNLOAD LOADED REGION · GEOJSON</button></div>
+      </div>
       <div className="atlasGrid">
         <div className="atlasVisual">
-          {atlasReference?.found?<GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={selectedAtlas?.atlasId||'atlas'}/>:<div className="atlasEmpty"><b>{atlasBusy?'STREAMING REGION…':'TAP THE GLOBE'}</b><span>GEO-quality voxel massing appears here when a mapped building is found.</span></div>}
-          {selectedAtlas?<div className="atlasVisualLabel">{atlasBuildingLabel(selectedAtlas)} · {selectedAtlas.source?.license||'SOURCE'}</div>:null}
+          {atlasReference?.found
+            ? <GeoReferenceModel reference={atlasReference} authoritativeTwin={null} viewMode="orbit" resetKey={selectedAtlas?.atlasId || 'atlas'} />
+            : <div className="atlasEmpty"><b>{atlasBusy ? 'READING GLOBAL BUILDING TILES…' : 'NO BUILDING SELECTED'}</b><span>Search or tap a populated point on Earth. Voxel Vault will not invent a footprint when the source returns none.</span></div>}
+          {selectedAtlas ? <div className="visualLabel">{atlasBuildingLabel(selectedAtlas)} · {selectedAtlas.source?.authority || 'SOURCE'} · {selectedAtlas.source?.license || 'LICENSE'}</div> : null}
         </div>
-        <div className="atlasInfo">
-          <small>SELECTED MAP BUILDING</small><h3>{atlasBuildingLabel(selectedAtlas)}</h3><p>{selectedAtlas?`${selectedAtlas.latitude.toFixed(5)}, ${selectedAtlas.longitude.toFixed(5)}`:'Choose a point on Earth.'}</p>
-          <div className="atlasFacts"><div><b>{selectedAtlas?.tags?.levels||'—'}</b><span>REPORTED LEVELS</span></div><div><b>{selectedAtlas?.height?.referenceHeightMeters?`${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m`:'—'}</b><span>HEIGHT REFERENCE</span></div><div><b>{atlas?.regionId||'—'}</b><span>ATLAS REGION</span></div></div>
-          <div className="meshBox"><b>MESHY · THE PERFECT AMOUNT</b><span>30,000 target polygons · 2K textures · PBR · 2–4 licensed/open views. It runs only for selected hero properties, owner-controlled and cache-first—not for every building on Earth.</span></div>
-          {selectedAtlas?.source?.sourceUrl?<a className="secondary" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a>:null}
-          <p className="fine"><b>Map truth:</b> this is source-backed map geometry, not automatically a cadastral parcel, deed, title record, survey, current facade scan, or property-for-sale listing.</p>
-        </div>
+        <aside className="atlasInfo">
+          <small>SELECTED MAP BUILDING</small>
+          <h3>{atlasBuildingLabel(selectedAtlas)}</h3>
+          <p>{selectedAtlas ? `${selectedAtlas.latitude.toFixed(5)}, ${selectedAtlas.longitude.toFixed(5)}` : 'Choose a building marker or point on Earth.'}</p>
+          <div className="facts">
+            <div><b>{selectedAtlas?.tags?.levels || '—'}</b><span>REPORTED FLOORS</span></div>
+            <div><b>{selectedAtlas?.height?.referenceHeightMeters ? `${Number(selectedAtlas.height.referenceHeightMeters).toFixed(1)}m` : '—'}</b><span>DISPLAY HEIGHT</span></div>
+            <div><b>{atlasBuildings.length || '—'}</b><span>REGION BUILDINGS</span></div>
+          </div>
+          <div className="sourceCard"><b>{selectedAtlas?.source?.authority || 'Waiting for source'}</b><span>{selectedAtlas?.source?.release ? `Release ${selectedAtlas.source.release} · ` : ''}{selectedAtlas?.source?.license || 'Source license appears after lookup'}</span>{atlas?.sourceStatus?.fallbackUsed ? <em>Primary Overture lookup returned no usable building or was unavailable, so Voxel Vault used its OSM fallback for this region.</em> : <em>Primary global building source. No Overpass request was required for this region.</em>}</div>
+          {selectedAtlas?.source?.sourceUrl ? <a className="secondary" href={selectedAtlas.source.sourceUrl} target="_blank" rel="noreferrer">OPEN MAP SOURCE ↗</a> : null}
+          <p className="fine"><b>Map truth:</b> this geometry is a world-map reference. It is not automatically a parcel survey, deed, title record, current facade scan, or property-for-sale listing.</p>
+        </aside>
       </div>
+      <div className="meshyWrap"><div className="meshyCopy"><small>MESHY · THE PERFECT AMOUNT</small><h2>Spend detail only where it matters.</h2><p>Ordinary world browsing uses source geometry and spends zero Meshy credits. A selected hero building can use 2–4 rights-cleared views, 30K target polygons, 2K PBR textures, private caching, and an in-app GLB viewer.</p></div><MeshyHeroPanel building={selectedAtlas} /></div>
     </section>
 
     <section className="stewardship">
-      <div className="stewardCopy"><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>More digital claims → higher marginal fee.</h2><p>This is deliberately <b>linear, not exponential</b>. It is a Voxel Vault digital-atlas stewardship policy—not a government tax and not a tax on physical property. Nobody, including an owner/admin account, receives an exemption.</p></div>
-      <div className="stewardTool">
-        <div className="claimInputs"><label>Existing global claims<input inputMode="numeric" value={globalClaims} onChange={e=>setGlobalClaims(e.target.value.replace(/\D/g,'').slice(0,6))}/></label><label>Claims in this region<input inputMode="numeric" value={regionalClaims} onChange={e=>setRegionalClaims(e.target.value.replace(/\D/g,'').slice(0,4))}/></label></div>
-        <button onClick={quoteStewardship} disabled={quoteBusy}>{quoteBusy?'CALCULATING…':'QUOTE NEXT CLAIM'}</button>
-        {stewardshipQuote?.error?<div className="quote error">{stewardshipQuote.error}</div>:stewardshipQuote?<div className="quote"><small>NEXT ANNUAL STEWARDSHIP QUOTE</small><strong>{centsMoney(stewardshipQuote.nextClaimAnnualCents)}</strong><span>≈ {centsMoney(stewardshipQuote.nextClaimMonthlyEquivalentCents)}/month · {stewardshipQuote.schedule}</span><p>{stewardshipQuote.formula}</p><b>{stewardshipQuote.allowed?'WITHIN CONCENTRATION CAPS':stewardshipQuote.blockers?.join(' · ')}</b><em>{stewardshipQuote.billingEnabled?'Billing enabled':'QUOTE ONLY · BILLING DISABLED'}</em></div>:<div className="quote muted">$1/year base + $0.25 per existing global claim + $0.75 per same-region claim. Local cap: 20. Global cap: 10,000.</div>}
-      </div>
+      <div className="stewardCopy"><small>ANTI-MONOPOLY STEWARDSHIP</small><h2>Owning more digital claims should cost more.</h2><p>The planned marginal schedule is <b>linear, not exponential</b>: $1/year base + $0.25 per existing global claim + $0.75 per existing claim in the same local atlas region. A single account is capped at 20 claims per local region and 10,000 globally, with no owner/admin exemption.</p></div>
+      <div className="policyCards"><article><b>$1.00</b><span>BASE / YEAR</span></article><article><b>+$0.25</b><span>PER GLOBAL CLAIM</span></article><article><b>+$0.75</b><span>PER SAME-REGION CLAIM</span></article><article><b>20</b><span>LOCAL CLAIM CAP</span></article></div>
+      <div className="policyTruth"><b>POLICY MODEL · BILLING DISABLED</b><span>This is a Voxel Vault digital-atlas stewardship mechanic, not a government tax, not a tax on physical property, and not a deed or title fee. Live charging stays disabled until an authoritative server-side claim ledger and reviewed commerce flow exist.</span></div>
     </section>
 
     <section className="ownershipMap">
-      <small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2><div className="ownershipCards"><article><b>VOXEL VAULT'S MOAT</b><span>Our software, interface, original scoring, derived internal metadata, compliant caches, user experience, marketplace rules, and generated models subject to source/provider licenses.</span></article><article><b>SOURCE DATA STAYS ATTRIBUTED</b><span>OpenStreetMap / Overture / jurisdiction GIS retain their licenses and attribution. Displaying them does not make their source data exclusive Voxel Vault property.</span></article><article><b>PHYSICAL EARTH STAYS PHYSICAL</b><span>A digital stewardship claim cannot create a deed, title, tenancy, rent entitlement, government tax lien, or exclusive ownership of a real location.</span></article></div></section>
-
-    <section className="filters">
-      <div>{[['all','Buy + Rent'],['sale','For Sale'],['rent','For Rent']].map(([id,label])=><button key={id} className={type===id?'active':''} onClick={()=>chooseType(id)}>{label}</button>)}</div>
-      <div className="categories">{CATEGORIES.map(([id,label])=><button key={id} className={category===id?'active':''} onClick={()=>chooseCategory(id)}>{label}</button>)}</div>
-      <p className={configured===false?'message warning':'message'}>{message}</p>
+      <small>WHO OWNS THE WORLD MAP?</small><h2>Voxel Vault can own the atlas product—not the Earth.</h2>
+      <div className="ownershipCards"><article><b>VOXEL VAULT'S PRODUCT</b><span>Software, interface, original scoring, compliant caches, verification workflows, marketplace rules, and generated assets subject to their source licenses.</span></article><article><b>SOURCE DATA STAYS ATTRIBUTED</b><span>Overture, OpenStreetMap, jurisdictions and their upstream sources keep their licenses and notices. Displaying their map data does not make it exclusive Voxel Vault property.</span></article><article><b>REAL PROPERTY STAYS LEGAL PROPERTY</b><span>A digital stewardship claim cannot create a deed, title, tenancy, rent entitlement, government lien, or exclusive physical ownership of a location.</span></article></div>
     </section>
 
-    <section className="workspace">
-      <div className="results">
-        {listings.length===0?<div className="empty"><b>{configured===false?'CONNECT AUTHORIZED LISTING FEEDS':'NO LIVE LISTINGS IN THIS VIEW'}</b><span>{configured===false?'The world building atlas still works. Real listing markers appear only as licensed feeds are connected; Voxel Vault will not invent market inventory.':'Try another city/country, tap another point on Earth, or change filters.'}</span></div>:listings.map(item=><button key={item.id} className={selected?.id===item.id?'listing active':'listing'} onClick={()=>chooseListing(item)}>
-          <div className="photo">{item.imageUrl?<img src={item.imageUrl} alt="" referrerPolicy="no-referrer"/>:<span>{categoryLabel(item.category)}</span>}</div>
-          <div className="listingBody"><div className="sourceTag">{shortProvider(item.provider)} · {item.country||'Earth'}</div><strong>{money(item)}</strong><b>{item.address||'Address available from source'}</b><small>{[item.city,item.region,item.postalCode].filter(Boolean).join(', ')}</small><div>{item.beds!=null?`${item.beds} bd · `:''}{item.baths!=null?`${item.baths} ba · `:''}{item.livingAreaSqft?`${Math.round(item.livingAreaSqft).toLocaleString()} sqft`:categoryLabel(item.category)}</div></div>
-        </button>)}
-      </div>
-
-      <div className="detail">
-        {selected?<><div className="visual"><PropertyModel property={selected}/><div className="visualLabel">VOXEL VAULT 3D VIEW · {selected.country||'EARTH'} · {categoryLabel(selected.category).toUpperCase()}</div></div>
-          <div className="detailBody"><div className="source"><i/>{selected.provider} · {selected.status}</div><h2>{selected.address||'Real Earth property'}</h2><p className="location">{[selected.city,selected.region,selected.postalCode,selected.country].filter(Boolean).join(', ')}</p>
-          <div className="price"><span>{selected.marketValueLabel}</span><strong>{money(selected)}</strong><small>{selected.modifiedAt?`Source updated ${new Date(selected.modifiedAt).toLocaleDateString()}`:'Verify latest availability at source'}</small></div>
-          <div className="facts"><div><b>{selected.beds??'—'}</b><span>BEDS</span></div><div><b>{selected.baths??'—'}</b><span>BATHS</span></div><div><b>{selected.livingAreaSqft?Math.round(selected.livingAreaSqft).toLocaleString():'—'}</b><span>SQ FT</span></div><div><b>{categoryLabel(selected.category)}</b><span>TYPE</span></div></div>
-          <a className="primary" href={selected.sourceUrl||safeMapUrl(selected)} target="_blank" rel="noreferrer">{selected.sourceUrl?'OPEN REAL SOURCE LISTING':'OPEN EARTH LOCATION'} ↗</a>
-          <Link className="secondary" href="/vault/properties/claim">VERIFY OWNER · CREATE PROPERTY PASSPORT</Link>
-          <div className="mintCallout"><b>MINTING RECOMMENDED AFTER VERIFICATION</b><span>Use the optional onchain twin as provenance / backup and wallet visibility. It does not replace the deed or guarantee appreciation.</span></div>
-          <p className="fine"><b>Physical purchase:</b> the real property still transfers through the source/broker, contract, title, escrow/attorney, funding and deed-recording process.</p></div></>:<div className="detailEmpty"><b>SELECT A REAL PROPERTY</b><span>Mapped buildings above are world references. This market panel only shows source-backed authorized listings.</span></div>}
+    <section className="marketSection">
+      <div className="sectionHead marketHead"><div><small>AUTHORIZED REAL-ESTATE MARKET</small><h2>Map coverage is worldwide.<br/>Listings are not fabricated.</h2><p>{listingMessage}</p></div><div className="marketState"><b>{listings.length}</b><span>LIVE LISTINGS IN VIEW</span></div></div>
+      <div className="filters"><div className="typeRail">{[['all', 'Buy + Rent'], ['sale', 'For Sale'], ['rent', 'For Rent']].map(([id, label]) => <button key={id} className={type === id ? 'active' : ''} onClick={() => chooseType(id)}>{label}</button>)}</div><div className="categoryRail">{CATEGORIES.map(([id, label]) => <button key={id} className={category === id ? 'active' : ''} onClick={() => chooseCategory(id)}>{label}</button>)}</div></div>
+      <div className="marketGrid">
+        <div className="results">
+          {listings.length === 0 ? <div className="empty"><b>{configured === false ? 'WORLD MAP READY · MARKET FEED NOT CONNECTED' : listingBusy ? 'CHECKING AUTHORIZED MARKET…' : 'NO LIVE LISTINGS IN THIS VIEW'}</b><span>{configured === false ? 'Mapped buildings still work worldwide. Real market inventory appears only from an authorized listing provider; Voxel Vault does not create sample properties to make this panel look full.' : 'Try another city, tap another place, or change filters.'}</span></div> : listings.map((item) => <button key={item.id} className={selected?.id === item.id ? 'listing active' : 'listing'} onClick={() => chooseListing(item)}><div className="photo">{listingVisual(item)}</div><div className="listingBody"><div className="sourceTag">{shortProvider(item.provider)} · {item.country || 'Earth'}</div><strong>{money(item)}</strong><b>{item.address || 'Address available from source'}</b><small>{[item.city, item.region, item.postalCode].filter(Boolean).join(', ')}</small><div>{item.beds != null ? `${item.beds} bd · ` : ''}{item.baths != null ? `${item.baths} ba · ` : ''}{item.livingAreaSqft ? `${Math.round(item.livingAreaSqft).toLocaleString()} sqft` : categoryLabel(item.category)}</div></div></button>)}
+        </div>
+        <aside className="detail">
+          {selected ? <><div className="detailVisual">{listingVisual(selected)}<span>AUTHORIZED MARKET SOURCE · {selected.country || 'EARTH'}</span></div><div className="detailBody"><div className="source"><i/>{selected.provider} · {selected.status}</div><h2>{selected.address || 'Real Earth property'}</h2><p>{[selected.city, selected.region, selected.postalCode, selected.country].filter(Boolean).join(', ')}</p><div className="price"><span>{selected.marketValueLabel}</span><strong>{money(selected)}</strong><small>{selected.modifiedAt ? `Source updated ${new Date(selected.modifiedAt).toLocaleDateString()}` : 'Verify latest availability at source'}</small></div><div className="listingFacts"><div><b>{selected.beds ?? '—'}</b><span>BEDS</span></div><div><b>{selected.baths ?? '—'}</b><span>BATHS</span></div><div><b>{selected.livingAreaSqft ? Math.round(selected.livingAreaSqft).toLocaleString() : '—'}</b><span>SQ FT</span></div></div><a className="primaryButton" href={selected.sourceUrl || safeMapUrl(selected)} target="_blank" rel="noreferrer">{selected.sourceUrl ? 'OPEN REAL SOURCE LISTING' : 'OPEN EARTH LOCATION'} ↗</a><Link className="secondary" href="/vault/properties/claim">VERIFY OWNER · CREATE PROPERTY PASSPORT</Link><p className="fine"><b>Legal boundary:</b> a Voxel Vault digital twin does not replace the deed. Real-property purchase still requires the normal contract, title, closing and recording process.</p></div></> : <div className="detailEmpty"><b>MAP ≠ MARKET INVENTORY</b><span>The world atlas can show a mapped building without claiming it is for sale. Connect an authorized listing feed to populate this panel.</span></div>}
+        </aside>
       </div>
     </section>
 
-    <footer><b>GLOBAL VALUE + MAP TRUTH</b><span>Listings keep source currency and authorized source values. The map atlas keeps source lineage separately. Property-market value, digital collectible resale value and platform stewardship fees are different things; none is guaranteed.</span></footer>
+    <footer><b>GLOBAL VALUE + MAP TRUTH</b><span>Physical-market value and digital twin resale value remain separate. Map geometry, market listings, digital stewardship, and legal ownership are separate evidence/rights layers; none guarantees appreciation or income.</span></footer>
+
     <style jsx>{`
-      :global(body){margin:0;background:#07090c;color:#f7f8fa;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:0 clamp(14px,3vw,38px) 88px;background:radial-gradient(circle at 77% 8%,rgba(89,72,218,.13),transparent 25%),radial-gradient(circle at 20% 20%,rgba(80,220,170,.06),transparent 22%),#07090c}header{height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07)}header>a{font-size:10px;letter-spacing:.16em;font-weight:950;color:#fff;text-decoration:none}nav{display:flex;gap:7px}nav a{font-size:7px;font-weight:900;color:#9199aa;text-decoration:none;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:9px 11px}.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,.72fr);gap:22px;padding:42px 0 24px;align-items:stretch}.heroCopy{padding:20px 0}.kicker{font-size:8px;letter-spacing:.17em;font-weight:950;color:#8e97a8}.kicker i,.source i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#79efbc;margin-right:8px;box-shadow:0 0 16px #79efbc}.hero h1{font-size:clamp(52px,7vw,96px);letter-spacing:-.07em;line-height:.86;margin:16px 0 20px}.hero h1 em{font-style:normal;color:#767f90}.hero p{max-width:720px;color:#8d96a7;font-size:13px;line-height:1.75}.heroSearch{display:grid;grid-template-columns:1fr auto auto;gap:7px;margin-top:24px}.heroSearch input{min-width:0;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.05);color:#fff;border-radius:14px;padding:15px 16px;font:inherit;font-size:11px;outline:none}.heroSearch input::placeholder{color:#646d7c}.heroSearch button,.stewardTool>button{border:0;border-radius:14px;padding:0 15px;background:#fff;color:#080a0d;font-size:7px;font-weight:950;letter-spacing:.08em}.heroSearch button:last-child{background:rgba(121,239,188,.1);border:1px solid rgba(121,239,188,.18);color:#8df2d0}.liveLine{display:flex;flex-wrap:wrap;gap:18px;margin-top:13px}.liveLine span{font-size:7px;color:#6e7788;letter-spacing:.12em;font-weight:900}.globeCard{position:relative;min-height:430px;border:1px solid rgba(255,255,255,.08);border-radius:28px;overflow:hidden;background:radial-gradient(circle at 50% 45%,rgba(42,76,64,.35),transparent 43%),linear-gradient(150deg,#0d1117,#080a0e)}.globeHint{position:absolute;left:14px;right:14px;bottom:13px;z-index:2;text-align:center;font-size:6px;color:#778292;letter-spacing:.1em;font-weight:900;background:rgba(5,8,10,.62);border:1px solid rgba(255,255,255,.07);padding:8px;border-radius:999px;pointer-events:none}.coverage{border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);padding:16px 0}.coverageTitle{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:10px}.coverageTitle b{font-size:8px;letter-spacing:.14em}.coverageTitle span{font-size:8px;color:#727b8b}.providerRail{display:flex;gap:8px;overflow:auto;padding-bottom:2px}.provider{flex:0 0 270px;display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:11px;background:rgba(255,255,255,.025)}.provider>i{width:7px;height:7px;border-radius:50%;background:#4e5664}.provider.live>i{background:#79efbc;box-shadow:0 0 13px #79efbc}.provider div{min-width:0}.provider b{display:block;font-size:8px}.provider span{display:block;color:#687182;font-size:6px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.provider strong{font-size:6px;color:#626c7d;letter-spacing:.08em}.provider.live strong{color:#79efbc}.atlasSection,.stewardship,.ownershipMap{margin-top:18px;border:1px solid rgba(255,255,255,.08);border-radius:26px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.014));overflow:hidden}.atlasHeader{padding:22px 22px 15px;display:flex;justify-content:space-between;gap:20px}.atlasHeader small,.atlasInfo>small,.stewardCopy small,.ownershipMap>small{font-size:7px;letter-spacing:.16em;color:#8ce8c9;font-weight:950}.atlasHeader h2,.stewardCopy h2,.ownershipMap h2{font-size:clamp(27px,4vw,48px);letter-spacing:-.05em;margin:6px 0}.atlasHeader p,.stewardCopy p{font-size:9px;color:#7a8494;line-height:1.6;margin:0}.atlasChips{display:flex;flex-wrap:wrap;justify-content:flex-end;align-content:flex-start;gap:5px;max-width:430px}.atlasChips span{font-size:6px;font-weight:900;letter-spacing:.08em;color:#9aa5b4;border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:8px}.atlasGrid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,.7fr);border-top:1px solid rgba(255,255,255,.07)}.atlasVisual{position:relative;min-height:470px;background:radial-gradient(circle at 50% 45%,rgba(48,83,69,.22),transparent 45%),#0a0d11;overflow:hidden}.atlasVisual>:global(div){position:absolute!important;inset:0}.atlasEmpty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:8px;color:#737e8e}.atlasEmpty b{font-size:9px;letter-spacing:.14em}.atlasEmpty span{font-size:9px;max-width:300px;line-height:1.5}.atlasVisualLabel{position:absolute!important;inset:auto 14px 14px 14px!important;z-index:5;background:rgba(5,8,10,.72);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:9px 11px;color:#f0b99c;font-size:7px;font-weight:900;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.atlasInfo{padding:24px}.atlasInfo h3{font-size:30px;letter-spacing:-.05em;margin:7px 0 3px}.atlasInfo>p{font-size:9px;color:#717b8b}.atlasFacts{display:grid;grid-template-columns:1fr;gap:6px;margin:18px 0}.atlasFacts div{border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px;min-width:0}.atlasFacts b{font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.atlasFacts span{display:block;font-size:6px;color:#717b8b;margin-top:3px;letter-spacing:.08em}.meshBox,.mintCallout{margin-top:13px;border:1px solid rgba(240,185,156,.14);background:rgba(240,185,156,.035);border-radius:13px;padding:12px;display:grid;gap:5px}.meshBox b,.mintCallout b{font-size:7px;letter-spacing:.1em;color:#f0b99c}.meshBox span,.mintCallout span{font-size:8px;color:#737e8e;line-height:1.5}.stewardship{display:grid;grid-template-columns:1fr 1fr;padding:24px;gap:24px}.stewardCopy p b{color:#d6dae0}.stewardTool{border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:15px;background:rgba(0,0,0,.18)}.claimInputs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.claimInputs label{font-size:7px;color:#8d97a7;letter-spacing:.08em;font-weight:900}.claimInputs input{width:100%;box-sizing:border-box;margin-top:6px;padding:12px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:#0b0e12;color:#fff;font:inherit}.stewardTool>button{width:100%;height:42px;margin-top:9px}.quote{margin-top:10px;border:1px solid rgba(121,239,188,.13);background:rgba(121,239,188,.035);border-radius:13px;padding:12px;display:grid;gap:4px}.quote small{font-size:6px;color:#80cdb4;letter-spacing:.1em}.quote strong{font-size:30px;letter-spacing:-.05em}.quote span,.quote p,.quote b,.quote em{font-size:7px;color:#818b9b;line-height:1.5}.quote b{color:#9fe6cd}.quote em{font-style:normal;color:#e0b37b;font-weight:900}.quote.muted{color:#7d8796;font-size:8px;line-height:1.6}.quote.error{color:#eaa1a1;font-size:8px}.ownershipMap{padding:24px}.ownershipCards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}.ownershipCards article{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px}.ownershipCards b{display:block;font-size:7px;letter-spacing:.1em;color:#b8c1cc;margin-bottom:7px}.ownershipCards span{font-size:8px;color:#747e8e;line-height:1.6}.filters{position:sticky;top:0;z-index:9;padding:12px 0;margin-top:18px;background:rgba(7,9,12,.93);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.07)}.filters>div{display:flex;gap:6px;overflow:auto;margin-bottom:7px}.filters button{white-space:nowrap;border:1px solid rgba(255,255,255,.09);background:transparent;color:#7c8596;border-radius:999px;padding:8px 10px;font-size:7px;font-weight:900}.filters button.active{background:#fff;color:#080a0d;border-color:#fff}.message{margin:8px 2px 0;font-size:8px;color:#767f90}.message.warning{color:#e8bd75}.workspace{display:grid;grid-template-columns:minmax(330px,.72fr) minmax(480px,1.28fr);gap:14px;padding-top:16px}.results{display:grid;gap:8px;align-content:start;max-height:790px;overflow:auto;padding-right:2px}.listing{display:grid;grid-template-columns:124px 1fr;gap:12px;text-align:left;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);border-radius:18px;padding:8px;color:#fff}.listing.active{border-color:rgba(121,239,188,.28);background:rgba(121,239,188,.035)}.photo{height:105px;border-radius:12px;background:linear-gradient(140deg,#18231e,#10141a);overflow:hidden;display:grid;place-items:center}.photo img{width:100%;height:100%;object-fit:cover}.photo span{font-size:7px;font-weight:900;color:#8b998f}.listingBody{display:flex;flex-direction:column;justify-content:center;min-width:0}.sourceTag{font-size:6px!important;color:#79cbb1!important;letter-spacing:.08em;text-transform:uppercase}.listingBody strong{font-size:19px;letter-spacing:-.04em;margin-top:3px}.listingBody b{font-size:9px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.listingBody small,.listingBody>div{font-size:7px;color:#717b8b;margin-top:4px}.detail{background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));border:1px solid rgba(255,255,255,.08);border-radius:25px;overflow:hidden;min-height:650px}.visual{height:390px;background:linear-gradient(#10151b,#0b0e12);position:relative}.model{position:absolute;inset:0}.visualLabel{position:absolute;left:14px;bottom:14px;background:rgba(6,9,11,.72);border:1px solid rgba(255,255,255,.08);padding:8px 10px;border-radius:999px;font-size:6px;font-weight:950;letter-spacing:.1em;color:#8aeecb}.detailBody{padding:24px}.source{font-size:7px;letter-spacing:.12em;font-weight:950;color:#8791a2}.detail h2{font-size:34px;letter-spacing:-.05em;margin:10px 0 3px}.location{font-size:10px;color:#788192;margin:0 0 19px}.price{border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07);padding:14px 0;display:grid;grid-template-columns:1fr auto;gap:4px}.price span,.price small{font-size:7px;color:#747d8e;font-weight:850;letter-spacing:.08em}.price strong{font-size:26px;letter-spacing:-.04em;grid-row:1/3;grid-column:2}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:16px 0}.facts div{border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px}.facts b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.facts span{display:block;font-size:6px;color:#737c8c;margin-top:3px;letter-spacing:.08em}.primary,.secondary{display:block;text-align:center;text-decoration:none;border-radius:13px;padding:14px;margin-top:7px;font-size:8px;font-weight:950;letter-spacing:.08em}.primary{background:#fff;color:#080a0d}.secondary{border:1px solid rgba(255,255,255,.1);color:#fff}.fine{font-size:8px;line-height:1.6;color:#717a8a;margin:13px 2px 0}.fine b{color:#a3abb8}.empty,.detailEmpty{border:1px dashed rgba(255,255,255,.12);border-radius:18px;padding:30px;display:grid;gap:8px;color:#737d8d}.empty b,.detailEmpty b{font-size:8px;letter-spacing:.12em;color:#b6bdc8}.empty span,.detailEmpty span{font-size:9px;line-height:1.6}.detailEmpty{margin:24px}footer{margin-top:25px;padding-top:20px;border-top:1px solid rgba(255,255,255,.07);display:grid;grid-template-columns:170px 1fr;gap:12px;color:#70798a}footer b{font-size:7px;letter-spacing:.12em;color:#abb2be}footer span{font-size:8px;line-height:1.6}@media(max-width:940px){.hero{grid-template-columns:1fr}.globeCard{min-height:380px}.atlasGrid,.stewardship{grid-template-columns:1fr}.atlasVisual{min-height:400px}.workspace{grid-template-columns:1fr}.results{max-height:470px}.detail{min-height:0}.visual{height:330px}.ownershipCards{grid-template-columns:1fr}}@media(max-width:560px){.page{padding:0 10px 72px}header nav a:last-child{display:none}.hero{padding-top:25px}.hero h1{font-size:56px}.heroSearch{grid-template-columns:1fr auto}.heroSearch button:last-child{grid-column:1/3;padding:12px}.globeCard{min-height:340px;border-radius:22px}.coverageTitle span{display:none}.atlasHeader{display:block;padding:18px}.atlasChips{justify-content:flex-start;margin-top:12px}.atlasVisual{min-height:335px}.atlasInfo{padding:18px}.stewardship,.ownershipMap{padding:18px}.claimInputs{grid-template-columns:1fr 1fr}.workspace{padding-top:12px}.listing{grid-template-columns:105px 1fr}.photo{height:92px}.facts{grid-template-columns:repeat(2,1fr)}.detail h2{font-size:28px}.visual{height:300px}.coverageTitle{margin-bottom:8px}}
+      :global(body){margin:0;background:#07100f;color:#f4f7f6;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:0 clamp(14px,3vw,40px) 92px;background:radial-gradient(circle at 78% 5%,rgba(101,77,214,.14),transparent 24%),radial-gradient(circle at 18% 18%,rgba(71,201,153,.08),transparent 25%),#07100f}.page *{box-sizing:border-box}header{height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07)}.brand{font-size:10px;letter-spacing:.16em;font-weight:950;color:#fff;text-decoration:none}nav{display:flex;gap:7px}nav a{font-size:7px;font-weight:900;color:#8e9a95;text-decoration:none;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:9px 11px}.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(390px,.78fr);gap:24px;padding:38px 0 28px;align-items:stretch}.heroCopy{padding:20px 0}.kicker{font-size:8px;letter-spacing:.17em;font-weight:950;color:#91a09a}.kicker i,.source i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#79efbc;margin-right:8px;box-shadow:0 0 16px #79efbc}.hero h1{font-size:clamp(52px,7vw,94px);letter-spacing:-.07em;line-height:.87;margin:16px 0 19px}.hero h1 em{font-style:normal;color:#75817c}.hero p{max-width:760px;color:#8c9994;font-size:13px;line-height:1.72}.search{display:grid;grid-template-columns:1fr auto auto;gap:7px;margin-top:23px}.search input{min-width:0;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.045);color:#fff;border-radius:15px;padding:15px 16px;font:inherit;font-size:11px;outline:none}.search input::placeholder{color:#63706b}.search button,.sectionActions button{border:0;border-radius:14px;padding:0 15px;background:#eef6f3;color:#07100f;font-size:7px;font-weight:950;letter-spacing:.08em}.search .near{background:rgba(121,239,188,.09);border:1px solid rgba(121,239,188,.18);color:#8df2d0}.search button:disabled,.quickRail button:disabled,.sectionActions button:disabled{opacity:.45}.quickRail{display:flex;gap:6px;overflow:auto;padding:10px 1px 2px}.quickRail button{flex:0 0 auto;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);color:#8f9a96;border-radius:999px;padding:8px 10px;font-size:7px;font-weight:900}.statusLine{display:flex;flex-wrap:wrap;gap:16px;margin-top:11px}.statusLine span{font-size:7px;color:#74817c;letter-spacing:.11em;font-weight:900}.statusLine .primary{color:#79efbc}.statusLine .fallback{color:#efb08f}.globeCard{position:relative;min-height:460px;border:1px solid rgba(255,255,255,.08);border-radius:30px;overflow:hidden;background:radial-gradient(circle at 50% 45%,rgba(42,91,72,.26),transparent 45%),linear-gradient(150deg,#0d1614,#070c0d)}.globeHint{position:absolute;left:14px;right:14px;bottom:13px;z-index:4;text-align:center;font-size:6px;color:#80908a;letter-spacing:.1em;font-weight:900;background:rgba(5,10,9,.66);border:1px solid rgba(255,255,255,.07);padding:8px;border-radius:999px;pointer-events:none}.atlasSection,.marketSection,.stewardship,.ownershipMap{border-top:1px solid rgba(255,255,255,.07);padding:34px 0}.sectionHead{display:flex;justify-content:space-between;gap:25px;align-items:flex-end;margin-bottom:18px}.sectionHead small,.atlasInfo>small,.meshyCopy small,.stewardCopy small,.ownershipMap>small{font-size:7px;color:#7be5bd;letter-spacing:.15em;font-weight:950}.sectionHead h2,.meshyCopy h2,.stewardCopy h2,.ownershipMap h2{font-size:clamp(30px,4vw,52px);letter-spacing:-.055em;line-height:.95;margin:7px 0 10px}.sectionHead p,.meshyCopy p,.stewardCopy p{max-width:720px;margin:0;color:#82908a;font-size:11px;line-height:1.65}.sectionActions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.sectionActions button{min-height:38px}.sourceBadge{border:1px solid rgba(121,239,188,.18);background:rgba(121,239,188,.07);color:#80e7c0;border-radius:999px;padding:10px;font-size:7px;font-weight:950;letter-spacing:.1em}.sourceBadge.fallback{border-color:rgba(239,176,143,.2);background:rgba(239,176,143,.06);color:#efb08f}.atlasGrid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.55fr);border:1px solid rgba(255,255,255,.08);border-radius:28px;overflow:hidden;background:rgba(255,255,255,.018)}.atlasVisual{position:relative;min-height:550px;background:#080f0e;border-right:1px solid rgba(255,255,255,.07)}.atlasEmpty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:8px;padding:30px}.atlasEmpty b{font-size:9px;letter-spacing:.13em}.atlasEmpty span{max-width:400px;color:#6f7b77;font-size:10px;line-height:1.6}.visualLabel{position:absolute;left:13px;right:13px;bottom:12px;z-index:4;padding:9px 11px;background:rgba(5,10,9,.7);border:1px solid rgba(255,255,255,.08);border-radius:999px;text-align:center;color:#82908b;font-size:6px;font-weight:900;letter-spacing:.08em;pointer-events:none}.atlasInfo{padding:24px;display:flex;flex-direction:column;gap:11px}.atlasInfo h3{font-size:28px;letter-spacing:-.045em;margin:0}.atlasInfo>p{color:#78857f;font-size:10px;margin:0}.facts,.listingFacts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.facts div,.listingFacts div{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025);border-radius:14px;padding:11px}.facts b,.listingFacts b{display:block;font-size:15px}.facts span,.listingFacts span{display:block;margin-top:3px;color:#65716c;font-size:6px;letter-spacing:.09em;font-weight:900}.sourceCard{border:1px solid rgba(255,255,255,.07);border-radius:15px;padding:12px;background:rgba(255,255,255,.022)}.sourceCard b,.sourceCard span,.sourceCard em{display:block}.sourceCard b{font-size:9px}.sourceCard span{font-size:7px;color:#81908a;margin-top:4px}.sourceCard em{font-style:normal;color:#65716d;font-size:7px;line-height:1.5;margin-top:8px}.secondary{display:flex;align-items:center;justify-content:center;min-height:40px;border:1px solid rgba(255,255,255,.09);color:#a4b0ab;text-decoration:none;border-radius:13px;font-size:7px;font-weight:950;letter-spacing:.09em}.fine{color:#697570!important;font-size:8px!important;line-height:1.6!important}.meshyWrap{display:grid;grid-template-columns:minmax(220px,.36fr) minmax(0,.64fr);gap:18px;margin-top:18px;align-items:start}.meshyCopy{padding:18px 0}.stewardship{display:grid;grid-template-columns:minmax(0,.8fr) minmax(360px,1.2fr);gap:26px;align-items:center}.policyCards{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.policyCards article{border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px;background:rgba(255,255,255,.025)}.policyCards b{display:block;font-size:20px}.policyCards span{display:block;color:#68756f;font-size:6px;letter-spacing:.1em;margin-top:5px;font-weight:900}.policyTruth{grid-column:1/-1;border:1px solid rgba(239,176,143,.15);background:rgba(239,176,143,.035);border-radius:15px;padding:12px 14px;display:flex;gap:14px;align-items:center}.policyTruth b{white-space:nowrap;color:#e7af91;font-size:7px;letter-spacing:.1em}.policyTruth span{color:#78847f;font-size:8px;line-height:1.55}.ownershipCards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.ownershipCards article{border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:16px;background:rgba(255,255,255,.018)}.ownershipCards b{font-size:8px;letter-spacing:.1em}.ownershipCards span{display:block;color:#73807a;font-size:9px;line-height:1.6;margin-top:7px}.marketHead{align-items:center}.marketState{border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:12px 15px;text-align:right;background:rgba(255,255,255,.02)}.marketState b{display:block;font-size:24px}.marketState span{display:block;color:#68746f;font-size:6px;letter-spacing:.1em}.filters{display:grid;gap:8px;margin-bottom:13px}.typeRail,.categoryRail{display:flex;gap:6px;overflow:auto;padding-bottom:1px}.filters button{flex:0 0 auto;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);color:#7f8c86;border-radius:999px;padding:9px 11px;font-size:7px;font-weight:900}.filters button.active{background:#eff6f3;color:#07100f;border-color:#eff6f3}.marketGrid{display:grid;grid-template-columns:minmax(320px,.8fr) minmax(0,1.2fr);gap:13px}.results{display:grid;align-content:start;gap:8px}.empty,.detailEmpty{border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:26px;display:grid;gap:8px;background:rgba(255,255,255,.018)}.empty b,.detailEmpty b{font-size:9px;letter-spacing:.12em}.empty span,.detailEmpty span{color:#74807b;font-size:10px;line-height:1.6}.listing{display:grid;grid-template-columns:135px 1fr;text-align:left;padding:0;border:1px solid rgba(255,255,255,.07);border-radius:18px;overflow:hidden;background:rgba(255,255,255,.018);color:#fff}.listing.active{border-color:rgba(121,239,188,.32);background:rgba(121,239,188,.035)}.photo{min-height:130px;background:#101816;overflow:hidden}.photo>img,.detailVisual>img{width:100%;height:100%;object-fit:cover;display:block}.listingPlaceholder{height:100%;min-height:130px;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(121,239,188,.1),transparent 36%),#0b1210}.listingPlaceholder>span{position:absolute;top:10px;left:10px;color:#65736d;font-size:6px;font-weight:900;letter-spacing:.08em}.miniBuilding{width:58%;height:44%;background:#b5b8ad;position:relative;border-radius:2px;box-shadow:0 14px 30px rgba(0,0,0,.28)}.miniBuilding:before{content:'';position:absolute;left:-7%;right:-7%;top:-12%;height:14%;background:#3a403e}.miniBuilding i{position:absolute;bottom:18%;width:16%;height:30%;background:#6b9c9a}.miniBuilding i:nth-child(1){left:12%}.miniBuilding i:nth-child(2){left:42%}.miniBuilding i:nth-child(3){right:12%}.listingBody{padding:13px;min-width:0}.sourceTag{font-size:6px;color:#69cfa9;letter-spacing:.09em;font-weight:900}.listingBody strong{display:block;font-size:21px;letter-spacing:-.035em;margin:5px 0}.listingBody b,.listingBody small,.listingBody>div:last-child{display:block}.listingBody b{font-size:10px}.listingBody small,.listingBody>div:last-child{color:#707d77;font-size:8px;margin-top:3px}.detail{border:1px solid rgba(255,255,255,.08);border-radius:24px;overflow:hidden;background:rgba(255,255,255,.018);align-self:start}.detailVisual{height:300px;position:relative;background:#0b1210;overflow:hidden}.detailVisual>.listingPlaceholder{min-height:300px}.detailVisual>span{position:absolute;left:12px;right:12px;bottom:11px;text-align:center;background:rgba(5,10,9,.7);border:1px solid rgba(255,255,255,.08);padding:8px;border-radius:999px;color:#84918c;font-size:6px;letter-spacing:.08em;font-weight:900}.detailBody{padding:20px}.source{color:#74deb5;font-size:7px;font-weight:900;letter-spacing:.09em}.detailBody h2{font-size:32px;letter-spacing:-.045em;margin:8px 0 4px}.detailBody>p{color:#75817c;font-size:9px}.price{display:grid;gap:2px;margin:18px 0}.price span,.price small{color:#6f7b76;font-size:7px}.price strong{font-size:38px;letter-spacing:-.05em}.primaryButton{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:14px;background:#edf5f2;color:#07100f;text-decoration:none;font-size:8px;font-weight:950;letter-spacing:.09em;margin:13px 0 7px}footer{border-top:1px solid rgba(255,255,255,.07);padding:22px 0;color:#6d7974;display:flex;gap:16px;align-items:flex-start;font-size:8px;line-height:1.6}footer b{color:#96a39d;white-space:nowrap;letter-spacing:.12em;font-size:7px}@media(max-width:980px){.hero{grid-template-columns:1fr}.globeCard{min-height:420px}.atlasGrid,.marketGrid{grid-template-columns:1fr}.atlasVisual{border-right:0;border-bottom:1px solid rgba(255,255,255,.07);min-height:490px}.meshyWrap{grid-template-columns:1fr}.stewardship{grid-template-columns:1fr}.ownershipCards{grid-template-columns:1fr}.policyCards{grid-template-columns:repeat(2,1fr)}}@media(max-width:640px){.page{padding:0 13px 78px}header{height:56px}nav a{padding:8px 9px}.hero{padding-top:22px;gap:14px}.heroCopy{padding-top:7px}.hero h1{font-size:52px}.hero p{font-size:11px}.search{grid-template-columns:1fr 1fr}.search input{grid-column:1/-1}.search button{min-height:43px}.globeCard{min-height:390px;border-radius:23px}.globeHint{font-size:5.5px}.sectionHead{display:grid;align-items:start}.sectionActions{justify-content:flex-start}.atlasVisual{min-height:430px}.atlasInfo{padding:17px}.meshyCopy{padding-bottom:0}.policyTruth{display:grid}.policyCards{grid-template-columns:1fr 1fr}.marketGrid{grid-template-columns:1fr}.listing{grid-template-columns:112px 1fr}.photo{min-height:118px}.detailVisual{height:245px}.detailVisual>.listingPlaceholder{min-height:245px}.ownershipMap h2,.sectionHead h2,.meshyCopy h2,.stewardCopy h2{font-size:38px}footer{display:grid}}
     `}</style>
-  </main>
+  </main>;
 }

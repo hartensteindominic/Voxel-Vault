@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { inspectWorldAtlas } from '../../../../lib/world-atlas.js';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
 function optionalNumber(value: string | null) {
