@@ -45,7 +45,9 @@ A signed-in user may submit an official claim only when they attest that they ar
 - the property owner, or
 - an authorized controller/agent.
 
-A friend, fan or creator may still make an unverified digital building elsewhere in Voxel Vault, but cannot use this route to make that model the official address/parcel-linked twin.
+The server requires `ownerAuthorized === true` as an exact boolean. String values such as `"false"` do not pass the authorization gate.
+
+A friend, fan or creator may still make an unverified digital building elsewhere in Voxel Vault, but cannot use this route to make that model the official parcel-linked twin.
 
 The form intentionally does not accept raw deeds, government IDs, bank information, or private documents. This milestone stores only property identity fields and evidence categories.
 
@@ -66,11 +68,13 @@ The reviewer console is protected by the existing Voxel Vault admin allowlist (`
 A reviewer must:
 
 1. independently inspect the external evidence,
-2. provide a written reviewer note,
-3. explicitly confirm that the evidence was actually checked,
+2. provide a written reviewer note of at least 20 characters,
+3. explicitly check the confirmation that the evidence was actually reviewed,
 4. then choose Verify, Needs Evidence, or Reject.
 
-The user-supplied evidence checkboxes are metadata only; they are not proof.
+The user-supplied evidence category checkmarks are metadata only; they are not proof.
+
+Verification and rejection use the service-role-only PostgreSQL function `admin_review_property_claim`. It locks the claim and canonical identity rows with `FOR UPDATE`, so competing approvals cannot race each other or leave the claim and identity in contradictory states.
 
 A verified claim is immutable in this pilot. Future suspension/revocation should be a separate governed workflow with audit history.
 
@@ -82,7 +86,9 @@ However:
 
 - one user may have only one claim for a given property identity,
 - the property identity fingerprint is globally unique,
-- a partial unique database index allows only one `verified` claim per property identity.
+- a partial unique database index permits only one `verified` claim per property identity,
+- the canonical identity records one `verified_claim_id`,
+- the transactional review function refuses a second competing verified claim.
 
 Therefore competing claims can coexist in review, but only one can graduate to the verified canonical claim.
 
@@ -96,7 +102,7 @@ The existing `PropertyPassport.sol` already:
 - rejects a second Passport mint for the same `propertyId`,
 - makes the Passport non-transferable.
 
-The new user claim API and admin review API deliberately do **not** call:
+The user claim API and admin review API deliberately do **not** call:
 
 - `PropertyRegistry.setVerified`,
 - `PropertyPassport.mintVerifiedPassport`.
@@ -106,7 +112,11 @@ A successful off-chain claim review still reports:
 ```text
 onchainRegistryVerified: false
 passportMinted: false
+deedChanged: false
+propertyRightsCreated: false
 ```
+
+The admin review transaction also deliberately does not set `registry_verified = true`.
 
 Registry anchoring remains a separate controlled/testnet milestone. This prevents a reviewer click from silently creating an on-chain property identity.
 
@@ -125,15 +135,16 @@ Actual property purchase remains contract + escrow/title/attorney closing + reco
 
 Actual property rent remains available only to the legally entitled owner/entity/economic-interest structure after property accounting and distribution controls are implemented.
 
-## Database prerequisite
+## Database prerequisites
 
-This milestone requires:
+This milestone requires both migrations, in order:
 
 ```text
 supabase/migrations/015_property_identity_claims.sql
+supabase/migrations/016_property_claim_admin_review.sql
 ```
 
-The migration creates:
+Migration 015 creates:
 
 - `vault_property_identities`,
 - `vault_property_claims`,
@@ -142,7 +153,15 @@ The migration creates:
 - unique canonical fingerprints,
 - one verified claim per property identity.
 
-Until migration 015 is actually applied to the connected Supabase project, the API returns `setupRequired: true` and fails closed.
+Migration 016 adds:
+
+- `verified_claim_id`, `verified_at`, and `verified_by` to the canonical identity,
+- transactional claim/identity review locking,
+- service-role-only execution permission for the review function,
+- an explicit block against a second competing verified claim,
+- no on-chain registry mutation or Passport mint.
+
+Until migrations 015 and 016 are actually applied to the connected Supabase project, the claim/review APIs return `setupRequired: true` where required and fail closed. Merging this code does not apply those migrations remotely.
 
 ## Release tests
 
@@ -151,14 +170,18 @@ Until migration 015 is actually applied to the connected Supabase project, the A
 - parcel-format normalization,
 - address text is excluded from the canonical identity,
 - U.S. state + assessor jurisdiction requirements,
+- string `"false"` cannot bypass authorization,
 - no self-verification,
 - no claim-triggered Passport mint,
 - no claim-triggered on-chain registry verification,
 - safe public claim summaries,
 - server-only database mutation,
 - one verified claim per property identity,
+- transactional row locking for approval,
+- service-role-only review execution,
+- competing-claim rejection,
 - admin allowlist usage,
-- reviewer-note/evidence confirmation requirements,
+- reviewer-note and explicit evidence-confirmation requirements,
 - existing registry duplicate protection,
 - existing non-transferable, one-per-property Passport protection.
 
