@@ -5,6 +5,11 @@ import {
 } from '../lib/real-estate/erie-county-evidence.js';
 import { ERIE_COUNTY_PARCEL_LAYER } from '../lib/real-estate/erie-county-gis.js';
 import {
+  NYS_ERIE_LIDAR_COLLECTION,
+  NYS_ERIE_LIDAR_INDEX_LAYER,
+  fetchNysErieLidarCoverage,
+} from '../lib/real-estate/nys-lidar-evidence.js';
+import {
   PROPERTY_RIGHT_TYPES,
   PROPERTY_TRUTH_STATES,
   assertSpatialInvariants,
@@ -36,6 +41,19 @@ async function loadWithRetry() {
   if (lastError?.code === 'PARCEL_NOT_FOUND') {
     const diagnostic = await discoverAddressCandidates().catch((error) => ({ diagnosticError: error instanceof Error ? error.message : String(error) }));
     console.error('ERIE_IDENTIFIER_DIAGNOSTIC', JSON.stringify(diagnostic, null, 2));
+  }
+  throw lastError;
+}
+
+async function loadLidarWithRetry(point) {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await fetchNysErieLidarCoverage(point);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+    }
   }
   throw lastError;
 }
@@ -83,6 +101,24 @@ assert.ok(twin.structure.source.observedAt, 'building observation time must be p
 assert.ok(provenance?.parcelLayer, 'official parcel layer URL must be retained');
 assert.ok(provenance?.buildingLayer, 'official building layer URL must be retained');
 
+const lidar = await loadLidarWithRetry({
+  latitude: twin.location.latitude,
+  longitude: twin.location.longitude,
+});
+
+assert.equal(lidar.ok, true, 'official NYS LiDAR index query must succeed for 618 Main');
+assert.equal(lidar.collection, NYS_ERIE_LIDAR_COLLECTION, 'the first parcel must use the Erie/Genesee/Livingston 2019 collection');
+assert.equal(lidar.coverageStatus, 'covered', 'the 618 Main reference point must intersect at least one official LAS tile');
+assert.ok(lidar.tiles.length > 0, 'at least one authoritative LAS tile must cover the parcel reference point');
+assert.ok(lidar.tiles.some((tile) => tile.filename), 'covered LAS evidence must include an official filename');
+assert.ok(lidar.tiles.some((tile) => tile.directDownloadUrl || tile.ftpPath), 'covered LAS evidence must retain a downloadable source reference');
+assert.equal(lidar.heightMeters, null, 'LiDAR coverage alone must not be promoted into a measured building height');
+assert.equal(lidar.measurementStatus, 'coverage_only', 'LiDAR must remain coverage-only until point-cloud measurement runs');
+assert.equal(lidar.measurementMethod, null, 'no measurement method may be claimed before LAS processing');
+assert.equal(lidar.legalEffects.establishesBuildingHeight, false, 'tile discovery alone must not establish building height');
+assert.equal(lidar.legalEffects.establishesDeedOwnership, false, 'LiDAR can never establish deed ownership');
+assert.equal(lidar.source.sourceUrl, NYS_ERIE_LIDAR_INDEX_LAYER, 'LiDAR lineage must retain the official NYS index layer');
+
 console.log(JSON.stringify({
   forcingFunction: 'first-real-erie-parcel',
   propertyId: twin.propertyId,
@@ -100,4 +136,12 @@ console.log(JSON.stringify({
   ownership: twin.verification.verifiedOwnership,
   parcelSource: twin.location.source,
   buildingSource: twin.structure.source,
+  lidar: {
+    collection: lidar.collection,
+    coverageStatus: lidar.coverageStatus,
+    measurementStatus: lidar.measurementStatus,
+    tileCount: lidar.tiles.length,
+    tiles: lidar.tiles,
+    source: lidar.source,
+  },
 }, null, 2));
