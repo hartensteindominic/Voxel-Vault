@@ -215,6 +215,26 @@ const readyForMeasurement = evaluateMeasuredBuildingHeight({ acceptedBuildingGeo
 assert.equal(readyForMeasurement.status, 'lidar_coverage_ready_for_measurement');
 assert.equal(readyForMeasurement.verifiedMeasuredHeight, false);
 
+const selfClaimedHeight = evaluateMeasuredBuildingHeight({
+  acceptedBuildingGeometry: acceptedFootprint,
+  lidarCoverage: coverageOnly,
+  measurement: {
+    roofElevationMeters: 120,
+    groundElevationMeters: 105,
+    uncertaintyMeters: 0.5,
+    roofSampleCount: 8,
+    groundSampleCount: 6,
+    sourceAuthority: 'Claimed authority',
+    method: 'user supplied',
+    footprintRecordId: 'building:1',
+    sourceRecordId: 'tile.las',
+    observedAt: '2026-08-28T00:00:00Z',
+  },
+});
+assert.equal(selfClaimedHeight.status, 'measurement_rejected');
+assert.equal(selfClaimedHeight.verifiedMeasuredHeight, false);
+assert.ok(selfClaimedHeight.blockers.some((item) => item.includes('trusted source')));
+
 const verifiedHeight = evaluateMeasuredBuildingHeight({
   acceptedBuildingGeometry: acceptedFootprint,
   lidarCoverage: coverageOnly,
@@ -229,6 +249,9 @@ const verifiedHeight = evaluateMeasuredBuildingHeight({
     footprintRecordId: 'building:1',
     sourceRecordId: 'tile.las',
     observedAt: '2026-08-28T00:00:00Z',
+    trustedSource: true,
+    footprintMatchVerified: true,
+    groundMethodValidated: true,
   },
 });
 assert.equal(verifiedHeight.status, 'verified_measured_height');
@@ -250,6 +273,9 @@ const rejectedHeight = evaluateMeasuredBuildingHeight({
     footprintRecordId: 'building:1',
     sourceRecordId: 'tile.las',
     observedAt: '2026-08-28T00:00:00Z',
+    trustedSource: true,
+    footprintMatchVerified: true,
+    groundMethodValidated: true,
   },
 });
 assert.equal(rejectedHeight.status, 'measurement_rejected');
