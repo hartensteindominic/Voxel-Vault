@@ -42,6 +42,7 @@ jobs:
       - run: npm run test:provider-binding
       - run: npm run test:vault
       - run: npm run test:income-center
+      - run: npm run test:acquisition-center
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
