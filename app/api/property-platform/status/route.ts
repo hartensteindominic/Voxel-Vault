@@ -20,12 +20,22 @@ export async function GET() {
     productionAutoReinvestmentImplementationReady: launch.productionAutoReinvestmentImplementationReady,
     launchPolicyVersion: launch.policyVersion,
     gates: launch.gates,
+    gateAssertions: launch.gateAssertions,
+    missingGateAssertions: launch.missingAssertions,
+    unverifiedGateAssertions: launch.unverifiedAssertions,
     missingGates: launch.missing,
+    allExternalGatesAsserted: launch.allExternalGatesAsserted,
     allExternalGatesSatisfied: launch.allExternalGatesSatisfied,
+    activationBlockers: launch.activationBlockers,
+    readinessSummary: launch.readinessSummary,
     reinvestmentMode: launch.reinvestmentMode,
     legalReadiness: {
       environmentVariablesAreNotAuthority: launch.environmentVariablesAreNotAuthority,
       evidenceRequiredBeforeLive: launch.evidenceRequiredBeforeLive,
+      evidenceVerifierImplementationReady: launch.legalEvidenceVerifierImplementationReady,
+      evidenceRecordFields: launch.legalEvidenceRecordFields,
+      evidenceRequirements: launch.legalEvidenceRequirements,
+      evidenceRegister: launch.legalEvidenceRegister,
       productionDecisionAuthorities: launch.productionDecisionAuthorities,
       regulatedLaunchPacket: launch.regulatedLaunchPacket,
       partnerDiligenceChecklist: launch.partnerDiligenceChecklist,
@@ -62,6 +72,8 @@ export async function GET() {
       cappedSandboxSecurityOrders: true,
       jurisdictionAcquisitionGate: true,
       regulatedLaunchGateEngine: true,
+      authorityEvidenceRegister: true,
+      authorityEvidenceVerification: false,
       crossAssetAdapterModel: true,
       rentReinvestmentSimulation: true,
       liveInvestmentCheckout: false,
@@ -80,6 +92,6 @@ export async function GET() {
     },
     note: launch.liveInvestingEnabled
       ? 'Controlled live mode is active through the approved production integration.'
-      : 'Fail-closed regulated launch build: sandbox tokenized-security testing and mock funding are supported, but no live investor funds, live securities purchase, automated property acquisition or public security-token sale can execute from this code.',
+      : 'Fail-closed regulated launch build: environment settings are unverified assertions, no authority evidence verifier is connected, and no live investor funds, live securities purchase, automated property acquisition or public security-token sale can execute from this code.',
   });
 }

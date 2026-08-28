@@ -6,6 +6,8 @@ Do not commit private legal, identity, banking, tenant, title, wallet-key, tax o
 
 This checklist defines the evidence categories that must exist in controlled storage before Voxel Vault can move from `regulated-launch-build` to any live investment workflow. Public code may store document names, review states, non-sensitive hashes and provider references only.
 
+The public-safe record contract and evidence acceptance rules are defined in [Legal Approval Evidence Specification](./LEGAL_APPROVAL_EVIDENCE_SPEC.md).
+
 ## Minimum data-room folders
 
 | Folder | Contents | Public repo treatment |
@@ -51,6 +53,7 @@ Each gate needs:
 | `taxReportingConfigured` | Investor statements and required tax reporting workflow. |
 | `smartContractsAudited` | Independent contract review and deployment approval. |
 | `privacySecurityApproved` | Privacy, access-control and security review. |
+| `publicTermsDisclosuresApproved` | Counsel/intermediary-approved terms, risk disclosures and public communications. |
 | `incidentResponseApproved` | Pause authority, incident runbook and support escalation path. |
 | `providerIntegrationVerified` | End-to-end sandbox proof using provider-authoritative states. |
 
@@ -61,7 +64,8 @@ private evidence document
     -> controlled storage
     -> reviewer approval record
     -> public-safe hash/reference
-    -> launch gate can become externally satisfied
+    -> scope, authority, expiry and registry checks pass
+    -> launch gate can become authority-evidence verified
     -> code still remains fail-closed until production implementation constants are reviewed
 ```
 
@@ -73,4 +77,3 @@ private evidence document
 - Tenant names, tenant financials or tenant communications.
 - Private legal advice unless counsel approves disclosure.
 - Unapproved marketing or investor solicitation copy.
-

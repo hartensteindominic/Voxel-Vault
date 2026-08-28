@@ -48,6 +48,8 @@ The following remain blocked until the required authorities approve them:
 
 Environment variables, admin toggles, screenshots or founder approval do not satisfy legal authority by themselves.
 
+Voxel Vault records those settings only as unverified assertions. The required authority records, acceptance rules and fail-closed activation boundary are defined in [Legal Approval Evidence Specification](./LEGAL_APPROVAL_EVIDENCE_SPEC.md).
+
 ## Partner diligence questions
 
 | Area | Question | Needed evidence |
@@ -93,4 +95,3 @@ Dominic
 - [#342 Funds, escrow, custody + settlement](https://github.com/hartensteindominic/Voxel-Vault/issues/342)
 - [#343 Token recordkeeping + transfer controls](https://github.com/hartensteindominic/Voxel-Vault/issues/343)
 - [#344 Rent distributions + reinvestment rules](https://github.com/hartensteindominic/Voxel-Vault/issues/344)
-
