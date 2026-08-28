@@ -5,7 +5,7 @@ This script is intentionally an ingestion/verification tool, not an on-request w
 requires the source-backed Voxel Vault evidence export, downloads the exact authoritative LAS
 tile, hashes it, and derives a robust roof-minus-ground measurement against the official
 building footprint. It fails closed when point density, CRS, classification, or uncertainty is
-not good enough.
+not good enough, while still writing rejected diagnostics for review.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import tempfile
 import urllib.request
 from datetime import datetime, timezone
@@ -237,7 +236,7 @@ def measure(evidence: dict, las_path: Path, las_sha256: str, las_bytes: int) -> 
     }
     quality_gate_passed = all(quality_checks.values())
 
-    result = {
+    return {
         "schemaVersion": 1,
         "algorithm": {
             "id": ALGORITHM_VERSION,
@@ -252,6 +251,7 @@ def measure(evidence: dict, las_path: Path, las_sha256: str, las_bytes: int) -> 
         "measurement": {
             "status": "measured" if quality_gate_passed else "rejected",
             "heightMeters": round(height_meters, 3) if quality_gate_passed else None,
+            "candidateHeightMeters": round(height_meters, 3),
             "heightDefinition": "LiDAR-derived roof-above-ground proxy; not a legal survey or certified structural height",
             "uncertaintyMeters": round(uncertainty_meters, 3),
             "qualityGatePassed": quality_gate_passed,
@@ -307,10 +307,6 @@ def measure(evidence: dict, las_path: Path, las_sha256: str, las_bytes: int) -> 
         },
     }
 
-    if not quality_gate_passed:
-        fail(f"LiDAR measurement failed quality gate: {json.dumps(quality_checks, sort_keys=True)}")
-    return result
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -339,6 +335,10 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True))
+
+    if not result.get("measurement", {}).get("qualityGatePassed"):
+        checks = result.get("measurement", {}).get("qualityChecks", {})
+        fail(f"LiDAR measurement failed quality gate: {json.dumps(checks, sort_keys=True)}")
 
 
 if __name__ == "__main__":
