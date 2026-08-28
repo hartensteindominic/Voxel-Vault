@@ -9,6 +9,9 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const REVIEWABLE_STATUSES = [PROPERTY_CLAIM_STATUSES.NEEDS_EVIDENCE, PROPERTY_CLAIM_STATUSES.UNDER_REVIEW];
+const TERMINAL_STATUSES = [PROPERTY_CLAIM_STATUSES.VERIFIED, PROPERTY_CLAIM_STATUSES.REJECTED, PROPERTY_CLAIM_STATUSES.WITHDRAWN];
+
 function setupMissing(error: any) {
   const code = String(error?.code || '');
   const message = String(error?.message || '');
@@ -27,6 +30,19 @@ function claimSummary(row: any) {
     evidenceTypes: row?.evidence_manifest?.types || [],
     registryVerified: identity?.registry_verified === true,
   });
+}
+
+function terminalNextStep(status: string) {
+  if (status === PROPERTY_CLAIM_STATUSES.VERIFIED) {
+    return 'This claim is already human-verified and cannot be changed from the claimant form. Registry anchoring and Passport minting remain separate controlled steps.';
+  }
+  if (status === PROPERTY_CLAIM_STATUSES.REJECTED) {
+    return 'This claim was rejected and is locked in this pilot. A future governed appeal/reopen workflow is required before it can re-enter review.';
+  }
+  if (status === PROPERTY_CLAIM_STATUSES.WITHDRAWN) {
+    return 'This claim was withdrawn and is locked in this pilot. A future governed reopen workflow is required before it can re-enter review.';
+  }
+  return '';
 }
 
 export async function GET(request: Request) {
@@ -145,7 +161,7 @@ export async function POST(request: Request) {
   let claimRow: any;
   if (existingResult.data) {
     const currentStatus = String(existingResult.data.claim_status || '');
-    if ([PROPERTY_CLAIM_STATUSES.VERIFIED, PROPERTY_CLAIM_STATUSES.REJECTED, PROPERTY_CLAIM_STATUSES.WITHDRAWN].includes(currentStatus as any)) {
+    if (TERMINAL_STATUSES.includes(currentStatus as any)) {
       claimRow = existingResult.data;
     } else {
       const updated = await auth.admin
@@ -161,10 +177,24 @@ export async function POST(request: Request) {
         })
         .eq('id', existingResult.data.id)
         .eq('user_id', auth.user.id)
+        .in('claim_status', REVIEWABLE_STATUSES)
         .select('id,claimant_role,property_label,locality,claim_status,evidence_manifest,submitted_at,reviewed_at')
-        .single();
-      if (updated.error || !updated.data) return NextResponse.json({ ok: false, error: 'The property claim could not be updated.' }, { status: 500 });
-      claimRow = updated.data;
+        .maybeSingle();
+
+      if (updated.error) return NextResponse.json({ ok: false, error: 'The property claim could not be updated.' }, { status: 500 });
+
+      if (!updated.data) {
+        const refreshed = await auth.admin
+          .from('vault_property_claims')
+          .select('id,claimant_role,property_label,locality,claim_status,evidence_manifest,submitted_at,reviewed_at')
+          .eq('id', existingResult.data.id)
+          .eq('user_id', auth.user.id)
+          .maybeSingle();
+        if (refreshed.error || !refreshed.data) return NextResponse.json({ ok: false, error: 'The property claim changed during review and could not be refreshed.' }, { status: 409 });
+        claimRow = refreshed.data;
+      } else {
+        claimRow = updated.data;
+      }
     }
   } else {
     const inserted = await auth.admin
@@ -181,16 +211,32 @@ export async function POST(request: Request) {
       })
       .select('id,claimant_role,property_label,locality,claim_status,evidence_manifest,submitted_at,reviewed_at')
       .single();
-    if (inserted.error || !inserted.data) return NextResponse.json({ ok: false, error: 'The property claim could not be submitted.' }, { status: 500 });
-    claimRow = inserted.data;
+
+    if (inserted.error || !inserted.data) {
+      if (String(inserted.error?.code || '') === '23505') {
+        const raced = await auth.admin
+          .from('vault_property_claims')
+          .select('id,claimant_role,property_label,locality,claim_status,evidence_manifest,submitted_at,reviewed_at')
+          .eq('property_identity_id', identity.id)
+          .eq('user_id', auth.user.id)
+          .maybeSingle();
+        if (!raced.error && raced.data) claimRow = raced.data;
+      }
+      if (!claimRow) return NextResponse.json({ ok: false, error: 'The property claim could not be submitted.' }, { status: 500 });
+    } else {
+      claimRow = inserted.data;
+    }
   }
+
+  const finalStatus = String(claimRow?.claim_status || '');
+  const lockedNextStep = terminalNextStep(finalStatus);
 
   return NextResponse.json({
     ok: true,
     claim: claimSummary({ ...claimRow, vault_property_identities: identity }),
     duplicateProtection: 'Claims for the same normalized jurisdiction + parcel identifier converge on one canonical property fingerprint.',
-    nextStep: evaluation.status === PROPERTY_CLAIM_STATUSES.UNDER_REVIEW
+    nextStep: lockedNextStep || (finalStatus === PROPERTY_CLAIM_STATUSES.UNDER_REVIEW
       ? 'Human verification must validate the evidence before registry verification or a canonical Passport mint can occur.'
-      : 'Add the required evidence categories before the claim can enter human verification.',
+      : 'Add the required evidence categories before the claim can enter human verification.'),
   }, { status: existingResult.data ? 200 : 201 });
 }
