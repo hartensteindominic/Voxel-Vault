@@ -44,6 +44,7 @@ jobs:
       - run: npm run test:income-center
       - run: npm run test:acquisition-center
       - run: npm run test:property-passport
+      - run: npm run test:property-claims
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
