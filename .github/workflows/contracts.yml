@@ -49,3 +49,9 @@ jobs:
           name: base-multi-arb-executor-artifact
           path: artifacts/contracts/BaseMultiArbExecutor.sol/BaseMultiArbExecutor.json
           if-no-files-found: error
+      - name: Upload canonical property registry artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-property-registry-artifact
+          path: artifacts/contracts/CanonicalPropertyRegistry.sol/CanonicalPropertyRegistry.json
+          if-no-files-found: error
