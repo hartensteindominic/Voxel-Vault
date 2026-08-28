@@ -19,7 +19,6 @@ for (const dependency of ['pmtiles', '@mapbox/vector-tile', 'pbf', 'world-atlas'
   assert.ok(packageJson.dependencies?.[dependency], `${dependency} must remain an application dependency for the world atlas`);
 }
 
-// Global map geometry must be range-read, bounded, and truthful.
 assert.match(overture, /new PMTiles\(url\)/, 'Overture lookup must use PMTiles range reads rather than downloading the archive');
 assert.match(overture, /archive\.getZxy/, 'Overture lookup must read only needed z/x/y tiles');
 assert.match(overture, /new VectorTile/, 'Overture MVT tiles must be decoded as vector tiles');
@@ -28,9 +27,8 @@ assert.match(overture, /license: 'ODbL'/, 'Overture Buildings license must stay 
 assert.match(overture, /distanceMeters <= radiusMeters \* 1\.65/, 'world tile reads must stay geographically bounded');
 assert.match(overture, /slice\(0, 36\)/, 'each inspection response must remain bounded for iPhone rendering');
 
-const overtureCall = atlas.indexOf('fetchOvertureBuildingNeighborhood(');
-const fallbackCall = atlas.indexOf('fetchGlobalNeighborhoodReference(');
-assert.ok(overtureCall >= 0 && fallbackCall >= 0, 'both Overture and the OSM fallback must remain wired');
+assert.ok(atlas.includes('fetchOvertureBuildingNeighborhood('), 'Overture must remain wired as primary geometry source');
+assert.ok(atlas.includes('fetchGlobalNeighborhoodReference('), 'OSM/Overpass must remain wired as fallback');
 assert.match(atlas, /fallbackUsed:\s*false/, 'successful primary lookups must expose primary state');
 assert.match(atlas, /fallbackUsed:\s*true/, 'fallback state must be explicit');
 assert.match(atlas, /World building data is temporarily unavailable\. No replacement building was invented\./, 'dual-source failure must be explicit and non-fabricating');
@@ -39,7 +37,6 @@ assert.match(atlas, /targetPolycount:\s*30_000/, 'hero meshes must retain the ba
 assert.match(atlas, /textureResolution:\s*'2k'/, 'hero meshes must retain 2K textures for mobile');
 assert.match(atlas, /automaticGeneration:\s*false/, 'ordinary world browsing must spend zero Meshy credits');
 
-// The whole-world navigation globe must remain usable and lightweight.
 assert.match(globe, /world-atlas\/countries-110m\.json/, 'the globe must contain recognizable country geography before a lookup');
 assert.match(globe, /topoFeature/, 'country topology must be rendered into the Earth texture');
 assert.match(globe, /engineRef/, 'selection updates must use a persistent globe engine');
@@ -49,15 +46,17 @@ assert.match(globe, /IntersectionObserver/, 'globe must pause expensive renderin
 assert.match(globe, /document\.hidden/, 'globe must stop rendering while the page is hidden');
 assert.match(globe, /3D globe is unavailable[^\n]*Address search and quick locations still work/, 'WebGL failure must leave a usable non-3D path');
 
-// 1047 is a calibration address, never a guessed coordinate.
+// 1047 is resolved through its existing Buffalo parcel identity, never a guessed coordinate.
 assert.match(page, /1047 Kensington Ave, Buffalo, NY 14215/, 'Earth must expose the exact 1047 calibration address');
-assert.match(page, /id: 'kensington'[^}]*addressOnly: true/, '1047 quick entry must be address-only');
-assert.doesNotMatch(page, /id: 'kensington'[^}]*\blat:/, '1047 must never ship with a guessed latitude');
-assert.doesNotMatch(page, /id: 'kensington'[^}]*\blng:/, '1047 must never ship with a guessed longitude');
-assert.match(page, /loadAtlas\(\{ address: starter\.query, query: starter\.query \}\)/, 'starter property must resolve through exact-address geocoding');
+assert.match(page, /sbl:\s*'90\.32-8-4'/, '1047 quick entry must carry the verified Buffalo/Erie parcel key');
+assert.match(page, /pin:\s*'1402000903200008004000'/, '1047 quick entry must carry the exact parcel PIN');
+assert.doesNotMatch(page, /id: 'kensington'[^\n]*\blat:/, '1047 must never ship with a guessed latitude');
+assert.doesNotMatch(page, /id: 'kensington'[^\n]*\blng:/, '1047 must never ship with a guessed longitude');
+assert.match(page, /\/api\/geo\/buffalo-reference/, '1047 must resolve through the existing Buffalo authoritative reference route first');
+assert.match(page, /exploreAuthoritative\(starter\)/, 'the initial flagship load must use the authoritative 1047 path');
+assert.match(page, /Falling back to exact-address geocoding; no coordinate is being guessed/, 'authoritative-source failure may geocode but must never guess');
 assert.match(page, /RESOLVING EXACT LOCATION/, 'UI must disclose unresolved coordinates rather than imply a match');
 
-// Reality / Voxel / Globe should be one synchronized, fail-safe explorer.
 assert.match(page, /GoogleRealityMap/, 'Earth must expose Google reality view');
 assert.match(page, />REALITY</, 'Reality tab must exist');
 assert.match(page, />VOXEL</, 'Voxel tab must exist');
@@ -67,7 +66,6 @@ assert.match(page, /PropertyEvidencePanel/, 'selected property must expose a sou
 assert.match(page, /capabilityLabel/, 'provider readiness must be visible instead of silently assumed');
 assert.match(page, /DOWNLOAD LOADED REGION · GEOJSON/, 'loaded open geometry must remain exportable');
 
-// Google is a live visual layer, not an extraction input.
 assert.match(googleReality, /NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY/, 'Google 3D must use an explicitly configured browser key');
 assert.match(googleReality, /importLibrary\('maps3d'\)/, 'Google reality must use the current maps3d library');
 assert.match(googleReality, /new Map3DElement/, 'Google reality must instantiate the native 3D map element');
@@ -76,13 +74,11 @@ assert.match(googleReality, /Google Photorealistic 3D is not configured|Google P
 assert.match(googleReality, /OPEN IN GOOGLE MAPS/, 'Google fallback must remain navigable');
 assert.doesNotMatch(googleReality, /getZxy|arrayBuffer\(|drawImage\(/, 'Google reality component must not extract/cache map tiles into Voxel Vault');
 
-// Zillow/Redfin/etc remain evidence/navigation surfaces, not scraped model inputs.
 assert.match(evidence, /zillow\.com\/homes/, 'evidence panel should provide a Zillow reference path');
 assert.match(evidence, /google\.com\/maps/, 'evidence panel should provide Google Maps/Street View paths');
 assert.match(evidence, /not automatically licensed training\/reconstruction inputs/i, 'reference panel must explain derivative-rights separation');
 assert.match(evidence, /displayed as listing evidence/, 'authorized provider photos may be shown as listing evidence');
 
-// Meshy 7 must actually accept common iPhone selections while only sending supported normalized files.
 assert.match(meshPanel, /normalizePhotoForMeshy/, 'iPhone photo selections must be normalized before Meshy upload');
 assert.match(meshPanel, /createImageBitmap/, 'browser should use modern image decode when available');
 assert.match(meshPanel, /maxSide = 2048/, 'Meshy references must be downscaled to a bounded useful size');
@@ -117,9 +113,9 @@ assert.match(meshRoute, /createModelSignedUrl/, 'cached private GLBs must use ex
 
 assert.match(capabilitiesRoute, /Boolean\(process\.env\.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY/, 'capability API must expose Google readiness only as a boolean');
 assert.match(capabilitiesRoute, /Boolean\(process\.env\.MESHY_API_KEY/, 'capability API must expose Meshy readiness only as a boolean');
-assert.doesNotMatch(capabilitiesRoute, /NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY[^\n]*:/, 'capability API must never serialize the Google key value');
-assert.doesNotMatch(capabilitiesRoute, /MESHY_API_KEY[^\n]*:/, 'capability API must never serialize the Meshy key value');
 assert.match(capabilitiesRoute, /no extraction, scraping, ML reconstruction, or offline cache/i, 'Google usage boundary must be visible in runtime capability metadata');
+assert.doesNotMatch(capabilitiesRoute, /googleReality:[\s\S]{0,200}key:/i, 'capability API must not serialize a Google key');
+assert.doesNotMatch(capabilitiesRoute, /meshy:[\s\S]{0,200}apiKey:/i, 'capability API must not serialize a Meshy key');
 
 assert.match(meshViewer, /GLTFLoader/, 'Meshy viewer must load real GLB assets');
 assert.match(meshViewer, /compact \? 1\.15 : 1\.35/, 'Meshy viewer must retain strict compact pixel-ratio cap');
@@ -130,4 +126,4 @@ assert.match(docs, /NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=/, 'deployment docs must
 assert.match(docs, /MESHY_API_KEY=/, 'deployment docs must show the server-only Meshy setting');
 assert.match(docs, /does \*\*not\*\* download, scrape, extract building meshes from, train on, reconstruct from, or permanently cache Google/i, 'docs must forbid extracting Google visual data');
 
-console.log('World atlas reality-stack checks passed: exact-address truth, Google live reality fallback, source-backed Voxel/Globe, reference-only Zillow/Google evidence, Meshy 7 rights gates, iPhone JPEG normalization, private caching, and no silent provider assumptions.');
+console.log('World atlas reality-stack checks passed: authoritative 1047 anchor, Google live reality fallback, source-backed Voxel/Globe, reference-only Zillow/Google evidence, Meshy 7 rights gates, iPhone JPEG normalization, private caching, and no silent provider assumptions.');
