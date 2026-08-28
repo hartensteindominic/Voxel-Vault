@@ -7,15 +7,11 @@ export const dynamic = 'force-dynamic';
 
 const BUCKET = 'voxel-system';
 const MAX_BYTES = 12 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png']);
 const ALLOWED_RIGHTS = new Set(['user-owned', 'open-licensed', 'licensed-derivative']);
 
 function extensionFor(type: string) {
-  if (type === 'image/png') return 'png';
-  if (type === 'image/webp') return 'webp';
-  if (type === 'image/heic') return 'heic';
-  if (type === 'image/heif') return 'heif';
-  return 'jpg';
+  return type === 'image/png' ? 'png' : 'jpg';
 }
 
 async function ensureBucket(admin: any) {
@@ -36,8 +32,8 @@ export async function POST(request: Request) {
     const rightsBasis = String(form.get('rightsBasis') || 'user-owned').trim().toLowerCase();
     const rightsReferenceInput = String(form.get('rightsReference') || '').trim().slice(0, 400);
     if (!(file instanceof File)) return NextResponse.json({ error: 'Choose a reference image first.' }, { status: 400 });
-    if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: 'Reference must be JPEG, PNG, WebP, HEIC or HEIF.' }, { status: 415 });
-    if (file.size <= 0 || file.size > MAX_BYTES) return NextResponse.json({ error: 'Reference image must be 12 MB or smaller.' }, { status: 413 });
+    if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: 'Meshy reference uploads must arrive as JPEG or PNG. The Earth UI converts iPhone/WebP/HEIC selections before upload.' }, { status: 415 });
+    if (file.size <= 0 || file.size > MAX_BYTES) return NextResponse.json({ error: 'Reference image must be 12 MB or smaller after normalization.' }, { status: 413 });
     if (!ALLOWED_RIGHTS.has(rightsBasis)) return NextResponse.json({ error: 'A supported derivative-generation rights basis is required.' }, { status: 400 });
 
     await ensureBucket(auth.admin);
@@ -56,7 +52,7 @@ export async function POST(request: Request) {
 
     const rightsReference = rightsReferenceInput || `Owner attestation ${new Date().toISOString()}`;
     const rightsRecord = {
-      schema: 'voxel-vault-world-reference-rights-v1',
+      schema: 'voxel-vault-world-reference-rights-v2',
       uploadedAt: new Date().toISOString(),
       userId: auth.user.id,
       userEmail: auth.user.email || null,
@@ -65,7 +61,8 @@ export async function POST(request: Request) {
       sizeBytes: file.size,
       rightsBasis,
       rightsReference,
-      purpose: 'Meshy derivative-generation reference for a selected Voxel Vault world-atlas hero model',
+      providerCompatibility: 'Meshy multi-image JPEG/PNG input',
+      purpose: 'Meshy 7 derivative-generation reference for a selected Voxel Vault world-atlas hero model',
     };
     const { error: rightsError } = await auth.admin.storage.from(BUCKET).upload(rightsPath, JSON.stringify(rightsRecord), {
       contentType: 'application/json',
@@ -86,6 +83,7 @@ export async function POST(request: Request) {
       rightsBasis,
       rightsReference: `stored-rights:${rightsPath}`,
       rightsRecordPath: rightsPath,
+      contentType: file.type,
       expiresInSeconds: 7200,
     });
   } catch (error) {
