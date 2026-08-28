@@ -79,7 +79,8 @@ async function claimFromStripe({ request, user, body }: { request: Request; user
   const walletRaw = String(session.metadata?.wallet || '');
   if (!ADDRESS_RE.test(walletRaw)) return NextResponse.json({ error: 'The paid session is missing its bound wallet.' }, { status: 409 });
   const wallet = getAddress(walletRaw);
-  if (body?.wallet && getAddress(String(body.wallet)) !== wallet) {
+  const requestedWallet = String(body?.wallet || '').trim();
+  if (requestedWallet && (!ADDRESS_RE.test(requestedWallet) || getAddress(requestedWallet) !== wallet)) {
     return NextResponse.json({ error: 'Connect the same wallet that was bound before checkout.' }, { status: 403 });
   }
   if (session.currency !== 'usd' || Number(session.amount_total) !== estate.purchasePriceCents) {
@@ -158,7 +159,7 @@ async function claimFromBaseUsdc({ request, user, body }: { request: Request; us
       }
     }
 
-    const expectedUnits = BigInt(estate.purchasePriceCents) * 10_000n;
+    const expectedUnits = BigInt(estate.purchasePriceCents) * BigInt(10_000);
     let exactTransfer = false;
     for (const log of receipt.logs) {
       if (getAddress(log.address) !== getAddress(BASE_USDC)) continue;
