@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const destinations = [
   { href: '/vault', label: 'MY VAULT', detail: 'Portfolio' },
+  { href: '/vault/properties', label: 'EARTH', detail: 'Property Twins' },
   { href: '/vault/income', label: 'INCOME', detail: 'Payments' },
   { href: '/vault/acquisitions', label: 'ACQUIRE', detail: 'Research' },
 ];
@@ -23,6 +24,8 @@ export default function VaultPortalNav() {
         display: 'flex',
         gap: 5,
         padding: 6,
+        maxWidth: 'calc(100vw - 32px)',
+        overflowX: 'auto',
         border: '1px solid rgba(185,255,240,.16)',
         borderRadius: 20,
         background: 'rgba(5,8,10,.88)',
@@ -41,6 +44,7 @@ export default function VaultPortalNav() {
             aria-current={active ? 'page' : undefined}
             style={{
               display: 'grid',
+              flex: '0 0 auto',
               gap: 1,
               minWidth: 72,
               padding: '8px 10px',
