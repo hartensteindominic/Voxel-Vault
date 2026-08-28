@@ -1,4 +1,10 @@
-import { legalReadinessWorkstreams, officialRegulatoryReferences } from '../../../lib/real-estate/legal-launch';
+import {
+  legalReadinessWorkstreams,
+  officialRegulatoryReferences,
+  partnerDiligenceChecklist,
+  regulatedLaunchPacket,
+  reviewReadyWorkItems,
+} from '../../../lib/real-estate/legal-launch';
 
 const gates = [
   ['01', 'Registered intermediary', 'Contract with a FINRA/SEC-registered broker-dealer or funding portal for the chosen offering path.', 'EXTERNAL'],
@@ -98,6 +104,51 @@ export default function LegalLaunchPage() {
       </section>
 
       <section style={{padding:'24px 0 42px'}}>
+        <div style={eyebrow}>REGULATED LAUNCH PACKET</div>
+        <h2 style={sectionTitle}>Next real-world move: pick counsel and partner.</h2>
+        <div style={packetGrid}>
+          <article style={packetHero}>
+            <small style={small}>IMMEDIATE NEXT ACTION</small>
+            <strong style={{display:'block',fontSize:26,letterSpacing:'-.035em',marginTop:8}}>{regulatedLaunchPacket.immediateNextAction}</strong>
+            <div style={statusStrip}>
+              <span style={{...pill,color:'#ffca7a',borderColor:'#5d4930'}}>MONEY MOVEMENT · {regulatedLaunchPacket.liveMoneyMovement.toUpperCase()}</span>
+              <span style={{...pill,color:'#ffca7a',borderColor:'#5d4930'}}>OWNERSHIP MINTING · {regulatedLaunchPacket.liveOwnershipMinting.toUpperCase()}</span>
+            </div>
+            <p style={{...muted,fontSize:13,marginTop:13}}>Review documents: {regulatedLaunchPacket.reviewDocuments.map(doc => doc.path).join(' · ')}</p>
+          </article>
+          <article style={packetCard}>
+            <b style={laneTitle}>Founder can do now</b>
+            <ul style={list}>{regulatedLaunchPacket.founderCanDoNow.map(item => <li key={item}>{item}</li>)}</ul>
+          </article>
+          <article style={packetCard}>
+            <b style={laneTitle}>Codex can do now</b>
+            <ul style={list}>{regulatedLaunchPacket.codexCanDoNow.map(item => <li key={item}>{item}</li>)}</ul>
+          </article>
+          <article style={packetCard}>
+            <b style={laneTitle}>Blocked until approved</b>
+            <ul style={list}>{regulatedLaunchPacket.prohibitedUntilApproved.map(item => <li key={item}>{item}</li>)}</ul>
+          </article>
+        </div>
+        <div style={diligenceGrid}>{partnerDiligenceChecklist.map(item => <article key={item.area} style={diligenceCard}>
+          <small style={small}>{item.owner}</small>
+          <h3 style={{fontSize:22,letterSpacing:'-.035em',margin:'8px 0 10px'}}>{item.area}</h3>
+          <ul style={list}>{item.checks.map(check => <li key={check}>{check}</li>)}</ul>
+          <p style={{...muted,fontSize:13,marginTop:12}}>Evidence: {item.evidence.join(', ')}.</p>
+        </article>)}</div>
+      </section>
+
+      <section style={{padding:'24px 0 42px'}}>
+        <div style={eyebrow}>REVIEW-READY GITHUB QUEUE</div>
+        <h2 style={sectionTitle}>The work is split into real issues.</h2>
+        <div style={issueGrid}>{reviewReadyWorkItems.map(item => <a key={item.issue} href={item.url} target="_blank" rel="noreferrer" style={issueCard}>
+          <small style={small}>{item.issue}</small>
+          <strong style={{display:'block',fontSize:20,letterSpacing:'-.03em',margin:'7px 0 10px'}}>{item.name}</strong>
+          <p style={{...muted,fontSize:13}}><b>Founder:</b> {item.firstFounderAction}</p>
+          <p style={{...muted,fontSize:13,marginTop:8}}><b>Codex:</b> {item.firstCodexAction}</p>
+        </a>)}</div>
+      </section>
+
+      <section style={{padding:'24px 0 42px'}}>
         <div style={eyebrow}>OFFICIAL SOURCE CHECK</div>
         <h2 style={sectionTitle}>Build around primary sources.</h2>
         <div style={referenceGrid}>{officialRegulatoryReferences.map(reference => <a key={reference.name} href={reference.url} target="_blank" rel="noreferrer" style={referenceCard}>
@@ -145,5 +196,13 @@ const laneTitle={display:'block',fontSize:11,letterSpacing:'.1em',textTransform:
 const laneCopy={margin:'7px 0 0',color:'#9aa695',lineHeight:1.55,fontSize:13};
 const evidenceBox={marginTop:16,padding:14,border:'1px solid rgba(255,255,255,.1)',borderRadius:16,background:'rgba(7,10,8,.45)'};
 const list={margin:'9px 0 0',paddingLeft:18,color:'#aeb9aa',fontSize:13,lineHeight:1.55};
+const packetGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:12,marginTop:18};
+const packetHero={gridColumn:'1 / -1',border:'1px solid rgba(184,255,85,.2)',borderRadius:22,padding:'clamp(18px,3vw,24px)',background:'rgba(184,255,85,.055)'};
+const statusStrip={display:'flex',gap:9,flexWrap:'wrap',marginTop:16};
+const packetCard={border:'1px solid rgba(255,255,255,.11)',borderRadius:18,padding:17,background:'rgba(255,255,255,.03)'};
+const diligenceGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(270px,1fr))',gap:12,marginTop:12};
+const diligenceCard={border:'1px solid rgba(255,255,255,.1)',borderRadius:18,padding:17,background:'rgba(7,10,8,.58)'};
+const issueGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:12,marginTop:18};
+const issueCard={display:'block',color:'inherit',textDecoration:'none',border:'1px solid rgba(184,255,85,.14)',borderRadius:18,padding:17,background:'rgba(255,255,255,.03)'};
 const referenceGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:12,marginTop:18};
 const referenceCard={display:'block',color:'inherit',textDecoration:'none',border:'1px solid rgba(255,255,255,.1)',borderRadius:18,padding:17,background:'rgba(255,255,255,.03)'};

@@ -18,6 +18,13 @@ Use primary sources for the first pass and have counsel update the final legal m
 - [New York DFS Virtual Currency Business Activity](https://www.dfs.ny.gov/apps_and_licensing/virtual_currency_businesses) - New York-facing virtual-currency activity may need licensing or an approved exemption path.
 - [IRS digital assets](https://www.irs.gov/filing/digital-assets) - digital-asset and distribution records need tax-reporting design before production.
 
+## Review packet
+
+Use these working documents before any live investment build:
+
+- [Regulated Launch Packet](./REGULATED_LAUNCH_PACKET.md) - product posture, partner diligence questions, launch locks and first outreach note.
+- [Legal Review Data Room](./LEGAL_REVIEW_DATA_ROOM.md) - evidence categories, gate mapping and public/private handling rules.
+
 ## Shared Founder + Codex workroom
 
 This is the working split. Codex can make the product safer, clearer and review-ready; licensed professionals and regulated providers still control the legal green lights.
