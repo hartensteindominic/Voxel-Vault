@@ -13,6 +13,9 @@ const referenceOnly = normalizePropertyTwin({
   rights: { type: PROPERTY_RIGHT_TYPES.REFERENCE_ONLY },
 });
 
+assert.equal(referenceOnly.location.latitude, null);
+assert.equal(referenceOnly.location.longitude, null);
+assert.equal(referenceOnly.verification.geographyChecks.coordinates, false);
 assert.equal(referenceOnly.verification.geography, PROPERTY_TRUTH_STATES.PARTIAL);
 assert.equal(referenceOnly.verification.physical, PROPERTY_TRUTH_STATES.UNVERIFIED);
 assert.equal(referenceOnly.verification.rights, PROPERTY_TRUTH_STATES.UNVERIFIED);
