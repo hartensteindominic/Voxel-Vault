@@ -45,9 +45,8 @@ export async function secureStripeDigitalEstatePurchase({ session, expectedBuyer
   if (!buyerId || (expectedBuyerId && buyerId !== expectedBuyerId)) throw new Error('DIGITAL_ESTATE_BUYER_MISMATCH');
 
   const estate = assertDigitalEstatePricing(getDigitalEstate(session.metadata?.estate_id));
-  const walletRaw = String(session.metadata?.wallet || '');
-  if (!ADDRESS_RE.test(walletRaw)) throw new Error('DIGITAL_ESTATE_WALLET_INVALID');
-  const wallet = getAddress(walletRaw);
+  const walletRaw = String(session.metadata?.wallet || '').trim();
+  const wallet = walletRaw && ADDRESS_RE.test(walletRaw) ? getAddress(walletRaw) : '';
 
   if (session.currency !== 'usd' || Number(session.amount_total) !== estate.purchasePriceCents) {
     throw new Error('DIGITAL_ESTATE_AMOUNT_MISMATCH');
@@ -58,10 +57,11 @@ export async function secureStripeDigitalEstatePurchase({ session, expectedBuyer
   }
 
   const reservation = await readDigitalEstateReservation(estate.id);
-  if (!reservation || reservation.buyerId !== buyerId || reservation.wallet !== wallet.toLowerCase()) {
+  if (!reservation || reservation.buyerId !== buyerId) {
     throw new Error('DIGITAL_ESTATE_RESERVATION_MISMATCH');
   }
   if (reservation.source !== 'stripe') throw new Error('DIGITAL_ESTATE_PAYMENT_SOURCE_MISMATCH');
+  if (reservation.wallet && wallet && reservation.wallet !== wallet.toLowerCase()) throw new Error('DIGITAL_ESTATE_WALLET_MISMATCH');
   if (reservation.sourceId && reservation.sourceId !== session.id) throw new Error('DIGITAL_ESTATE_SESSION_MISMATCH');
   if (!['reserved', 'checkout', 'paid', 'minted'].includes(reservation.state)) throw new Error('DIGITAL_ESTATE_RESERVATION_STATE_INVALID');
 
@@ -69,14 +69,14 @@ export async function secureStripeDigitalEstatePurchase({ session, expectedBuyer
     await updateDigitalEstateReservation({
       estateId: estate.id,
       buyerId,
-      wallet,
+      wallet: reservation.wallet,
       state: 'paid',
       source: 'stripe',
       sourceId: session.id,
     });
   }
 
-  return { estate, buyerId, wallet, source: 'stripe' as const, sourceId: session.id };
+  return { estate, buyerId, wallet: reservation.wallet || wallet, source: 'stripe' as const, sourceId: session.id };
 }
 
 export async function secureBaseUsdcDigitalEstatePurchase({ estateId, buyerId, wallet: walletRaw, txHash }: { estateId: string; buyerId: string; wallet: string; txHash: string }) {
@@ -168,7 +168,7 @@ export function digitalEstatePaymentErrorMessage(error: unknown) {
     DIGITAL_ESTATE_PAYMENT_NOT_PAID: 'Payment is not confirmed yet.',
     DIGITAL_ESTATE_METADATA_INVALID: 'This payment is not a Digital Estate purchase.',
     DIGITAL_ESTATE_BUYER_MISMATCH: 'This payment belongs to another Voxel Vault account.',
-    DIGITAL_ESTATE_WALLET_INVALID: 'The purchase is missing its bound wallet.',
+    DIGITAL_ESTATE_WALLET_MISMATCH: 'This paid purchase is already bound to a different wallet.',
     DIGITAL_ESTATE_AMOUNT_MISMATCH: 'The paid amount does not match the server-authoritative estate price.',
     DIGITAL_ESTATE_CATALOG_MISMATCH: 'The payment no longer matches the reviewed estate catalog.',
     DIGITAL_ESTATE_RESERVATION_MISMATCH: 'The estate reservation could not be matched to this purchase.',
