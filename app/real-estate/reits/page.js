@@ -7,11 +7,16 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Digital REIT Vault | Voxel Vault',
-  description: 'Spatial provider-backed tokenized real-estate securities, account positions, dividends and sandbox execution inside Voxel Vault.',
+  description: 'Spatial provider-backed tokenized real-estate securities, provider positions, dividends, sandbox testing and an owner-gated live investment path inside Voxel Vault.',
 };
 
 export default async function DigitalReitPage() {
   const snapshot = await getDigitalReitSnapshot(process.env);
+  const status = snapshot.environment === 'live'
+    ? snapshot.productionTradingEnabled
+      ? 'LIVE CONFIGURED · OWNER VERIFY'
+      : 'LIVE · LOCKED'
+    : 'SANDBOX';
 
   return (
     <main className={styles.page}>
@@ -19,7 +24,8 @@ export default async function DigitalReitPage() {
         <nav className={styles.nav}>
           <a className={styles.brand} href="/"><span className={styles.brandMark}>V</span>Voxel Vault</a>
           <div className={styles.navActions}>
-            <span className={styles.statusPill}><span className={styles.statusDot} />DIGITAL REIT VAULT · {snapshot.environment.toUpperCase()}</span>
+            <span className={styles.statusPill}><span className={styles.statusDot} />DIGITAL REIT VAULT · {status}</span>
+            <a className={styles.ghostPill} href="/admin/digital-reits/live">Owner live investing</a>
             <a className={styles.ghostPill} href="/real-estate/acquire">Acquisition engine</a>
             <a className={styles.ghostPill} href="/real-estate/invest">Capital simulator</a>
           </div>
@@ -35,13 +41,14 @@ export default async function DigitalReitPage() {
             <div className={styles.actions}>
               <a className={styles.primaryButton} href="#spatial-vault">Enter My Vault</a>
               <a className={styles.secondaryButton} href="#vault">Open financial view</a>
-              <a className={styles.secondaryButton} href="/real-estate/launch">Production gates</a>
+              <a className={styles.secondaryButton} href="/admin/digital-reits/live">Owner live console</a>
+              <a className={styles.secondaryButton} href="/real-estate/launch">Direct-property launch gates</a>
             </div>
             <div className={styles.heroNote}>
               <span>Dinari integration.</span>
               <span>Spatial portfolio.</span>
               <span>Provider-backed holdings only.</span>
-              <span>Production trading locked.</span>
+              <span>{snapshot.productionTradingImplementationReady ? 'Live execution code present; external/provider gates still required.' : 'Production execution code locked.'}</span>
             </div>
           </div>
         </section>
@@ -73,7 +80,7 @@ export default async function DigitalReitPage() {
               ['Provider catalog', 'Voxel Vault asks the regulated provider which configured real-estate symbols are actually supported instead of inventing listings.'],
               ['Account holdings', 'The vault reads dShare balances from the configured provider account and keeps provider account IDs and API secrets server-side.'],
               ['Cash dividends', 'Actual provider dividend-payment records can feed the acquisition-reserve ledger; the UI does not manufacture projected income.'],
-              ['Property ladder', 'Digital real-estate exposure can remain separate from the future direct-property workflow: diligence → legal entity → closing → recorded deed → Property Passport.'],
+              ['Property ladder', 'Digital real-estate exposure remains separate from the future direct-property workflow: diligence → legal entity → closing → recorded deed → Property Passport.'],
             ].map(([title, copy], index) => (
               <article className={styles.stackCard} key={title}>
                 <span className={styles.stackNumber}>{index + 1}</span>
@@ -86,8 +93,8 @@ export default async function DigitalReitPage() {
         </section>
 
         <footer className={styles.footer}>
-          <div><strong>Voxel Vault Digital REIT Vault</strong><br />Spatial provider-backed tokenized real-estate integration with sandbox-first execution.</div>
-          <div>Not an investment recommendation · availability and eligibility are determined by the regulated provider · production trading is disabled.</div>
+          <div><strong>Voxel Vault Digital REIT Vault</strong><br />Spatial provider-backed real-estate securities with sandbox and owner-gated live execution paths.</div>
+          <div>Not an investment recommendation · provider availability/eligibility controls execution · a REIT/dShare position is not a deed to a particular property.</div>
         </footer>
       </div>
     </main>
