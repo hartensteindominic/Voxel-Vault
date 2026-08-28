@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { fetchErieCountyEvidence } from '../../../../lib/real-estate/erie-county-evidence.js';
-import { fetchGlobalBuildingReference, geocodeGeoAddress } from '../../../../lib/real-estate/global-building-reference.js';
+import { geocodeGeoAddress } from '../../../../lib/real-estate/global-building-reference.js';
+import { fetchGlobalNeighborhoodReference } from '../../../../lib/real-estate/global-neighborhood-reference.js';
+import { fetchUsgsTerrainReference } from '../../../../lib/real-estate/usgs-terrain-reference.js';
+import { fetchNysErieLidarCoverage } from '../../../../lib/real-estate/nys-lidar-evidence.js';
+import { evaluateMeasuredBuildingHeight } from '../../../../lib/real-estate/measured-building-height.js';
 import { buildGeoPropertyReadiness, buildGlobalReferenceRequest, normalizeGeoPropertyIntake } from '../../../../lib/real-estate/geo-property-onboarding.js';
 import { factCheckProperty, PROPERTY_FACT_SOURCE_KINDS } from '../../../../lib/real-estate/property-fact-check.js';
 
@@ -21,6 +25,17 @@ function globalFacts(reference: any) {
       sourceUrl: reference.source?.sourceUrl,
       note: 'Reference building geometry only; not a cadastral parcel boundary.',
     },
+    {
+      field: 'nearby_building_count',
+      label: 'Nearby source building count',
+      value: reference.neighborhoodBuildingCount ?? 0,
+      sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP,
+      authority: reference.source?.authority,
+      recordId: `neighborhood:${reference.source?.recordId || 'reference'}`,
+      observedAt: reference.source?.observedAt,
+      sourceUrl: reference.source?.sourceUrl,
+      note: 'Count of nearby source-backed global map building footprints returned for the 3D reference scene.',
+    },
   ];
   if (reference.tags?.building) facts.push({
     field: 'building_type', label: 'Building type', value: reference.tags.building,
@@ -36,6 +51,63 @@ function globalFacts(reference: any) {
     field: 'building_height_reported', label: 'Source-reported height', value: reference.tags.height,
     sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP, authority: reference.source?.authority,
     recordId: reference.source?.recordId, observedAt: reference.source?.observedAt, sourceUrl: reference.source?.sourceUrl,
+  });
+  return facts;
+}
+
+function terrainFacts(terrain: any) {
+  if (!terrain?.available) return [];
+  return [
+    {
+      field: 'ground_elevation_reference',
+      label: 'Ground elevation reference',
+      value: terrain.referenceElevationMeters,
+      sourceKind: PROPERTY_FACT_SOURCE_KINDS.JURISDICTION_GIS,
+      authority: terrain.source?.authority,
+      recordId: `EPQS:${terrain.latitude},${terrain.longitude}`,
+      observedAt: terrain.source?.observedAt,
+      sourceUrl: terrain.source?.sourceUrl,
+      note: 'USGS 3DEP interpolated elevation reference. Not a surveyed control elevation and not a building roof height.',
+    },
+    {
+      field: 'terrain_relief_reference',
+      label: 'Local terrain relief reference',
+      value: terrain.reliefMeters,
+      sourceKind: PROPERTY_FACT_SOURCE_KINDS.JURISDICTION_GIS,
+      authority: terrain.source?.authority,
+      recordId: `EPQS-GRID:${terrain.latitude},${terrain.longitude}`,
+      observedAt: terrain.source?.observedAt,
+      sourceUrl: terrain.source?.sourceUrl,
+      note: 'Difference between minimum and maximum sampled ground elevations in the local 3×3 reference grid.',
+    },
+  ];
+}
+
+function lidarFacts(lidarCoverage: any, measuredHeight: any) {
+  if (!lidarCoverage) return [];
+  const facts: any[] = [
+    {
+      field: 'lidar_coverage',
+      label: 'NYS LiDAR coverage',
+      value: lidarCoverage.coverageStatus,
+      sourceKind: PROPERTY_FACT_SOURCE_KINDS.JURISDICTION_GIS,
+      authority: lidarCoverage.source?.authority,
+      recordId: lidarCoverage.tiles?.[0]?.filename || lidarCoverage.collection,
+      observedAt: lidarCoverage.source?.observedAt,
+      sourceUrl: lidarCoverage.source?.sourceUrl,
+      note: 'Coverage proves an official LiDAR tile exists for the area. It does not by itself measure this building.',
+    },
+  ];
+  if (measuredHeight?.verifiedMeasuredHeight) facts.push({
+    field: 'building_height_measured',
+    label: 'Measured building height',
+    value: measuredHeight.heightMeters,
+    sourceKind: PROPERTY_FACT_SOURCE_KINDS.JURISDICTION_GIS,
+    authority: measuredHeight.sourceAuthority,
+    recordId: measuredHeight.sourceRecordId,
+    observedAt: measuredHeight.observedAt,
+    sourceUrl: lidarCoverage.source?.sourceUrl,
+    note: `Roof-minus-ground LiDAR measurement; documented uncertainty ${measuredHeight.uncertaintyMeters} m.`,
   });
   return facts;
 }
@@ -113,17 +185,26 @@ export async function POST(request: Request) {
 
     let globalReference = null;
     let globalReferenceError = '';
+    let terrain = null;
+    let terrainError = '';
+
     if (intake.hasCoordinates) {
-      try {
-        globalReference = await fetchGlobalBuildingReference({ latitude: intake.latitude, longitude: intake.longitude });
-      } catch (error) {
-        globalReferenceError = error instanceof Error ? error.message : 'Global building reference lookup failed.';
-      }
+      const [neighborhoodResult, terrainResult] = await Promise.allSettled([
+        fetchGlobalNeighborhoodReference({ latitude: intake.latitude, longitude: intake.longitude, radiusMeters: 130 }),
+        fetchUsgsTerrainReference({ latitude: intake.latitude, longitude: intake.longitude, countryCode: intake.countryCode, radiusMeters: 90 }),
+      ]);
+      if (neighborhoodResult.status === 'fulfilled') globalReference = neighborhoodResult.value;
+      else globalReferenceError = neighborhoodResult.reason instanceof Error ? neighborhoodResult.reason.message : 'Global neighborhood lookup failed.';
+      if (terrainResult.status === 'fulfilled') terrain = terrainResult.value;
+      else terrainError = terrainResult.reason instanceof Error ? terrainResult.reason.message : 'Terrain reference lookup failed.';
     }
 
     let authoritativeEvidence = null;
     let authoritativeError = '';
+    let lidarCoverage = null;
+    let lidarError = '';
     const isErie = intake.countryCode === 'US' && intake.subdivisionCode === 'NY' && intake.countyCode === 'ERIE';
+
     if (isErie && (intake.pin || intake.sbl)) {
       try {
         const candidate = await fetchErieCountyEvidence(intake.pin ? { pin: intake.pin } : { sbl: intake.sbl });
@@ -135,9 +216,30 @@ export async function POST(request: Request) {
       }
     }
 
+    if (isErie && intake.hasCoordinates) {
+      try {
+        lidarCoverage = await fetchNysErieLidarCoverage({ latitude: intake.latitude, longitude: intake.longitude });
+      } catch (error) {
+        lidarError = error instanceof Error ? error.message : 'NYS LiDAR coverage lookup failed.';
+      }
+    }
+
+    const measuredHeight = evaluateMeasuredBuildingHeight({
+      acceptedBuildingGeometry: authoritativeEvidence?.twin?.structure?.buildingGeometry || null,
+      lidarCoverage,
+      measurement: null,
+    });
+
+    if (globalReference) globalReference = { ...globalReference, terrain, measuredHeight, lidarCoverage };
+
     const factCheck = factCheckProperty({
       propertyId: authoritativeEvidence?.twin?.propertyId || intake.parcelId || intake.pin || intake.sbl || intake.address || 'GEO:REFERENCE',
-      facts: [...globalFacts(globalReference), ...erieFacts(authoritativeEvidence)],
+      facts: [
+        ...globalFacts(globalReference),
+        ...terrainFacts(terrain),
+        ...erieFacts(authoritativeEvidence),
+        ...lidarFacts(lidarCoverage, measuredHeight),
+      ],
     });
     const globalRequest = buildGlobalReferenceRequest(intake);
     const readiness = buildGeoPropertyReadiness({
@@ -153,6 +255,11 @@ export async function POST(request: Request) {
       geocode,
       globalReference,
       globalReferenceError,
+      terrain,
+      terrainError,
+      lidarCoverage,
+      lidarError,
+      measuredHeight,
       authoritativeEvidence,
       authoritativeError,
       factCheck,
@@ -161,13 +268,18 @@ export async function POST(request: Request) {
         ...globalRequest,
         overtureRelease: '2026-07-22.0',
         overtureBuildingsPmtiles: 'https://overturemaps-extras-us-west-2.s3.us-west-2.amazonaws.com/tiles/2026-07-22.0/buildings.pmtiles',
-        note: 'GEO fetches/cache-bounds around a requested property instead of storing the entire planet in the web app. Overture is a global reference layer; jurisdiction sources remain the parcel authority where available.',
+        terrainAdapter: intake.countryCode === 'US' ? 'USGS 3DEP EPQS 3×3 ground-elevation reference grid' : 'no authoritative terrain adapter attached for this country yet',
+        neighborhoodAdapter: 'OpenStreetMap / Overpass nearby building footprints',
+        measuredHeightPolicy: 'Measured building height requires accepted parcel-specific building geometry plus actual roof/ground LiDAR processing. Coverage or ground elevation alone cannot satisfy the gate.',
+        note: 'GEO fetches/cache-bounds around a requested property instead of storing the entire planet in the web app. Overture/OSM are global reference layers; jurisdiction sources remain the parcel authority where available.',
       },
       legalEffects: {
         createsOwnership: false,
         createsSecurity: false,
         verifiesTitle: false,
         transfersFunds: false,
+        terrainCreatesPropertyRights: false,
+        neighborhoodGeometryCreatesParcelRights: false,
       },
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
