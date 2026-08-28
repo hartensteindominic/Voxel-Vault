@@ -54,6 +54,90 @@ alter table public.vault_property_identities
   add constraint vault_property_identities_registry_source_hash_check
   check (registry_source_hash is null or registry_source_hash ~ '^0x[0-9a-fA-F]{64}$');
 
+create table if not exists public.vault_property_registry_deployments (
+  chain_id bigint primary key check (chain_id = 84532),
+  contract_address text not null unique check (contract_address ~ '^0x[0-9a-fA-F]{40}$'),
+  owner_address text not null check (owner_address ~ '^0x[0-9a-fA-F]{40}$'),
+  deployment_tx_hash text not null unique check (deployment_tx_hash ~ '^0x[0-9a-fA-F]{64}$'),
+  runtime_code_hash text not null check (runtime_code_hash ~ '^0x[0-9a-fA-F]{64}$'),
+  deployed_block bigint not null check (deployed_block >= 0),
+  active boolean not null default true,
+  verified_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.vault_property_registry_deployments enable row level security;
+revoke all on table public.vault_property_registry_deployments from anon, authenticated;
+grant select, insert on table public.vault_property_registry_deployments to service_role;
+
+create or replace function public.record_canonical_property_registry_deployment(
+  p_chain_id bigint,
+  p_contract_address text,
+  p_owner_address text,
+  p_deployment_tx_hash text,
+  p_runtime_code_hash text,
+  p_deployed_block bigint
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_existing public.vault_property_registry_deployments%rowtype;
+  v_contract text := lower(trim(coalesce(p_contract_address, '')));
+  v_owner text := lower(trim(coalesce(p_owner_address, '')));
+  v_tx text := lower(trim(coalesce(p_deployment_tx_hash, '')));
+  v_code_hash text := lower(trim(coalesce(p_runtime_code_hash, '')));
+begin
+  if p_chain_id <> 84532 then raise exception 'PROPERTY_REGISTRY_BASE_SEPOLIA_ONLY'; end if;
+  if v_contract !~ '^0x[0-9a-f]{40}$' then raise exception 'INVALID_REGISTRY_CONTRACT'; end if;
+  if v_owner !~ '^0x[0-9a-f]{40}$' then raise exception 'INVALID_REGISTRY_OWNER'; end if;
+  if v_tx !~ '^0x[0-9a-f]{64}$' then raise exception 'INVALID_REGISTRY_DEPLOYMENT_TX'; end if;
+  if v_code_hash !~ '^0x[0-9a-f]{64}$' then raise exception 'INVALID_REGISTRY_RUNTIME_CODE_HASH'; end if;
+  if p_deployed_block < 0 then raise exception 'INVALID_REGISTRY_DEPLOYMENT_BLOCK'; end if;
+
+  select * into v_existing
+  from public.vault_property_registry_deployments
+  where chain_id = p_chain_id
+  for update;
+
+  if found then
+    if lower(v_existing.contract_address) = v_contract
+       and lower(v_existing.owner_address) = v_owner
+       and lower(v_existing.deployment_tx_hash) = v_tx
+       and lower(v_existing.runtime_code_hash) = v_code_hash then
+      return jsonb_build_object(
+        'chainId', v_existing.chain_id,
+        'contractAddress', v_existing.contract_address,
+        'ownerAddress', v_existing.owner_address,
+        'duplicate', true
+      );
+    end if;
+    raise exception 'PROPERTY_REGISTRY_DEPLOYMENT_ALREADY_LOCKED';
+  end if;
+
+  insert into public.vault_property_registry_deployments(
+    chain_id, contract_address, owner_address, deployment_tx_hash,
+    runtime_code_hash, deployed_block, active
+  ) values (
+    p_chain_id, v_contract, v_owner, v_tx,
+    v_code_hash, p_deployed_block, true
+  );
+
+  return jsonb_build_object(
+    'chainId', p_chain_id,
+    'contractAddress', v_contract,
+    'ownerAddress', v_owner,
+    'duplicate', false
+  );
+end;
+$$;
+
+revoke all on function public.record_canonical_property_registry_deployment(bigint,text,text,text,text,bigint) from public, anon, authenticated;
+grant execute on function public.record_canonical_property_registry_deployment(bigint,text,text,text,text,bigint) to service_role;
+
 create table if not exists public.vault_property_registry_anchor_events (
   id uuid primary key default gen_random_uuid(),
   property_identity_id uuid not null references public.vault_property_identities(id) on delete restrict,
@@ -116,6 +200,16 @@ begin
   if v_claim_hash !~ '^0x[0-9a-f]{64}$' then raise exception 'INVALID_REGISTRY_CLAIM_HASH'; end if;
   if v_source_hash !~ '^0x[0-9a-f]{64}$' then raise exception 'INVALID_REGISTRY_SOURCE_HASH'; end if;
   if char_length(v_metadata) > 500 then raise exception 'REGISTRY_METADATA_URI_TOO_LONG'; end if;
+
+  if not exists (
+    select 1
+    from public.vault_property_registry_deployments d
+    where d.chain_id = p_chain_id
+      and d.active is true
+      and lower(d.contract_address) = v_contract
+  ) then
+    raise exception 'PROPERTY_REGISTRY_DEPLOYMENT_NOT_VERIFIED';
+  end if;
 
   select * into v_identity
   from public.vault_property_identities
