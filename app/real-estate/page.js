@@ -63,7 +63,7 @@ export default function RealEstatePlatformPage() {
         </nav>
 
         <section className={styles.hero}>
-          <div>
+          <div className={styles.heroIntro}>
             <p className={styles.eyebrow}>Real property × legal ownership × spatial 3D</p>
             <h1>Real estate,<br /><em>made spatial.</em></h1>
             <p className={styles.lead}>
@@ -177,8 +177,8 @@ export default function RealEstatePlatformPage() {
 
           <div className={styles.propertyGrid}>
             {properties.map((property) => (
-              <a key={property.id} href={`/real-estate/property/${property.routeId}`} style={{color:'inherit',textDecoration:'none'}} aria-label={`Open ${property.location} property vault`}>
-                <article className={styles.propertyCard} style={{height:'100%'}}>
+              <a key={property.id} href={`/real-estate/property/${property.routeId}`} className={styles.propertyLink} aria-label={`Open ${property.location} property vault`}>
+                <article className={styles.propertyCard}>
                   <div className={styles.propertyArt} data-tone={property.tone}>
                     <span className={styles.artGlyph}>{property.glyph}</span>
                   </div>
@@ -191,7 +191,7 @@ export default function RealEstatePlatformPage() {
                       <div className={styles.propertyStat}><small>Gross rent</small><b>{property.rent}</b></div>
                       <div className={styles.propertyStat}><small>Token units</small><b>{property.units}</b></div>
                     </div>
-                    <div style={{marginTop:16,fontSize:13,fontWeight:900,letterSpacing:'.04em'}}>OPEN PROPERTY VAULT →</div>
+                    <div className={styles.propertyOpen}>OPEN PROPERTY VAULT →</div>
                   </div>
                 </article>
               </a>
@@ -245,6 +245,13 @@ export default function RealEstatePlatformPage() {
           <div>Demo only · not an investment offer · not legal, tax, title or investment advice · live investment flows disabled by design.</div>
         </footer>
       </div>
+
+      <nav className={styles.mobileTabBar} aria-label="Mobile quick navigation">
+        <a href="/real-estate/acquire"><span>01</span><b>Find</b></a>
+        <a href="/real-estate/invest"><span>$</span><b>Invest</b></a>
+        <a href="#portfolio"><span>3D</span><b>Vault</b></a>
+        <a href="/studio"><span>V</span><b>Studio</b></a>
+      </nav>
     </main>
   );
 }
