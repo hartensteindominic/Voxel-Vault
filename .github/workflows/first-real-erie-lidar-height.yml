@@ -1,0 +1,45 @@
+name: First real Erie LiDAR height probe
+
+on:
+  push:
+    branches:
+      - erie-618-main-lidar-height
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  height-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install LiDAR analysis dependencies
+        run: python -m pip install "laspy>=2.5,<3" "numpy>=2,<3" "shapely>=2,<3" "pyproj>=3.6,<4"
+
+      - name: Export live 618 Main source evidence
+        run: node scripts/export-first-real-erie-lidar-evidence.mjs > /tmp/erie-618-main-lidar-input.json
+
+      - name: Measure authoritative LAS roof minus ground
+        run: python scripts/measure-first-real-erie-lidar-height.py --input /tmp/erie-618-main-lidar-input.json --output /tmp/erie-618-main-height.json
+
+      - name: Upload measurement evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: erie-618-main-lidar-height-evidence
+          path: /tmp/erie-618-main-height.json
+          if-no-files-found: error
+          retention-days: 30
