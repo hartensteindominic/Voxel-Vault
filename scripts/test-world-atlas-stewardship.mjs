@@ -59,7 +59,10 @@ assert.match(meshRoute, /requireVoxelVaultAdmin/, 'paid Meshy world generation m
 assert.match(meshRoute, /MESHY_API_KEY/, 'Meshy key must stay server-side');
 assert.match(meshRoute, /WORLD_ATLAS_MESH_POLICY\.targetPolycount/, 'Meshy route must use the reviewed target policy');
 assert.match(meshRoute, /minLicensedReferenceImages/, 'Meshy must require multiple rights-cleared references');
-assert.match(meshRoute, /google\.com|zillow\.com|redfin\.com|apartments\.com/, 'common proprietary imagery hosts must be blocked from the Meshy derivative route');
+for (const blockedHostToken of ['google\\.com', 'zillow\\.com', 'redfin\\.com', 'apartments\\.com']) {
+  assert.ok(meshRoute.includes(blockedHostToken), `Meshy derivative route must block ${blockedHostToken.replace('\\.', '.')}`);
+}
+assert.match(meshRoute, /BLOCKED_REFERENCE_HOSTS\.test\(host\)/, 'Meshy route must enforce the blocked-host regex before accepting references');
 assert.match(meshRoute, /persistModelBinary/, 'completed Meshy GLBs should be cached into Voxel Vault storage');
 
 assert.match(page, /WORLD BUILDING ATLAS/, 'Earth UI must expose the map-building atlas separately from listings');
