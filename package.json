@@ -40,6 +40,7 @@
     "chain:test:test-land": "hardhat test test/VoxelTestLand.test.js",
     "chain:check:forge-bytecode": "node scripts/check-forge-deploy-bytecode.mjs",
     "chain:check:multipair-bytecode": "node scripts/check-multipair-profit-engine-bytecode.mjs",
+    "chain:check:test-land-bytecode": "node scripts/check-test-land-deploy-bytecode.mjs",
     "chain:deploy:sepolia": "hardhat run scripts/deploy-sepolia.js --network sepolia",
     "chain:deploy:mainnet": "hardhat run scripts/deploy-mainnet.js --network mainnet",
     "chain:deploy:base-forge": "hardhat run scripts/deploy-base-forge-revenue.js --network base",
