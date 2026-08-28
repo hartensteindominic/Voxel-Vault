@@ -19,11 +19,21 @@ function vectorToLatLng(vector) {
   return { latitude, longitude };
 }
 
-export default function GlobalEarthGlobe({ listings = [], selectedId = '', onSelect, onLocation }) {
+export default function GlobalEarthGlobe({
+  listings = [],
+  selectedId = '',
+  onSelect,
+  atlasBuildings = [],
+  selectedAtlasId = '',
+  onAtlasSelect,
+  onLocation,
+}) {
   const mountRef = useRef(null);
   const onSelectRef = useRef(onSelect);
+  const onAtlasSelectRef = useRef(onAtlasSelect);
   const onLocationRef = useRef(onLocation);
   onSelectRef.current = onSelect;
+  onAtlasSelectRef.current = onAtlasSelect;
   onLocationRef.current = onLocation;
 
   useEffect(() => {
@@ -36,9 +46,10 @@ export default function GlobalEarthGlobe({ listings = [], selectedId = '', onSel
       const width = Math.max(320, mount.clientWidth || 320);
       const height = Math.max(300, mount.clientHeight || 360);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
       renderer.setSize(width, height);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.domElement.style.touchAction = 'none';
       mount.innerHTML = '';
       mount.appendChild(renderer.domElement);
 
@@ -98,6 +109,29 @@ export default function GlobalEarthGlobe({ listings = [], selectedId = '', onSel
         markers.push(mesh);
       });
 
+      const atlasMarkers = [];
+      const atlasGroup = new THREE.Group();
+      root.add(atlasGroup);
+      atlasBuildings.slice(0, 120).forEach((building) => {
+        if (!Number.isFinite(Number(building?.latitude)) || !Number.isFinite(Number(building?.longitude))) return;
+        const selected = building.atlasId === selectedAtlasId;
+        const geometry = new THREE.OctahedronGeometry(selected ? 0.115 : 0.062, 0);
+        geometries.push(geometry);
+        const material = new THREE.MeshStandardMaterial({
+          color: selected ? 0xffffff : 0xf0b99c,
+          emissive: selected ? 0x735dff : 0x6a3424,
+          emissiveIntensity: selected ? 1.65 : 0.72,
+          roughness: 0.38,
+          metalness: 0.08,
+        });
+        materials.push(material);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.copy(toVector(THREE, building.latitude, building.longitude, selected ? 4.26 : 4.18));
+        mesh.userData.atlasId = building.atlasId;
+        atlasGroup.add(mesh);
+        atlasMarkers.push(mesh);
+      });
+
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
       let dragging = false;
@@ -135,6 +169,11 @@ export default function GlobalEarthGlobe({ listings = [], selectedId = '', onSel
         if (moved) return;
         setPointer(event);
         raycaster.setFromCamera(pointer, camera);
+        const atlasHit = raycaster.intersectObjects(atlasMarkers, false)[0];
+        if (atlasHit?.object?.userData?.atlasId) {
+          onAtlasSelectRef.current?.(atlasHit.object.userData.atlasId);
+          return;
+        }
         const markerHit = raycaster.intersectObjects(markers, false)[0];
         if (markerHit?.object?.userData?.listingId) {
           onSelectRef.current?.(markerHit.object.userData.listingId);
@@ -152,8 +191,12 @@ export default function GlobalEarthGlobe({ listings = [], selectedId = '', onSel
       renderer.domElement.addEventListener('pointerup', up);
 
       let frame = 0;
-      const animate = () => {
+      let lastRender = 0;
+      const compact = width < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
+      const animate = (time = 0) => {
         frame = requestAnimationFrame(animate);
+        if (compact && time - lastRender < 33) return;
+        lastRender = time;
         root.rotation.x += (targetX - root.rotation.x) * 0.08;
         root.rotation.y += (targetY - root.rotation.y) * 0.08;
         halo.material.opacity = 0.18 + Math.sin(Date.now() * 0.0012) * 0.04;
@@ -185,7 +228,7 @@ export default function GlobalEarthGlobe({ listings = [], selectedId = '', onSel
     });
 
     return () => { dead = true; cleanup(); };
-  }, [listings, selectedId]);
+  }, [listings, selectedId, atlasBuildings, selectedAtlasId]);
 
   return <div ref={mountRef} style={{ position: 'absolute', inset: 0 }} />;
 }
