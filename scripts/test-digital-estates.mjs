@@ -34,7 +34,7 @@ assert.match(earthPage, /Barns \/ Farms/);
 assert.match(earthPage, /OPEN (?:REAL )?SOURCE LISTING/);
 assert.match(earthPage, /VERIFY OWNER[^\n]*CREATE PROPERTY PASSPORT/);
 assert.match(earthPage, /does not (?:transfer|replace) the deed/i, 'Earth UI must never present the NFT as the deed.');
-assert.match(earthPage, /(?:digital twin|digital-token)[^\n]*resale value[^\n]*separate/i, 'Physical-market reference and token resale value must remain separate.');
+assert.match(earthPage, /(?:digital twin|digital-token|digital collectible)[^\n]*resale value[^\n]*(?:separate|different things)/i, 'Physical-market reference and digital-asset resale value must remain explicitly separate.');
 
 const estatesRedirect = fs.readFileSync(new URL('../app/vault/estates/page.js', import.meta.url), 'utf8');
 assert.match(estatesRedirect, /redirect\('\/vault\/earth'\)/, 'The primary Estates route must now lead to real Earth properties.');
