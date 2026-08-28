@@ -41,13 +41,16 @@ async function loadWithRetry() {
 }
 
 const result = await loadWithRetry();
-const { twin, countyRecord, provenance, truthLabels } = result;
+const { twin, countyRecord, provenance, truthLabels, identifierCrossReference } = result;
 
 assert.equal(result.ok, true, 'official Erie County intake must succeed for the forcing-function parcel');
-assert.equal(countyRecord.sbl, FIRST_REAL_ERIE_PARCEL.sbl, 'county result must match the exact known SBL');
+assert.equal(countyRecord.sbl, FIRST_REAL_ERIE_PARCEL.countySbl, 'county result must match the formatted Erie County SBL');
 assert.equal(countyRecord.pin, FIRST_REAL_ERIE_PARCEL.pin, 'county result must match the exact known PIN');
+assert.equal(identifierCrossReference.cityScheduleRawSbl, FIRST_REAL_ERIE_PARCEL.cityScheduleRawSbl, 'raw City schedule SBL must remain preserved as a separate cross-reference');
+assert.notEqual(FIRST_REAL_ERIE_PARCEL.cityScheduleRawSbl, FIRST_REAL_ERIE_PARCEL.countySbl, 'raw City schedule SBL must not be reused as the County query representation');
 assert.match(countyRecord.parcelAddress || '', /618/i, 'county result must still identify street number 618');
 assert.match(countyRecord.parcelAddress || '', /MAIN/i, 'county result must still identify Main Street');
+assert.match(countyRecord.municipality || '', /Buffalo/i, 'county result must identify City of Buffalo');
 
 assert.ok(twin.location.parcelGeometry, 'official parcel polygon must be present');
 assert.ok(['Polygon', 'MultiPolygon'].includes(twin.location.parcelGeometry.type), 'parcel geometry must be polygonal');
@@ -84,9 +87,11 @@ console.log(JSON.stringify({
   forcingFunction: 'first-real-erie-parcel',
   propertyId: twin.propertyId,
   label: twin.label,
-  sbl: countyRecord.sbl,
+  countySbl: countyRecord.sbl,
+  cityScheduleRawSbl: identifierCrossReference.cityScheduleRawSbl,
   pin: countyRecord.pin,
   address: countyRecord.parcelAddress,
+  municipality: countyRecord.municipality,
   buildingFootprintCount: countyRecord.buildingFootprintCount,
   geography: twin.verification.geography,
   physical: twin.verification.physical,
