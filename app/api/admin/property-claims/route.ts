@@ -51,7 +51,7 @@ function safeClaim(row: any) {
 
 export async function GET(request: Request) {
   const auth = await requireVoxelVaultAdmin(request);
-  if (!auth.ok) return response({ ok: false, error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
+  if ('error' in auth) return response({ ok: false, error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
 
   const { data, error } = await auth.admin
     .from('vault_property_claims')
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultAdmin(request);
-  if (!auth.ok) return response({ ok: false, error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
+  if ('error' in auth) return response({ ok: false, error: auth.error, setupRequired: Boolean(auth.setupRequired) }, auth.status);
 
   const body = await request.json().catch(() => ({}));
   const claimId = String(body?.claimId || '').trim();
