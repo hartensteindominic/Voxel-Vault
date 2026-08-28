@@ -34,6 +34,7 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run chain:compile
+      - run: npm run chain:check:test-land-bytecode
       - run: npm run chain:check:forge-bytecode
       - run: npm run chain:check:multipair-bytecode
       - run: npm run chain:test:forge
