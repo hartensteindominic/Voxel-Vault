@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react';
 import GeoReferenceModel from './GeoReferenceModel';
 import styles from './page.module.css';
 
+const STARTER_AMOUNTS = [5, 10, 25, 50];
+
 function dollars(cents) {
   const value = Number(cents);
   if (!Number.isFinite(value)) return '$0.00';
@@ -17,6 +19,15 @@ function statusClass(status) {
   return '';
 }
 
+function starterStateLabel(result) {
+  if (!result) return 'CHECK OFFERING';
+  if (result.state === 'provider_handoff_ready') return 'PROVIDER CHECKOUT READY';
+  if (result.state === 'below_provider_minimum') return 'BUILDING TOWARD MINIMUM';
+  if (result.state === 'provider_minimum_unknown') return 'MINIMUM NOT VERIFIED';
+  if (result.state === 'provider_requirements_pending') return 'PROVIDER REQUIREMENTS PENDING';
+  return 'GOAL ONLY · NO OWNERSHIP YET';
+}
+
 export default function GeoPage() {
   const [form, setForm] = useState({ address: '618 Main Street, Buffalo, NY', latitude: '', longitude: '', countryCode: 'US', subdivisionCode: 'NY', countyCode: 'ERIE', pin: '', sbl: '111.38-3-8' });
   const [result, setResult] = useState(null);
@@ -24,14 +35,18 @@ export default function GeoPage() {
   const [busy, setBusy] = useState(false);
   const [factBusy, setFactBusy] = useState(false);
   const [goalBusy, setGoalBusy] = useState(false);
-  const [goal, setGoal] = useState({ targetDollars: '100000', savedDollars: '0', contributionDollars: '0.01' });
+  const [goal, setGoal] = useState({ targetDollars: '100000', savedDollars: '0', contributionDollars: '10' });
   const [goalResult, setGoalResult] = useState(null);
+  const [starterAmount, setStarterAmount] = useState('10');
+  const [starterBusy, setStarterBusy] = useState(false);
+  const [starterResult, setStarterResult] = useState(null);
   const [cash, setCash] = useState({ settledDollars: '0', pendingDollars: '0', projectedDollars: '0', requestedDollars: '0' });
   const [cashResult, setCashResult] = useState(null);
 
   const reference = result?.globalReference || null;
   const factReport = result?.factCheck || null;
   const readiness = result?.readiness || null;
+  const offering = result?.investmentOffering || null;
   const factRows = useMemo(() => Array.isArray(factReport?.facts) ? factReport.facts.slice(0, 12) : [], [factReport]);
 
   function change(key, value) { setForm((current) => ({ ...current, [key]: value })); }
@@ -39,6 +54,7 @@ export default function GeoPage() {
   async function intake(event) {
     event?.preventDefault?.();
     setBusy(true);
+    setStarterResult(null);
     setMessage('Checking global geometry and any supported authoritative parcel source…');
     try {
       const payload = {
@@ -90,6 +106,32 @@ export default function GeoPage() {
     finally { setGoalBusy(false); }
   }
 
+  async function checkStarterInvestment() {
+    setStarterBusy(true);
+    try {
+      const toCents = (value) => Math.round(Number(value || 0) * 100);
+      const response = await fetch('/api/geo/ownership-goal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'starter_investment',
+          amountCents: toCents(starterAmount),
+          providerMinimumCents: Number.isFinite(Number(offering?.minimumCents)) ? Number(offering.minimumCents) : 0,
+          providerOfferingVerified: offering?.verified === true,
+          providerExecutionReady: offering?.executionReady === true,
+          userEligible: offering?.userEligible === true,
+          userAuthorizedPurchase: true,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) throw new Error(data?.error || 'Starter investment check failed.');
+      setStarterResult(data.result);
+      setMessage(data.result.canOpenProviderCheckout
+        ? 'This amount meets the attached verified offering requirements. Provider checkout can be the next step; ownership still requires position verification.'
+        : data.result.nextStep);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Starter investment check failed.'); }
+    finally { setStarterBusy(false); }
+  }
+
   async function cashAction(action) {
     try {
       const toCents = (value) => Math.round(Number(value || 0) * 100);
@@ -121,14 +163,18 @@ export default function GeoPage() {
           <p className={styles.lead}>Add a property anywhere. GEO looks up a real global building reference on demand, upgrades to authoritative parcel evidence where a jurisdiction adapter exists, and keeps 3D truth, investment rights, and title ownership separate.</p>
           <div className={styles.truthLine}>
             <span className={styles.pill}>{readiness?.threeD?.label || '3D SOURCE CHECK'}</span>
-            <span className={styles.pill}>{readiness?.investment?.label || 'PROPERTY GOAL FROM $0.01'}</span>
+            <span className={styles.pill}>{readiness?.investment?.label || 'START SMALL · PROVIDER MINIMUMS APPLY'}</span>
             <span className={styles.pill}>{factReport?.verdict || 'FACT CHECK READY'}</span>
           </div>
           <p className={styles.disclaimer}><span className={styles.brandPending}>Brand note:</span> GEO is a working name, not a claim of trademark clearance. Property investment availability, minimums, resale, withdrawals, and reinvestment depend on the actual legal offering and provider.</p>
         </article>
         <aside className={styles.modelCard}>
           <GeoReferenceModel reference={reference}/>
-          <div className={styles.modelMeta}><strong>{reference?.found ? 'LIVE 3D REFERENCE' : '3D SOURCE AREA'}</strong><span>{reference?.found ? `${reference.height?.heightStatus?.replaceAll('_',' ')} · ${Number(reference.distanceMeters || 0).toFixed(1)} m from lookup point` : 'No fake building is substituted when source geometry is missing.'}</span></div>
+          <div className={styles.modelTopBadge}>{reference?.found ? 'SOURCE FOOTPRINT · INTERACTIVE 3D' : 'SOURCE GEOMETRY REQUIRED'}</div>
+          <div className={styles.modelMeta}>
+            <strong>{reference?.found ? 'LIVE 3D REFERENCE' : '3D SOURCE AREA'}</strong>
+            <span>{reference?.found ? `${reference.height?.heightStatus?.replaceAll('_',' ')} · ${Number(reference.distanceMeters || 0).toFixed(1)} m from lookup point · drag to orbit` : 'No fake building is substituted when source geometry is missing.'}</span>
+          </div>
         </aside>
       </section>
 
@@ -165,17 +211,36 @@ export default function GeoPage() {
 
       <section className={styles.grid}>
         <article className={styles.panel}>
-          <div className={styles.kicker}>OWNERSHIP GOAL</div><h2>Start with one penny.</h2>
-          <p>The first penny is a savings/acquisition goal, not fake fractional ownership. When a property has a verified legal offering, the regulated purchase can become a separate next step.</p>
+          <div className={styles.kicker}>STARTER INVESTING</div><h2>Start small. Scale when you trust it.</h2>
+          <p>Choose an amount you are comfortable with. GEO only calls it an investment when a verified property offering actually supports that amount; otherwise it stays a property goal.</p>
+          <div className={styles.presetRow}>
+            {STARTER_AMOUNTS.map((amount)=><button key={amount} type="button" className={`${styles.preset} ${Number(starterAmount)===amount ? styles.presetActive : ''}`} onClick={()=>setStarterAmount(String(amount))}>${amount}</button>)}
+          </div>
+          <div className={styles.formGrid}>
+            <div className={`${styles.field} ${styles.fieldWide}`}><label>STARTER AMOUNT $</label><input inputMode="decimal" value={starterAmount} onChange={(e)=>setStarterAmount(e.target.value)} placeholder="10"/></div>
+          </div>
+          <button className={`${styles.button} ${styles.fullButton}`} onClick={checkStarterInvestment} disabled={starterBusy}>{starterBusy?'CHECKING OFFERING…':`CHECK $${starterAmount || '0'} STARTER AMOUNT`}</button>
+          <div className={styles.investmentState}>
+            <small>RIGHT NOW</small><strong>{starterStateLabel(starterResult)}</strong>
+            <span>{starterResult?.providerMinimumKnown ? `Provider minimum ${dollars(starterResult.providerMinimumCents)} · ` : 'Provider minimum loads from the verified offering · '}{starterResult?.nextStep || 'No verified offering is attached to this property yet, so this remains a goal and does not move money.'}</span>
+          </div>
+          <p className={styles.disclaimer}>A checkout-ready amount is still not proof of ownership. GEO changes the ownership badge only after the resulting provider position or deed/title right is independently verified.</p>
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.kicker}>PROPERTY GOAL</div><h2>Keep building toward what you want.</h2>
+          <p>A goal can accept very small amounts, but the actual investment minimum comes from the specific legal offering. This keeps progress easy without inventing fractional shares.</p>
           <form onSubmit={calculateGoal} className={styles.formGrid}>
             <div className={styles.field}><label>TARGET PROPERTY $</label><input inputMode="decimal" value={goal.targetDollars} onChange={(e)=>setGoal({...goal,targetDollars:e.target.value})}/></div>
             <div className={styles.field}><label>ALREADY SAVED $</label><input inputMode="decimal" value={goal.savedDollars} onChange={(e)=>setGoal({...goal,savedDollars:e.target.value})}/></div>
-            <div className={`${styles.field} ${styles.fieldWide}`}><label>ADD TO GOAL $ · MINIMUM 0.01</label><input inputMode="decimal" value={goal.contributionDollars} onChange={(e)=>setGoal({...goal,contributionDollars:e.target.value})}/></div>
-            <button className={`${styles.button} ${styles.fieldWide}`} disabled={goalBusy}>{goalBusy?'CALCULATING…':'BUILD MY PROPERTY GOAL'}</button>
+            <div className={`${styles.field} ${styles.fieldWide}`}><label>ADD TO GOAL $</label><input inputMode="decimal" value={goal.contributionDollars} onChange={(e)=>setGoal({...goal,contributionDollars:e.target.value})}/></div>
+            <button className={`${styles.button} ${styles.fieldWide}`} disabled={goalBusy}>{goalBusy?'CALCULATING…':'UPDATE PROPERTY GOAL'}</button>
           </form>
           {goalResult ? <div className={styles.goalResult}><strong>{dollars(goalResult.nextSavedCents)} toward {dollars(goalResult.targetPropertyPriceCents)}</strong><p>{goalResult.progressPercent.toFixed(6)}% progress · {dollars(goalResult.remainingCents)} remaining. No ownership is created by this goal.</p><div className={styles.goalBar}><div className={styles.goalFill} style={{width:`${Math.max(.2,Math.min(100,goalResult.progressPercent))}%`}}/></div></div> : null}
         </article>
+      </section>
 
+      <section className={styles.grid}>
         <article className={styles.panel}>
           <div className={styles.kicker}>SETTLED CASH CONTROL</div><h2>Withdraw or compound what actually settled.</h2>
           <p>Projected rent or paper gains never become spendable cash in GEO. A provider must confirm settlement and the withdrawal/reinvestment rail before the button can execute.</p>
@@ -188,14 +253,24 @@ export default function GeoPage() {
           <div className={styles.twoActions}><button className={styles.secondary} onClick={()=>cashAction('withdraw')}>CHECK WITHDRAW</button><button className={styles.secondary} onClick={()=>cashAction('reinvest')}>CHECK REINVEST</button></div>
           {cashResult ? <div className={styles.status}><b>{cashResult.canExecute?'READY':'LOCKED'}</b> · available now {dollars(cashResult.availableNowCents)}. {cashResult.blockers?.join(' · ') || cashResult.note}</div> : null}
         </article>
+
+        <article className={styles.panel}>
+          <div className={styles.kicker}>TRUST LADDER</div><h2>Every step earns a stronger badge.</h2>
+          <div className={styles.trustLadder}>
+            <div><b>1 · EXPLORE</b><span>3D reference + sourced property facts.</span></div>
+            <div><b>2 · START SMALL</b><span>Choose an amount without pretending it bought a share.</span></div>
+            <div><b>3 · PROVIDER CHECKOUT</b><span>Only after offering, minimum, eligibility, and authorization pass.</span></div>
+            <div><b>4 · OWNED</b><span>Only after the resulting legal position is independently verified.</span></div>
+          </div>
+        </article>
       </section>
 
       <section className={styles.panel} style={{marginTop:18}}>
-        <div className={styles.kicker}>HOW A DIGITAL ASSET CAN HELP BUY REAL PROPERTY</div><h2>Asset → settled money → property goal → legal ownership rail.</h2>
+        <div className={styles.kicker}>HOW A DIGITAL ASSET CAN HELP BUY REAL PROPERTY</div><h2>Asset → settled money → starter amount → legal ownership rail.</h2>
         <div className={styles.flow}>
           <div className={styles.step}><small>01</small><b>Create / own an asset</b><span>Voxel, NFT, license, or other digital asset remains separate from the real property.</span></div>
           <div className={styles.step}><small>02</small><b>Real proceeds settle</b><span>Only completed sales/income become available cash. A price estimate is not cash.</span></div>
-          <div className={styles.step}><small>03</small><b>Fund the property goal</b><span>Start at $0.01 and build toward a purchase or a provider minimum.</span></div>
+          <div className={styles.step}><small>03</small><b>Pick a starter amount</b><span>$5, $10, $25, $50, or custom — then check the real provider minimum for that offering.</span></div>
           <div className={styles.step}><small>04</small><b>Acquire verified rights</b><span>Only deed/title evidence or a verified provider position changes the ownership badge.</span></div>
         </div>
         <p className={styles.disclaimer}>A digital asset can be sold and its settled proceeds can be earmarked toward a property. It should not be marketed as “buy this NFT and you own part of this building” unless the asset is actually part of a legally compliant offering whose documents create and map those rights.</p>
