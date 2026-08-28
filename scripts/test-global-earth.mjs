@@ -26,16 +26,18 @@ assert.match(route, /Search any city, country, ZIP\/postcode or address, use you
 assert.match(route, /No replacement or fabricated listings were returned/, 'Provider failures must fail honest rather than substituting fake inventory.');
 assert.match(route, /digital twin or NFT does not itself convey a deed/i, 'Global search must preserve the real-property rights boundary.');
 
-assert.match(page, /GlobalEarthGlobe/, 'Earth UI must render the lightweight interactive globe.');
+assert.match(page, /GlobalEarthGlobe/, 'Earth UI must retain the lightweight interactive globe.');
 assert.match(page, /VOXEL VAULT WORLD ATLAS/, 'Earth UI must be explicitly global.');
-assert.match(page, /Listings are not fabricated/, 'Earth UI must explicitly separate worldwide map coverage from real authorized inventory.');
+assert.match(page, /Real listings only/, 'Earth UI must explicitly separate authorized inventory from map coverage.');
 assert.match(page, /property\.currency/, 'Earth UI must display each source currency rather than hardcoding USD.');
 assert.match(page, /onLocation=\{globeLocation\}/, 'Tapping the globe must feed a geographic search.');
 assert.match(page, /OVERTURE PRIMARY/, 'Users must be able to see the primary worldwide building source state.');
-assert.match(page, /MARKET FEED NOT CONNECTED/, 'Unsupported market inventory must be disclosed instead of populated with fake listings.');
+assert.match(page, /MAP READY · MARKET FEED NOT CONNECTED/, 'Unsupported market inventory must be disclosed instead of populated with fake listings.');
 assert.match(page, /OPEN (?:REAL )?SOURCE LISTING/, 'Each result should route back to its authoritative listing source when available.');
-assert.match(page, /normal contract, title, closing and recording process/i, 'The physical-property closing boundary must remain explicit.');
-assert.match(page, /digital twin does not replace the deed/i, 'Digital representation must never be presented as the deed.');
+assert.match(page, /Physical purchase:<\/b> broker → contract → title → closing → deed-recording/i, 'The physical-property closing boundary must remain explicit.');
+assert.match(page, /twin or NFT does not replace the deed/i, 'Digital representation must never be presented as the deed.');
+assert.match(page, /MINTING RECOMMENDED AFTER VERIFICATION/, 'Minting must remain downstream of verification rather than masquerading as title.');
+assert.match(page, /REALITY ≠ TITLE ≠ INVESTMENT/, 'reality visualization must remain separate from legal/investment rights.');
 
 assert.match(globe, /SphereGeometry/, 'Global Earth should use the existing lightweight Three.js stack.');
 assert.match(globe, /vectorToLatLng/, 'Globe taps must convert to real latitude/longitude.');
@@ -47,4 +49,4 @@ assert.match(env, /DOMAIN_CLIENT_SECRET=/, 'Domain client secret must be documen
 assert.match(env, /EARTH_PARTNER_FEEDS_JSON=/, 'Additional licensed provider configuration must be documented.');
 assert.doesNotMatch(env, /NEXT_PUBLIC_DOMAIN_CLIENT_SECRET|NEXT_PUBLIC_BRIDGE_ACCESS_TOKEN|NEXT_PUBLIC_EARTH_PARTNER/, 'Listing-provider secrets must never be client-exposed.');
 
-console.log('Global Earth federation safety checks passed.');
+console.log('Global Earth federation safety checks passed: worldwide map navigation, authorized listings, source currencies, visible provider gaps, deed/title boundaries, and verification-before-minting remain intact.');
