@@ -71,7 +71,7 @@ export default function GoogleRealityMap({ latitude, longitude, label = 'Selecte
           tilt: 67,
           heading: 28,
           mode: 'HYBRID',
-          gestureHandling: 'GREEDY',
+          gestureHandling: 'COOPERATIVE',
         });
         map.style.width = '100%';
         map.style.height = '100%';
@@ -102,7 +102,7 @@ export default function GoogleRealityMap({ latitude, longitude, label = 'Selecte
   }, [active, apiKey, pointReady, latitude, longitude, label]);
 
   if (!pointReady) {
-    return <div className="googleRealityFallback"><b>REALITY VIEW</b><span>Select a mapped building with coordinates first.</span><style jsx>{styles}</style></div>;
+    return <div className="googleRealityFallback"><b>REALITY VIEW</b><span>Select a mapped building or authoritative property location first.</span><style jsx>{styles}</style></div>;
   }
 
   return <div className="googleRealityShell">
