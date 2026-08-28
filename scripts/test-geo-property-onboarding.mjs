@@ -19,6 +19,9 @@ import {
   factCheckProperty,
 } from '../lib/real-estate/property-fact-check.js';
 import { fetchGlobalBuildingReference } from '../lib/real-estate/global-building-reference.js';
+import { fetchGlobalNeighborhoodReference } from '../lib/real-estate/global-neighborhood-reference.js';
+import { fetchUsgsTerrainReference } from '../lib/real-estate/usgs-terrain-reference.js';
+import { evaluateMeasuredBuildingHeight } from '../lib/real-estate/measured-building-height.js';
 
 const penny = buildPropertyOwnershipGoal({ targetPropertyPriceCents: 10_000_000, savedCents: 0, contributionCents: 1 });
 assert.equal(penny.contributionCents, 1);
@@ -136,5 +139,120 @@ assert.equal(building.height.referenceHeightMeters, 6);
 assert.equal(building.height.heightStatus, 'derived_from_levels');
 assert.equal(building.height.measuredHeightAccepted, false);
 assert.equal(building.legalEffects.createsOwnership, false);
+
+const neighborhoodFetch = async () => ({
+  ok: true,
+  json: async () => ({ elements: [
+    {
+      type: 'way', id: 200,
+      tags: { building: 'yes', 'building:levels': '3' },
+      geometry: [
+        { lat: 42.00000, lon: -78.00000 },
+        { lat: 42.00000, lon: -77.99990 },
+        { lat: 42.00010, lon: -77.99990 },
+        { lat: 42.00010, lon: -78.00000 },
+        { lat: 42.00000, lon: -78.00000 },
+      ],
+    },
+    {
+      type: 'way', id: 201,
+      tags: { building: 'yes', height: '12 m' },
+      geometry: [
+        { lat: 42.00025, lon: -78.00000 },
+        { lat: 42.00025, lon: -77.99990 },
+        { lat: 42.00035, lon: -77.99990 },
+        { lat: 42.00035, lon: -78.00000 },
+        { lat: 42.00025, lon: -78.00000 },
+      ],
+    },
+  ] }),
+});
+const neighborhood = await fetchGlobalNeighborhoodReference({ latitude: 42.00005, longitude: -77.99995 }, { fetchImpl: neighborhoodFetch, overpassUrl: 'https://example.test' });
+assert.equal(neighborhood.found, true);
+assert.equal(neighborhood.neighborhoodBuildingCount, 2);
+assert.equal(neighborhood.neighborhoodBuildings[0].selected, true);
+assert.equal(neighborhood.neighborhoodBuildings[0].height.referenceHeightMeters, 9);
+assert.equal(neighborhood.neighborhoodBuildings[1].height.referenceHeightMeters, 12);
+assert.equal(neighborhood.legalEffects.authoritativeParcelBoundary, false);
+
+const terrainFetch = async (url) => {
+  const parsed = new URL(url);
+  const x = Number(parsed.searchParams.get('x'));
+  const y = Number(parsed.searchParams.get('y'));
+  return {
+    ok: true,
+    json: async () => ({
+      value: 180 + (x + 78) * 25 + (y - 42) * 40,
+      dataSource: '3DEP test surface',
+      resolution: 1,
+      rasterId: 'test-raster',
+      date: '2026-08-28',
+    }),
+  };
+};
+const terrain = await fetchUsgsTerrainReference({ latitude: 42, longitude: -78, countryCode: 'US', radiusMeters: 90 }, { fetchImpl: terrainFetch, epqsUrl: 'https://example.test/elevation' });
+assert.equal(terrain.available, true);
+assert.equal(terrain.sampleCount, 9);
+assert.equal(terrain.samples.length, 9);
+assert.equal(terrain.terrainVerifiedSurvey, false);
+assert.equal(terrain.legalEffects.establishesBuildingHeight, false);
+assert.ok(terrain.reliefMeters > 0);
+const unsupportedTerrain = await fetchUsgsTerrainReference({ latitude: 48, longitude: 2, countryCode: 'FR' }, { fetchImpl: terrainFetch, epqsUrl: 'https://example.test/elevation' });
+assert.equal(unsupportedTerrain.available, false);
+assert.equal(unsupportedTerrain.status, 'unsupported_country');
+
+const coverageOnly = {
+  coverageStatus: 'covered',
+  tiles: [{ filename: 'tile.las' }],
+};
+const missingFootprintHeight = evaluateMeasuredBuildingHeight({ acceptedBuildingGeometry: null, lidarCoverage: coverageOnly });
+assert.equal(missingFootprintHeight.status, 'blocked_missing_building_geometry');
+assert.equal(missingFootprintHeight.verifiedMeasuredHeight, false);
+assert.equal(missingFootprintHeight.heightMeters, null);
+
+const acceptedFootprint = { type: 'Polygon', coordinates: [[[-78,42],[-77.9999,42],[-77.9999,42.0001],[-78,42]]] };
+const readyForMeasurement = evaluateMeasuredBuildingHeight({ acceptedBuildingGeometry: acceptedFootprint, lidarCoverage: coverageOnly });
+assert.equal(readyForMeasurement.status, 'lidar_coverage_ready_for_measurement');
+assert.equal(readyForMeasurement.verifiedMeasuredHeight, false);
+
+const verifiedHeight = evaluateMeasuredBuildingHeight({
+  acceptedBuildingGeometry: acceptedFootprint,
+  lidarCoverage: coverageOnly,
+  measurement: {
+    roofElevationMeters: 120,
+    groundElevationMeters: 105,
+    uncertaintyMeters: 0.5,
+    roofSampleCount: 8,
+    groundSampleCount: 6,
+    sourceAuthority: 'Official LiDAR authority',
+    method: 'parcel-footprint roof percentile minus ground reference',
+    footprintRecordId: 'building:1',
+    sourceRecordId: 'tile.las',
+    observedAt: '2026-08-28T00:00:00Z',
+  },
+});
+assert.equal(verifiedHeight.status, 'verified_measured_height');
+assert.equal(verifiedHeight.verifiedMeasuredHeight, true);
+assert.equal(verifiedHeight.heightMeters, 15);
+assert.equal(verifiedHeight.legalEffects.establishesDeedOwnership, false);
+
+const rejectedHeight = evaluateMeasuredBuildingHeight({
+  acceptedBuildingGeometry: acceptedFootprint,
+  lidarCoverage: coverageOnly,
+  measurement: {
+    roofElevationMeters: 120,
+    groundElevationMeters: 105,
+    uncertaintyMeters: 3,
+    roofSampleCount: 8,
+    groundSampleCount: 6,
+    sourceAuthority: 'Official LiDAR authority',
+    method: 'test',
+    footprintRecordId: 'building:1',
+    sourceRecordId: 'tile.las',
+    observedAt: '2026-08-28T00:00:00Z',
+  },
+});
+assert.equal(rejectedHeight.status, 'measurement_rejected');
+assert.equal(rejectedHeight.verifiedMeasuredHeight, false);
 
 console.log('GEO property onboarding truth tests passed');
