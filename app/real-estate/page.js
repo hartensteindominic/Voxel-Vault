@@ -76,8 +76,9 @@ export default function RealEstatePlatformPage() {
               <a className={styles.secondaryButton} href="/vault">Open my Vault</a>
             </div>
             <div className={styles.heroNote}>
+              <span>Live investing is locked unless the approved provider path says otherwise.</span>
+              <span>Demo data only where marked.</span>
               <span>Source-backed geography.</span>
-              <span>Provider-gated securities.</span>
               <span>Observed income only.</span>
               <span>Direct property closes through normal title systems.</span>
             </div>
@@ -204,6 +205,7 @@ export default function RealEstatePlatformPage() {
             <div className={styles.actions}>
               <a className={styles.primaryButton} href="/vault">Go to My Vault</a>
               <a className={styles.secondaryButton} href="/vault/income">See observed income</a>
+              <a className={styles.secondaryButton} href="/real-estate/property/0001">Open clearly labeled demo property vault</a>
             </div>
           </div>
         </section>
