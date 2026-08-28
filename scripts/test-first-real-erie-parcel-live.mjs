@@ -72,34 +72,39 @@ assert.match(countyRecord.municipality || '', /Buffalo/i, 'county result must id
 
 assert.ok(twin.location.parcelGeometry, 'official parcel polygon must be present');
 assert.ok(['Polygon', 'MultiPolygon'].includes(twin.location.parcelGeometry.type), 'parcel geometry must be polygonal');
-assert.ok(twin.structure.buildingGeometry, 'official building footprint must be present for the first parcel');
-assert.ok(['Polygon', 'MultiPolygon'].includes(twin.structure.buildingGeometry.type), 'building footprint must be polygonal');
-assert.ok(countyRecord.buildingFootprintCount > 0, 'at least one building footprint must match the parcel');
+assert.equal(twin.structure.buildingGeometry, null, '618 Main must not accept a spatial-intersection-only block polygon as its building footprint');
+assert.equal(countyRecord.buildingFootprintCount, 0, 'no parcel-linked BUILDING footprint is currently accepted for 618 Main');
+assert.ok(countyRecord.buildingCandidateCount > 0, 'the broad County spatial candidate should remain visible for diagnosis without being accepted');
+assert.equal(countyRecord.buildingMatchStrategy, 'spatial-candidates-unverified');
 
-assert.equal(twin.verification.geography, PROPERTY_TRUTH_STATES.VERIFIED, 'the live county record must pass geographic truth');
-assert.equal(twin.verification.physical, PROPERTY_TRUTH_STATES.PARTIAL, 'physical truth must remain partial until measured height exists');
-assert.equal(twin.verification.heightStatus, 'explicitly_unavailable', 'height absence must be explicit rather than silent');
+assert.equal(twin.verification.geography, PROPERTY_TRUTH_STATES.VERIFIED, 'the live county parcel record must still pass geographic truth');
+assert.equal(twin.verification.physical, PROPERTY_TRUTH_STATES.UNVERIFIED, 'physical truth must fail closed without parcel-specific building geometry');
+assert.equal(twin.verification.heightStatus, 'explicitly_unavailable', 'height absence must remain explicit rather than silent');
 assert.equal(twin.structure.heightMeters, null, 'no height may be invented');
-assert.match(twin.structure.heightUnavailableReason, /no authoritative measured building height/i);
-assert.equal(twin.verification.verifiedSpatialTwin, false, 'no full spatial verification without measured height');
+assert.match(twin.structure.heightUnavailableReason, /no source-backed building footprint/i);
+assert.equal(twin.verification.verifiedSpatialTwin, false, 'no spatial verification without accepted building geometry and measured height');
 
 assert.equal(twin.rights.type, PROPERTY_RIGHT_TYPES.REFERENCE_ONLY, 'county GIS must never create ownership rights');
 assert.equal(twin.verification.rights, PROPERTY_TRUTH_STATES.UNVERIFIED);
 assert.equal(twin.verification.verifiedOwnership, false);
 assert.equal(twin.verification.fullyVerified, false);
 assert.equal(truthLabels.geography, 'GEO VERIFIED');
-assert.match(truthLabels.physical, /PHYSICAL PARTIAL/);
+assert.equal(truthLabels.physical, 'PHYSICAL UNVERIFIED');
 assert.equal(truthLabels.ownership, 'OWNERSHIP NOT VERIFIED');
 assertSpatialInvariants(twin);
 
 assert.match(twin.location.source.authority, /Erie County/i, 'parcel lineage must name Erie County');
-assert.match(twin.structure.source.authority, /Erie County/i, 'building lineage must name Erie County');
 assert.ok(twin.location.source.recordId, 'parcel lineage record ID must be populated');
-assert.ok(twin.structure.source.recordId, 'building lineage record ID must be populated');
 assert.ok(twin.location.source.observedAt, 'parcel observation time must be populated');
-assert.ok(twin.structure.source.observedAt, 'building observation time must be populated');
+assert.equal(twin.structure.source.authority, '', 'rejected block-scale candidate must not become structure lineage');
+assert.equal(twin.structure.source.recordId, '');
+assert.equal(twin.structure.source.sourceUrl, '');
 assert.ok(provenance?.parcelLayer, 'official parcel layer URL must be retained');
-assert.ok(provenance?.buildingLayer, 'official building layer URL must be retained');
+assert.ok(provenance?.buildingLayer, 'official building layer URL must be retained as a diagnostic source');
+assert.ok(provenance?.buildingAttributeQuery, 'exact building lookup must be retained');
+assert.ok(provenance?.buildingSpatialQuery, 'diagnostic spatial-candidate query must be retained');
+assert.ok(Array.isArray(provenance?.spatialCandidateRecordIds) && provenance.spatialCandidateRecordIds.length > 0, 'rejected candidate IDs must remain available for diagnosis');
+assert.match(result.sourceLimitations.join(' '), /retained only as unverified candidates and are not used/i);
 
 const lidar = await loadLidarWithRetry({
   latitude: twin.location.latitude,
@@ -124,8 +129,8 @@ assert.ok(lidar.tiles.length > 0, 'at least one authoritative LAS tile must cove
 assert.ok(lidar.tiles.some((tile) => tile.filename), 'covered LAS evidence must include an official filename');
 assert.ok(lidar.tiles.some((tile) => tile.directDownloadUrl || tile.ftpPath), 'covered LAS evidence must retain a downloadable source reference');
 assert.equal(lidar.heightMeters, null, 'LiDAR coverage alone must not be promoted into a measured building height');
-assert.equal(lidar.measurementStatus, 'coverage_only', 'LiDAR must remain coverage-only until point-cloud measurement runs');
-assert.equal(lidar.measurementMethod, null, 'no measurement method may be claimed before LAS processing');
+assert.equal(lidar.measurementStatus, 'coverage_only', 'LiDAR must remain coverage-only until a defensible parcel building geometry exists and point-cloud measurement runs');
+assert.equal(lidar.measurementMethod, null, 'no measurement method may be claimed before accepted geometry and LAS processing');
 assert.equal(lidar.legalEffects.establishesBuildingHeight, false, 'tile discovery alone must not establish building height');
 assert.equal(lidar.legalEffects.establishesDeedOwnership, false, 'LiDAR can never establish deed ownership');
 assert.equal(lidar.source.sourceUrl, lidar.resolvedLayer.layerUrl, 'LiDAR lineage must retain the dynamically resolved official NYS layer');
@@ -139,14 +144,16 @@ console.log(JSON.stringify({
   pin: countyRecord.pin,
   address: countyRecord.parcelAddress,
   municipality: countyRecord.municipality,
-  buildingFootprintCount: countyRecord.buildingFootprintCount,
+  acceptedBuildingFootprintCount: countyRecord.buildingFootprintCount,
+  unverifiedBuildingCandidateCount: countyRecord.buildingCandidateCount,
+  buildingMatchStrategy: countyRecord.buildingMatchStrategy,
   geography: twin.verification.geography,
   physical: twin.verification.physical,
   heightStatus: twin.verification.heightStatus,
   verifiedSpatialTwin: twin.verification.verifiedSpatialTwin,
   ownership: twin.verification.verifiedOwnership,
   parcelSource: twin.location.source,
-  buildingSource: twin.structure.source,
+  rejectedBuildingCandidateRecordIds: provenance.spatialCandidateRecordIds,
   lidar: {
     collection: lidar.collection,
     resolvedLayer: lidar.resolvedLayer,
