@@ -7,6 +7,10 @@ import {
   propertyFingerprint,
   PROPERTY_REVIEW_RULES,
 } from '../lib/vault/property-claim.js';
+import {
+  authoritativePropertyFingerprint,
+  canonicalizeAuthoritativePropertyIdentity,
+} from '../lib/vault/verified-property-identity.js';
 
 const first = {
   countryCode: 'us',
@@ -29,6 +33,27 @@ assert.equal(propertyFingerprint(first), propertyFingerprint(sameParcelDifferent
 
 const sameParcelDifferentAddressText = { ...sameParcelDifferentFormatting, address: 'Completely Different Address Text' };
 assert.equal(propertyFingerprint(first), propertyFingerprint(sameParcelDifferentAddressText), 'Street-address text must not control the canonical property identity.');
+
+const freeTextAliasA = { ...first, countyCode: 'ERIE' };
+const freeTextAliasB = { ...first, countyCode: 'ERIE COUNTY' };
+assert.notEqual(propertyFingerprint(freeTextAliasA), propertyFingerprint(freeTextAliasB), 'Candidate fingerprints may diverge when claimants use different free-text jurisdiction aliases.');
+
+const authoritativeA = canonicalizeAuthoritativePropertyIdentity({
+  namespace: 'US-NY-FIPS-029',
+  parcelId: '12-34.500',
+});
+const authoritativeB = canonicalizeAuthoritativePropertyIdentity({
+  namespace: 'us ny fips 029',
+  parcelId: '12 34 500',
+});
+assert.equal(authoritativeA.canonicalKey, 'USNYFIPS029:1234500');
+assert.equal(
+  authoritativePropertyFingerprint(authoritativeA),
+  authoritativePropertyFingerprint(authoritativeB),
+  'Reviewer-supplied official jurisdiction namespace + parcel must converge despite formatting differences.',
+);
+assert.throws(() => canonicalizeAuthoritativePropertyIdentity({ namespace: '', parcelId: '123' }), /jurisdiction namespace/i);
+assert.throws(() => canonicalizeAuthoritativePropertyIdentity({ namespace: 'US-NY-FIPS-029', parcelId: '' }), /parcel\/APN/i);
 
 assert.throws(() => canonicalizePropertyIdentity({ countryCode: 'US', countyCode: 'ERIE', parcelId: '123' }), /state\/subdivision/i, 'U.S. claims require a state/subdivision.');
 assert.throws(() => canonicalizePropertyIdentity({ countryCode: 'US', subdivisionCode: 'NY', parcelId: '123' }), /assessor jurisdiction\/county/i, 'Claims require an assessor jurisdiction.');
@@ -92,8 +117,18 @@ assert.match(migration016, /PROPERTY_ALREADY_VERIFIED_BY_ANOTHER_CLAIM/i, 'Compe
 assert.match(migration016, /claim_status = 'verified'/i);
 assert.match(migration016, /canonical_state = 'verified'/i);
 assert.doesNotMatch(migration016, /registry_verified\s*=\s*true/i, 'Human review must never silently mark the blockchain registry verified.');
-assert.match(migration016, /revoke all on function public\.admin_review_property_claim.*authenticated/is, 'Authenticated clients must not call the privileged review function directly.');
-assert.match(migration016, /grant execute on function public\.admin_review_property_claim.*service_role/is, 'Only the server service role may execute the review transaction.');
+
+const migration018 = fs.readFileSync(new URL('../supabase/migrations/018_authoritative_verified_property_identity.sql', import.meta.url), 'utf8');
+assert.match(migration018, /verified_property_fingerprint text/i, 'Verified identities need a second authoritative property fingerprint.');
+assert.match(migration018, /unique index[\s\S]*verified_property_fingerprint/i, 'Authoritative property fingerprints must be unique across canonical identities.');
+assert.match(migration018, /drop function if exists public\.admin_review_property_claim\(uuid, text, uuid, text\)/i, 'The legacy approval signature must be removed so it cannot bypass the authoritative key gate.');
+assert.match(migration018, /AUTHORITATIVE_PROPERTY_FINGERPRINT_REQUIRED/i);
+assert.match(migration018, /PROPERTY_AUTHORITATIVE_IDENTITY_CONFLICT/i);
+assert.match(migration018, /p_authoritative_fingerprint text/i);
+assert.match(migration018, /verified_property_fingerprint = v_fingerprint/i);
+assert.doesNotMatch(migration018, /registry_verified\s*=\s*true/i, 'Authoritative identity approval must remain off-chain.');
+assert.match(migration018, /revoke all on function public\.admin_review_property_claim.*authenticated/is, 'Authenticated clients must not call the privileged authoritative review function directly.');
+assert.match(migration018, /grant execute on function public\.admin_review_property_claim.*service_role/is, 'Only the server service role may execute the authoritative review transaction.');
 
 const route = fs.readFileSync(new URL('../app/api/vault/property-claims/route.ts', import.meta.url), 'utf8');
 assert.match(route, /requireVoxelVaultUser/);
@@ -117,6 +152,11 @@ const adminRoute = fs.readFileSync(new URL('../app/api/admin/property-claims/rou
 assert.match(adminRoute, /requireVoxelVaultAdmin/);
 assert.match(adminRoute, /reviewer note must be between 20 and 1000 characters/i);
 assert.match(adminRoute, /evidenceVerified/);
+assert.match(adminRoute, /authoritativePropertyFingerprint/);
+assert.match(adminRoute, /canonicalizeAuthoritativePropertyIdentity/);
+assert.match(adminRoute, /p_authoritative_fingerprint: authoritativeFingerprintValue/);
+assert.match(adminRoute, /p_authoritative_namespace: authoritativeNamespace/);
+assert.match(adminRoute, /official assessor\/title source/i);
 assert.match(adminRoute, /rpc\('admin_review_property_claim'/, 'Approval/rejection must use the transactional database transition.');
 assert.match(adminRoute, /\.in\('claim_status', \['needs-evidence', 'under-review'\]\)/, 'Needs-evidence transitions must not overwrite a concurrently terminal claim.');
 assert.match(adminRoute, /This claim is no longer reviewable/i, 'Race-lost admin updates must fail closed.');
@@ -130,6 +170,8 @@ assert.doesNotMatch(adminRoute, /setVerified\s*\(/, 'Reviewer API must not set t
 const adminPage = fs.readFileSync(new URL('../app/admin/property-claims/page.js', import.meta.url), 'utf8');
 assert.match(adminPage, /Never guess ownership/i);
 assert.match(adminPage, /claimant-supplied metadata, not proof/i);
+assert.match(adminPage, /AUTHORITATIVE PARCEL KEY/i);
+assert.match(adminPage, /Official jurisdiction namespace\/code/i);
 assert.match(adminPage, /I independently reviewed the external parcel record/i, 'Verify action must require explicit human evidence confirmation.');
 assert.match(adminPage, /PASSPORT MINTS HERE/i);
 
