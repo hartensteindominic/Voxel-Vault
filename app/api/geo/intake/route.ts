@@ -12,33 +12,47 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function globalFacts(reference: any) {
-  if (!reference?.found) return [];
-  const facts: any[] = [
-    {
-      field: 'building_footprint',
-      label: 'Global building footprint',
-      value: reference.geometry,
-      sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP,
-      authority: reference.source?.authority,
-      recordId: reference.source?.recordId,
-      observedAt: reference.source?.observedAt,
-      sourceUrl: reference.source?.sourceUrl,
-      note: reference.matchStrategy === 'exact_source_address_match'
-        ? 'Reference building geometry with source-reported address tags matching the requested address; not a cadastral parcel boundary.'
-        : 'Nearest source building reference only; not proven to be the exact address and not a cadastral parcel boundary.',
-    },
-    {
-      field: 'nearby_building_count',
-      label: 'Nearby source building count',
-      value: reference.neighborhoodBuildingCount ?? 0,
-      sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP,
-      authority: reference.source?.authority,
-      recordId: `neighborhood:${reference.source?.recordId || 'reference'}`,
-      observedAt: reference.source?.observedAt,
-      sourceUrl: reference.source?.sourceUrl,
-      note: 'Count of nearby source-backed global map building footprints returned for the 3D reference scene.',
-    },
-  ];
+  if (!reference?.found && !reference?.publicRealm?.found) return [];
+  const facts: any[] = [];
+  if (reference?.found) {
+    facts.push(
+      {
+        field: 'building_footprint',
+        label: 'Global building footprint',
+        value: reference.geometry,
+        sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP,
+        authority: reference.source?.authority,
+        recordId: reference.source?.recordId,
+        observedAt: reference.source?.observedAt,
+        sourceUrl: reference.source?.sourceUrl,
+        note: reference.matchStrategy === 'exact_source_address_match'
+          ? 'Reference building geometry with source-reported address tags matching the requested address; not a cadastral parcel boundary.'
+          : 'Nearest source building reference only; not proven to be the exact address and not a cadastral parcel boundary.',
+      },
+      {
+        field: 'nearby_building_count',
+        label: 'Nearby source building count',
+        value: reference.neighborhoodBuildingCount ?? 0,
+        sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP,
+        authority: reference.source?.authority,
+        recordId: `neighborhood:${reference.source?.recordId || 'reference'}`,
+        observedAt: reference.source?.observedAt,
+        sourceUrl: reference.source?.sourceUrl,
+        note: 'Count of nearby source-backed global map building footprints returned for the 3D reference scene.',
+      },
+    );
+  }
+  if (reference?.publicRealm?.found) facts.push({
+    field: 'mapped_public_realm_way_count',
+    label: 'Mapped streets and paths',
+    value: reference.publicRealm.mappedWayCount ?? 0,
+    sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP,
+    authority: reference.publicRealm.source?.authority || reference.source?.authority,
+    recordId: `public-realm:${reference.source?.recordId || 'reference'}`,
+    observedAt: reference.publicRealm.source?.observedAt || reference.source?.observedAt,
+    sourceUrl: reference.source?.sourceUrl,
+    note: 'Source-backed map centerlines for neighborhood orientation. Rendered stroke thickness is visual styling only and is not a measured road, lane, right-of-way, or sidewalk width.',
+  });
   if (reference.tags?.building) facts.push({
     field: 'building_type', label: 'Building type', value: reference.tags.building,
     sourceKind: PROPERTY_FACT_SOURCE_KINDS.GLOBAL_MAP, authority: reference.source?.authority,
@@ -270,10 +284,10 @@ export async function POST(request: Request) {
         ...globalRequest,
         overtureRelease: '2026-07-22.0',
         overtureBuildingsPmtiles: 'https://overturemaps-extras-us-west-2.s3.us-west-2.amazonaws.com/tiles/2026-07-22.0/buildings.pmtiles',
-        terrainAdapter: intake.countryCode === 'US' ? 'USGS 3DEP EPQS 3×3 ground-elevation reference grid' : 'no authoritative terrain adapter attached for this country yet',
-        neighborhoodAdapter: 'OpenStreetMap / Overpass nearby building footprints with exact source-address preference and nearest-building fallback',
+        terrainAdapter: intake.countryCode === 'US' ? 'USGS 3DEP EPQS 3×3 ground-elevation reference grid with visualization-only interpolation between returned samples' : 'no authoritative terrain adapter attached for this country yet',
+        neighborhoodAdapter: 'OpenStreetMap / Overpass nearby building footprints plus mapped street/path centerlines, with exact source-address preference and nearest-building fallback',
         measuredHeightPolicy: 'Measured building height requires accepted parcel-specific building geometry plus actual roof/ground LiDAR processing. Coverage or ground elevation alone cannot satisfy the gate.',
-        note: 'GEO fetches/cache-bounds around a requested property instead of storing the entire planet in the web app. Overture/OSM are global reference layers; jurisdiction sources remain the parcel authority where available.',
+        note: 'GEO fetches/cache-bounds around a requested property instead of storing the entire planet in the web app. Overture/OSM are global reference layers; jurisdiction sources remain the parcel authority where available. Public-realm stroke thickness and interpolated terrain mesh density are rendering choices, not additional measurements.',
       },
       legalEffects: {
         createsOwnership: false,
@@ -282,6 +296,7 @@ export async function POST(request: Request) {
         transfersFunds: false,
         terrainCreatesPropertyRights: false,
         neighborhoodGeometryCreatesParcelRights: false,
+        publicRealmCreatesParcelRights: false,
       },
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
