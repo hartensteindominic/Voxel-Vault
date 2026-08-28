@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 
+const requiredEvidence = ['parcel-record', 'ownership-or-control', 'model-capture-rights'];
+
 function googleReturnUrl() {
   return new URL('/admin/property-claims?auth=google', window.location.origin).toString();
 }
@@ -15,6 +17,7 @@ export default function PropertyClaimsAdminPage() {
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [notes, setNotes] = useState({});
+  const [evidenceReviewed, setEvidenceReviewed] = useState({});
   const clientRef = useRef(null);
 
   async function refresh(accessToken) {
@@ -97,11 +100,16 @@ export default function PropertyClaimsAdminPage() {
 
   async function decide(claim, decision) {
     if (!session?.access_token || busy) return;
-    const reviewerNote = String(notes[claim.id] || '').trim();
-    if (!reviewerNote) {
-      setMessage('Add a reviewer note before making a decision.');
+    const reviewerNote = String(notes[claim.id] ?? claim.reviewerNote ?? '').trim();
+    if (reviewerNote.length < 20) {
+      setMessage('Add a reviewer note of at least 20 characters describing what was checked.');
       return;
     }
+    if (decision === 'verified' && evidenceReviewed[claim.id] !== true) {
+      setMessage('Confirm that you independently reviewed the external evidence before verifying this claim.');
+      return;
+    }
+
     setBusy(claim.id);
     setMessage('');
     try {
@@ -115,12 +123,13 @@ export default function PropertyClaimsAdminPage() {
           claimId: claim.id,
           decision,
           reviewerNote,
-          evidenceVerified: decision === 'verified',
+          evidenceVerified: decision === 'verified' && evidenceReviewed[claim.id] === true,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Claim decision failed.');
       setMessage(data?.nextStep || `Claim marked ${decision}.`);
+      setEvidenceReviewed((current) => ({ ...current, [claim.id]: false }));
       await refresh(session.access_token);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Claim decision failed.');
@@ -168,12 +177,18 @@ export default function PropertyClaimsAdminPage() {
               <Stat label="PASSPORT MINTS HERE" value="0" />
             </section>
 
-            {!claims.length && busy !== 'refresh' ? <StateCard title="No claims in the queue" copy="User-submitted official property claims will appear here after migration 015 is applied." /> : null}
+            {!claims.length && busy !== 'refresh' ? <StateCard title="No claims in the queue" copy="User-submitted official property claims will appear here after migrations 015 and 016 are applied." /> : null}
 
             <div className="grid gap-4">
               {claims.map((claim) => {
-                const locked = claim.status === 'verified';
-                const evidenceComplete = ['parcel-record','ownership-or-control','model-capture-rights'].every((type) => claim.evidenceTypes.includes(type));
+                const locked = ['verified', 'rejected', 'withdrawn'].includes(claim.status);
+                const evidenceComplete = requiredEvidence.every((type) => claim.evidenceTypes.includes(type));
+                const noteValue = notes[claim.id] ?? claim.reviewerNote ?? '';
+                const canVerify = claim.status === 'under-review'
+                  && evidenceComplete
+                  && evidenceReviewed[claim.id] === true
+                  && String(noteValue).trim().length >= 20;
+
                 return (
                   <article key={claim.id} className="rounded-[30px] border border-white/10 bg-white/[.025] p-6 md:p-8">
                     <div className="grid gap-6 lg:grid-cols-[1fr_.9fr]">
@@ -184,9 +199,9 @@ export default function PropertyClaimsAdminPage() {
                           <span className="rounded-full border border-white/10 px-3 py-1.5 text-white/40">FINGERPRINT …{claim.identity?.fingerprintSuffix}</span>
                         </div>
                         <h2 className="mt-4 text-3xl font-black tracking-[-.05em]">{claim.propertyLabel || 'Property claim'}</h2>
-                        <p className="mt-1 text-sm text-white/40">{claim.locality || 'No locality label'}</p>
+                        <p className="mt-1 text-sm text-white/40">{claim.locality || 'No locality label'} · claimant …{claim.claimantUserSuffix || 'unknown'}</p>
 
-                        <div className="mt-5 grid gap-2 sm:grid-cols-2 text-xs">
+                        <div className="mt-5 grid gap-2 text-xs sm:grid-cols-2">
                           <Detail label="COUNTRY" value={claim.identity?.countryCode || '—'} />
                           <Detail label="SUBDIVISION" value={claim.identity?.subdivisionCode || '—'} />
                           <Detail label="ASSESSOR JURISDICTION" value={claim.identity?.countyCode || '—'} />
@@ -196,7 +211,7 @@ export default function PropertyClaimsAdminPage() {
                         </div>
 
                         <div className="mt-5 grid gap-2">
-                          {['parcel-record','ownership-or-control','model-capture-rights'].map((type) => (
+                          {requiredEvidence.map((type) => (
                             <div key={type} className={`rounded-2xl border p-3 text-xs ${claim.evidenceTypes.includes(type) ? 'border-emerald-200/12 bg-emerald-200/[.03] text-emerald-100/65' : 'border-amber-200/12 bg-amber-200/[.03] text-amber-100/60'}`}>{claim.evidenceTypes.includes(type) ? '✓' : '○'} {type.replaceAll('-', ' ')}</div>
                           ))}
                         </div>
@@ -204,16 +219,23 @@ export default function PropertyClaimsAdminPage() {
 
                       <div className="rounded-3xl border border-white/8 bg-black/15 p-5">
                         <div className="text-[9px] font-black tracking-[.14em] text-white/35">REVIEW DECISION</div>
-                        <p className="mt-3 text-xs leading-5 text-white/43">Before clicking Verify, independently inspect the actual assessor/title/authorization evidence outside this metadata screen. The checkboxes are user-supplied categories, not proof by themselves.</p>
-                        <textarea value={notes[claim.id] ?? claim.reviewerNote ?? ''} onChange={(event) => setNotes((current) => ({ ...current, [claim.id]: event.target.value }))} disabled={locked} placeholder="Required reviewer note: what was checked, source/date, and why the decision is justified." className="mt-4 min-h-32 w-full rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white outline-none placeholder:text-white/20 disabled:opacity-50" />
+                        <p className="mt-3 text-xs leading-5 text-white/43">The category checkmarks are claimant-supplied metadata, not proof. Independently inspect the real assessor/ownership/authorization evidence outside this screen before approving.</p>
+                        <textarea value={noteValue} onChange={(event) => setNotes((current) => ({ ...current, [claim.id]: event.target.value }))} disabled={locked} placeholder="Required reviewer note (20+ characters): what was checked, source/date, and why the decision is justified." className="mt-4 min-h-32 w-full rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white outline-none placeholder:text-white/20 disabled:opacity-50" />
+
+                        {!locked && claim.status === 'under-review' ? (
+                          <label className="mt-4 flex cursor-pointer gap-3 rounded-2xl border border-amber-100/12 bg-amber-100/[.025] p-4 text-xs leading-5 text-white/55">
+                            <input type="checkbox" checked={evidenceReviewed[claim.id] === true} onChange={(event) => setEvidenceReviewed((current) => ({ ...current, [claim.id]: event.target.checked }))} className="mt-1" />
+                            <span>I independently reviewed the external parcel record, ownership/control evidence, and 3D capture authorization. I understand this approval verifies only the Voxel Vault off-chain identity and does not change the deed or mint a token.</span>
+                          </label>
+                        ) : null}
 
                         {locked ? (
-                          <div className="mt-4 rounded-2xl border border-emerald-200/12 bg-emerald-200/[.03] p-4 text-xs leading-5 text-emerald-100/65">Verified claim is immutable in this pilot. Registry anchoring and Passport minting are still separate locked steps.</div>
+                          <div className="mt-4 rounded-2xl border border-emerald-200/12 bg-emerald-200/[.03] p-4 text-xs leading-5 text-emerald-100/65">This claim is in a terminal review state. Registry anchoring and Passport minting remain separate locked steps.</div>
                         ) : (
                           <div className="mt-4 flex flex-wrap gap-2">
-                            <button onClick={() => decide(claim, 'verified')} disabled={busy === claim.id || claim.status !== 'under-review' || !evidenceComplete} className="rounded-full bg-[#9ff5df] px-5 py-2.5 text-xs font-black text-[#07100e] disabled:opacity-30">VERIFY CLAIM</button>
-                            <button onClick={() => decide(claim, 'needs-evidence')} disabled={busy === claim.id} className="rounded-full border border-amber-200/20 px-5 py-2.5 text-xs font-black text-amber-100/70 disabled:opacity-30">NEEDS EVIDENCE</button>
-                            <button onClick={() => decide(claim, 'rejected')} disabled={busy === claim.id} className="rounded-full border border-red-200/20 px-5 py-2.5 text-xs font-black text-red-100/70 disabled:opacity-30">REJECT</button>
+                            <button onClick={() => decide(claim, 'verified')} disabled={busy === claim.id || !canVerify} className="rounded-full bg-[#9ff5df] px-5 py-2.5 text-xs font-black text-[#07100e] disabled:opacity-30">VERIFY CLAIM</button>
+                            <button onClick={() => decide(claim, 'needs-evidence')} disabled={busy === claim.id || String(noteValue).trim().length < 20} className="rounded-full border border-amber-200/20 px-5 py-2.5 text-xs font-black text-amber-100/70 disabled:opacity-30">NEEDS EVIDENCE</button>
+                            <button onClick={() => decide(claim, 'rejected')} disabled={busy === claim.id || String(noteValue).trim().length < 20} className="rounded-full border border-red-200/20 px-5 py-2.5 text-xs font-black text-red-100/70 disabled:opacity-30">REJECT</button>
                           </div>
                         )}
                       </div>
