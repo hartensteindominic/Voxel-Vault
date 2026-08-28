@@ -27,15 +27,15 @@ assert.match(route, /No replacement or fabricated listings were returned/, 'Prov
 assert.match(route, /digital twin or NFT does not itself convey a deed/i, 'Global search must preserve the real-property rights boundary.');
 
 assert.match(page, /GlobalEarthGlobe/, 'Earth UI must render the lightweight interactive globe.');
-assert.match(page, /The whole Earth/, 'Earth UI must be explicitly global.');
-assert.match(page, /Real listings only/, 'Earth UI must explicitly promise source-backed inventory only.');
+assert.match(page, /VOXEL VAULT WORLD ATLAS/, 'Earth UI must be explicitly global.');
+assert.match(page, /Listings are not fabricated/, 'Earth UI must explicitly separate worldwide map coverage from real authorized inventory.');
 assert.match(page, /property\.currency/, 'Earth UI must display each source currency rather than hardcoding USD.');
 assert.match(page, /onLocation=\{globeLocation\}/, 'Tapping the globe must feed a geographic search.');
-assert.match(page, /LIVE COVERAGE/, 'Users must be able to see which provider regions are actually live.');
-assert.match(page, /AWAITING ACCESS/, 'Unsupported markets must be disclosed instead of populated with fake listings.');
+assert.match(page, /OVERTURE PRIMARY/, 'Users must be able to see the primary worldwide building source state.');
+assert.match(page, /MARKET FEED NOT CONNECTED/, 'Unsupported market inventory must be disclosed instead of populated with fake listings.');
 assert.match(page, /OPEN (?:REAL )?SOURCE LISTING/, 'Each result should route back to its authoritative listing source when available.');
-assert.match(page, /Physical purchase:.*broker.*title.*deed-recording/s, 'The physical-property closing boundary must remain explicit.');
-assert.match(page, /MINTING RECOMMENDED AFTER VERIFICATION/, 'Minting should be encouraged as provenance/backup without replacing the deed.');
+assert.match(page, /normal contract, title, closing and recording process/i, 'The physical-property closing boundary must remain explicit.');
+assert.match(page, /digital twin does not replace the deed/i, 'Digital representation must never be presented as the deed.');
 
 assert.match(globe, /SphereGeometry/, 'Global Earth should use the existing lightweight Three.js stack.');
 assert.match(globe, /vectorToLatLng/, 'Globe taps must convert to real latitude/longitude.');
