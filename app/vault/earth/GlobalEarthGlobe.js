@@ -44,6 +44,8 @@ export default function GlobalEarthGlobe({
 }) {
   const [streamedBuildings, setStreamedBuildings] = useState([]);
   const [streaming, setStreaming] = useState(false);
+  const [visitedCount, setVisitedCount] = useState(0);
+  const [lastCoverage, setLastCoverage] = useState(null);
   const visitedRef = useRef(new Map());
   const inflightRef = useRef(new Set());
   const streamedRef = useRef([]);
@@ -75,6 +77,15 @@ export default function GlobalEarthGlobe({
         const oldest = visitedRef.current.keys().next().value;
         if (oldest) visitedRef.current.delete(oldest);
       }
+      setVisitedCount(visitedRef.current.size);
+      setLastCoverage({
+        latitude: Number(data.latitude),
+        longitude: Number(data.longitude),
+        tileCount: Number(data.tileCount || 0),
+        buildingCount: Number(data.buildingCount || 0),
+        source: data.coverage?.source || 'Overture Maps Foundation Buildings PMTiles',
+        scope: data.coverage?.scope || 'global-on-demand',
+      });
 
       const incoming = Array.isArray(data.buildings) ? data.buildings : [];
       if (incoming.length) {
@@ -121,5 +132,13 @@ export default function GlobalEarthGlobe({
     onLocation={onLocation}
     onViewport={streamViewport}
     streaming={streaming}
+    coverage={{
+      visitedRegions: visitedCount,
+      streamedBuildings: streamedBuildings.length,
+      detailedBuildings: atlasBuildings.length,
+      visibleMarkers: combinedBuildings.length,
+      lastCoverage,
+      truthLabel: 'MAP REFERENCE · NOT TITLE',
+    }}
   />;
 }
