@@ -34,8 +34,13 @@ assert.match(atlas, /automaticGeneration:\s*false/, 'ordinary browsing must spen
 // The flagship property uses jurisdiction evidence before global context.
 assert.match(anchor, /fetchBuffaloPropertyReference/, '1047 anchor must read the City parcel record');
 assert.match(anchor, /fetchErieCountySpatialIntake/, '1047 anchor must read Erie County parcel/building GIS');
+assert.match(anchor, /const countyLookup = pin \? \{ pin \} : \{ sbl \}/, 'Erie County lookup must prefer the full parcel PIN when available');
+assert.match(anchor, /reconcileCityCoordinate/, 'City coordinates must be reconciled against County parcel geometry');
+assert.match(anchor, /swappedSeparationMeters/, 'resolver must detect a source latitude/longitude field swap only by independent County agreement');
+assert.match(anchor, /publishedSeparationMeters.*<= 250/s, 'published City coordinates may only be accepted when close to County geometry');
+assert.match(anchor, /swappedSeparationMeters.*<= 250/s, 'swapped City coordinates may only be accepted when close to County geometry');
+assert.match(anchor, /City and County parcel identifiers do not cross-match/, 'City/County identifier mismatch must fail closed');
 assert.match(anchor, /inspectWorldAtlas/, 'global atlas must remain neighborhood context after local evidence');
-assert.match(anchor, /sourceSeparationMeters > 250/, 'City/county coordinate conflicts must fail closed');
 assert.match(anchor, /erie-building:/, 'exact county BUILDING geometry must receive a local atlas identity');
 assert.match(anchor, /authoritativeLocal:\s*true/, 'atlas must disclose when local jurisdiction geometry outranks global map geometry');
 assert.match(anchor, /No building was selected|no building was selected/i, 'conflicting local sources must never silently choose a house');
@@ -60,7 +65,7 @@ assert.match(page, />COMPARE</, 'Compare mode must exist');
 assert.match(page, />REALITY</, 'Reality mode must exist');
 assert.match(page, />VOXEL</, 'Voxel mode must exist');
 assert.match(page, />GLOBE</, 'Globe mode must exist');
-assert.match(page, /GOOGLE_3D_ENABLED \? 'compare' : 'voxel'/, 'Google-ready deployments should open the strongest synchronized comparison while non-Google deployments stay usable');
+assert.match(page, /GOOGLE_3D_ENABLED \? 'compare' : 'voxel'/, 'Google-ready deployments should open synchronized comparison while non-Google deployments stay usable');
 assert.match(page, /BuffaloCalibratedReferenceModel/, 'authoritative Buffalo geometry must use the local calibrated renderer');
 assert.match(page, /PropertyTruthStack/, 'Earth must expose an evidence-confidence ladder');
 assert.match(page, /PropertyEvidencePanel/, 'Earth must expose external/source visual evidence');
@@ -78,6 +83,7 @@ assert.match(googleReality, /NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY/, 'Google 3D mu
 assert.match(googleReality, /importLibrary\('maps3d'\)/, 'Google reality must use maps3d');
 assert.match(googleReality, /new Map3DElement/, 'Google reality must instantiate native 3D map element');
 assert.match(googleReality, /mode:\s*'HYBRID'/, 'Google 3D must use HYBRID mode');
+assert.match(googleReality, /gestureHandling:\s*'COOPERATIVE'/, 'Google 3D must not trap normal one-finger iPhone page scrolling');
 assert.match(googleReality, /OPEN IN GOOGLE MAPS/, 'Google fallback must remain navigable');
 assert.doesNotMatch(googleReality, /getZxy|arrayBuffer\(|drawImage\(/, 'Google reality component must not extract/cache map pixels or meshes');
 
@@ -126,4 +132,4 @@ assert.match(docs, /NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=/, 'deployment docs must
 assert.match(docs, /MESHY_API_KEY=/, 'deployment docs must document server-only Meshy setting');
 assert.match(docs, /does \*\*not\*\* download, scrape, extract building meshes from, train on, reconstruct from, or permanently cache Google/i, 'docs must forbid Google extraction');
 
-console.log('World atlas reality-stack checks passed: authoritative 1047 City+County anchor, Google/Voxel compare mode, source-backed globe, evidence ladder, reference-only Zillow/Google links, Meshy 7 rights gates, iPhone normalization, private caching, and fail-safe missing layers.');
+console.log('World atlas reality-stack checks passed: authoritative 1047 City+County anchor, PIN-first coordinate reconciliation, Google/Voxel compare mode, source-backed globe, evidence ladder, reference-only Zillow/Google links, Meshy 7 rights gates, iPhone normalization, private caching, and fail-safe missing layers.');
