@@ -23,11 +23,11 @@ function EvidenceMap({ parcelGeometry, buildingGeometry }) {
   const parcelRings = collectRings(parcelGeometry);
   const buildingRings = collectRings(buildingGeometry);
   const points = [...parcelRings, ...buildingRings].flat();
-  if (!points.length) return <div className={styles.error}>No source geometry is available. The page will not substitute a generic model.</div>;
+  if (!points.length) return <div className={styles.error}>No accepted source geometry is available. The page will not substitute a generic model.</div>;
 
   const lons = points.map((pair) => Number(pair?.[0])).filter(Number.isFinite);
   const lats = points.map((pair) => Number(pair?.[1])).filter(Number.isFinite);
-  if (!lons.length || !lats.length) return <div className={styles.error}>Source geometry could not be rendered.</div>;
+  if (!lons.length || !lats.length) return <div className={styles.error}>Accepted source geometry could not be rendered.</div>;
 
   const minLon = Math.min(...lons);
   const maxLon = Math.max(...lons);
@@ -50,14 +50,21 @@ function EvidenceMap({ parcelGeometry, buildingGeometry }) {
 
   return (
     <>
-      <svg className={styles.mapSvg} viewBox={`0 0 ${canvasW} ${canvasH}`} role="img" aria-label="Official Erie County parcel polygon and building footprint evidence">
+      <svg
+        className={styles.mapSvg}
+        viewBox={`0 0 ${canvasW} ${canvasH}`}
+        role="img"
+        aria-label={buildingRings.length
+          ? 'Official Erie County parcel polygon with accepted parcel-linked building footprint evidence'
+          : 'Official Erie County parcel polygon; no parcel-specific building footprint is currently accepted'}
+      >
         <rect width={canvasW} height={canvasH} rx="24" fill="#f5f3ee" />
         {parcelRings.map((ring, index) => <path key={`parcel-${index}`} d={pathFor(ring)} fill="rgba(17,17,17,.08)" stroke="#111" strokeWidth="4" />)}
         {buildingRings.map((ring, index) => <path key={`building-${index}`} d={pathFor(ring)} fill="rgba(141,139,131,.66)" stroke="#5f5d57" strokeWidth="3" />)}
       </svg>
       <div className={styles.legend}>
         <span><i className={styles.parcelSwatch} />Official parcel polygon</span>
-        <span><i className={styles.buildingSwatch} />Official building footprint</span>
+        {buildingRings.length ? <span><i className={styles.buildingSwatch} />Accepted parcel-linked building footprint</span> : null}
       </div>
     </>
   );
@@ -91,6 +98,8 @@ export default async function FirstRealErieParcelPage() {
   const twin = evidence?.twin;
   const record = evidence?.countyRecord;
   const labels = evidence?.truthLabels;
+  const buildingAccepted = Boolean(twin?.structure?.buildingGeometry && record?.buildingFootprintCount > 0);
+  const buildingCandidateCount = Number(record?.buildingCandidateCount || 0);
   const lidarCovered = lidarEvidence?.coverageStatus === 'covered';
   const lidarTileNames = lidarEvidence?.tiles?.map((tile) => tile.filename).filter(Boolean) || [];
 
@@ -106,7 +115,7 @@ export default async function FirstRealErieParcelPage() {
           <article className={styles.heroCard}>
             <p className={styles.eyebrow}>FIRST REAL PARCEL · ERIE COUNTY, NEW YORK</p>
             <h1>618 Main Street.<br /><em>Evidence before ownership.</em></h1>
-            <p className={styles.lead}>This page does not use the generic house model. It loads the exact County SBL from Erie County GIS at request time, renders only the parcel and building geometry the county returns, and separately checks New York State&apos;s authoritative LiDAR tile index.</p>
+            <p className={styles.lead}>This page loads the exact County SBL from Erie County GIS and accepts only evidence that can be tied defensibly to this parcel. The parcel polygon is source-backed. The County&apos;s spatially intersecting building polygon is currently rejected from the twin because it is not joined to 618 Main&apos;s exact PIN/SBL. New York State LiDAR coverage is tracked separately.</p>
           </article>
           <aside className={styles.statusCard}>
             <div>
@@ -116,6 +125,7 @@ export default async function FirstRealErieParcelPage() {
             <div className={styles.statusList}>
               <span>COUNTY SBL · {FIRST_REAL_ERIE_PARCEL.countySbl}</span>
               <span>PIN · {FIRST_REAL_ERIE_PARCEL.pin}</span>
+              <span>BUILDING · {buildingAccepted ? 'PARCEL-LINKED' : 'FOOTPRINT UNVERIFIED'}</span>
               <span>LIDAR · {lidarCovered ? 'COVERAGE FOUND' : lidarError ? 'SOURCE UNAVAILABLE' : 'NO COVERAGE FOUND'}</span>
               <span>RIGHTS · REFERENCE ONLY</span>
             </div>
@@ -130,19 +140,21 @@ export default async function FirstRealErieParcelPage() {
           <>
             <section className={styles.truthGrid} aria-label="Spatial truth status">
               <article><small>GEOGRAPHY</small><strong>{labels?.geography}</strong><span>Exact parcel ID, coordinates, polygon and source lineage must all pass.</span></article>
-              <article><small>PHYSICAL</small><strong>{labels?.physical}</strong><span>{lidarCovered ? 'County footprint and NYS LiDAR coverage are present; building height is not measured yet.' : 'County footprint is present; measured building height is still absent.'}</span></article>
-              <article><small>SPATIAL TWIN</small><strong>{labels?.spatialTwin}</strong><span>Full spatial verification stays false until a defensible roof-minus-ground height is derived.</span></article>
+              <article><small>PHYSICAL</small><strong>{labels?.physical}</strong><span>{buildingAccepted ? 'A parcel-linked footprint is accepted, but measured height is still required.' : 'No parcel-specific building footprint is accepted. A broad spatial candidate is retained only for diagnosis, not rendered as the building.'}</span></article>
+              <article><small>SPATIAL TWIN</small><strong>{labels?.spatialTwin}</strong><span>Full spatial verification requires both defensible parcel-specific building geometry and measured height.</span></article>
               <article><small>OWNERSHIP</small><strong>{labels?.ownership}</strong><span>County GIS and LiDAR do not establish deed, title, LLC membership or investment rights.</span></article>
             </section>
 
             <section className={styles.twoCol}>
               <article className={styles.panel}>
                 <div className={styles.panelHeader}>
-                  <div><p className={styles.eyebrow}>SOURCE GEOMETRY</p><h2>{record?.parcelAddress || twin?.label}</h2></div>
+                  <div><p className={styles.eyebrow}>ACCEPTED SOURCE GEOMETRY</p><h2>{record?.parcelAddress || twin?.label}</h2></div>
                   <span className={styles.pill}>REFERENCE ONLY</span>
                 </div>
                 <EvidenceMap parcelGeometry={twin?.location?.parcelGeometry} buildingGeometry={twin?.structure?.buildingGeometry} />
-                <p className={styles.note}>The drawing is generated from the returned county GeoJSON. It is a GIS reference, not a legal survey or conveyance boundary. No fake 3D extrusion is rendered while measured height remains absent.</p>
+                <p className={styles.note}>{buildingAccepted
+                  ? 'The drawing contains the source-backed parcel and an exact parcel-linked building footprint. It is still a GIS reference, not a legal survey or conveyance boundary.'
+                  : 'Only the exact source-backed parcel polygon is rendered. The County building layer returned a broader spatial candidate without the parcel identifier, so Voxel Vault refuses to draw it as 618 Main. No generic house or fake 3D extrusion is substituted.'}</p>
               </article>
 
               <article className={styles.panel}>
@@ -153,11 +165,13 @@ export default async function FirstRealErieParcelPage() {
                   <div><span>PIN</span><strong>{record?.pin || '—'}</strong></div>
                   <div><span>Municipality</span><strong>{record?.municipality || '—'}</strong></div>
                   <div><span>Reference point</span><strong>{Number(twin?.location?.latitude).toFixed(6)}, {Number(twin?.location?.longitude).toFixed(6)}</strong></div>
-                  <div><span>Building footprints</span><strong>{record?.buildingFootprintCount ?? '—'}</strong></div>
+                  <div><span>Accepted building footprints</span><strong>{record?.buildingFootprintCount ?? '—'}</strong></div>
+                  <div><span>Unverified spatial candidates</span><strong>{record?.buildingCandidateCount ?? '—'}</strong></div>
+                  <div><span>Building match</span><strong>{record?.buildingMatchStrategy || '—'}</strong></div>
                   <div><span>NYS LiDAR coverage</span><strong>{lidarCovered ? 'FOUND' : lidarError ? 'UNAVAILABLE' : 'NOT FOUND'}</strong></div>
                   <div><span>LAS tiles</span><strong>{lidarEvidence?.tiles?.length ?? '—'}</strong></div>
-                  <div><span>Year built</span><strong>{record?.yearBuilt || '—'}</strong></div>
-                  <div><span>Living area</span><strong>{record?.livingAreaSqFt ? `${record.livingAreaSqFt.toLocaleString()} sq ft` : '—'}</strong></div>
+                  <div><span>Year built reference</span><strong>{record?.yearBuilt || '—'}</strong></div>
+                  <div><span>Living area reference</span><strong>{record?.livingAreaSqFt ? `${record.livingAreaSqFt.toLocaleString()} sq ft` : '—'}</strong></div>
                   <div><span>County assessment</span><strong>{money(record?.totalAssessedValueUsd)}</strong></div>
                   <div><span>Height state</span><strong>{twin?.verification?.heightStatus || 'missing'}</strong></div>
                 </div>
@@ -172,24 +186,25 @@ export default async function FirstRealErieParcelPage() {
               </div>
               <div className={styles.sourceGrid}>
                 <div><strong>Parcel identity + polygon</strong><span>{twin?.location?.source?.authority} · record {twin?.location?.source?.recordId}</span></div>
-                <div><strong>Building footprint</strong><span>{twin?.structure?.source?.authority} · record {twin?.structure?.source?.recordId}</span></div>
+                <div><strong>Parcel-specific building footprint</strong><span>{buildingAccepted ? `${twin?.structure?.source?.authority} · record ${twin?.structure?.source?.recordId}` : `Not accepted · ${buildingCandidateCount} spatial candidate${buildingCandidateCount === 1 ? '' : 's'} retained only for diagnosis`}</span></div>
                 <div><strong>NYS LiDAR coverage</strong><span>{lidarCovered ? `${lidarEvidence?.source?.authority} · ${lidarTileNames.join(', ') || `${lidarEvidence?.tiles?.length || 0} tile(s)`}` : lidarError || 'No intersecting source tile was returned.'}</span></div>
                 <div><strong>Measured height</strong><span>{twin?.structure?.heightUnavailableReason}</span></div>
                 <div><strong>Legal rights</strong><span>Ownership remains unverified and the rights type remains REFERENCE ONLY.</span></div>
               </div>
               <div className={styles.links}>
                 <a href={evidence?.provenance?.parcelLayer} target="_blank" rel="noreferrer">Erie parcel layer ↗</a>
-                <a href={evidence?.provenance?.buildingLayer} target="_blank" rel="noreferrer">Erie building layer ↗</a>
+                <a href={evidence?.provenance?.buildingLayer} target="_blank" rel="noreferrer">Erie building source ↗</a>
                 <a href={NYS_ERIE_LIDAR_INDEX_LAYER} target="_blank" rel="noreferrer">NYS LiDAR index ↗</a>
                 <a href={FIRST_REAL_ERIE_PARCEL.identifierSourceUrl} target="_blank" rel="noreferrer">Buffalo identifier source ↗</a>
               </div>
               <p className={styles.note}>Identifier reconciliation: Erie County GIS returns SBL {FIRST_REAL_ERIE_PARCEL.countySbl}; the City schedule stores the same parcel as raw SBL {FIRST_REAL_ERIE_PARCEL.cityScheduleRawSbl}. Both use PIN {FIRST_REAL_ERIE_PARCEL.pin}. The County-formatted SBL is the runtime geometry lookup key.</p>
-              <p className={styles.note}>LiDAR tile discovery proves authoritative point-cloud coverage only. Voxel Vault will not mark height as measured until roof samples inside the official footprint are compared with a defensible ground reference and the method, source tile and uncertainty are retained.</p>
+              <p className={styles.note}>A spatial intersection is not enough to identify a building. The current County candidate is preserved in provenance for investigation but is excluded from the property twin until a parcel-specific geometry relationship can be defended.</p>
+              <p className={styles.note}>LiDAR tile discovery proves authoritative point-cloud coverage only. Voxel Vault will not mark height as measured until accepted building geometry exists and a reproducible roof-versus-ground method passes its quality and uncertainty gates.</p>
             </section>
           </>
         )}
 
-        <footer className={styles.footer}>Voxel Vault · first real Erie County parcel evidence path · geography may verify, LiDAR coverage may verify, physical truth remains partial until measured height exists, ownership remains unverified.</footer>
+        <footer className={styles.footer}>Voxel Vault · first real Erie County parcel evidence path · geography verified when source checks pass · parcel-specific physical geometry currently unverified · LiDAR coverage separate · ownership unverified.</footer>
       </div>
     </main>
   );
