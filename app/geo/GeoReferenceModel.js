@@ -1,21 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { createElement, useEffect, useMemo, useRef } from 'react';
 
 const METERS_TO_SCENE = 0.075;
 
 function outerRing(geometry) {
   if (!geometry || !Array.isArray(geometry.coordinates)) return [];
-  if (geometry.type === 'Polygon') return Array.isArray(geometry.coordinates[0]) ? geometry.coordinates[0] : [];
-  if (geometry.type === 'MultiPolygon') return Array.isArray(geometry.coordinates?.[0]?.[0]) ? geometry.coordinates[0][0] : [];
+  if (geometry.type === 'Polygon') return geometry.coordinates[0] || [];
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates?.[0]?.[0] || [];
   return [];
-}
-
-function numericLevels(reference, sourceHeightMeters) {
-  const reported = Number(String(reference?.tags?.levels || '').split(';')[0]);
-  if (Number.isFinite(reported) && reported > 0) return Math.min(40, Math.round(reported));
-  if (Number.isFinite(sourceHeightMeters) && sourceHeightMeters >= 5.5) return Math.min(40, Math.max(1, Math.round(sourceHeightMeters / 3)));
-  return 1;
 }
 
 function toLocalMeters(longitude, latitude, originLongitude, originLatitude) {
@@ -30,49 +23,150 @@ function terrainRelativeMeters(terrain, eastMeters, northMeters) {
   const samples = Array.isArray(terrain?.samples) ? terrain.samples : [];
   if (!terrain?.available || !samples.length) return 0;
   let weighted = 0;
-  let weightTotal = 0;
+  let total = 0;
   for (const sample of samples) {
     const dx = eastMeters - Number(sample.eastMeters || 0);
     const dz = northMeters - Number(sample.northMeters || 0);
-    const distanceSquared = dx * dx + dz * dz;
-    const weight = 1 / Math.max(1, distanceSquared);
+    const weight = 1 / Math.max(1, dx * dx + dz * dz);
     weighted += Number(sample.relativeElevationMeters || 0) * weight;
-    weightTotal += weight;
+    total += weight;
   }
-  return weightTotal > 0 ? weighted / weightTotal : 0;
+  return total ? weighted / total : 0;
 }
 
-function shapeFromGeometry(THREE, geometry, originLongitude, originLatitude) {
+function localPolygon(geometry, originLongitude, originLatitude) {
   const ring = outerRing(geometry);
-  if (ring.length < 4) return null;
-  const local = ring.slice(0, -1)
+  if (ring.length < 4) return [];
+  return ring.slice(0, -1)
     .map(([lon, lat]) => toLocalMeters(lon, lat, originLongitude, originLatitude))
     .filter((point) => Number.isFinite(point.east) && Number.isFinite(point.north));
+}
+
+function shapeFromLocal(THREE, local) {
   if (local.length < 3) return null;
   const shape = new THREE.Shape();
   local.forEach((point, index) => {
     const x = point.east * METERS_TO_SCENE;
-    const zAsShapeY = -point.north * METERS_TO_SCENE;
-    if (index === 0) shape.moveTo(x, zAsShapeY); else shape.lineTo(x, zAsShapeY);
+    const y = -point.north * METERS_TO_SCENE;
+    if (index === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
   });
   shape.closePath();
-  return { shape, local };
+  return shape;
 }
 
-function averageLocalCenter(local = []) {
+function averageLocalCenter(local) {
   if (!local.length) return { east: 0, north: 0 };
-  const total = local.reduce((sum, point) => ({ east: sum.east + point.east, north: sum.north + point.north }), { east: 0, north: 0 });
-  return { east: total.east / local.length, north: total.north / local.length };
+  const sum = local.reduce((acc, point) => ({ east: acc.east + point.east, north: acc.north + point.north }), { east: 0, north: 0 });
+  return { east: sum.east / local.length, north: sum.north / local.length };
+}
+
+function polygonBounds(local) {
+  if (!local.length) return null;
+  return local.reduce((b, p) => ({
+    minEast: Math.min(b.minEast, p.east), maxEast: Math.max(b.maxEast, p.east),
+    minNorth: Math.min(b.minNorth, p.north), maxNorth: Math.max(b.maxNorth, p.north),
+  }), { minEast: Infinity, maxEast: -Infinity, minNorth: Infinity, maxNorth: -Infinity });
+}
+
+function pointInPolygon(east, north, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const a = polygon[i];
+    const b = polygon[j];
+    const crosses = ((a.north > north) !== (b.north > north))
+      && east < ((b.east - a.east) * (north - a.north)) / ((b.north - a.north) || Number.EPSILON) + a.east;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function effectiveHeightMeters(reference, fallback = 3) {
+  const measured = reference?.measuredHeight?.verifiedMeasuredHeight === true
+    ? Number(reference?.measuredHeight?.heightMeters)
+    : NaN;
+  if (Number.isFinite(measured) && measured > 0) return measured;
+  const sourced = Number(reference?.height?.referenceHeightMeters);
+  return Number.isFinite(sourced) && sourced > 0 ? sourced : fallback;
+}
+
+function evidenceLabel(reference) {
+  if (reference?.found && reference?.measuredHeight?.verifiedMeasuredHeight === true) {
+    return { title: 'Verified measured voxel massing', detail: 'Real footprint + accepted measured height · facade details not inferred' };
+  }
+  const status = String(reference?.height?.heightStatus || '');
+  if (reference?.found && status === 'source_reported') {
+    return { title: 'Source-backed voxel massing', detail: 'Real footprint + source-reported height · facade details not inferred' };
+  }
+  if (reference?.found && status === 'derived_from_levels') {
+    return { title: 'Source-derived voxel massing', detail: 'Real footprint + height derived from reported floors · facade details not inferred' };
+  }
+  if (reference?.found && status === 'illustrative_default') {
+    return { title: 'Source-backed footprint', detail: 'Footprint is sourced; height is illustrative and facade details are not inferred' };
+  }
+  if (reference?.found) return { title: 'Source-backed footprint', detail: 'Geometry shown without invented architectural detail' };
+  return { title: '3D reference preview', detail: 'Search for a source-backed property to build its voxel massing' };
 }
 
 function cameraPreset(viewMode, sceneRadius, compactMode) {
-  if (viewMode === 'top') return { azimuth: 0.02, elevation: 1.36, radius: Math.max(compactMode ? 9.5 : 10.5, sceneRadius * 1.55), autoOrbit: false };
-  if (viewMode === 'street') return { azimuth: 0.44, elevation: 0.2, radius: Math.max(compactMode ? 8 : 9, sceneRadius * 1.25), autoOrbit: false };
-  return { azimuth: 0.72, elevation: 0.5, radius: Math.max(compactMode ? 10 : 11, sceneRadius * 1.72), autoOrbit: true };
+  if (viewMode === 'top') return { azimuth: 0.08, elevation: 1.36, radius: Math.max(compactMode ? 9.2 : 10, sceneRadius * 1.5), autoOrbit: false };
+  if (viewMode === 'street') return { azimuth: 0.5, elevation: 0.17, radius: Math.max(compactMode ? 7.6 : 8.5, sceneRadius * 1.18), autoOrbit: false };
+  return { azimuth: 0.72, elevation: 0.43, radius: Math.max(compactMode ? 9.7 : 10.7, sceneRadius * 1.58), autoOrbit: true };
+}
+
+function addVoxelShell({ THREE, root, local, baseY, height, compactMode, geometries, materials }) {
+  const bounds = polygonBounds(local);
+  if (!bounds) return;
+  const width = Math.max(1, bounds.maxEast - bounds.minEast);
+  const depth = Math.max(1, bounds.maxNorth - bounds.minNorth);
+  const cellMeters = Math.max(compactMode ? 2.6 : 1.85, width / (compactMode ? 34 : 48), depth / (compactMode ? 34 : 48));
+  const cellScene = cellMeters * METERS_TO_SCENE;
+  const heightCells = Math.max(1, Math.min(compactMode ? 26 : 38, Math.round(height / cellScene)));
+  const cellHeight = height / heightCells;
+  const columns = [];
+
+  for (let east = bounds.minEast + cellMeters / 2; east <= bounds.maxEast; east += cellMeters) {
+    for (let north = bounds.minNorth + cellMeters / 2; north <= bounds.maxNorth; north += cellMeters) {
+      if (!pointInPolygon(east, north, local)) continue;
+      const boundary = [[cellMeters, 0], [-cellMeters, 0], [0, cellMeters], [0, -cellMeters]]
+        .some(([dx, dz]) => !pointInPolygon(east + dx, north + dz, local));
+      columns.push({ east, north, boundary });
+    }
+  }
+
+  const requested = columns.reduce((sum, column) => sum + (column.boundary ? heightCells : 1), 0);
+  const maxInstances = compactMode ? 900 : 1800;
+  const stride = Math.max(1, Math.ceil(requested / maxInstances));
+  const geometry = new THREE.BoxGeometry(cellScene * 0.93, Math.max(0.045, cellHeight * 0.93), cellScene * 0.93);
+  const material = new THREE.MeshStandardMaterial({ color: 0xe7e0d2, roughness: 0.68, metalness: 0.025, emissive: 0x171d19, emissiveIntensity: 0.025 });
+  geometries.push(geometry);
+  materials.push(material);
+
+  const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, Math.ceil(requested / stride)));
+  const matrix = new THREE.Matrix4();
+  let cursor = 0;
+  let sourceIndex = 0;
+  for (const column of columns) {
+    const start = column.boundary ? 0 : heightCells - 1;
+    for (let level = start; level < heightCells; level += 1) {
+      if (!column.boundary && level !== heightCells - 1) continue;
+      if (sourceIndex % stride === 0 && cursor < mesh.count) {
+        matrix.makeTranslation(column.east * METERS_TO_SCENE, baseY + cellHeight * (level + 0.5), -column.north * METERS_TO_SCENE);
+        mesh.setMatrixAt(cursor, matrix);
+        cursor += 1;
+      }
+      sourceIndex += 1;
+    }
+  }
+  mesh.count = cursor;
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = !compactMode;
+  mesh.receiveShadow = true;
+  root.add(mesh);
 }
 
 export default function GeoReferenceModel({ reference, viewMode = 'orbit', resetKey = 0 }) {
   const mountRef = useRef(null);
+  const label = useMemo(() => evidenceLabel(reference), [reference]);
 
   useEffect(() => {
     let disposed = false;
@@ -86,289 +180,213 @@ export default function GeoReferenceModel({ reference, viewMode = 'orbit', reset
       const width = Math.max(300, mount.clientWidth || 320);
       const height = Math.max(320, mount.clientHeight || 400);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compactMode ? 1.18 : 1.32));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compactMode ? 1.18 : 1.45));
       renderer.setSize(width, height);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.shadowMap.enabled = false;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.06;
+      renderer.shadowMap.enabled = !compactMode;
+      if (!compactMode) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.style.touchAction = 'none';
       renderer.domElement.style.cursor = 'grab';
-      mount.innerHTML = '';
-      mount.appendChild(renderer.domElement);
+      mount.replaceChildren(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x0b1519, 19, 46);
-      const camera = new THREE.PerspectiveCamera(compactMode ? 42 : 38, width / height, 0.1, 150);
-      scene.add(new THREE.HemisphereLight(0xfffbf5, 0x071310, 2.3));
-
-      const sun = new THREE.DirectionalLight(0xfff4dd, 3.15);
-      sun.position.set(11, 17, 8);
-      scene.add(sun);
-
-      const mintLight = new THREE.PointLight(0x8bf1ce, 17, 34);
-      mintLight.position.set(-8, 8, 8);
-      scene.add(mintLight);
-
-      const peachLight = new THREE.PointLight(0xffc7a8, 6.5, 26);
-      peachLight.position.set(8, 5, -6);
-      scene.add(peachLight);
-
+      scene.background = new THREE.Color(0x101716);
+      scene.fog = new THREE.FogExp2(0x101716, compactMode ? 0.026 : 0.021);
+      const camera = new THREE.PerspectiveCamera(compactMode ? 41 : 36, width / height, 0.1, 170);
       const root = new THREE.Group();
       scene.add(root);
+      scene.add(new THREE.HemisphereLight(0xf6efe2, 0x26352f, 2.05));
+
+      const sun = new THREE.DirectionalLight(0xffeed2, compactMode ? 3.4 : 4.15);
+      sun.position.set(10, 18, 7);
+      sun.castShadow = !compactMode;
+      if (!compactMode) {
+        sun.shadow.mapSize.set(1024, 1024);
+        Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18 });
+      }
+      scene.add(sun);
+      const fill = new THREE.DirectionalLight(0xa6c9c1, 1.15);
+      fill.position.set(-9, 7, -8);
+      scene.add(fill);
+
       const geometries = [];
       const materials = [];
-      const mat = (params) => { const material = new THREE.MeshStandardMaterial(params); materials.push(material); return material; };
-      const lineMat = (params) => { const material = new THREE.LineBasicMaterial(params); materials.push(material); return material; };
-
       const originLatitude = Number(reference?.latitude);
       const originLongitude = Number(reference?.longitude);
       const validOrigin = Number.isFinite(originLatitude) && Number.isFinite(originLongitude);
       const terrain = reference?.terrain || null;
-      const terrainRadiusMeters = Math.max(60, Math.min(180, Number(terrain?.radiusMeters) || 90));
+      const terrainRadiusMeters = Math.max(55, Math.min(180, Number(terrain?.radiusMeters) || 85));
       const sceneRadius = terrainRadiusMeters * METERS_TO_SCENE;
+      const primaryLocal = validOrigin ? localPolygon(reference?.geometry, originLongitude, originLatitude) : [];
+      const primaryCenter = averageLocalCenter(primaryLocal);
       const primaryRecordId = String(reference?.source?.recordId || '');
-      const primaryGeometry = reference?.geometry;
-      const shapedPrimary = validOrigin ? shapeFromGeometry(THREE, primaryGeometry, originLongitude, originLatitude) : null;
-      const primaryCenterLocal = shapedPrimary ? averageLocalCenter(shapedPrimary.local) : { east: 0, north: 0 };
 
-      const baseGeometry = new THREE.CylinderGeometry(sceneRadius * 1.09, sceneRadius * 1.14, 0.34, 72);
-      geometries.push(baseGeometry);
-      const base = new THREE.Mesh(baseGeometry, mat({ color: 0x17231f, roughness: 0.93, metalness: 0.02 }));
-      base.position.y = -0.38;
-      root.add(base);
-
-      const underGlowGeometry = new THREE.RingGeometry(sceneRadius * 0.95, sceneRadius * 1.07, 96);
-      geometries.push(underGlowGeometry);
-      const underGlow = new THREE.Mesh(underGlowGeometry, mat({ color: 0x8bf1ce, emissive: 0x315d4f, emissiveIntensity: 0.75, transparent: true, opacity: 0.09, side: THREE.DoubleSide }));
-      underGlow.rotation.x = -Math.PI / 2;
-      underGlow.position.y = -0.19;
-      root.add(underGlow);
+      const plinthGeometry = new THREE.CylinderGeometry(sceneRadius * 1.08, sceneRadius * 1.12, 0.3, 84);
+      const plinthMaterial = new THREE.MeshStandardMaterial({ color: 0x202a27, roughness: 0.92, metalness: 0.01 });
+      geometries.push(plinthGeometry);
+      materials.push(plinthMaterial);
+      const plinth = new THREE.Mesh(plinthGeometry, plinthMaterial);
+      plinth.position.y = -0.34;
+      plinth.receiveShadow = true;
+      root.add(plinth);
 
       if (terrain?.available && Array.isArray(terrain.samples) && terrain.samples.length >= 4) {
         const sorted = [...terrain.samples].sort((a, b) => Number(a.row) - Number(b.row) || Number(a.column) - Number(b.column));
         const vertices = [];
-        for (let row = 0; row < 3; row += 1) {
-          for (let column = 0; column < 3; column += 1) {
-            const sample = sorted.find((item) => Number(item.row) === row && Number(item.column) === column);
-            const east = Number(sample?.eastMeters ?? (column - 1) * terrainRadiusMeters);
-            const north = Number(sample?.northMeters ?? (row - 1) * terrainRadiusMeters);
-            const elevation = Number(sample?.relativeElevationMeters || 0);
-            vertices.push(east * METERS_TO_SCENE, elevation * METERS_TO_SCENE, -north * METERS_TO_SCENE);
-          }
-        }
-        const indices = [];
-        for (let row = 0; row < 2; row += 1) {
-          for (let column = 0; column < 2; column += 1) {
-            const a = row * 3 + column;
-            const b = a + 1;
-            const c = a + 3;
-            const d = c + 1;
-            indices.push(a, c, b, b, c, d);
-          }
+        for (let row = 0; row < 3; row += 1) for (let column = 0; column < 3; column += 1) {
+          const sample = sorted.find((item) => Number(item.row) === row && Number(item.column) === column);
+          vertices.push(
+            Number(sample?.eastMeters ?? (column - 1) * terrainRadiusMeters) * METERS_TO_SCENE,
+            Number(sample?.relativeElevationMeters || 0) * METERS_TO_SCENE,
+            -Number(sample?.northMeters ?? (row - 1) * terrainRadiusMeters) * METERS_TO_SCENE,
+          );
         }
         const terrainGeometry = new THREE.BufferGeometry();
         terrainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        terrainGeometry.setIndex(indices);
+        terrainGeometry.setIndex([0, 3, 1, 1, 3, 4, 1, 4, 2, 2, 4, 5, 3, 6, 4, 4, 6, 7, 4, 7, 5, 5, 7, 8]);
         terrainGeometry.computeVertexNormals();
+        const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0x6f7a6b, roughness: 0.96, metalness: 0, side: THREE.DoubleSide });
         geometries.push(terrainGeometry);
-        const terrainMesh = new THREE.Mesh(terrainGeometry, mat({ color: 0x294239, roughness: 0.94, metalness: 0.01, side: THREE.DoubleSide }));
+        materials.push(terrainMaterial);
+        const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial);
+        terrainMesh.receiveShadow = true;
         root.add(terrainMesh);
-        const terrainEdges = new THREE.EdgesGeometry(terrainGeometry, 1);
-        geometries.push(terrainEdges);
-        root.add(new THREE.LineSegments(terrainEdges, lineMat({ color: 0x8bcbb5, transparent: true, opacity: 0.14 })));
       } else {
-        const flatGeometry = new THREE.CircleGeometry(sceneRadius, 64);
-        flatGeometry.rotateX(-Math.PI / 2);
-        geometries.push(flatGeometry);
-        const flat = new THREE.Mesh(flatGeometry, mat({ color: 0x263d35, roughness: 0.96, metalness: 0.01 }));
-        flat.position.y = -0.04;
-        root.add(flat);
+        const groundGeometry = new THREE.CircleGeometry(sceneRadius, 72);
+        groundGeometry.rotateX(-Math.PI / 2);
+        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x6f7a6b, roughness: 0.96, metalness: 0 });
+        geometries.push(groundGeometry);
+        materials.push(groundMaterial);
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.position.y = -0.04;
+        ground.receiveShadow = true;
+        root.add(ground);
       }
 
-      [0.56, 0.82].forEach((ratio) => {
-        const ringGeometry = new THREE.RingGeometry(sceneRadius * ratio - 0.014, sceneRadius * ratio + 0.014, 80);
-        geometries.push(ringGeometry);
-        const ring = new THREE.Mesh(ringGeometry, mat({ color: 0xbaf7e2, transparent: true, opacity: ratio === 0.82 ? 0.075 : 0.045, side: THREE.DoubleSide }));
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.y = 0.012;
-        root.add(ring);
-      });
+      const grid = new THREE.GridHelper(sceneRadius * 1.75, compactMode ? 22 : 32, 0x60746c, 0x42524c);
+      grid.position.y = 0.012;
+      grid.material.transparent = true;
+      grid.material.opacity = 0.13;
+      materials.push(grid.material);
+      geometries.push(grid.geometry);
+      root.add(grid);
 
-      const compassGeometry = new THREE.RingGeometry(sceneRadius * 0.97, sceneRadius, 96);
-      geometries.push(compassGeometry);
-      const compass = new THREE.Mesh(compassGeometry, mat({ color: 0x8bf1ce, emissive: 0x183f34, emissiveIntensity: 0.7, transparent: true, opacity: 0.31, side: THREE.DoubleSide }));
-      compass.rotation.x = -Math.PI / 2;
-      compass.position.y = -0.015;
-      root.add(compass);
+      const surroundings = Array.isArray(reference?.neighborhoodBuildings) ? reference.neighborhoodBuildings
+        .filter((item) => item?.geometry)
+        .map((buildingRef) => {
+          const center = buildingRef.center || {};
+          const localCenter = validOrigin
+            ? toLocalMeters(center.longitude ?? originLongitude, center.latitude ?? originLatitude, originLongitude, originLatitude)
+            : { east: 0, north: 0 };
+          return { buildingRef, localCenter, distance: Math.hypot(localCenter.east - primaryCenter.east, localCenter.north - primaryCenter.north) };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, compactMode ? 9 : 15) : [];
 
-      const maxSurroundings = compactMode ? 10 : 16;
-      const surroundings = Array.isArray(reference?.neighborhoodBuildings)
-        ? reference.neighborhoodBuildings
-          .filter((buildingRef) => buildingRef?.geometry)
-          .map((buildingRef) => {
-            const center = buildingRef.center || {};
-            const localCenter = validOrigin
-              ? toLocalMeters(center.longitude ?? originLongitude, center.latitude ?? originLatitude, originLongitude, originLatitude)
-              : { east: 0, north: 0 };
-            return { buildingRef, localCenter, distance: Math.hypot(localCenter.east - primaryCenterLocal.east, localCenter.north - primaryCenterLocal.north) };
-          })
-          .sort((a, b) => a.distance - b.distance)
-          .slice(0, maxSurroundings)
-        : [];
-
-      if (validOrigin) {
-        for (const { buildingRef, localCenter, distance } of surroundings) {
-          const isPrimary = buildingRef.selected === true || String(buildingRef.id || '') === primaryRecordId;
-          if (isPrimary) continue;
-          const shaped = shapeFromGeometry(THREE, buildingRef.geometry, originLongitude, originLatitude);
-          if (!shaped) continue;
-          const baseY = terrainRelativeMeters(terrain, localCenter.east, localCenter.north) * METERS_TO_SCENE;
-          const sourceHeight = Math.max(2.2, Math.min(120, Number(buildingRef?.height?.referenceHeightMeters) || 3));
-          const visualHeight = Math.max(0.18, sourceHeight * METERS_TO_SCENE);
-          const distanceRatio = Math.max(0, Math.min(1, distance / Math.max(terrainRadiusMeters, 1)));
-          const geometry = new THREE.ExtrudeGeometry(shaped.shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
-          geometry.rotateX(-Math.PI / 2);
-          geometries.push(geometry);
-          const mesh = new THREE.Mesh(geometry, mat({ color: 0x4d615a, roughness: 0.82, metalness: 0.015, transparent: true, opacity: 0.4 - distanceRatio * 0.13 }));
-          mesh.position.y = baseY;
-          root.add(mesh);
-          const edges = new THREE.EdgesGeometry(geometry, 28);
-          geometries.push(edges);
-          const lines = new THREE.LineSegments(edges, lineMat({ color: 0xa7c1b8, transparent: true, opacity: 0.13 - distanceRatio * 0.045 }));
-          lines.position.y = baseY;
-          root.add(lines);
-        }
+      if (validOrigin) for (const { buildingRef, localCenter, distance } of surroundings) {
+        if (buildingRef.selected === true || String(buildingRef.id || '') === primaryRecordId) continue;
+        const local = localPolygon(buildingRef.geometry, originLongitude, originLatitude);
+        const shape = shapeFromLocal(THREE, local);
+        if (!shape) continue;
+        const sourceHeight = Math.max(2.2, Math.min(120, Number(buildingRef?.height?.referenceHeightMeters) || 3));
+        const visualHeight = sourceHeight * METERS_TO_SCENE;
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
+        geometry.rotateX(-Math.PI / 2);
+        const material = new THREE.MeshStandardMaterial({ color: 0x59635f, roughness: 0.88, metalness: 0, transparent: true, opacity: 0.5 - Math.min(1, distance / terrainRadiusMeters) * 0.16 });
+        geometries.push(geometry);
+        materials.push(material);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.y = terrainRelativeMeters(terrain, localCenter.east, localCenter.north) * METERS_TO_SCENE;
+        mesh.receiveShadow = true;
+        root.add(mesh);
       }
 
-      let primaryBeacon = null;
-      let primaryGlow = null;
-      const focusTarget = new THREE.Vector3(0, Math.max(0.45, sceneRadius * 0.055), 0);
+      const focusTarget = new THREE.Vector3(0, Math.max(0.38, sceneRadius * 0.05), 0);
+      let primaryHalo = null;
+      if (reference?.found && primaryLocal.length >= 3) {
+        const shape = shapeFromLocal(THREE, primaryLocal);
+        const sourceHeight = Math.max(2.2, Math.min(500, effectiveHeightMeters(reference, 3)));
+        const visualHeight = sourceHeight * METERS_TO_SCENE;
+        const baseY = terrainRelativeMeters(terrain, primaryCenter.east, primaryCenter.north) * METERS_TO_SCENE;
+        const centerX = primaryCenter.east * METERS_TO_SCENE;
+        const centerZ = -primaryCenter.north * METERS_TO_SCENE;
+        focusTarget.set(centerX, baseY + Math.max(0.38, visualHeight * 0.44), centerZ);
 
-      if (reference?.found && shapedPrimary) {
-        const sourceHeight = Math.max(2.2, Math.min(500, Number(reference?.height?.referenceHeightMeters) || 3));
-        const visualHeight = Math.max(0.24, sourceHeight * METERS_TO_SCENE);
-        const levels = numericLevels(reference, sourceHeight);
-        const baseY = terrainRelativeMeters(terrain, primaryCenterLocal.east, primaryCenterLocal.north) * METERS_TO_SCENE;
-        const centerX = primaryCenterLocal.east * METERS_TO_SCENE;
-        const centerZ = -primaryCenterLocal.north * METERS_TO_SCENE;
-        focusTarget.set(centerX, baseY + Math.max(0.34, visualHeight * 0.42), centerZ);
-
-        const buildingGeometry = new THREE.ExtrudeGeometry(shapedPrimary.shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
-        buildingGeometry.rotateX(-Math.PI / 2);
-        geometries.push(buildingGeometry);
-        const building = new THREE.Mesh(buildingGeometry, mat({ color: 0xebfff9, emissive: 0x174739, emissiveIntensity: 0.18, roughness: 0.52, metalness: 0.035, transparent: true, opacity: 0.995 }));
-        building.position.y = baseY;
-        root.add(building);
-
-        const edgesGeometry = new THREE.EdgesGeometry(buildingGeometry, 18);
-        geometries.push(edgesGeometry);
-        const edges = new THREE.LineSegments(edgesGeometry, lineMat({ color: 0xa9f6dc, transparent: true, opacity: 0.96 }));
-        edges.position.y = baseY;
-        root.add(edges);
-
-        const footprintPoints = shapedPrimary.local.map((point) => new THREE.Vector3(point.east * METERS_TO_SCENE, baseY + 0.018, -point.north * METERS_TO_SCENE));
-        if (footprintPoints.length) footprintPoints.push(footprintPoints[0].clone());
-        const footprintGeometry = new THREE.BufferGeometry().setFromPoints(footprintPoints);
-        geometries.push(footprintGeometry);
-        root.add(new THREE.Line(footprintGeometry, lineMat({ color: 0xc6ffea, transparent: true, opacity: 1 })));
-
-        const bandCount = Math.min(levels - 1, 10);
-        for (let floor = 1; floor <= bandCount; floor += 1) {
-          const y = baseY + visualHeight * (floor / levels);
-          const bandPoints = shapedPrimary.local.map((point) => new THREE.Vector3(point.east * METERS_TO_SCENE, y, -point.north * METERS_TO_SCENE));
-          if (bandPoints.length) bandPoints.push(bandPoints[0].clone());
-          const bandGeometry = new THREE.BufferGeometry().setFromPoints(bandPoints);
-          geometries.push(bandGeometry);
-          root.add(new THREE.Line(bandGeometry, lineMat({ color: 0x82d7bd, transparent: true, opacity: 0.27 })));
+        if (shape) {
+          const coreGeometry = new THREE.ExtrudeGeometry(shape, { depth: visualHeight, bevelEnabled: false, curveSegments: 1, steps: 1 });
+          coreGeometry.rotateX(-Math.PI / 2);
+          const coreMaterial = new THREE.MeshStandardMaterial({ color: 0x6c746e, roughness: 0.8, metalness: 0, transparent: true, opacity: 0.38 });
+          geometries.push(coreGeometry);
+          materials.push(coreMaterial);
+          const core = new THREE.Mesh(coreGeometry, coreMaterial);
+          core.position.y = baseY;
+          core.castShadow = !compactMode;
+          core.receiveShadow = true;
+          root.add(core);
         }
 
-        const localRadius = shapedPrimary.local.reduce((largest, point) => Math.max(largest, Math.hypot(point.east - primaryCenterLocal.east, point.north - primaryCenterLocal.north)), 0) * METERS_TO_SCENE;
-        const selectionRadius = Math.max(0.58, Math.min(2.7, localRadius * 1.25 || sceneRadius * 0.13));
-        const glowGeometry = new THREE.CircleGeometry(selectionRadius, 48);
-        glowGeometry.rotateX(-Math.PI / 2);
-        geometries.push(glowGeometry);
-        primaryGlow = new THREE.Mesh(glowGeometry, mat({ color: 0x8bf1ce, emissive: 0x3f8c73, emissiveIntensity: 0.9, transparent: true, opacity: 0.08, side: THREE.DoubleSide }));
-        primaryGlow.position.set(centerX, baseY + 0.024, centerZ);
-        root.add(primaryGlow);
+        addVoxelShell({ THREE, root, local: primaryLocal, baseY, height: visualHeight, compactMode, geometries, materials });
+        const outlinePoints = primaryLocal.map((point) => new THREE.Vector3(point.east * METERS_TO_SCENE, baseY + 0.026, -point.north * METERS_TO_SCENE));
+        outlinePoints.push(outlinePoints[0].clone());
+        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(outlinePoints);
+        const outlineMaterial = new THREE.LineBasicMaterial({ color: 0xf8f1df, transparent: true, opacity: 0.72 });
+        geometries.push(outlineGeometry);
+        materials.push(outlineMaterial);
+        root.add(new THREE.Line(outlineGeometry, outlineMaterial));
 
-        const beaconGeometry = new THREE.RingGeometry(selectionRadius * 0.9, selectionRadius, 72);
-        geometries.push(beaconGeometry);
-        primaryBeacon = new THREE.Mesh(beaconGeometry, mat({ color: 0xfff4e6, emissive: 0x5b8d7b, emissiveIntensity: 0.75, transparent: true, opacity: 0.44, side: THREE.DoubleSide }));
-        primaryBeacon.rotation.x = -Math.PI / 2;
-        primaryBeacon.position.set(centerX, baseY + visualHeight + 0.065, centerZ);
-        root.add(primaryBeacon);
-      } else {
-        const markerGeometry = new THREE.TorusGeometry(1.18, 0.08, 12, 72);
-        geometries.push(markerGeometry);
-        const marker = new THREE.Mesh(markerGeometry, mat({ color: 0x9ff4d7, emissive: 0x225c49, emissiveIntensity: 1.05 }));
-        marker.rotation.x = -Math.PI / 2;
-        marker.position.y = 0.05;
-        root.add(marker);
+        const localRadius = primaryLocal.reduce((largest, point) => Math.max(largest, Math.hypot(point.east - primaryCenter.east, point.north - primaryCenter.north)), 0) * METERS_TO_SCENE;
+        const haloRadius = Math.max(0.65, Math.min(2.8, localRadius * 1.32));
+        const haloGeometry = new THREE.RingGeometry(haloRadius * 0.94, haloRadius, 80);
+        const haloMaterial = new THREE.MeshBasicMaterial({ color: 0xe9d8b8, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
+        geometries.push(haloGeometry);
+        materials.push(haloMaterial);
+        primaryHalo = new THREE.Mesh(haloGeometry, haloMaterial);
+        primaryHalo.rotation.x = -Math.PI / 2;
+        primaryHalo.position.set(centerX, baseY + 0.03, centerZ);
+        root.add(primaryHalo);
       }
-
-      // Decorative UI sparkles only. These are deliberately not map/property data.
-      const sparkleCount = compactMode ? 14 : 22;
-      const sparklePositions = [];
-      for (let index = 0; index < sparkleCount; index += 1) {
-        const angle = index * 2.3999632297;
-        const radial = sceneRadius * (0.58 + ((index * 17) % 34) / 100);
-        const y = 1 + ((index * 29) % 31) / 13;
-        sparklePositions.push(Math.cos(angle) * radial, y, Math.sin(angle) * radial);
-      }
-      const sparkleGeometry = new THREE.BufferGeometry();
-      sparkleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(sparklePositions, 3));
-      geometries.push(sparkleGeometry);
-      const sparkleMaterial = new THREE.PointsMaterial({ color: 0xfff4e6, size: compactMode ? 0.045 : 0.05, transparent: true, opacity: 0.3, sizeAttenuation: true });
-      materials.push(sparkleMaterial);
-      const sparkles = new THREE.Points(sparkleGeometry, sparkleMaterial);
-      root.add(sparkles);
 
       const preset = cameraPreset(viewMode, sceneRadius, compactMode);
-      let azimuth = preset.azimuth;
-      let elevation = preset.elevation;
-      let radius = preset.radius;
-      let dragging = false;
+      let { azimuth, elevation, radius } = preset;
       let autoOrbit = preset.autoOrbit && !reducedMotion;
+      let dragging = false;
       let lastX = 0;
       let lastY = 0;
-      const activePointers = new Map();
       let pinchDistance = null;
-      const minRadius = Math.max(compactMode ? 5.4 : 6.2, sceneRadius * 0.68);
-      const maxRadius = Math.max(preset.radius * 1.7, sceneRadius * 3.25);
-
+      const pointers = new Map();
+      const minRadius = Math.max(compactMode ? 4.7 : 5.5, sceneRadius * 0.6);
+      const maxRadius = Math.max(preset.radius * 1.85, sceneRadius * 3.1);
       const updateCamera = () => {
         const c = Math.cos(elevation);
-        camera.position.set(
-          focusTarget.x + Math.sin(azimuth) * c * radius,
-          focusTarget.y + Math.sin(elevation) * radius,
-          focusTarget.z + Math.cos(azimuth) * c * radius,
-        );
+        camera.position.set(focusTarget.x + Math.sin(azimuth) * c * radius, focusTarget.y + Math.sin(elevation) * radius, focusTarget.z + Math.cos(azimuth) * c * radius);
         camera.lookAt(focusTarget);
       };
       updateCamera();
 
       const down = (event) => {
         event.preventDefault();
-        activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         autoOrbit = false;
         renderer.domElement.style.cursor = 'grabbing';
-        if (activePointers.size === 1) {
+        if (pointers.size === 1) {
           dragging = true;
           lastX = event.clientX;
           lastY = event.clientY;
-        } else if (activePointers.size === 2) {
+        } else if (pointers.size === 2) {
           dragging = false;
-          const points = [...activePointers.values()];
-          pinchDistance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+          const [a, b] = [...pointers.values()];
+          pinchDistance = Math.hypot(a.x - b.x, a.y - b.y);
         }
         renderer.domElement.setPointerCapture?.(event.pointerId);
       };
-
       const move = (event) => {
-        if (!activePointers.has(event.pointerId)) return;
-        activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-        if (activePointers.size === 2) {
-          const points = [...activePointers.values()];
-          const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+        if (!pointers.has(event.pointerId)) return;
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
           if (pinchDistance && distance > 0) {
             radius = Math.max(minRadius, Math.min(maxRadius, radius * (pinchDistance / distance)));
             updateCamera();
@@ -377,51 +395,45 @@ export default function GeoReferenceModel({ reference, viewMode = 'orbit', reset
           return;
         }
         if (!dragging) return;
-        azimuth -= (event.clientX - lastX) * 0.0068;
-        elevation = Math.max(0.12, Math.min(1.42, elevation + (event.clientY - lastY) * 0.0042));
+        azimuth -= (event.clientX - lastX) * 0.0065;
+        elevation = Math.max(0.1, Math.min(1.44, elevation + (event.clientY - lastY) * 0.004));
         lastX = event.clientX;
         lastY = event.clientY;
         updateCamera();
       };
-
       const up = (event) => {
-        activePointers.delete(event.pointerId);
-        if (activePointers.size < 2) pinchDistance = null;
-        dragging = activePointers.size === 1;
+        pointers.delete(event.pointerId);
+        if (pointers.size < 2) pinchDistance = null;
+        dragging = pointers.size === 1;
         renderer.domElement.style.cursor = dragging ? 'grabbing' : 'grab';
         if (dragging) {
-          const point = [...activePointers.values()][0];
+          const point = [...pointers.values()][0];
           lastX = point.x;
           lastY = point.y;
         }
         try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch {}
       };
-
       const wheel = (event) => {
         event.preventDefault();
         autoOrbit = false;
-        radius = Math.max(minRadius, Math.min(maxRadius, radius + event.deltaY * 0.012));
+        radius = Math.max(minRadius, Math.min(maxRadius, radius + event.deltaY * 0.011));
         updateCamera();
       };
-
       renderer.domElement.addEventListener('pointerdown', down);
       renderer.domElement.addEventListener('pointermove', move);
       renderer.domElement.addEventListener('pointerup', up);
       renderer.domElement.addEventListener('pointercancel', up);
       renderer.domElement.addEventListener('wheel', wheel, { passive: false });
 
+      const clock = new THREE.Clock();
       let frame = 0;
-      let elapsed = 0;
       const animate = () => {
         frame = requestAnimationFrame(animate);
-        elapsed += 0.016;
         if (!reducedMotion) {
-          compass.rotation.z += 0.00028;
-          sparkles.rotation.y += 0.00008;
-          if (primaryBeacon) primaryBeacon.scale.setScalar(1 + Math.sin(elapsed * 1.45) * 0.025);
-          if (primaryGlow) primaryGlow.material.opacity = 0.07 + (Math.sin(elapsed * 1.3) + 1) * 0.012;
+          const elapsed = clock.getElapsedTime();
+          if (primaryHalo) primaryHalo.material.opacity = 0.22 + (Math.sin(elapsed * 1.15) + 1) * 0.035;
           if (autoOrbit) {
-            azimuth += 0.00034;
+            azimuth += 0.00028;
             updateCamera();
           }
         }
@@ -430,7 +442,6 @@ export default function GeoReferenceModel({ reference, viewMode = 'orbit', reset
       animate();
 
       const resize = () => {
-        if (!mountRef.current) return;
         const nextW = Math.max(300, mount.clientWidth || 320);
         const nextH = Math.max(320, mount.clientHeight || 400);
         renderer.setSize(nextW, nextH, false);
@@ -455,12 +466,22 @@ export default function GeoReferenceModel({ reference, viewMode = 'orbit', reset
         geometries.forEach((geometry) => geometry.dispose());
         materials.forEach((material) => material.dispose());
         renderer.dispose();
-        mount.innerHTML = '';
+        mount.replaceChildren();
       };
     });
 
     return () => { disposed = true; cleanup(); };
-  }, [reference?.source?.recordId, reference?.height?.referenceHeightMeters, reference?.neighborhoodBuildingCount, reference?.terrain?.source?.observedAt, reference?.measuredHeight?.status, viewMode, resetKey]);
+  }, [reference?.source?.recordId, reference?.height?.referenceHeightMeters, reference?.neighborhoodBuildingCount, reference?.terrain?.source?.observedAt, reference?.measuredHeight?.status, reference?.measuredHeight?.heightMeters, reference?.measuredHeight?.verifiedMeasuredHeight, viewMode, resetKey]);
 
-  return <div ref={mountRef} style={{ position: 'absolute', inset: 0 }} aria-label="Interactive 3D property and neighborhood reference" />;
+  return createElement('div', { style: { position: 'absolute', inset: 0 }, 'aria-label': 'Interactive realistic voxel property and neighborhood reference' },
+    createElement('div', { ref: mountRef, style: { position: 'absolute', inset: 0 } }),
+    createElement('div', {
+      style: {
+        position: 'absolute', left: 12, bottom: 12, maxWidth: 'min(78%, 420px)', padding: '9px 11px', borderRadius: 14,
+        border: '1px solid rgba(244, 235, 214, 0.16)', background: 'rgba(12, 18, 17, 0.72)', backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)', color: '#f6efe1', pointerEvents: 'none', boxShadow: '0 12px 34px rgba(0, 0, 0, 0.2)',
+      },
+    },
+    createElement('div', { style: { fontSize: 12, fontWeight: 800, letterSpacing: '0.01em' } }, label.title),
+    createElement('div', { style: { marginTop: 2, fontSize: 10, lineHeight: 1.35, color: 'rgba(246, 239, 225, 0.68)' } }, label.detail)));
 }
