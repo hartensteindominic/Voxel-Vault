@@ -8,9 +8,12 @@ import {
   CANONICAL_PROPERTY_REGISTRY_ABI,
   buildCanonicalPropertyAnchor,
   isPropertyNotRegisteredError,
-  registryAddressFromEnvironment,
   shortHash,
 } from '../../../../lib/vault/canonical-property-registry.js';
+import {
+  CANONICAL_REGISTRY_RUNTIME_BYTECODE_SHA256,
+  sha256HexBytes,
+} from '../../../../lib/vault/canonical-property-registry-deployment.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +28,7 @@ function setupMissing(error: any) {
   return code === '42P01'
     || code === '42703'
     || code === '42883'
-    || /vault_property_registry_anchor_events|record_property_registry_anchor|registry_registered_tx_hash/i.test(message);
+    || /vault_property_registry_(anchor_events|deployments)|record_property_registry_anchor|record_canonical_property_registry_deployment|registry_registered_tx_hash/i.test(message);
 }
 
 function identityObject(row: any) {
@@ -65,6 +68,39 @@ function provider() {
   return new JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL || BASE_SEPOLIA_RPC, BASE_SEPOLIA_CHAIN_ID, { staticNetwork: true });
 }
 
+async function loadVerifiedDeployment(admin: any, rpc: JsonRpcProvider) {
+  const result = await admin
+    .from('vault_property_registry_deployments')
+    .select('chain_id,contract_address,owner_address,deployment_tx_hash,runtime_code_hash,deployed_block,active,verified_at')
+    .eq('chain_id', BASE_SEPOLIA_CHAIN_ID)
+    .eq('active', true)
+    .maybeSingle();
+  if (result.error) throw result.error;
+  if (!result.data) return null;
+
+  const contractAddress = getAddress(result.data.contract_address);
+  const code = await rpc.getCode(contractAddress);
+  if (!code || code === '0x') throw new Error('PROPERTY_REGISTRY_CODE_MISSING');
+
+  const runtimeCodeHash = sha256HexBytes(code).toLowerCase();
+  if (runtimeCodeHash !== CANONICAL_REGISTRY_RUNTIME_BYTECODE_SHA256.toLowerCase()
+      || runtimeCodeHash !== String(result.data.runtime_code_hash || '').toLowerCase()) {
+    throw new Error('PROPERTY_REGISTRY_RUNTIME_MISMATCH');
+  }
+
+  const contract = new Contract(contractAddress, CANONICAL_PROPERTY_REGISTRY_ABI, rpc);
+  const owner = getAddress(await contract.owner());
+  if (owner !== getAddress(result.data.owner_address)) throw new Error('PROPERTY_REGISTRY_OWNER_MISMATCH');
+
+  return {
+    contractAddress,
+    owner,
+    contract,
+    runtimeCodeHash,
+    deploymentTxHash: String(result.data.deployment_tx_hash || ''),
+  };
+}
+
 async function expectedAnchor(request: Request, admin: any, claimId: string) {
   const loaded = await loadClaim(admin, claimId);
   if (!loaded) return { error: response({ ok: false, error: 'Verified property claim was not found.' }, 404) };
@@ -87,34 +123,29 @@ async function expectedAnchor(request: Request, admin: any, claimId: string) {
     return { error: response({ ok: false, error: error?.message || 'Authoritative property identity is incomplete.' }, 409) };
   }
 
-  const contractAddress = registryAddressFromEnvironment();
-  if (!contractAddress) {
-    return {
-      error: response({
-        ok: false,
-        setupRequired: true,
-        error: 'Canonical property registry is not configured yet. Deploy the reviewed Base Sepolia registry, register its address, and redeploy before anchoring a property.',
-      }, 503),
-    };
-  }
-
   const rpc = provider();
   const network = await rpc.getNetwork();
   if (Number(network.chainId) !== BASE_SEPOLIA_CHAIN_ID) {
     return { error: response({ ok: false, error: 'Property registry RPC is not Base Sepolia. Anchoring is locked.' }, 503) };
   }
 
-  const code = await rpc.getCode(contractAddress);
-  if (!code || code === '0x') {
-    return { error: response({ ok: false, setupRequired: true, error: 'Configured canonical property registry has no contract code on Base Sepolia.' }, 503) };
+  const deployment = await loadVerifiedDeployment(admin, rpc);
+  if (!deployment) {
+    return {
+      error: response({
+        ok: false,
+        setupRequired: true,
+        deploymentRequired: true,
+        error: 'Deploy and independently verify the canonical Base Sepolia property registry before anchoring any property.',
+      }, 503),
+    };
   }
 
-  const contract = new Contract(contractAddress, CANONICAL_PROPERTY_REGISTRY_ABI, rpc);
-  const owner = getAddress(await contract.owner());
+  const { contractAddress, contract, owner } = deployment;
 
   const dbContract = String(identity?.registry_contract_address || '').trim();
   if (dbContract && getAddress(dbContract) !== contractAddress) {
-    return { error: response({ ok: false, error: 'Database registry contract does not match the configured Base Sepolia registry. Anchoring stopped.' }, 409) };
+    return { error: response({ ok: false, error: 'Property audit state points to a different registry than the independently verified Base Sepolia deployment. Anchoring stopped.' }, 409) };
   }
   const dbPropertyId = String(identity?.registry_property_id || '').trim().toLowerCase();
   if (dbPropertyId && dbPropertyId !== anchor.propertyId.toLowerCase()) {
@@ -177,7 +208,7 @@ export async function GET(request: Request) {
 
     if (!onchain) {
       if (identity.registry_registered_tx_hash) {
-        return response({ ok: false, error: 'Database says this property was registered, but the configured Base Sepolia registry has no matching identity. Manual reconciliation is required.' }, 409);
+        return response({ ok: false, error: 'Database says this property was registered, but the verified Base Sepolia registry has no matching identity. Manual reconciliation is required.' }, 409);
       }
       return response({
         ok: true,
@@ -286,7 +317,7 @@ export async function POST(request: Request) {
 
     const [receipt, tx] = await Promise.all([rpc.getTransactionReceipt(txHash), rpc.getTransaction(txHash)]);
     if (!receipt || receipt.status !== 1) return response({ ok: false, error: 'Base Sepolia transaction is missing or did not succeed.' }, 409);
-    if (!tx || !tx.to || getAddress(tx.to) !== contractAddress) return response({ ok: false, error: 'Transaction was not sent to the configured canonical property registry.' }, 409);
+    if (!tx || !tx.to || getAddress(tx.to) !== contractAddress) return response({ ok: false, error: 'Transaction was not sent to the independently verified canonical property registry.' }, 409);
     if (getAddress(tx.from) !== owner) return response({ ok: false, error: 'Transaction sender is not the canonical property registry owner.' }, 409);
 
     const iface = new Interface(CANONICAL_PROPERTY_REGISTRY_ABI);
