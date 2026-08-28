@@ -33,6 +33,7 @@ const entries = buildVaultManifest({
   walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
   provider: 'Dinari',
   providerEnvironment: 'sandbox',
+  providerAccountScope: 'user-bound',
 });
 
 const summary = summarizeVaultManifest(entries);
@@ -54,8 +55,9 @@ assert.match(collectible?.note || '', /does not make the token a property deed/i
 const reit = entries.find((entry) => entry.kind === 'digital-reit');
 assert.equal(reit?.title, 'VNQ');
 assert.equal(reit?.amount, 1.25);
-assert.equal(reit?.truthLabel, 'PROVIDER POSITION REPORTED');
-assert.equal(reit?.sourceLabel, 'DINARI SANDBOX ACCOUNT');
+assert.equal(reit?.truthLabel, 'USER-BOUND PROVIDER POSITION');
+assert.equal(reit?.sourceLabel, 'DINARI SANDBOX ACCOUNT · USER BOUND');
+assert.match(reit?.note || '', /provider account bound to this Voxel Vault identity/i);
 assert.match(reit?.note || '', /not a deed or direct ownership/i);
 assert.equal(entries.some((entry) => entry.title === 'ZERO'), false, 'zero provider balances must not become spatial holdings');
 assert.equal(entries.some((entry) => entry.title === 'NEG'), false, 'negative provider balances must not become spatial holdings');
@@ -67,4 +69,4 @@ const malformed = buildVaultManifest({
 });
 assert.equal(malformed.length, 0, 'malformed or unheld assets must fail closed instead of entering My Vault');
 
-console.log('Unified Vault checks passed: creator, wallet and provider assets keep separate provenance/truth labels; only positive provider positions become spatial holdings; direct-property claims are never inferred.');
+console.log('Unified Vault checks passed: creator, wallet and user-bound provider assets keep separate provenance/truth labels; only positive provider positions become spatial holdings; direct-property claims are never inferred.');
