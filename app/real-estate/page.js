@@ -1,52 +1,54 @@
 import PropertyTwinCanvas from './PropertyTwinCanvas';
 import styles from './real-estate.module.css';
 
-const properties = [
+const journey = [
   {
-    id: 'PROPERTY #0001',
-    routeId: '0001',
-    location: 'Buffalo House',
-    type: 'Single-family rental',
-    value: '$182,000',
-    rent: '$1,550/mo',
-    units: '100,000',
-    glyph: '🏠',
-    tone: 'cool',
+    number: '01',
+    title: 'Explore',
+    copy: 'Search a real address and inspect source-backed geography, mapped buildings, parcel evidence and nearby context in 3D.',
+    href: '/geo',
+    action: 'Open GEO',
   },
   {
-    id: 'PROPERTY #0002',
-    routeId: '0002',
-    location: 'Mixed-Use Corner',
-    type: 'Retail + apartment demo',
-    value: '$410,000',
-    rent: '$3,100/mo',
-    units: '100,000',
-    glyph: '🏢',
-    tone: 'warm',
+    number: '02',
+    title: 'Invest',
+    copy: 'Browse provider-confirmed tokenized real-estate securities. Sandbox and live execution stay separated and provider-gated.',
+    href: '/real-estate/reits',
+    action: 'Open investments',
   },
   {
-    id: 'PROPERTY #0003',
-    routeId: '0003',
-    location: 'Vacant Parcel',
-    type: 'Land-only demo',
-    value: '$44,000',
-    rent: '—',
-    units: '100,000',
-    glyph: '🌳',
-    tone: 'land',
+    number: '03',
+    title: 'Vault',
+    copy: 'Keep creator assets, wallet-verified collectibles and user-bound financial positions in one spatial home without mixing their legal meaning.',
+    href: '/vault',
+    action: 'Open my Vault',
+  },
+  {
+    number: '04',
+    title: 'Income',
+    copy: 'See provider-reported dividend payment history as observed income. No invented yield, rent, FX conversion or projections.',
+    href: '/vault/income',
+    action: 'Open Income',
+  },
+  {
+    number: '05',
+    title: 'Own',
+    copy: 'Plan the longer path toward a directly owned property through diligence, entity setup, normal closing and a recorded deed.',
+    href: '/real-estate/acquire',
+    action: 'Plan direct ownership',
   },
 ];
 
-const stack = [
-  ['Recorded deed', 'The county land-title system remains the source of record for the real property itself.'],
-  ['Property LLC', 'A dedicated entity holds the deed and isolates the property, contracts, bills and operating records.'],
-  ['Permissioned token', 'Approved wallets can hold economic-interest units linked by the LLC operating agreement.'],
-  ['Net distributions', 'Rent is collected normally; property expenses and reserves are paid before approved distributions.'],
+const truthLayers = [
+  ['Place truth', 'Source-backed map, building and parcel evidence. GEO never turns map geometry into a deed claim.'],
+  ['Asset truth', 'Provider-confirmed securities stay distinct from NFTs, creator assets and direct real property.'],
+  ['Ownership truth', 'Wallet checks, account bindings and recorded title are used only for the ownership facts they can actually prove.'],
+  ['Income truth', 'Observed provider payments are shown as reported. Modeled rent and simulations remain clearly labeled models.'],
 ];
 
 export default function RealEstatePlatformPage() {
   return (
-    <main className={styles.page}>
+    <main className={styles.page} style={{paddingBottom:'94px'}}>
       <div className={styles.shell}>
         <nav className={styles.nav}>
           <a className={styles.brand} href="/">
@@ -54,144 +56,90 @@ export default function RealEstatePlatformPage() {
             Voxel Vault
           </a>
           <div className={styles.navActions}>
-            <span className={styles.statusPill}><span className={styles.statusDot} />PILOT · BASE SEPOLIA</span>
-            <a className={styles.ghostPill} href="/real-estate/acquire">Acquisition engine</a>
-            <a className={styles.ghostPill} href="/real-estate/invest">$1,000 simulator</a>
-            <a className={styles.ghostPill} href="/real-estate/compound">Compounding simulator</a>
-            <a className={styles.ghostPill} href="/studio">3D asset studio</a>
+            <span className={styles.statusPill}><span className={styles.statusDot} />FINANCIAL OS · PILOT</span>
+            <a className={styles.ghostPill} href="/geo">Explore GEO</a>
+            <a className={styles.ghostPill} href="/vault">My Vault</a>
+            <a className={styles.ghostPill} href="/studio">Create 3D</a>
           </div>
         </nav>
 
         <section className={styles.hero}>
           <div className={styles.heroIntro}>
-            <p className={styles.eyebrow}>Real property × legal ownership × spatial 3D</p>
-            <h1>Real estate,<br /><em>made spatial.</em></h1>
+            <p className={styles.eyebrow}>Explore → invest → verify → observe → own</p>
+            <h1>Your money,<br /><em>made spatial.</em></h1>
             <p className={styles.lead}>
-              Voxel Vault is becoming a real-property operating platform: each building or parcel can have a legally linked property entity, a permissioned blockchain ownership layer, an explorable 3D digital twin and auditable net-income distributions.
+              Voxel Vault is one spatial financial home for real-estate discovery, provider-backed investment assets, verified holdings, observed income and the longer path toward direct property ownership.
             </p>
             <div className={styles.actions}>
-              <a className={styles.primaryButton} href="/real-estate/acquire">Find the next property</a>
-              <a className={styles.secondaryButton} href="#portfolio">Explore demo portfolio</a>
-              <a className={styles.secondaryButton} href="/real-estate/onboard">Start property intake</a>
-              <a className={styles.secondaryButton} href="/real-estate/compound">Run capital simulator</a>
+              <a className={styles.primaryButton} href="/geo">Explore a real place</a>
+              <a className={styles.secondaryButton} href="/real-estate/reits">Browse investments</a>
+              <a className={styles.secondaryButton} href="/vault">Open my Vault</a>
             </div>
             <div className={styles.heroNote}>
-              <span>🔒 Live investing is locked.</span>
-              <span>Demo data only.</span>
-              <span>No deed or security is being sold from this prototype.</span>
+              <span>Source-backed geography.</span>
+              <span>Provider-gated securities.</span>
+              <span>Observed income only.</span>
+              <span>Direct property closes through normal title systems.</span>
             </div>
           </div>
 
           <div className={styles.heroVisual}>
             <PropertyTwinCanvas className={styles.twinCanvas} />
             <div className={styles.visualTop}>
-              <span className={styles.darkPill}>3D PROPERTY TWIN · #0001</span>
-              <span className={styles.demoPill}>DEMO</span>
+              <span className={styles.darkPill}>SPATIAL FINANCIAL HOME</span>
+              <span className={styles.demoPill}>TRUTH-FIRST</span>
             </div>
             <div className={styles.visualBottom}>
               <div className={styles.propertyCaption}>
-                <small>Sample property entity</small>
-                <strong>123 Main Street Property LLC</strong>
+                <small>One coherent system</small>
+                <strong>Place → asset → ownership → income</strong>
               </div>
-              <span className={styles.dragHint}>Drag to rotate<br />parcel boundary shown</span>
+              <span className={styles.dragHint}>3D is the interface<br />evidence is the authority</span>
             </div>
           </div>
         </section>
 
-        <section className={styles.metricGrid} aria-label="Pilot metrics">
+        <section className={styles.metricGrid} aria-label="Financial operating principles">
           <div className={styles.metricCard}>
-            <div className={styles.metricLabel}>Pilot properties</div>
-            <div className={styles.metricValue}>3</div>
-            <div className={styles.metricSub}>Sample records, not live offerings</div>
+            <div className={styles.metricLabel}>Explore</div>
+            <div className={styles.metricValue}>Real places</div>
+            <div className={styles.metricSub}>Source-backed map and parcel context</div>
           </div>
           <div className={styles.metricCard}>
-            <div className={styles.metricLabel}>Ownership model</div>
-            <div className={styles.metricValue}>LLC → token</div>
-            <div className={styles.metricSub}>Legal agreement provides the linkage</div>
+            <div className={styles.metricLabel}>Invest</div>
+            <div className={styles.metricValue}>Provider-gated</div>
+            <div className={styles.metricSub}>No invented listings or fake execution</div>
           </div>
           <div className={styles.metricCard}>
-            <div className={styles.metricLabel}>Acquisition goal</div>
-            <div className={styles.metricValue}>Cheap + viable</div>
-            <div className={styles.metricSub}>Diligence beats sticker price</div>
+            <div className={styles.metricLabel}>Income</div>
+            <div className={styles.metricValue}>Observed</div>
+            <div className={styles.metricSub}>Reported payments stay separate from projections</div>
           </div>
           <div className={styles.metricCard}>
-            <div className={styles.metricLabel}>Money movement</div>
-            <div className={styles.metricValue}>Locked</div>
-            <div className={styles.metricSub}>Legal + provider gates required first</div>
+            <div className={styles.metricLabel}>Direct ownership</div>
+            <div className={styles.metricValue}>Title-first</div>
+            <div className={styles.metricSub}>Normal diligence, closing and deed recording</div>
           </div>
         </section>
 
-        <section className={styles.section}>
+        <section className={`${styles.section} ${styles.sectionDark}`}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.eyebrow}>The capital ladder</p>
-              <h2>Start with regulated exposure. Graduate to the deed.</h2>
+              <p className={styles.eyebrow}>The Voxel Vault journey</p>
+              <h2>Five rooms. One financial story.</h2>
             </div>
-            <p>The acquisition engine is designed to separate the early tokenized-real-estate phase from the later direct-property phase. Securities remain with approved providers; direct property still closes through normal title and recording systems.</p>
-          </div>
-          <div className={styles.stackGrid}>
-            {[
-              ['Tokenized real estate', 'Connect an approved broker/provider later for eligible real-estate securities, holdings and distributions.'],
-              ['Acquisition reserve', 'Track cash available for closing costs, repairs, reserves and the first direct purchase.'],
-              ['Direct property', 'Rank low-cost rental candidates by all-in basis, modeled net income and hard diligence gates.'],
-              ['Verified property vault', 'After legal closing, create the LLC-linked 3D twin, Property Passport and rent/accounting record.'],
-            ].map(([title, copy], index) => (
-              <article className={styles.stackCard} key={title}>
-                <span className={styles.stackNumber}>{index + 1}</span>
-                {index < 3 ? <span className={styles.stackArrow}>→</span> : null}
-                <h3>{title}</h3>
-                <p>{copy}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <p className={styles.eyebrow}>The legal stack</p>
-              <h2>Blockchain sits on top of normal property law.</h2>
-            </div>
-            <p>The token is not treated as a magic blockchain deed. The property remains in the normal title system; the operating agreement defines what approved token units mean economically and contractually.</p>
-          </div>
-          <div className={styles.stackGrid}>
-            {stack.map(([title, copy], index) => (
-              <article className={styles.stackCard} key={title}>
-                <span className={styles.stackNumber}>{index + 1}</span>
-                {index < stack.length - 1 ? <span className={styles.stackArrow}>→</span> : null}
-                <h3>{title}</h3>
-                <p>{copy}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="portfolio" className={`${styles.section} ${styles.sectionDark}`}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <p className={styles.eyebrow}>My real estate</p>
-              <h2>Walk through a portfolio, not a spreadsheet.</h2>
-            </div>
-            <p>Open a property to enter its spatial vault with title/entity references, occupancy, expenses, document controls, distributions and blockchain history.</p>
+            <p>Every major screen now has one job. The app can grow without making a user learn a different product every time they tap a tab.</p>
           </div>
 
           <div className={styles.propertyGrid}>
-            {properties.map((property) => (
-              <a key={property.id} href={`/real-estate/property/${property.routeId}`} className={styles.propertyLink} aria-label={`Open ${property.location} property vault`}>
+            {journey.map((step) => (
+              <a href={step.href} key={step.title} className={styles.propertyLink}>
                 <article className={styles.propertyCard}>
-                  <div className={styles.propertyArt} data-tone={property.tone}>
-                    <span className={styles.artGlyph}>{property.glyph}</span>
-                  </div>
                   <div className={styles.propertyBody}>
-                    <span className={styles.propertyTag}>{property.id} · demo</span>
-                    <h3>{property.location}</h3>
-                    <p>{property.type}</p>
-                    <div className={styles.propertyStats}>
-                      <div className={styles.propertyStat}><small>Value</small><b>{property.value}</b></div>
-                      <div className={styles.propertyStat}><small>Gross rent</small><b>{property.rent}</b></div>
-                      <div className={styles.propertyStat}><small>Token units</small><b>{property.units}</b></div>
-                    </div>
-                    <div className={styles.propertyOpen}>OPEN PROPERTY VAULT →</div>
+                    <span className={styles.propertyTag}>{step.number} · FINANCIAL OS</span>
+                    <h3>{step.title}</h3>
+                    <p>{step.copy}</p>
+                    <div className={styles.propertyOpen}>{step.action.toUpperCase()} →</div>
                   </div>
                 </article>
               </a>
@@ -202,56 +150,69 @@ export default function RealEstatePlatformPage() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.eyebrow}>Distribution accounting</p>
-              <h2>Distribute net income, not gross rent.</h2>
+              <p className={styles.eyebrow}>Trust architecture</p>
+              <h2>Every number should know where it came from.</h2>
             </div>
-            <p>The platform separates property operations from investor distributions. A compliant property manager or operator handles the building first; only approved net distributable income reaches the distribution layer.</p>
+            <p>Voxel Vault should feel simple on the surface and strict underneath. A beautiful 3D view never upgrades weak evidence into a stronger legal or financial claim.</p>
           </div>
-
-          <div className={styles.moneyGrid}>
-            <div className={styles.waterfallCard}>
-              <div className={styles.moneyLine}><span>Tenant rent collected</span><strong>$2,000</strong></div>
-              <div className={styles.moneyLine}><span>Taxes + insurance</span><strong>− $370</strong></div>
-              <div className={styles.moneyLine}><span>Repairs + management</span><strong>− $230</strong></div>
-              <div className={styles.moneyLine}><span>Property reserve</span><strong>− $200</strong></div>
-              <div className={`${styles.moneyLine} ${styles.moneyLineTotal}`}><span>Net distributable income</span><strong>$1,200</strong></div>
-            </div>
-
-            <div className={styles.gateCard}>
-              <p className={styles.eyebrow}>Fail-closed launch gate</p>
-              <h3>Real-money investing stays off until every required layer is ready.</h3>
-              <p>The prototype exposes the product architecture without pretending that securities, custody, transfer-agent, money-transmission or property-title requirements are already solved.</p>
-              <ul className={styles.gateList}>
-                <li><span className={styles.lock}>●</span><span>Securities counsel approves the exact offering structure and investor eligibility flow.</span></li>
-                <li><span className={styles.lock}>●</span><span>Title company / property counsel validates deed, liens and the property-owning entity.</span></li>
-                <li><span className={styles.lock}>●</span><span>KYC/AML, sanctions screening and transfer restrictions are integrated through appropriate providers.</span></li>
-                <li><span className={styles.lock}>●</span><span>Custody, fiat/USDC rails, tax reporting and distribution operations are production-reviewed.</span></li>
-                <li><span className={styles.lock}>●</span><span>Smart contracts are independently audited before any mainnet use.</span></li>
-              </ul>
-            </div>
+          <div className={styles.stackGrid}>
+            {truthLayers.map(([title, copy], index) => (
+              <article className={styles.stackCard} key={title}>
+                <span className={styles.stackNumber}>{index + 1}</span>
+                <h3>{title}</h3>
+                <p>{copy}</p>
+              </article>
+            ))}
           </div>
+        </section>
 
-          <div className={styles.legacyCard}>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
             <div>
-              <h3>The voxel engine is preserved.</h3>
-              <p>Your existing 3D generation tools can become the digital-twin creation layer instead of being deleted.</p>
+              <p className={styles.eyebrow}>Capital path</p>
+              <h2>Start with access. Build toward ownership.</h2>
             </div>
-            <a className={styles.secondaryButton} href="/studio">Open legacy 3D studio →</a>
+            <p>Tokenized real-estate securities can provide regulated market exposure when the connected provider permits it. That is deliberately separate from buying a particular house or holding its deed.</p>
+          </div>
+          <div className={styles.stackGrid}>
+            {[
+              ['Provider-backed exposure', 'Browse eligible real-estate securities through the connected provider layer. Provider rules control eligibility and execution.'],
+              ['Verified portfolio', 'Bring supported holdings into My Vault only when the relevant wallet, account or provider can substantiate them.'],
+              ['Observed income', 'Track actual provider payment records without calling dividends rent or manufacturing future yield.'],
+              ['Direct-property plan', 'Research candidates, complete diligence and eventually close through the normal legal title system before creating a verified property passport.'],
+            ].map(([title, copy], index) => (
+              <article className={styles.stackCard} key={title}>
+                <span className={styles.stackNumber}>{index + 1}</span>
+                {index < 3 ? <span className={styles.stackArrow}>→</span> : null}
+                <h3>{title}</h3>
+                <p>{copy}</p>
+              </article>
+            ))}
+          </div>
+          <div className={styles.actions} style={{marginTop:24}}>
+            <a className={styles.primaryButton} href="/real-estate/reits">Open provider-backed investments</a>
+            <a className={styles.secondaryButton} href="/real-estate/acquire">Open direct-property planner</a>
+            <a className={styles.secondaryButton} href="/real-estate/launch">Review launch gates</a>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.gateCard}>
+            <p className={styles.eyebrow}>Product boundary</p>
+            <h3>Simple for the user. Fail-closed for real money.</h3>
+            <p>Public exploration can be broad. Personal holdings require identity or wallet evidence. Securities execution stays inside the approved provider path. Direct-property ownership requires real diligence, legal closing and recorded title. Voxel Vault can organize those layers without pretending to replace them.</p>
+            <div className={styles.actions}>
+              <a className={styles.primaryButton} href="/vault">Go to My Vault</a>
+              <a className={styles.secondaryButton} href="/vault/income">See observed income</a>
+            </div>
           </div>
         </section>
 
         <footer className={styles.footer}>
-          <div><strong>Voxel Vault Real Property Pilot</strong><br />Prototype architecture for legally linked real-estate digital twins.</div>
-          <div>Demo only · not an investment offer · not legal, tax, title or investment advice · live investment flows disabled by design.</div>
+          <div><strong>Voxel Vault Financial OS</strong><br />Spatial discovery, provider-backed assets, verified holdings, observed income and direct-property planning.</div>
+          <div>Pilot software · not an investment recommendation · asset availability and execution depend on connected providers and applicable eligibility rules.</div>
         </footer>
       </div>
-
-      <nav className={styles.mobileTabBar} aria-label="Mobile quick navigation">
-        <a href="/real-estate/acquire"><span>01</span><b>Find</b></a>
-        <a href="/real-estate/invest"><span>$</span><b>Invest</b></a>
-        <a href="#portfolio"><span>3D</span><b>Vault</b></a>
-        <a href="/studio"><span>V</span><b>Studio</b></a>
-      </nav>
     </main>
   );
 }
