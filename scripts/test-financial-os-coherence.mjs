@@ -16,9 +16,10 @@ for (const label of ['Home', 'Earth', 'Create', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
 assert.match(productMap, /APP_SECTIONS/);
-for (const route of ['/vault/earth', '/geo', '/studio', '/avatar', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
+for (const route of ['/vault/earth', '/geo', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/asset', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
   assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
 }
+assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');
 assert.match(productMap, /isOrganizedUserRoute/);
 assert.match(productMap, /dockItemForPath/);
 
