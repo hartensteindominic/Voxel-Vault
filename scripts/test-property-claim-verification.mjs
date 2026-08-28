@@ -65,6 +65,7 @@ assert.equal(summary.canonicalMintAllowed, false);
 const migration = fs.readFileSync(new URL('../supabase/migrations/015_property_identity_claims.sql', import.meta.url), 'utf8');
 assert.match(migration, /property_fingerprint text not null unique/i, 'Database must enforce one canonical identity per fingerprint.');
 assert.match(migration, /unique \(property_identity_id, user_id\)/i, 'A user cannot fork duplicate claims for the same identity.');
+assert.match(migration, /where claim_status = 'verified'/i, 'Only one verified claim may exist per canonical property identity.');
 assert.match(migration, /enable row level security/i);
 assert.match(migration, /users read own property claims/i);
 assert.doesNotMatch(migration, /for insert to authenticated/i, 'Clients must not be able to insert official claims directly around server verification logic.');
@@ -81,6 +82,20 @@ assert.match(page, /One real parcel/i);
 assert.match(page, /Do not paste deeds, IDs, bank information or private documents here/i);
 assert.match(page, /still only moves the claim to human review/i);
 assert.match(page, /does not create rent rights/i);
+
+const adminRoute = fs.readFileSync(new URL('../app/api/admin/property-claims/route.ts', import.meta.url), 'utf8');
+assert.match(adminRoute, /requireVoxelVaultAdmin/);
+assert.match(adminRoute, /reviewer note is required/i);
+assert.match(adminRoute, /evidenceVerified/);
+assert.match(adminRoute, /onchainRegistryVerified: false/);
+assert.match(adminRoute, /passportMinted: false/);
+assert.doesNotMatch(adminRoute, /mintVerifiedPassport\s*\(/, 'Reviewer API must not mint the Passport.');
+assert.doesNotMatch(adminRoute, /setVerified\s*\(/, 'Reviewer API must not set the on-chain registry verified.');
+
+const adminPage = fs.readFileSync(new URL('../app/admin/property-claims/page.js', import.meta.url), 'utf8');
+assert.match(adminPage, /Never guess ownership/i);
+assert.match(adminPage, /checkboxes are user-supplied categories, not proof by themselves/i);
+assert.match(adminPage, /PASSPORT MINTS HERE/i);
 
 const registry = fs.readFileSync(new URL('../contracts/PropertyRegistry.sol', import.meta.url), 'utf8');
 const passport = fs.readFileSync(new URL('../contracts/PropertyPassport.sol', import.meta.url), 'utf8');
