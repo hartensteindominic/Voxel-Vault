@@ -50,6 +50,11 @@ assert.match(planetGlobe, /onViewport/, 'Settled globe movement must be able to 
 assert.match(globeController, /MAX_STREAMED_BUILDINGS = 420/, 'Worldwide exploration must cap accumulated client markers.');
 assert.match(globeController, /MAX_VISITED_REGIONS = 96/, 'Worldwide exploration must cap visited-region memory.');
 assert.match(globeController, /streamed globe markers are fast map references only/i, 'streamed marker selection must deepen through the normal evidence workflow.');
+assert.match(globeController, /REGIONS VISITED/, 'globe should expose in-session region coverage rather than pretending all Earth data is loaded locally');
+assert.match(globeController, /STREAMED MAP BUILDINGS/, 'globe should label streamed buildings as map references');
+assert.match(globeController, /DETAILED LOCAL BUILDINGS/, 'globe should distinguish detailed local lookup results from fast streamed references');
+assert.match(globeController, /MAP REFERENCE · NOT TITLE/, 'coverage HUD must keep map coverage legally separate from title');
+assert.doesNotMatch(globeController, /OWNED PROPERTIES|VERIFIED HOUSES|DEEDS LOADED/i, 'coverage telemetry must never convert map references into ownership or verification claims');
 assert.match(streamRoute, /s-maxage=300/, 'Visible-region streaming should use a bounded shared cache.');
 assert.match(streamLib, /global-on-demand/, 'World atlas streaming must describe itself as global on-demand coverage.');
 assert.match(streamLib, /createsOwnership:\s*false/, 'Streaming map markers must never create ownership.');
@@ -60,4 +65,4 @@ assert.match(env, /DOMAIN_CLIENT_SECRET=/, 'Domain client secret must be documen
 assert.match(env, /EARTH_PARTNER_FEEDS_JSON=/, 'Additional licensed provider config must be documented.');
 assert.doesNotMatch(env, /NEXT_PUBLIC_DOMAIN_CLIENT_SECRET|NEXT_PUBLIC_BRIDGE_ACCESS_TOKEN|NEXT_PUBLIC_EARTH_PARTNER/, 'Listing-provider secrets must never be client-exposed.');
 
-console.log('Global Earth federation safety checks passed: worldwide streamed navigation, authorized listings, source currencies, visible provider gaps, bounded map references, deed/title boundaries, and verification-first digital twins remain intact.');
+console.log('Global Earth federation safety checks passed: worldwide streamed navigation, honest coverage HUD, authorized listings, source currencies, visible provider gaps, bounded map references, deed/title boundaries, and verification-first digital twins remain intact.');
