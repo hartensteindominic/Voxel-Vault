@@ -95,7 +95,8 @@ assert.match(page, /VERIFY IDENTITY ON BASE SEPOLIA/);
 assert.match(page, /registerIdentity\(/);
 assert.match(page, /setVerified\(prepared\.anchor\.propertyId, true\)/);
 assert.match(page, /Nothing has been signed yet/i);
-assert.match(page, /No Passport is minted/i);
+assert.match(page, /does NOT verify the property or mint a Passport/i);
+assert.match(page, /still does NOT mint a Passport/i);
 assert.doesNotMatch(page, /mintVerifiedPassport\s*\(/);
 
 console.log('Canonical property registry anchor tests passed.');
