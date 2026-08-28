@@ -2,22 +2,52 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const nav = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
+const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
+const more = fs.readFileSync(new URL('../app/more/page.js', import.meta.url), 'utf8');
+const integrationsPage = fs.readFileSync(new URL('../app/admin/integrations/page.js', import.meta.url), 'utf8');
+const integrationsApi = fs.readFileSync(new URL('../app/api/admin/integrations/status/route.ts', import.meta.url), 'utf8');
 const layout = fs.readFileSync(new URL('../app/layout.js', import.meta.url), 'utf8');
 const vaultLayout = fs.readFileSync(new URL('../app/vault/layout.js', import.meta.url), 'utf8');
 const home = fs.readFileSync(new URL('../app/real-estate/page.js', import.meta.url), 'utf8');
 
-for (const label of ['Home', 'Explore', 'Invest', 'Vault', 'Income']) {
-  assert.match(nav, new RegExp(`label: '${label}'`), `financial navigation should include ${label}`);
+for (const label of ['Home', 'Earth', 'Create', 'Vault', 'More']) {
+  assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
+assert.match(productMap, /APP_SECTIONS/);
+for (const route of ['/vault/earth', '/geo', '/studio', '/marketplace', '/ai-licensing', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
+  assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
+}
+assert.match(productMap, /isOrganizedUserRoute/);
+assert.match(productMap, /dockItemForPath/);
 
-assert.match(nav, /FINANCIAL_PREFIXES/);
-assert.match(nav, /\/geo/);
-assert.match(nav, /\/real-estate\/reits/);
-assert.match(nav, /\/vault\/income/);
-assert.match(nav, /if \(!financialRoute\) return null/);
+assert.match(nav, /APP_DOCK/);
+assert.match(nav, /Voxel Vault primary navigation/);
+assert.match(nav, /isOrganizedUserRoute/);
 assert.match(nav, /safe-area-inset-bottom/);
+assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should no longer be restricted to a finance-only prefix list');
 assert.match(layout, /FinancialOSNav/);
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
+
+assert.match(more, /Everything, without the clutter/i);
+assert.match(more, /APP_SECTIONS/);
+assert.match(more, /PRODUCT TRUTH RULE/);
+assert.match(more, /Explore real places, create 3D assets, manage your Vault/i);
+
+assert.match(integrationsApi, /requireVoxelVaultAdmin/, 'integration status must be owner-authenticated');
+assert.match(integrationsApi, /MESHY_API_KEY/);
+assert.match(integrationsApi, /STRIPE_SECRET_KEY/);
+assert.match(integrationsApi, /BRIDGE_DATASET_ID/);
+assert.match(integrationsApi, /DOMAIN_CLIENT_ID/);
+assert.match(integrationsApi, /DINARI_API_KEY_ID/);
+assert.match(integrationsApi, /ALGORAND_INDEXER_BASE_URL/);
+assert.match(integrationsApi, /CDP_API_KEY_ID/);
+assert.match(integrationsApi, /secretsReturned:\s*false/);
+assert.match(integrationsApi, /valuesReturned:\s*false/);
+assert.doesNotMatch(integrationsApi, /return process\.env\[[^\]]+\]/, 'integration API must never return raw env values');
+assert.match(integrationsPage, /OWNER · INTEGRATIONS CENTER/);
+assert.match(integrationsPage, /getSupabaseBrowserAsync/);
+assert.match(integrationsPage, /\/api\/admin\/integrations\/status/);
+assert.match(integrationsPage, /SIGN IN WITH GOOGLE/);
 
 assert.match(home, /Explore → invest → verify → observe → own/);
 assert.match(home, /Your money,/);
@@ -35,4 +65,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Financial OS coherence regression tests passed');
+console.log('Voxel Vault app organization + Financial OS coherence regression tests passed');
