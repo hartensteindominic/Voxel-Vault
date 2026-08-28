@@ -3,11 +3,24 @@ import {
   FIRST_REAL_ERIE_PARCEL,
   fetchFirstRealErieParcel,
 } from '../lib/real-estate/erie-county-evidence.js';
+import { ERIE_COUNTY_PARCEL_LAYER } from '../lib/real-estate/erie-county-gis.js';
 import {
   PROPERTY_RIGHT_TYPES,
   PROPERTY_TRUTH_STATES,
   assertSpatialInvariants,
 } from '../lib/real-estate/property-twin.js';
+
+async function discoverAddressCandidates() {
+  const url = new URL(`${ERIE_COUNTY_PARCEL_LAYER}/query`);
+  url.searchParams.set('f', 'json');
+  url.searchParams.set('where', "ADDRESS LIKE '%618%MAIN%'");
+  url.searchParams.set('outFields', 'OBJECTID,PIN,SBL,ADDNAME,ADDRESS,CITYTOWN,LOCALZIP');
+  url.searchParams.set('returnGeometry', 'false');
+  url.searchParams.set('resultRecordCount', '25');
+  const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10000) });
+  const body = await response.json().catch(() => null);
+  return { status: response.status, ok: response.ok, body };
+}
 
 async function loadWithRetry() {
   let lastError;
@@ -18,6 +31,11 @@ async function loadWithRetry() {
       lastError = error;
       if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
     }
+  }
+
+  if (lastError?.code === 'PARCEL_NOT_FOUND') {
+    const diagnostic = await discoverAddressCandidates().catch((error) => ({ diagnosticError: error instanceof Error ? error.message : String(error) }));
+    console.error('ERIE_IDENTIFIER_DIAGNOSTIC', JSON.stringify(diagnostic, null, 2));
   }
   throw lastError;
 }
