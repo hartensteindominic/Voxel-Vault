@@ -34,6 +34,55 @@ function localPolygons(geometry, originLongitude, originLatitude) {
     .filter((local) => local.length >= 3);
 }
 
+function localLineString(geometry, originLongitude, originLatitude) {
+  if (geometry?.type !== 'LineString' || !Array.isArray(geometry.coordinates)) return [];
+  return geometry.coordinates
+    .map(([lon, lat]) => toLocalMeters(lon, lat, originLongitude, originLatitude))
+    .filter((point) => Number.isFinite(point.east) && Number.isFinite(point.north));
+}
+
+function localLineSegmentsWithinRadius(local, radiusMeters) {
+  if (!Array.isArray(local) || local.length < 2) return [];
+  const inside = (point) => Math.hypot(point.east, point.north) <= radiusMeters;
+  const segments = [];
+  let current = [];
+  for (let index = 0; index < local.length - 1; index += 1) {
+    const a = local[index];
+    const b = local[index + 1];
+    if (inside(a) || inside(b)) {
+      if (!current.length) current.push(a);
+      else if (current[current.length - 1] !== a) current.push(a);
+      current.push(b);
+    } else if (current.length >= 2) {
+      segments.push(current);
+      current = [];
+    } else {
+      current = [];
+    }
+  }
+  if (current.length >= 2) segments.push(current);
+  return segments;
+}
+
+function densifyLocalLine(local, maxSegmentMeters = 8) {
+  if (!Array.isArray(local) || local.length < 2) return local || [];
+  const result = [local[0]];
+  for (let index = 0; index < local.length - 1; index += 1) {
+    const a = local[index];
+    const b = local[index + 1];
+    const distance = Math.hypot(b.east - a.east, b.north - a.north);
+    const steps = Math.max(1, Math.ceil(distance / maxSegmentMeters));
+    for (let step = 1; step <= steps; step += 1) {
+      const t = step / steps;
+      result.push({
+        east: a.east + (b.east - a.east) * t,
+        north: a.north + (b.north - a.north) * t,
+      });
+    }
+  }
+  return result;
+}
+
 function shapeFromLocal(THREE, local) {
   if (!Array.isArray(local) || local.length < 3) return null;
   const shape = new THREE.Shape();
@@ -173,6 +222,99 @@ function cameraPreset(viewMode, sceneRadius, compactMode, focusRadius, focusHeig
   return { azimuth: 0.72, elevation: 0.43, radius: Math.max(compactMode ? 9.7 : 10.7, sceneRadius * 1.58), autoOrbit: true };
 }
 
+function addInterpolatedTerrain({ THREE, root, terrain, terrainRadiusMeters, compactMode, geometries, materials }) {
+  if (!terrain?.available || !Array.isArray(terrain.samples) || terrain.samples.length < 4) return false;
+  const rings = compactMode ? 8 : 12;
+  const segments = compactMode ? 48 : 72;
+  const vertices = [0, terrainRelativeMeters(terrain, 0, 0) * METERS_TO_SCENE, 0];
+  for (let ring = 1; ring <= rings; ring += 1) {
+    const radiusMeters = terrainRadiusMeters * (ring / rings);
+    for (let segment = 0; segment < segments; segment += 1) {
+      const angle = (segment / segments) * Math.PI * 2;
+      const east = Math.cos(angle) * radiusMeters;
+      const north = Math.sin(angle) * radiusMeters;
+      vertices.push(
+        east * METERS_TO_SCENE,
+        terrainRelativeMeters(terrain, east, north) * METERS_TO_SCENE,
+        -north * METERS_TO_SCENE,
+      );
+    }
+  }
+
+  const indices = [];
+  for (let segment = 0; segment < segments; segment += 1) {
+    indices.push(0, 1 + segment, 1 + ((segment + 1) % segments));
+  }
+  for (let ring = 2; ring <= rings; ring += 1) {
+    const innerStart = 1 + (ring - 2) * segments;
+    const outerStart = 1 + (ring - 1) * segments;
+    for (let segment = 0; segment < segments; segment += 1) {
+      const next = (segment + 1) % segments;
+      const innerA = innerStart + segment;
+      const innerB = innerStart + next;
+      const outerA = outerStart + segment;
+      const outerB = outerStart + next;
+      indices.push(innerA, outerA, innerB, innerB, outerA, outerB);
+    }
+  }
+
+  const terrainGeometry = new THREE.BufferGeometry();
+  terrainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  terrainGeometry.setIndex(indices);
+  terrainGeometry.computeVertexNormals();
+  const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0x667469, roughness: 0.97, metalness: 0, side: THREE.DoubleSide });
+  geometries.push(terrainGeometry);
+  materials.push(terrainMaterial);
+  const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial);
+  terrainMesh.receiveShadow = true;
+  root.add(terrainMesh);
+  return true;
+}
+
+function addPublicRealmContext({ THREE, root, publicRealm, originLongitude, originLatitude, terrain, terrainRadiusMeters, compactMode, geometries, materials }) {
+  const ways = Array.isArray(publicRealm?.ways) ? publicRealm.ways.slice(0, compactMode ? 20 : 32) : [];
+  if (!ways.length) return 0;
+  const streetMaterial = new THREE.LineDashedMaterial({
+    color: 0xcdbd9e,
+    transparent: true,
+    opacity: 0.58,
+    dashSize: compactMode ? 0.16 : 0.19,
+    gapSize: compactMode ? 0.07 : 0.075,
+    depthWrite: false,
+  });
+  const walkwayMaterial = new THREE.LineDashedMaterial({
+    color: 0xe1b39b,
+    transparent: true,
+    opacity: 0.6,
+    dashSize: compactMode ? 0.08 : 0.1,
+    gapSize: compactMode ? 0.055 : 0.06,
+    depthWrite: false,
+  });
+  materials.push(streetMaterial, walkwayMaterial);
+  let rendered = 0;
+  for (const way of ways) {
+    const local = localLineString(way?.geometry, originLongitude, originLatitude);
+    const clippedSegments = localLineSegmentsWithinRadius(local, terrainRadiusMeters * 1.08);
+    for (const segment of clippedSegments) {
+      const dense = densifyLocalLine(segment, compactMode ? 10 : 7);
+      const points = dense.map((point) => new THREE.Vector3(
+        point.east * METERS_TO_SCENE,
+        terrainRelativeMeters(terrain, point.east, point.north) * METERS_TO_SCENE + 0.028,
+        -point.north * METERS_TO_SCENE,
+      ));
+      if (points.length < 2) continue;
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      geometries.push(geometry);
+      const line = new THREE.Line(geometry, way?.kind === 'walkway' ? walkwayMaterial : streetMaterial);
+      line.computeLineDistances();
+      line.renderOrder = 3;
+      root.add(line);
+      rendered += 1;
+    }
+  }
+  return rendered;
+}
+
 function addVoxelShell({ THREE, root, local, baseY, visualHeight, compactMode, geometries, materials }) {
   const bounds = polygonBounds(local);
   if (!bounds) return;
@@ -287,7 +429,10 @@ function addParcelBoundary({ THREE, root, parcelGeometry, originLongitude, origi
 
 export default function GeoReferenceModel({ reference, authoritativeTwin = null, viewMode = 'orbit', resetKey = 0 }) {
   const mountRef = useRef(null);
+  const compassNeedleRef = useRef(null);
   const label = useMemo(() => evidenceLabel(reference, authoritativeTwin), [reference, authoritativeTwin]);
+  const publicRealmFound = reference?.publicRealm?.found === true && Number(reference?.publicRealm?.mappedWayCount || 0) > 0;
+  const terrainFound = reference?.terrain?.available === true;
 
   useEffect(() => {
     let disposed = false;
@@ -345,7 +490,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       const originLongitude = Number(reference?.longitude ?? authoritativeTwin?.location?.longitude);
       const validOrigin = Number.isFinite(originLatitude) && Number.isFinite(originLongitude);
       const terrain = reference?.terrain || null;
-      const terrainRadiusMeters = Math.max(55, Math.min(180, Number(terrain?.radiusMeters) || 85));
+      const terrainRadiusMeters = Math.max(55, Math.min(180, Number(terrain?.radiusMeters) || Number(reference?.radiusMeters) || 85));
       const sceneRadius = terrainRadiusMeters * METERS_TO_SCENE;
       const primaryPolygons = validOrigin ? localPolygons(displayGeometry, originLongitude, originLatitude) : [];
       const primaryCenter = averageLocalCenter(primaryPolygons);
@@ -355,7 +500,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       const heightInfo = hasPrimary ? displayHeight(reference, authoritativeTwin) : { meters: 0, status: 'none' };
       const primaryVisualHeight = hasPrimary ? Math.max(2.2, Math.min(500, Number(heightInfo.meters) || 3)) * METERS_TO_SCENE : 0;
 
-      const plinthGeometry = new THREE.CylinderGeometry(sceneRadius * 1.08, sceneRadius * 1.12, 0.3, 84);
+      const plinthGeometry = new THREE.CylinderGeometry(sceneRadius * 1.08, sceneRadius * 1.12, 0.3, compactMode ? 64 : 84);
       const plinthMaterial = new THREE.MeshStandardMaterial({ color: 0x202a27, roughness: 0.92, metalness: 0.01 });
       geometries.push(plinthGeometry);
       materials.push(plinthMaterial);
@@ -364,29 +509,9 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
       plinth.receiveShadow = true;
       root.add(plinth);
 
-      if (terrain?.available && Array.isArray(terrain.samples) && terrain.samples.length >= 4) {
-        const sorted = [...terrain.samples].sort((a, b) => Number(a.row) - Number(b.row) || Number(a.column) - Number(b.column));
-        const vertices = [];
-        for (let row = 0; row < 3; row += 1) for (let column = 0; column < 3; column += 1) {
-          const sample = sorted.find((item) => Number(item.row) === row && Number(item.column) === column);
-          vertices.push(
-            Number(sample?.eastMeters ?? (column - 1) * terrainRadiusMeters) * METERS_TO_SCENE,
-            Number(sample?.relativeElevationMeters || 0) * METERS_TO_SCENE,
-            -Number(sample?.northMeters ?? (row - 1) * terrainRadiusMeters) * METERS_TO_SCENE,
-          );
-        }
-        const terrainGeometry = new THREE.BufferGeometry();
-        terrainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        terrainGeometry.setIndex([0, 3, 1, 1, 3, 4, 1, 4, 2, 2, 4, 5, 3, 6, 4, 4, 6, 7, 4, 7, 5, 5, 7, 8]);
-        terrainGeometry.computeVertexNormals();
-        const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0x667469, roughness: 0.97, metalness: 0, side: THREE.DoubleSide });
-        geometries.push(terrainGeometry);
-        materials.push(terrainMaterial);
-        const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial);
-        terrainMesh.receiveShadow = true;
-        root.add(terrainMesh);
-      } else {
-        const groundGeometry = new THREE.CircleGeometry(sceneRadius, 72);
+      const terrainRendered = addInterpolatedTerrain({ THREE, root, terrain, terrainRadiusMeters, compactMode, geometries, materials });
+      if (!terrainRendered) {
+        const groundGeometry = new THREE.CircleGeometry(sceneRadius, compactMode ? 56 : 72);
         groundGeometry.rotateX(-Math.PI / 2);
         const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x667469, roughness: 0.97, metalness: 0 });
         geometries.push(groundGeometry);
@@ -397,10 +522,25 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         root.add(ground);
       }
 
+      if (validOrigin && reference?.publicRealm?.found) {
+        addPublicRealmContext({
+          THREE,
+          root,
+          publicRealm: reference.publicRealm,
+          originLongitude,
+          originLatitude,
+          terrain,
+          terrainRadiusMeters,
+          compactMode,
+          geometries,
+          materials,
+        });
+      }
+
       const grid = new THREE.GridHelper(sceneRadius * 1.75, compactMode ? 22 : 32, 0x60746c, 0x42524c);
       grid.position.y = 0.012;
       grid.material.transparent = true;
-      grid.material.opacity = 0.09;
+      grid.material.opacity = reference?.publicRealm?.found ? 0.035 : 0.09;
       materials.push(grid.material);
       geometries.push(grid.geometry);
       root.add(grid);
@@ -499,6 +639,17 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         : Math.max(compactMode ? 4.7 : 5.5, sceneRadius * 0.6);
       const maxRadius = Math.max(preset.radius * 2.1, sceneRadius * 3.1);
 
+      const updateCompass = () => {
+        if (!compassNeedleRef.current) return;
+        const centerProjected = focusTarget.clone().project(camera);
+        const northProjected = focusTarget.clone().add(new THREE.Vector3(0, 0, -1)).project(camera);
+        const dx = northProjected.x - centerProjected.x;
+        const dy = northProjected.y - centerProjected.y;
+        if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.00001) return;
+        const angle = Math.atan2(dx, dy);
+        compassNeedleRef.current.style.transform = `rotate(${angle}rad)`;
+      };
+
       const updateCamera = () => {
         const c = Math.cos(elevation);
         camera.position.set(
@@ -507,6 +658,8 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
           focusTarget.z + Math.cos(azimuth) * c * radius,
         );
         camera.lookAt(focusTarget);
+        camera.updateMatrixWorld();
+        updateCompass();
       };
       const resetCamera = () => {
         azimuth = preset.azimuth;
@@ -626,6 +779,7 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
         renderer.setSize(nextW, nextH, false);
         camera.aspect = nextW / nextH;
         camera.updateProjectionMatrix();
+        updateCompass();
       };
       const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
       resizeObserver?.observe(mount);
@@ -665,9 +819,12 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
     return () => { disposed = true; cleanup(); };
   }, [
     reference?.source?.recordId,
+    reference?.source?.observedAt,
     reference?.matchStrategy,
     reference?.height?.referenceHeightMeters,
     reference?.neighborhoodBuildingCount,
+    reference?.publicRealm?.mappedWayCount,
+    reference?.publicRealm?.source?.observedAt,
     reference?.terrain?.source?.observedAt,
     reference?.measuredHeight?.status,
     reference?.measuredHeight?.heightMeters,
@@ -682,13 +839,26 @@ export default function GeoReferenceModel({ reference, authoritativeTwin = null,
   return createElement('div', { style: { position: 'absolute', inset: 0 }, 'aria-label': 'Interactive realistic voxel property and neighborhood reference' },
     createElement('div', { ref: mountRef, style: { position: 'absolute', inset: 0 } }),
     createElement('div', {
+      'aria-label': 'North compass',
       style: {
-        position: 'absolute', left: 12, bottom: 12, maxWidth: 'min(82%, 440px)', padding: '9px 11px', borderRadius: 14,
+        position: 'absolute', right: 12, top: 12, width: 42, height: 50, borderRadius: 16,
+        border: '1px solid rgba(244, 235, 214, 0.16)', background: 'rgba(12, 18, 17, 0.7)', backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)', color: '#f6efe1', pointerEvents: 'none', display: 'grid', placeItems: 'center',
+        boxShadow: '0 10px 28px rgba(0, 0, 0, 0.18)',
+      },
+    },
+    createElement('div', { ref: compassNeedleRef, style: { fontSize: 22, lineHeight: 1, transformOrigin: '50% 50%', transition: 'transform 80ms linear' } }, '↑'),
+    createElement('div', { style: { position: 'absolute', bottom: 5, fontSize: 8, fontWeight: 900, letterSpacing: '0.08em', opacity: 0.82 } }, 'N')),
+    createElement('div', {
+      style: {
+        position: 'absolute', left: 12, bottom: 12, maxWidth: 'min(86%, 470px)', padding: '9px 11px', borderRadius: 14,
         border: '1px solid rgba(244, 235, 214, 0.16)', background: 'rgba(12, 18, 17, 0.76)', backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)', color: '#f6efe1', pointerEvents: 'none', boxShadow: '0 12px 34px rgba(0, 0, 0, 0.2)',
       },
     },
     createElement('div', { style: { fontSize: 12, fontWeight: 800, letterSpacing: '0.01em' } }, label.title),
     createElement('div', { style: { marginTop: 2, fontSize: 10, lineHeight: 1.35, color: 'rgba(246, 239, 225, 0.68)' } }, label.detail),
-    authoritativeTwin?.location?.parcelGeometry ? createElement('div', { style: { marginTop: 5, fontSize: 9, color: 'rgba(169, 217, 200, 0.86)' } }, 'Mint outline = source-backed parcel boundary') : null));
+    authoritativeTwin?.location?.parcelGeometry ? createElement('div', { style: { marginTop: 5, fontSize: 9, color: 'rgba(169, 217, 200, 0.9)' } }, 'Mint outline = source-backed parcel boundary') : null,
+    publicRealmFound ? createElement('div', { style: { marginTop: 4, fontSize: 9, color: 'rgba(224, 198, 160, 0.9)' } }, 'Sand/peach dashes = mapped street/path centerlines · stroke thickness is visual only') : null,
+    terrainFound ? createElement('div', { style: { marginTop: 4, fontSize: 9, color: 'rgba(198, 214, 202, 0.82)' } }, `Terrain = interpolated visual surface from ${Number(reference?.terrain?.sampleCount || reference?.terrain?.samples?.length || 0)} USGS point samples · not a survey`) : null));
 }
