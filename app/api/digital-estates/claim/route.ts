@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { getStripe } from '../../../../lib/stripe-server';
 import { assertDigitalEstatePricing, getDigitalEstate } from '../../../../lib/digital-estates';
 import { buildDigitalEstateVoucher, digitalEstateMintReady, isDigitalEstateMinted } from '../../../../lib/digital-estate-mint';
-import { readDigitalEstateReservation } from '../../../../lib/digital-estate-reservations';
+import { bindDigitalEstateReservationWallet, readDigitalEstateReservation } from '../../../../lib/digital-estate-reservations';
 import {
   digitalEstatePaymentErrorMessage,
   secureBaseUsdcDigitalEstatePurchase,
@@ -28,11 +28,16 @@ async function purchaseFromSecuredOwnership({ user, estateId, walletRaw }: { use
   const estate = assertDigitalEstatePricing(getDigitalEstate(estateId));
   if (!ADDRESS_RE.test(walletRaw)) throw new Error('DIGITAL_ESTATE_WALLET_INVALID');
   const wallet = getAddress(walletRaw);
-  const reservation = await readDigitalEstateReservation(estate.id);
-  if (!reservation || reservation.buyerId !== user.id || reservation.wallet !== wallet.toLowerCase()) {
-    throw new Error('DIGITAL_ESTATE_RESERVATION_MISMATCH');
-  }
+  let reservation = await readDigitalEstateReservation(estate.id);
+  if (!reservation || reservation.buyerId !== user.id) throw new Error('DIGITAL_ESTATE_RESERVATION_MISMATCH');
   if (!['paid', 'paid-usdc', 'minted'].includes(reservation.state)) throw new Error('DIGITAL_ESTATE_RESERVATION_STATE_INVALID');
+
+  if (!reservation.wallet) {
+    reservation = await bindDigitalEstateReservationWallet({ estateId: estate.id, buyerId: user.id, wallet });
+  } else if (reservation.wallet !== wallet.toLowerCase()) {
+    throw new Error('DIGITAL_ESTATE_WALLET_MISMATCH');
+  }
+
   return {
     estate,
     buyerId: user.id,
@@ -45,9 +50,12 @@ async function purchaseFromSecuredOwnership({ user, estateId, walletRaw }: { use
 
 async function optionalMintResponse({ request, user, purchase, requestedWallet }: { request: Request; user: any; purchase: any; requestedWallet?: string }) {
   if (purchase.buyerId !== user.id) return NextResponse.json({ error: 'This Digital Estate belongs to another Voxel Vault account.' }, { status: 403 });
+  if (!purchase.wallet || !ADDRESS_RE.test(String(purchase.wallet))) {
+    return NextResponse.json({ error: 'Connect a wallet before preparing the optional blockchain backup.' }, { status: 400 });
+  }
 
   if (requestedWallet && (!ADDRESS_RE.test(requestedWallet) || getAddress(requestedWallet) !== getAddress(purchase.wallet))) {
-    return NextResponse.json({ error: 'Connect the same wallet that was bound when this Digital Estate was purchased.' }, { status: 403 });
+    return NextResponse.json({ error: 'Connect the wallet bound to this Digital Estate.' }, { status: 403 });
   }
 
   const reservation = await readDigitalEstateReservation(purchase.estate.id);
@@ -77,8 +85,6 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const source = String(body?.source || '').trim().toLowerCase();
-    // Legacy callers still prepare minting when action is omitted. New UI sends
-    // action=secure immediately after payment, then source=owned for later minting.
     const action = String(body?.action || 'mint').trim().toLowerCase();
 
     let purchase;
@@ -104,9 +110,11 @@ export async function POST(request: Request) {
         mintOptional: true,
         source: purchase.source,
         estate: purchase.estate,
-        wallet: purchase.wallet,
+        wallet: purchase.wallet || null,
         paymentTxHash: purchase.paymentTxHash || null,
-        message: 'Purchase verified. This Digital Estate is locked to your Voxel Vault account and bound wallet. Minting is optional and can be completed later.',
+        message: purchase.wallet
+          ? 'Purchase verified. This Digital Estate is locked to your Voxel Vault account and wallet. Minting is optional.'
+          : 'Purchase verified. This Digital Estate is locked to your Voxel Vault account. Connect a wallet only if you choose the optional blockchain backup later.',
       });
     }
 
