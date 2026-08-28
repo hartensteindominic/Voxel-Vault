@@ -6,20 +6,13 @@ import {
   PROPERTY_CLAIM_STATUSES,
 } from '../../../../lib/vault/property-claim.js';
 
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function setupMissing(error: any) {
   const code = String(error?.code || '');
   const message = String(error?.message || '');
   return code === '42P01' || /vault_property_(claims|identities)/i.test(message);
-}
-
-function responseForAuthFailure(auth: Awaited<ReturnType<typeof requireVoxelVaultUser>>) {
-  if (auth.ok) return null;
-  return NextResponse.json(
-    { ok: false, error: auth.error, setupRequired: auth.setupRequired === true },
-    { status: auth.status }
-  );
 }
 
 function claimSummary(row: any) {
@@ -38,9 +31,12 @@ function claimSummary(row: any) {
 
 export async function GET(request: Request) {
   const auth = await requireVoxelVaultUser(request);
-  const authFailure = responseForAuthFailure(auth);
-  if (authFailure) return authFailure;
-  if (!auth.ok) return authFailure!;
+  if ('error' in auth) {
+    return NextResponse.json(
+      { ok: false, error: auth.error, setupRequired: auth.setupRequired === true },
+      { status: auth.status }
+    );
+  }
 
   const { data, error } = await auth.admin
     .from('vault_property_claims')
@@ -73,9 +69,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
-  const authFailure = responseForAuthFailure(auth);
-  if (authFailure) return authFailure;
-  if (!auth.ok) return authFailure!;
+  if ('error' in auth) {
+    return NextResponse.json(
+      { ok: false, error: auth.error, setupRequired: auth.setupRequired === true },
+      { status: auth.status }
+    );
+  }
 
   let body: any;
   try {
