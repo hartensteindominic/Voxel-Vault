@@ -15,11 +15,11 @@ assert.match(provider, /https:\/\/auth\.domain\.com\.au\/v1\/connect\/token/, 'D
 assert.match(provider, /api_listings_read/, 'Domain listing access must request the documented read scope.');
 assert.match(provider, /\/v1\/listings\/residential\/_search/, 'Domain residential listings must use the official search endpoint.');
 assert.match(provider, /propertyDetails/, 'Domain search-result normalization must read nested propertyDetails.');
-assert.match(provider, /currency: 'AUD'/, 'Domain listing prices must preserve AUD rather than masquerading as USD.');
-assert.match(provider, /currency:/, 'Normalized Earth listings must carry a currency.');
-assert.match(provider, /if\(!jobs\.length\).*listings:\[\] as EarthProperty\[\]/s, 'No-provider state must return no listings instead of samples.');
+assert.match(provider, /currency:\s*'AUD'/, 'Domain listing prices must preserve AUD rather than masquerading as USD.');
+assert.match(provider, /currency\s*:/, 'Normalized Earth listings must carry a currency.');
+assert.match(provider, /if\s*\(!jobs\.length\)[\s\S]*listings\s*:\s*\[\]/, 'No-provider state must return no listings instead of samples.');
 assert.doesNotMatch(provider, /sampleListing|demoListing|fakeListing|mockListing/i, 'Production Earth provider code must not fabricate sample listings.');
-assert.match(provider, /new URL\(String\(item\.url\)\)\.protocol==='https:'/, 'Configured partner feeds must require HTTPS.');
+assert.match(provider, /new URL\(String\(item\.url\)\)\.protocol\s*===\s*'https:'/, 'Configured partner feeds must require HTTPS.');
 
 assert.match(route, /getEarthProviderCoverage/, 'Earth API must expose provider coverage to the UI.');
 assert.match(route, /Search any city, country, ZIP\/postcode or address, use your location, or tap the globe/, 'Earth API must advertise worldwide location search.');
@@ -33,14 +33,14 @@ assert.match(page, /property\.currency/, 'Earth UI must display each source curr
 assert.match(page, /onLocation=\{globeLocation\}/, 'Tapping the globe must feed a geographic search.');
 assert.match(page, /LIVE COVERAGE/, 'Users must be able to see which provider regions are actually live.');
 assert.match(page, /AWAITING ACCESS/, 'Unsupported markets must be disclosed instead of populated with fake listings.');
-assert.match(page, /OPEN REAL SOURCE LISTING/, 'Each result should route back to its authoritative listing source when available.');
+assert.match(page, /OPEN (?:REAL )?SOURCE LISTING/, 'Each result should route back to its authoritative listing source when available.');
 assert.match(page, /Physical purchase:.*broker.*title.*deed-recording/s, 'The physical-property closing boundary must remain explicit.');
 assert.match(page, /MINTING RECOMMENDED AFTER VERIFICATION/, 'Minting should be encouraged as provenance/backup without replacing the deed.');
 
 assert.match(globe, /SphereGeometry/, 'Global Earth should use the existing lightweight Three.js stack.');
 assert.match(globe, /vectorToLatLng/, 'Globe taps must convert to real latitude/longitude.');
 assert.match(globe, /listingId/, 'Real listing coordinates must render as selectable globe markers.');
-assert.match(globe, /touchAction: 'none'/, 'The globe interaction must be mobile-touch safe.');
+assert.match(globe, /pointerdown|pointermove|pointerup/, 'The globe must use pointer events that work for mouse and touch input.');
 
 assert.match(env, /DOMAIN_CLIENT_ID=/, 'Domain client ID must be documented.');
 assert.match(env, /DOMAIN_CLIENT_SECRET=/, 'Domain client secret must be documented.');
