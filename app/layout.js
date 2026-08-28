@@ -1,4 +1,5 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
+import FinancialOSNav from './components/FinancialOSNav';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 
@@ -7,11 +8,11 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Voxel Vault | Real Property, Made Spatial',
+    default: 'Voxel Vault | Spatial Financial OS',
     template: '%s | Voxel Vault',
   },
-  description: 'Voxel Vault is a real-property digital-twin pilot linking ordinary property entities, permissioned blockchain ownership records and auditable net-income distribution workflows.',
-  keywords: ['real estate digital twin', 'property tokenization', 'permissioned blockchain', '3D property', 'Voxel Vault'],
+  description: 'Explore source-backed real places, connect provider-backed real-estate assets, organize verified holdings, observe reported income and plan a path toward direct property ownership.',
+  keywords: ['spatial finance', 'real estate digital twin', 'tokenized real estate', '3D property', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: {
@@ -19,8 +20,8 @@ export const metadata = {
     apple: '/voxelpop/voxelpop-logo.png',
   },
   openGraph: {
-    title: 'Voxel Vault | Real Property, Made Spatial',
-    description: 'A 3D real-property pilot combining property entities, permissioned blockchain ownership records and auditable distribution workflows.',
+    title: 'Voxel Vault | Spatial Financial OS',
+    description: 'One spatial home for exploring real places, provider-backed assets, verified holdings, observed income and direct-property planning.',
     type: 'website',
     url: SITE_URL,
     siteName: 'Voxel Vault',
@@ -28,8 +29,8 @@ export const metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'Voxel Vault | Real Property, Made Spatial',
-    description: 'Explore the Voxel Vault real-property digital-twin pilot.',
+    title: 'Voxel Vault | Spatial Financial OS',
+    description: 'Explore, invest through connected providers, verify holdings, observe income and plan direct property ownership.',
     images: ['/voxelpop/voxelpop-logo.png'],
   },
 };
@@ -48,7 +49,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <WalletIdentityProvider>{children}</WalletIdentityProvider>
+        <WalletIdentityProvider>
+          {children}
+          <FinancialOSNav />
+        </WalletIdentityProvider>
       </body>
     </html>
   );
