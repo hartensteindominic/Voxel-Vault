@@ -23,6 +23,11 @@ function response(data: any, status = 200) {
 const createEntity = createDinariSandboxEntity as (input: { name: string; referenceId?: string }) => Promise<any>;
 const createManagedKyc = createDinariManagedKyc as (input: { entity: string; jurisdiction?: 'US' | 'BASELINE' }) => Promise<any>;
 const createAccount = createDinariSandboxAccount as (input: { entity: string; jurisdiction?: 'US' | 'BASELINE' }) => Promise<any>;
+const bindSandboxAccount = bindDinariSandboxAccount as (
+  admin: any,
+  userId: string,
+  input: { entityId: string; accountId: string; kycStatus?: string; source?: string }
+) => Promise<any>;
 
 async function bindingState(admin: any, userId: string) {
   const config = getDinariConfig(process.env);
@@ -39,7 +44,7 @@ async function bindingState(admin: any, userId: string) {
 
 async function bindVerifiedAccount(admin: any, userId: string, entityId: string, accountId: string) {
   try {
-    const binding = await bindDinariSandboxAccount(admin, userId, {
+    const binding = await bindSandboxAccount(admin, userId, {
       entityId,
       accountId,
       kycStatus: 'PASS',
