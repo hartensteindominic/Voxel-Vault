@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const nav = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
 const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
+const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
 const more = fs.readFileSync(new URL('../app/more/page.js', import.meta.url), 'utf8');
 const integrationsPage = fs.readFileSync(new URL('../app/admin/integrations/page.js', import.meta.url), 'utf8');
 const integrationsApi = fs.readFileSync(new URL('../app/api/admin/integrations/status/route.ts', import.meta.url), 'utf8');
@@ -14,7 +15,7 @@ for (const label of ['Home', 'Earth', 'Create', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
 assert.match(productMap, /APP_SECTIONS/);
-for (const route of ['/vault/earth', '/geo', '/studio', '/marketplace', '/ai-licensing', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
+for (const route of ['/vault/earth', '/geo', '/studio', '/avatar', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
   assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
 }
 assert.match(productMap, /isOrganizedUserRoute/);
@@ -26,7 +27,14 @@ assert.match(nav, /isOrganizedUserRoute/);
 assert.match(nav, /safe-area-inset-bottom/);
 assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should no longer be restricted to a finance-only prefix list');
 assert.match(layout, /FinancialOSNav/);
+assert.match(layout, /Spatial Asset OS/);
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
+
+assert.match(rootHome, /SPATIAL ASSET OS/);
+assert.match(rootHome, /Everything you own/);
+for (const core of ['Create', 'Earth', 'Vault', 'Invest']) assert.match(rootHome, new RegExp(`title: '${core}'`));
+assert.match(rootHome, /Organized does not mean conflated/);
+assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must remain a neutral app front door instead of aliasing one subsystem');
 
 assert.match(more, /Everything, without the clutter/i);
 assert.match(more, /APP_SECTIONS/);
