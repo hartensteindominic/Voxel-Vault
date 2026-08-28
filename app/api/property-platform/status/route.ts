@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { evaluateLegalLaunch } from '../../../../lib/real-estate/legal-launch';
-import { getDinariConfig } from '../../../../lib/real-estate/dinari';
+import {
+  DINARI_LIVE_TRADING_IMPLEMENTATION_READY,
+  getDinariConfig,
+} from '../../../../lib/real-estate/dinari';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,15 +11,22 @@ export async function GET() {
   const launch = evaluateLegalLaunch(process.env);
   const dinari = getDinariConfig(process.env);
 
+  const liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true;
+  const liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true;
+  const directPropertyImplementationReady = launch.productionInvestmentImplementationReady === true;
+  const directPropertyInvestingActivated = launch.liveInvestingEnabled === true;
+
   return NextResponse.json({
-    product: 'Voxel Vault Real Property Investment Platform',
-    mode: launch.liveInvestingEnabled ? 'controlled-live' : 'regulated-launch-build',
+    product: 'Voxel Vault Spatial Real Estate Financial Platform',
+    mode: directPropertyInvestingActivated || liveSecuritiesProviderActivated
+      ? 'controlled-live'
+      : 'regulated-launch-build',
     pilotNetwork: 'Base Sepolia',
     pilotChainId: 84532,
     targetOfferingPath: launch.targetOfferingPath,
-    liveInvestingEnabled: launch.liveInvestingEnabled,
+    liveInvestingEnabled: directPropertyInvestingActivated,
     liveAutomaticReinvestmentEnabled: launch.liveAutomaticReinvestmentEnabled,
-    productionInvestmentImplementationReady: launch.productionInvestmentImplementationReady,
+    productionInvestmentImplementationReady: directPropertyImplementationReady,
     productionAutoReinvestmentImplementationReady: launch.productionAutoReinvestmentImplementationReady,
     launchPolicyVersion: launch.policyVersion,
     gates: launch.gates,
@@ -43,6 +53,26 @@ export async function GET() {
       workstreams: launch.legalReadinessWorkstreams,
       officialReferences: launch.officialRegulatoryReferences,
     },
+    investmentRails: {
+      realEstateSecurities: {
+        provider: dinari.provider,
+        environment: dinari.environment,
+        implementationReady: liveSecuritiesImplementationReady,
+        providerActivated: liveSecuritiesProviderActivated,
+        credentialsConfigured: dinari.credentialsConfigured,
+        accountConfigured: dinari.accountConfigured,
+        productionReadinessBlockers: dinari.productionReadinessBlockers,
+        liveOrderMaxUsd: 700,
+        rightsType: 'security/economic exposure; not a deed to a specific parcel',
+      },
+      directSpecificProperty: {
+        implementationReady: directPropertyImplementationReady,
+        providerActivated: directPropertyInvestingActivated,
+        automatedAcquisitionEnabled: false,
+        pooledPublicInvestingEnabled: false,
+        rightsType: 'future deed/entity-linked property rights after title and legal closing',
+      },
+    },
     digitalReits: {
       provider: dinari.provider,
       environment: dinari.environment,
@@ -50,11 +80,16 @@ export async function GET() {
       accountConfigured: dinari.accountConfigured,
       sandboxFaucetEnabled: dinari.sandboxFaucetEnabled,
       sandboxTradingEnabled: dinari.sandboxTradingEnabled,
-      productionTradingEnabled: dinari.productionTradingEnabled,
+      liveTradingImplementationReady: liveSecuritiesImplementationReady,
+      productionTradingEnabled: liveSecuritiesProviderActivated,
       symbols: dinari.symbols,
     },
     capabilities: {
       threeDimensionalPropertyTwin: true,
+      verifiedSpatialTruthModel: true,
+      geographicParcelVerificationGate: true,
+      physicalBuildingVerificationGate: true,
+      explicitPropertyRightsClassification: true,
       legalEntityLinkageModel: true,
       permissionedInterestTokenContracts: true,
       merkleDistributionVaultContract: true,
@@ -76,10 +111,11 @@ export async function GET() {
       authorityEvidenceVerification: false,
       crossAssetAdapterModel: true,
       rentReinvestmentSimulation: true,
-      liveInvestmentCheckout: false,
+      liveInvestmentCheckout: liveSecuritiesProviderActivated,
+      liveDigitalReitTradingImplementationReady: liveSecuritiesImplementationReady,
+      liveDigitalReitTrading: liveSecuritiesProviderActivated,
       automatedLiveAcquisition: false,
       liveAutomaticReinvestment: false,
-      liveDigitalReitTrading: false,
       pooledPublicRentInvesting: false,
       mainnetPropertyTokenDeployment: false,
     },
@@ -89,9 +125,13 @@ export async function GET() {
       digitalReitVault: '/real-estate/reits',
       digitalReitStatus: '/api/digital-reits',
       digitalReitSandboxFunding: '/api/digital-reits/sandbox-fund',
+      ownerLiveDigitalReitConsole: '/admin/digital-reits/live',
+      propertyVault: '/real-estate/property/[propertyId]',
     },
-    note: launch.liveInvestingEnabled
-      ? 'Controlled live mode is active through the approved production integration.'
-      : 'Fail-closed regulated launch build: environment settings are unverified assertions, no authority evidence verifier is connected, and no live investor funds, live securities purchase, automated property acquisition or public security-token sale can execute from this code.',
+    note: liveSecuritiesProviderActivated
+      ? 'The approved owner-only real-estate securities rail is activated. This does not activate direct deed-linked property investing.'
+      : directPropertyInvestingActivated
+        ? 'A controlled direct-property launch is active under its separate approved legal/provider gates.'
+        : 'Fail-closed regulated launch build: the real-estate securities execution implementation exists, but provider activation remains separate from direct property ownership. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
   });
 }
