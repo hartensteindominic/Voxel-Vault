@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { stripe, platformFee } from '../../../lib/stripe-server';
 import { getSupabaseAdmin } from '../../../lib/supabase-admin';
+import { verifyMarketplaceSellerPayoutReadiness } from '../../../lib/marketplace-seller-readiness';
 
 export async function POST(request: Request) {
   try {
@@ -33,11 +34,20 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (existing) return NextResponse.json({ error: 'Already purchased' }, { status: 409 });
 
-    const { data: seller } = await supabaseAdmin
+    const { data: seller, error: sellerError } = await supabaseAdmin
       .from('seller_accounts')
-      .select('stripe_account_id,charges_enabled,payouts_enabled')
+      .select('stripe_account_id')
       .eq('user_id', asset.seller_id)
       .maybeSingle();
+    if (sellerError) return NextResponse.json({ error: 'Seller payout state could not be verified.' }, { status: 503 });
+
+    const payout = await verifyMarketplaceSellerPayoutReadiness(seller);
+    if (!payout.ready) {
+      return NextResponse.json({
+        error: 'This seller is not currently payout-ready, so checkout is paused. No payment session was created.',
+        sellerPayoutReady: false,
+      }, { status: 409 });
+    }
 
     const fee = platformFee(asset.price_cents);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxel-vault.vercel.app';
@@ -52,10 +62,8 @@ export async function POST(request: Request) {
       metadata: { asset_id: asset.id, buyer_id: user.id },
       payment_intent_data: {
         metadata: { asset_id: asset.id, buyer_id: user.id },
-        ...(seller?.stripe_account_id && seller.charges_enabled && seller.payouts_enabled ? {
-          application_fee_amount: fee,
-          transfer_data: { destination: seller.stripe_account_id },
-        } : {}),
+        application_fee_amount: fee,
+        transfer_data: { destination: payout.destination },
       },
       success_url: `${appUrl}/purchases?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/assets/${encodeURIComponent(asset.id)}?checkout=cancelled`,
