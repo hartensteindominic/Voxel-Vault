@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Inspect official Erie building-footprint candidates for the first real parcel.
+"""Inspect source-backed building-footprint candidates for the first real Erie parcel.
 
-Diagnostic only. It never changes the property twin. It compares the current 2025 DSM BUILDING
-layer with Erie County's separate CPS/ErieCountyBase BuildingFootprints layer before any LiDAR
-height is trusted.
+Diagnostic only. It never changes the property twin. It compares Erie County's current DSM and
+CPS basemap polygons with the Buffalo Engineering Division CityBuildingService2020 footprint
+service before any building geometry or LiDAR height is trusted.
 """
 
 from __future__ import annotations
@@ -20,8 +20,10 @@ from shapely.ops import transform as transform_geometry
 
 DSM_BUILDING_LAYER = "https://gis.erie.gov/server/rest/services/DSM/DSM_Basemap_2025/MapServer/120"
 CPS_BUILDING_LAYER = "https://gis.erie.gov/server/rest/services/CPS/ErieCountyBase/MapServer/9"
+BUFFALO_ENGINEERING_BUILDING_LAYER = "https://services.arcgis.com/HnPbdNoPBNAJ6Oel/ArcGIS/rest/services/CityBuildingService2020/FeatureServer/0"
 LOCAL_METRIC_CRS = "EPSG:32617"
 DSM_FIELDS = "OBJECTID_12,OBJECTID,GlobalID,PIN,SBL,ADDNAME,ADDRESS,YEARBLT,SFLA,DATE_,EDITEDDATE,erie_DWQMADMIN_Building_AREA"
+BUFFALO_FIELDS = "OBJECTID,BLDGHEIGHT,NUMSTORIES,FEATURECODE,LASTUPDATE,LASTEDITOR,STATUS,X,Y,GlobalID,GlobalID_1,Shape__Area,Shape__Length"
 
 
 def fetch_geojson(layer: str, params: dict) -> dict:
@@ -33,7 +35,7 @@ def fetch_geojson(layer: str, params: dict) -> dict:
     with urllib.request.urlopen(request, timeout=20) as response:
         data = json.load(response)
     if not isinstance(data, dict) or data.get("error"):
-        raise RuntimeError(f"Erie footprint query failed for {layer}: {data.get('error') if isinstance(data, dict) else 'invalid response'}")
+        raise RuntimeError(f"Building-footprint query failed for {layer}: {data.get('error') if isinstance(data, dict) else 'invalid response'}")
     return data
 
 
@@ -63,6 +65,8 @@ def summarize(source: str, label: str, data: dict, parcel_m, transformer) -> dic
             "address": str(props.get("ADDRESS") or props.get("Address") or "").strip(),
             "addname": str(props.get("ADDNAME") or "").strip(),
             "yearBuilt": props.get("YEARBLT"),
+            "buildingHeight": props.get("BLDGHEIGHT"),
+            "numStories": props.get("NUMSTORIES"),
             "sfla": props.get("SFLA"),
             "declaredBuildingArea": props.get("erie_DWQMADMIN_Building_AREA"),
             "geometryType": geometry.get("type"),
@@ -76,6 +80,7 @@ def summarize(source: str, label: str, data: dict, parcel_m, transformer) -> dic
             "containsParcelCentroid": bool(candidate.covers(parcel_m.centroid)),
             "properties": props,
         })
+    results.sort(key=lambda item: (item["containsParcelCentroid"], item["intersectionAreaSqMeters"], item["buildingOverlapRatio"]), reverse=True)
     return {"source": source, "query": label, "featureCount": len(data.get("features") or []), "candidates": results}
 
 
@@ -94,6 +99,21 @@ def spatial_params(parcel_arcgis: dict, out_fields: str) -> dict:
     }
 
 
+def point_params(longitude: float, latitude: float, out_fields: str) -> dict:
+    return {
+        "f": "geojson",
+        "where": "1=1",
+        "geometry": f"{longitude},{latitude}",
+        "geometryType": "esriGeometryPoint",
+        "inSR": "4326",
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": out_fields,
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "resultRecordCount": "20",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, type=Path)
@@ -101,6 +121,9 @@ def main() -> None:
     evidence = json.loads(args.input.read_text(encoding="utf-8"))
     parcel_geo = (evidence.get("parcel") or {}).get("geometryWgs84")
     address = str((evidence.get("property") or {}).get("address") or "").strip().upper()
+    reference = evidence.get("referencePointWgs84") or {}
+    latitude = float(reference.get("latitude"))
+    longitude = float(reference.get("longitude"))
     if not parcel_geo or not address:
         raise RuntimeError("Source-backed parcel geometry and address are required.")
 
@@ -123,12 +146,15 @@ def main() -> None:
     escaped_address = address.replace("'", "''")
     report = {
         "property": evidence.get("property"),
+        "referencePointWgs84": {"latitude": latitude, "longitude": longitude},
         "parcelAreaSqMeters": round(float(parcel_m.area), 3),
         "queries": [
             summarize("DSM_BUILDING_2025", "exact-address", fetch_geojson(DSM_BUILDING_LAYER, {**dsm_common, "where": f"ADDRESS='{escaped_address}'"}), parcel_m, transformer),
             summarize("DSM_BUILDING_2025", "exact-addname", fetch_geojson(DSM_BUILDING_LAYER, {**dsm_common, "where": f"ADDNAME='{escaped_address}'"}), parcel_m, transformer),
             summarize("DSM_BUILDING_2025", "spatial-intersects", fetch_geojson(DSM_BUILDING_LAYER, spatial_params(parcel_arcgis, DSM_FIELDS)), parcel_m, transformer),
             summarize("CPS_BUILDING_FOOTPRINTS", "spatial-intersects", fetch_geojson(CPS_BUILDING_LAYER, spatial_params(parcel_arcgis, "*")), parcel_m, transformer),
+            summarize("BUFFALO_ENGINEERING_2020", "reference-point", fetch_geojson(BUFFALO_ENGINEERING_BUILDING_LAYER, point_params(longitude, latitude, BUFFALO_FIELDS)), parcel_m, transformer),
+            summarize("BUFFALO_ENGINEERING_2020", "parcel-intersects", fetch_geojson(BUFFALO_ENGINEERING_BUILDING_LAYER, spatial_params(parcel_arcgis, BUFFALO_FIELDS)), parcel_m, transformer),
         ],
     }
     print(json.dumps(report, indent=2, sort_keys=True))
