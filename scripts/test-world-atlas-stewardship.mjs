@@ -38,10 +38,10 @@ assert.equal(blocked.rightsEffect.createsPhysicalPropertyOwnership, false);
 assert.equal(blocked.rightsEffect.createsGovernmentTaxObligation, false);
 assert.equal(blocked.rightsEffect.grantsExclusiveMapDataOwnership, false);
 
-const regionA = worldStewardshipRegionId(42.9, -78.8);
-const regionB = worldStewardshipRegionId(42.9001, -78.8001);
+const regionA = worldStewardshipRegionId(42.912, -78.812);
+const regionB = worldStewardshipRegionId(42.913, -78.813);
 assert.ok(regionA.startsWith('atlas:0.05:'), 'regional anti-concentration grid must be deterministic and explicit');
-assert.equal(regionA, regionB, 'nearby points in the same grid cell should share the same concentration region');
+assert.equal(regionA, regionB, 'nearby points clearly inside the same grid cell should share the same concentration region');
 
 assert.match(atlas, /WORLD_ATLAS_DATA_RELEASE = '2026-07-22\.0'/, 'world atlas should pin the reviewed Overture release');
 assert.match(atlas, /progressive-region-streaming/, 'world atlas must stream regions rather than download the planet into the browser');
