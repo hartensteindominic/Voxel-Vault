@@ -30,22 +30,25 @@ export default function FinancialOSNav() {
   if (!financialRoute) return null;
 
   return (
-    <nav aria-label="Voxel Vault financial navigation" style={styles.nav}>
-      {PRIMARY.map((item) => {
-        const active = activeFor(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            style={{ ...styles.item, ...(active ? styles.itemActive : {}) }}
-          >
-            <span style={{ ...styles.icon, ...(active ? styles.iconActive : {}) }}>{item.icon}</span>
-            <b style={{ ...styles.label, ...(active ? styles.labelActive : {}) }}>{item.label}</b>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <div aria-hidden="true" style={{height:'calc(82px + env(safe-area-inset-bottom))'}} />
+      <nav aria-label="Voxel Vault financial navigation" style={styles.nav}>
+        {PRIMARY.map((item) => {
+          const active = activeFor(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              style={{ ...styles.item, ...(active ? styles.itemActive : {}) }}
+            >
+              <span style={{ ...styles.icon, ...(active ? styles.iconActive : {}) }}>{item.icon}</span>
+              <b style={{ ...styles.label, ...(active ? styles.labelActive : {}) }}>{item.label}</b>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 
