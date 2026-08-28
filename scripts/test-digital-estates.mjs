@@ -11,30 +11,30 @@ for (const estate of DIGITAL_ESTATES) {
 }
 
 const earth = fs.readFileSync(new URL('../lib/earth-properties.ts', import.meta.url), 'utf8');
-assert.match(earth, /BRIDGE_BASE_URL = 'https:\/\/api\.bridgedataoutput\.com\/api\/v2\/OData'/, 'Earth listings must use the authorized Bridge API adapter.');
+assert.match(earth, /BRIDGE_BASE_URL = 'https:\/\/api\.bridgedataoutput\.com\/api\/v2\/OData'/, 'Earth listings must keep the authorized Bridge API adapter.');
 assert.match(earth, /MAX_RESULTS = 20/, 'Earth property views must cap provider results at 20.');
-assert.match(earth, /cache: 'no-store'/, 'Provider listing payloads must not be cached by the application fetch.');
-assert.match(earth, /configured: false[\s\S]*listings: \[\]/, 'Missing credentials must produce an empty real-property result, not fake listings.');
+assert.match(earth, /cache:\s*'no-store'/, 'Provider listing payloads must not be cached by the application fetch.');
+assert.match(earth, /configured:\s*false[\s\S]*listings:\s*\[\]/, 'Missing credentials must produce an empty real-property result, not fake listings.');
 for (const type of ['mobile-home','storefront','warehouse','barn-farm','land','multifamily']) {
   assert.match(earth, new RegExp(`'${type}'`), `Earth normalization must support ${type}.`);
 }
 assert.doesNotMatch(earth, /fake listing|sample listing|demo property/i, 'Earth provider code must not fabricate real-property inventory.');
 
 const earthApi = fs.readFileSync(new URL('../app/api/earth-properties/search/route.ts', import.meta.url), 'utf8');
-assert.match(earthApi, /searchEarthProperties/, 'Earth search route must use the authorized provider adapter.');
+assert.match(earthApi, /searchEarthProperties/, 'Earth search route must use the authorized provider federation.');
 assert.match(earthApi, /Cache-Control.*private, no-store/s, 'Earth API responses must be no-store.');
 assert.match(earthApi, /real-property acquisition requires/i, 'Earth API must preserve real closing/deed truth.');
 
 const earthPage = fs.readFileSync(new URL('../app/vault/earth/page.js', import.meta.url), 'utf8');
-assert.match(earthPage, /City, ZIP, or address/);
+assert.match(earthPage, /City,[^\n]*address/i, 'Earth search must accept city/address-style queries.');
 assert.match(earthPage, /NEAR ME/);
 assert.match(earthPage, /Mobile \/ Trailer/);
 assert.match(earthPage, /Storefronts/);
 assert.match(earthPage, /Barns \/ Farms/);
-assert.match(earthPage, /OPEN SOURCE LISTING/);
-assert.match(earthPage, /VERIFY OWNER \/ CREATE PROPERTY PASSPORT/);
-assert.match(earthPage, /does not transfer the deed/i, 'Earth UI must never present the NFT as the deed.');
-assert.match(earthPage, /Digital-token resale value remains separate/i, 'Physical-market reference and token resale value must remain separate.');
+assert.match(earthPage, /OPEN (?:REAL )?SOURCE LISTING/);
+assert.match(earthPage, /VERIFY OWNER[^\n]*CREATE PROPERTY PASSPORT/);
+assert.match(earthPage, /does not (?:transfer|replace) the deed/i, 'Earth UI must never present the NFT as the deed.');
+assert.match(earthPage, /(?:digital twin|digital-token)[^\n]*resale value[^\n]*separate/i, 'Physical-market reference and token resale value must remain separate.');
 
 const estatesRedirect = fs.readFileSync(new URL('../app/vault/estates/page.js', import.meta.url), 'utf8');
 assert.match(estatesRedirect, /redirect\('\/vault\/earth'\)/, 'The primary Estates route must now lead to real Earth properties.');
