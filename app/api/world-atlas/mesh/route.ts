@@ -58,7 +58,7 @@ function rawTaskId(taskId: string) {
 
 export async function POST(request: Request) {
   const admin = await requireVoxelVaultAdmin(request);
-  if (!admin.ok) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
+  if (admin.ok === false) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) return NextResponse.json({ configured: false, error: 'MESHY_API_KEY is not configured server-side.' }, { status: 503 });
 
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   const admin = await requireVoxelVaultAdmin(request);
-  if (!admin.ok) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
+  if (admin.ok === false) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) return NextResponse.json({ configured: false, error: 'MESHY_API_KEY is not configured server-side.' }, { status: 503 });
 
