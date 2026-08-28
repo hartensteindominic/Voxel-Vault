@@ -3,6 +3,7 @@ import {
   buildDigitalAssetToPropertyPlan,
   buildPropertyOwnershipGoal,
   evaluatePropertyCashAction,
+  evaluateStarterPropertyInvestment,
 } from '../../../../lib/real-estate/property-ownership-goal.js';
 
 export const runtime = 'nodejs';
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     const mode = String(body?.mode || 'goal').trim().toLowerCase();
     let result;
     if (mode === 'goal') result = buildPropertyOwnershipGoal(body);
+    else if (mode === 'starter_investment') result = evaluateStarterPropertyInvestment(body);
     else if (mode === 'asset_to_property') result = buildDigitalAssetToPropertyPlan(body);
     else if (mode === 'cash_action') result = evaluatePropertyCashAction(body);
     else throw new Error('Unsupported GEO ownership-goal mode.');

@@ -7,9 +7,11 @@ import {
   buildGlobalReferenceRequest,
 } from '../lib/real-estate/geo-property-onboarding.js';
 import {
+  STARTER_INVESTMENT_PRESETS_CENTS,
   buildDigitalAssetToPropertyPlan,
   buildPropertyOwnershipGoal,
   evaluatePropertyCashAction,
+  evaluateStarterPropertyInvestment,
 } from '../lib/real-estate/property-ownership-goal.js';
 import {
   PROPERTY_FACT_SOURCE_KINDS,
@@ -24,7 +26,43 @@ assert.equal(penny.nextSavedCents, 1);
 assert.equal(penny.ownershipCreated, false);
 assert.equal(penny.securityPurchased, false);
 assert.equal(penny.deedInterestCreated, false);
+assert.deepEqual(penny.starterPresetsCents, [500, 1000, 2500, 5000]);
+assert.deepEqual(STARTER_INVESTMENT_PRESETS_CENTS, [500, 1000, 2500, 5000]);
 assert.throws(() => buildPropertyOwnershipGoal({ targetPropertyPriceCents: 1000, savedCents: 0, contributionCents: 0 }), /between 1/);
+
+const noOfferingStarter = evaluateStarterPropertyInvestment({ amountCents: 1000 });
+assert.equal(noOfferingStarter.state, 'goal_only');
+assert.equal(noOfferingStarter.canOpenProviderCheckout, false);
+assert.equal(noOfferingStarter.ownershipCreated, false);
+assert.equal(noOfferingStarter.fundsTransferredByThisCheck, false);
+
+const belowMinimumStarter = evaluateStarterPropertyInvestment({
+  amountCents: 1000,
+  providerMinimumCents: 2500,
+  providerOfferingVerified: true,
+  providerExecutionReady: true,
+  userEligible: true,
+  userAuthorizedPurchase: true,
+});
+assert.equal(belowMinimumStarter.state, 'below_provider_minimum');
+assert.equal(belowMinimumStarter.meetsProviderMinimum, false);
+assert.equal(belowMinimumStarter.canOpenProviderCheckout, false);
+assert.equal(belowMinimumStarter.verifiedPropertyPosition, false);
+
+const readyStarter = evaluateStarterPropertyInvestment({
+  amountCents: 2500,
+  providerMinimumCents: 2500,
+  providerOfferingVerified: true,
+  providerExecutionReady: true,
+  userEligible: true,
+  userAuthorizedPurchase: true,
+});
+assert.equal(readyStarter.state, 'provider_handoff_ready');
+assert.equal(readyStarter.meetsProviderMinimum, true);
+assert.equal(readyStarter.canOpenProviderCheckout, true);
+assert.equal(readyStarter.ownershipCreated, false);
+assert.equal(readyStarter.securityPurchasedByThisCheck, false);
+assert.equal(readyStarter.verifiedPropertyPosition, false);
 
 const assetPlan = buildDigitalAssetToPropertyPlan({ settledAssetProceedsCents: 1000, earmarkCents: 500, providerOfferingVerified: false, providerExecutionReady: false, userAuthorizedPurchase: true });
 assert.equal(assetPlan.canMoveToPropertyGoal, true);
