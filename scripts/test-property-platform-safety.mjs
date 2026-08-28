@@ -54,8 +54,21 @@ requireText(launch, 'New York-facing virtual-currency activity', 'legal launch e
 requireText(launch, 'environmentVariablesAreNotAuthority: true', 'legal launch engine');
 requireText(launch, 'asserted-unverified', 'legal launch engine');
 requireText(launch, 'authority-evidence-not-verified', 'legal launch engine');
-requireText(status, 'liveInvestmentCheckout: false', 'property status route');
+
+// The owner-only regulated securities rail is allowed to become live only through its own
+// provider gates. The direct-property rail remains a separate fail-closed launch path.
+requireText(status, 'liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true', 'property status route');
+requireText(status, 'liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true', 'property status route');
+requireText(status, 'liveInvestmentCheckout: liveSecuritiesProviderActivated', 'property status route');
+requireText(status, 'liveDigitalReitTradingImplementationReady: liveSecuritiesImplementationReady', 'property status route');
+requireText(status, 'liveDigitalReitTrading: liveSecuritiesProviderActivated', 'property status route');
+requireText(status, 'directSpecificProperty', 'property status route');
+requireText(status, 'providerActivated: directPropertyInvestingActivated', 'property status route');
+requireText(status, 'automatedAcquisitionEnabled: false', 'property status route');
+requireText(status, 'pooledPublicInvestingEnabled: false', 'property status route');
+requireText(status, 'automatedLiveAcquisition: false', 'property status route');
 requireText(status, 'liveAutomaticReinvestment: false', 'property status route');
+requireText(status, 'pooledPublicRentInvesting: false', 'property status route');
 requireText(status, 'mainnetPropertyTokenDeployment: false', 'property status route');
 requireText(status, 'evaluateLegalLaunch(process.env)', 'property status route');
 requireText(status, 'legalReadiness', 'property status route');
@@ -85,7 +98,8 @@ requireText(root, "import RealEstatePlatformPage from './real-estate/page'", 'ro
 requireText(home, 'Demo data only', 'property homepage');
 requireText(home, 'Live investing is locked', 'property homepage');
 requireText(home, '/real-estate/property/', 'property homepage');
-requireText(vault, 'No investment checkout', 'property vault');
+requireText(vault, 'REFERENCE ONLY', 'property vault');
+requireText(vault, 'geometry not yet verified', 'property vault');
 requireText(vault, 'No deed transfer occurs on-chain', 'property vault');
 requireText(vault, 'Public hashes, private source documents', 'property vault');
 requireText(invest, '/real-estate/launch', 'investment wallet page');
@@ -144,7 +158,7 @@ allExternalGatesTrueEnv.REAL_ESTATE_LIVE_AUTO_REINVESTMENT_ENABLED = 'true';
 const evaluatedLaunch = evaluateLegalLaunch(allExternalGatesTrueEnv);
 assert.equal(evaluatedLaunch.allExternalGatesAsserted, true, 'test env should assert every external gate');
 assert.equal(evaluatedLaunch.allExternalGatesSatisfied, false, 'environment assertions must not satisfy authority evidence gates');
-assert.equal(evaluatedLaunch.liveInvestingEnabled, false, 'implementation constant must keep live investing fail-closed');
+assert.equal(evaluatedLaunch.liveInvestingEnabled, false, 'implementation constant must keep direct-property live investing fail-closed');
 assert.equal(evaluatedLaunch.liveAutomaticReinvestmentEnabled, false, 'implementation constant must keep auto-reinvestment fail-closed');
 assert.equal(evaluatedLaunch.environmentVariablesAreNotAuthority, true, 'env vars are evidence inputs, not legal authority');
 assert.equal(evaluatedLaunch.legalEvidenceVerifierImplementationReady, false, 'authority evidence verifier must remain code-locked');
@@ -156,8 +170,8 @@ assert.ok(evaluatedLaunch.activationBlockers.includes('legal-evidence-verifier-n
 assert.ok(evaluatedLaunch.activationBlockers.includes('authority-evidence-not-verified'), 'activation blockers should expose unverified authority evidence');
 assert.equal(evaluatedLaunch.readinessSummary.legalClearanceClaimed, false, 'status must never claim legal clearance');
 assert.equal(evaluatedLaunch.readinessSummary.verifiedGateCount, 0, 'no authority gates should be reported verified');
-assert.equal(evaluatedLaunch.readinessSummary.canAcceptInvestorFunds, false, 'investor funds must remain blocked');
-assert.equal(evaluatedLaunch.readinessSummary.canIssueEconomicInterests, false, 'economic-interest issuance must remain blocked');
+assert.equal(evaluatedLaunch.readinessSummary.canAcceptInvestorFunds, false, 'direct-property investor funds must remain blocked');
+assert.equal(evaluatedLaunch.readinessSummary.canIssueEconomicInterests, false, 'direct-property economic-interest issuance must remain blocked');
 assert.equal(evaluatedLaunch.legalEvidenceRecordFields, legalEvidenceRecordFields, 'policy should return shared evidence record fields');
 assert.equal(evaluatedLaunch.legalEvidenceRequirements, legalEvidenceRequirements, 'policy should return shared evidence requirements');
 assert.equal(evaluatedLaunch.officialRegulatoryReferences, officialRegulatoryReferences, 'policy should return the shared official references');
@@ -171,8 +185,8 @@ assert.ok(partnerDiligenceChecklist.length >= 6, 'partner diligence checklist sh
 assert.ok(reviewReadyWorkItems.length >= 6, 'GitHub work queue should stay visible');
 assert.ok(legalEvidenceRecordFields.includes('documentSha256'), 'evidence records should require a public-safe document digest');
 assert.ok(legalEvidenceRequirements.length >= 16, 'every regulated workstream should have an authority evidence gate');
-assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'money movement must remain blocked');
-assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'ownership minting must remain blocked');
+assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-property money movement must remain blocked');
+assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, live investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
+console.log('Property-platform safety checks passed: direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, the separate owner-only securities rail stays provider-gated, and property deployment is Base Sepolia-only.');
