@@ -1,6 +1,11 @@
 import { notFound } from 'next/navigation';
 import PropertyTwinCanvas from '../../PropertyTwinCanvas';
 import styles from '../../real-estate.module.css';
+import {
+  PROPERTY_RIGHT_TYPES,
+  normalizePropertyTwin,
+  propertyRightsLabel,
+} from '../../../../lib/real-estate/property-twin';
 
 const demoProperties = {
   '0001': {
@@ -51,10 +56,36 @@ export function generateStaticParams() {
   return Object.keys(demoProperties).map((propertyId) => ({ propertyId }));
 }
 
+const truthText = (state) => {
+  if (state === 'verified') return 'VERIFIED';
+  if (state === 'partial') return 'PARTIAL';
+  return 'UNVERIFIED';
+};
+
 export default async function PropertyVaultPage({ params }) {
   const { propertyId } = await params;
   const property = demoProperties[propertyId];
   if (!property) notFound();
+
+  // These existing property cards are intentionally demo/reference records. They do not
+  // contain authoritative parcel coordinates, boundaries, building geometry or title evidence,
+  // so the truth engine must refuse to call them verified.
+  const twin = normalizePropertyTwin({
+    propertyId,
+    label: property.name,
+    addressLabel: property.address,
+    identity: {
+      countryCode: 'US',
+      subdivisionCode: 'NY',
+      countyCode: '',
+      parcelId: '',
+      fingerprint: '',
+    },
+    rights: {
+      type: PROPERTY_RIGHT_TYPES.REFERENCE_ONLY,
+    },
+  });
+  const rightsLabel = propertyRightsLabel(twin);
 
   const ledger = [
     ['Property entity', property.entity, 'Legal owner layer'],
@@ -70,25 +101,33 @@ export default async function PropertyVaultPage({ params }) {
     ['Distribution vault prepared', 'Claims locked', 'Testnet'],
   ];
 
+  const truthCards = [
+    ['Geographic truth', truthText(twin.verification.geography), 'Requires canonical parcel identity, valid coordinates, parcel polygon and authoritative source lineage.'],
+    ['Physical truth', truthText(twin.verification.physical), 'Requires source-backed building footprint and height before the 3D twin can be called physically verified.'],
+    ['Ownership rights', rightsLabel, 'Reference-only, provider-confirmed fractional security, or title/entity-confirmed direct ownership are kept separate.'],
+    ['Fully verified vault', twin.verification.fullyVerified ? 'YES' : 'NO', 'Only becomes YES when both the spatial twin and the legal/economic ownership position are verified.'],
+  ];
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
         <nav className={styles.nav}>
           <a className={styles.brand} href="/"><span className={styles.brandMark}>V</span>Voxel Vault</a>
           <div className={styles.navActions}>
-            <span className={styles.statusPill}><span className={styles.statusDot} />PROPERTY VAULT · DEMO</span>
+            <span className={styles.statusPill}><span className={styles.statusDot} />PROPERTY VAULT · {rightsLabel}</span>
             <a className={styles.ghostPill} href="/real-estate">All properties</a>
           </div>
         </nav>
 
         <section className={styles.hero}>
           <div>
-            <p className={styles.eyebrow}>{property.id} · legally linked digital twin</p>
+            <p className={styles.eyebrow}>{property.id} · spatial property vault</p>
             <h1>{property.name}<br /><em>property vault.</em></h1>
             <p className={styles.lead}>{property.address}</p>
             <div className={styles.heroNote}>
-              <span>🔒 Demo only.</span>
-              <span>🔒 No investment checkout.</span>
+              <span>RIGHTS · {rightsLabel}</span>
+              <span>GEO · {truthText(twin.verification.geography)}</span>
+              <span>PHYSICAL · {truthText(twin.verification.physical)}</span>
               <span>🔒 No deed transfer occurs on-chain.</span>
             </div>
           </div>
@@ -97,11 +136,11 @@ export default async function PropertyVaultPage({ params }) {
             <PropertyTwinCanvas className={styles.twinCanvas} />
             <div className={styles.visualTop}>
               <span className={styles.darkPill}>3D PROPERTY TWIN · {propertyId}</span>
-              <span className={styles.demoPill}>DEMO</span>
+              <span className={styles.demoPill}>REFERENCE MODEL</span>
             </div>
             <div className={styles.visualBottom}>
               <div className={styles.propertyCaption}><small>Property entity</small><strong>{property.entity}</strong></div>
-              <span className={styles.dragHint}>Drag to rotate<br />sample parcel twin</span>
+              <span className={styles.dragHint}>Drag to rotate<br />geometry not yet verified</span>
             </div>
           </div>
         </section>
@@ -111,6 +150,28 @@ export default async function PropertyVaultPage({ params }) {
           <div className={styles.metricCard}><div className={styles.metricLabel}>Gross rent</div><div className={styles.metricValue}>{property.grossRent}</div><div className={styles.metricSub}>Before expenses and reserves</div></div>
           <div className={styles.metricCard}><div className={styles.metricLabel}>Occupancy</div><div className={styles.metricValue}>{property.occupancy}</div><div className={styles.metricSub}>Property-management data layer</div></div>
           <div className={styles.metricCard}><div className={styles.metricLabel}>Net distributable</div><div className={styles.metricValue}>{property.distributable}</div><div className={styles.metricSub}>Illustrative, not promised income</div></div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div><p className={styles.eyebrow}>Spatial truth engine</p><h2>A 3D model is not automatically a real property twin.</h2></div>
+            <p>Voxel Vault now tracks geographic truth, physical truth and legal/economic ownership as separate verification layers. A visually accurate model cannot create ownership, and a financial position cannot silently claim a specific parcel.</p>
+          </div>
+          <div className={styles.stackGrid}>
+            {truthCards.map(([label, value, note], index) => (
+              <article className={styles.stackCard} key={label}>
+                <span className={styles.stackNumber}>{index + 1}</span>
+                <h3>{label}</h3>
+                <p><strong>{value}</strong><br />{note}</p>
+              </article>
+            ))}
+          </div>
+          <div className={styles.heroNote} style={{ marginTop: 20 }}>
+            <span>Parcel coordinates · missing</span>
+            <span>Parcel boundary · missing</span>
+            <span>Building footprint · missing</span>
+            <span>Authoritative source · missing</span>
+          </div>
         </section>
 
         <section className={styles.section}>
@@ -164,8 +225,8 @@ export default async function PropertyVaultPage({ params }) {
         </section>
 
         <footer className={styles.footer}>
-          <div><strong>{property.id}</strong><br />Voxel Vault legally linked property-twin prototype.</div>
-          <div>Demo only · not an investment offer · live investing, custody and mainnet property-token deployment remain disabled.</div>
+          <div><strong>{property.id}</strong><br />Voxel Vault spatial property-vault prototype.</div>
+          <div>{rightsLabel} · current geometry is unverified demo data · direct live investing, custody and mainnet property-token deployment remain separately gated.</div>
         </footer>
       </div>
     </main>
