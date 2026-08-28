@@ -15,8 +15,8 @@ export default function PropertyTwinCanvas({ className = '', style }) {
     camera.position.set(10.5, 7.4, 12.5);
     camera.lookAt(0, 1.4, 0);
 
+    const compactMotion = window.matchMedia('(max-width: 680px)');
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -145,8 +145,13 @@ export default function PropertyTwinCanvas({ className = '', style }) {
     const resize = () => {
       width = Math.max(host.clientWidth, 1);
       height = Math.max(host.clientHeight, 1);
+      const isCompact = compactMotion.matches || width < 520;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCompact ? 1.35 : 2));
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
+      camera.fov = isCompact ? 43 : 38;
+      camera.position.set(isCompact ? 11.8 : 10.5, isCompact ? 7.2 : 7.4, isCompact ? 14.2 : 12.5);
+      camera.lookAt(0, 1.4, 0);
       camera.updateProjectionMatrix();
     };
     resize();
