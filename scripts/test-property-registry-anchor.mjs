@@ -19,15 +19,22 @@ assert.doesNotMatch(deploy, /setVerified\s*\(/, 'Deployment must not verify any 
 
 const migration = fs.readFileSync(new URL('../supabase/migrations/019_property_registry_anchor_audit.sql', import.meta.url), 'utf8');
 assert.match(migration, /registry_chain_id = 84532/i);
+assert.match(migration, /vault_property_registry_deployments/i, 'Supabase must lock the one reviewed registry deployment.');
+assert.match(migration, /record_canonical_property_registry_deployment/i);
+assert.match(migration, /PROPERTY_REGISTRY_DEPLOYMENT_ALREADY_LOCKED/i);
+assert.match(migration, /PROPERTY_REGISTRY_DEPLOYMENT_NOT_VERIFIED/i, 'Property anchors must require a previously verified deployment.');
 assert.match(migration, /vault_property_registry_anchor_events/i);
 assert.match(migration, /unique \(property_identity_id, action\)/i);
 assert.match(migration, /enable row level security/i);
+assert.match(migration, /revoke all on table public\.vault_property_registry_deployments from anon, authenticated/i);
 assert.match(migration, /revoke all on table public\.vault_property_registry_anchor_events from anon, authenticated/i);
 assert.match(migration, /record_property_registry_anchor/i);
 assert.match(migration, /v_property_id <> \('0x' \|\| lower\(v_identity\.verified_property_fingerprint\)\)/i, 'DB anchor property ID must derive from the authoritative verified fingerprint.');
 assert.match(migration, /if v_action = 'register'/i);
 assert.match(migration, /registry_verified = true/i);
 assert.match(migration, /PROPERTY_REGISTRY_REGISTRATION_REQUIRED/i);
+assert.match(migration, /grant execute on function public\.record_canonical_property_registry_deployment.*service_role/is);
+assert.doesNotMatch(migration, /grant execute on function public\.record_canonical_property_registry_deployment.*authenticated/is);
 assert.match(migration, /grant execute on function public\.record_property_registry_anchor.*service_role/is);
 assert.doesNotMatch(migration, /grant execute on function public\.record_property_registry_anchor.*authenticated/is);
 
