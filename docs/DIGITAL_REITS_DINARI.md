@@ -19,6 +19,8 @@ Voxel Vault's first real tokenized-securities provider adapter targets Dinari's 
 - `/api/digital-reits` safe status/snapshot endpoint with no credentials exposed.
 - `/api/digital-reits/sandbox-fund` same-origin, sandbox-only faucet route.
 - `/api/digital-reits/sandbox-buy` same-origin, sandbox-only managed market-buy route.
+- `/api/digital-reits/reconcile` same-origin, sandbox-only position-reconciliation route.
+- The sandbox UI records the provider position before a buy and refuses to call the asset owned until a later Dinari portfolio read reports a positive quantity increase.
 - Official sandbox faucet flow mints 1,000 mockUSD test funds to the configured managed account.
 - Hard $25 sandbox order cap.
 - Production trading, production funding and live onboarding writes remain hard-disabled in code.
@@ -67,7 +69,8 @@ DINARI_PRODUCTION_TRADING_ENABLED=false
 9. Set `DINARI_SANDBOX_FAUCET_ENABLED=true`, redeploy Preview and use **ADD 1,000 TEST FUNDS**.
 10. Verify the provider cash balance appears.
 11. Set `DINARI_SANDBOX_ORDER_EXECUTION_ENABLED=true`, redeploy Preview and submit one $5 sandbox real-estate-security buy.
-12. Reconcile the resulting order and dShare position. Keep production trading disabled.
+12. Let the Digital REIT Vault reconcile the pre-order quantity against repeated provider portfolio reads. Only a positive provider-reported increase becomes a confirmed holding in the UI and spatial Vault.
+13. If the position is still settling, use **CHECK PROVIDER AGAIN**. Keep production trading disabled.
 
 ## Owner authorization
 
@@ -89,6 +92,8 @@ If those are blank, it falls back to the existing `NEURAL_CORE_ADMIN_EMAILS` / `
 - Existing active accounts are reused instead of duplicated.
 - Sandbox funding and buying refuse `DINARI_ENVIRONMENT=live`.
 - Sandbox buys are capped at $25 per request.
+- Reconciliation is read-only and sandbox-only.
+- A submitted sandbox order is not treated as ownership; confirmation requires a later provider portfolio amount above the pre-order baseline.
 - The faucet uses mock tokens only; it cannot fund a production account.
 - The browser never receives the API key ID or API secret.
 - The hosted KYC response exposes only an expiring Dinari URL; Voxel Vault does not request or store SSN/tax-ID/document data in the wizard.

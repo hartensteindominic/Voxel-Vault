@@ -10,6 +10,7 @@ import {
   listDigitalRealEstateAssets,
   mintSandboxFunds,
 } from '../lib/real-estate/dinari.js';
+import { reconcileDigitalReitPosition } from '../lib/real-estate/reconciliation.js';
 
 assert.equal(DINARI_LIVE_TRADING_IMPLEMENTATION_READY, false, 'production trading must remain code-locked');
 assert.equal(DINARI_SANDBOX_ORDER_MAX_USD, 25, 'sandbox order cap changed unexpectedly');
@@ -37,6 +38,31 @@ const sandboxLocked = getDinariConfig({
 assert.equal(sandboxLocked.sandboxTradingEnabled, false, 'sandbox trading requires explicit enable flag');
 assert.equal(sandboxLocked.sandboxFaucetEnabled, false, 'sandbox faucet requires explicit enable flag');
 assert.ok(sandboxLocked.symbols.includes('VNQ'), 'default real-estate watchlist should include VNQ');
+
+const confirmedReconciliation = reconcileDigitalReitPosition({
+  stockId: 'stock-vnq',
+  symbol: 'VNQ',
+  previousAmount: 1,
+  portfolio: [{ stockId: 'stock-vnq', symbol: 'VNQ', amount: 1.125 }],
+});
+assert.equal(confirmedReconciliation.confirmed, true, 'a provider-reported position increase should confirm ownership');
+assert.equal(confirmedReconciliation.increase, 0.125);
+assert.equal(confirmedReconciliation.source, 'provider-portfolio');
+
+const pendingReconciliation = reconcileDigitalReitPosition({
+  stockId: 'stock-vnq',
+  symbol: 'VNQ',
+  previousAmount: 1,
+  portfolio: [{ stockId: 'stock-vnq', symbol: 'VNQ', amount: 1 }],
+});
+assert.equal(pendingReconciliation.confirmed, false, 'order submission alone must not confirm ownership');
+assert.equal(pendingReconciliation.increase, 0);
+
+assert.throws(
+  () => reconcileDigitalReitPosition({ stockId: 'stock-vnq', previousAmount: -1, portfolio: [] }),
+  /non-negative/,
+  'invalid reconciliation baselines must fail closed',
+);
 
 const originalFetch = global.fetch;
 const calls = [];
@@ -138,4 +164,4 @@ try {
   global.fetch = originalFetch;
 }
 
-console.log('Digital REIT safety checks passed: provider catalog/dividends are real-estate filtered, cash and sandbox faucet flows are modeled, sandbox orders remain capped, and production trading/funding remain code-locked.');
+console.log('Digital REIT safety checks passed: provider catalog/dividends are real-estate filtered, cash and sandbox faucet flows are modeled, sandbox orders remain capped, provider position increases are reconciled before ownership confirmation, and production trading/funding remain code-locked.');
