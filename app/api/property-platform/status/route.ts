@@ -5,6 +5,7 @@ import {
   getDinariConfig,
 } from '../../../../lib/real-estate/dinari';
 import { publicFractionalBridgeStatus } from '../../../../lib/real-estate/fractional-property-bridge';
+import { publicAlgorandVerifierStatus } from '../../../../lib/real-estate/algorand-position-verifier';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,7 @@ export async function GET() {
   const launch = evaluateLegalLaunch(process.env);
   const dinari = getDinariConfig(process.env);
   const fractionalBridge = publicFractionalBridgeStatus();
+  const algorandVerifier = publicAlgorandVerifierStatus(process.env);
 
   const liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true;
   const liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true;
@@ -91,6 +93,14 @@ export async function GET() {
         rightsType: 'future deed/entity-linked property rights after title and legal closing',
       },
     },
+    positionVerification: {
+      algorand: {
+        ...algorandVerifier,
+        access: 'owner-only',
+        verificationType: 'read-only public wallet asset holding',
+        upgradesLegalPropertyRights: false,
+      },
+    },
     spatialPropertyIntake: {
       erieCountyNy: {
         implementationReady: true,
@@ -123,6 +133,9 @@ export async function GET() {
       ownerFractionalPropertyOwnershipBridge: true,
       externalProviderPropertyHandoff: true,
       pendingProviderPositionEvidenceIntake: true,
+      readOnlyAlgorandAssetHoldingVerification: true,
+      algorandWalletControlVerification: false,
+      algorandIssuerPropertyMappingVerification: false,
       verifiedFractionalPropertyPosition: false,
       geographicParcelVerificationGate: true,
       physicalBuildingVerificationGate: true,
@@ -167,12 +180,14 @@ export async function GET() {
       ownerErieCountySpatialIntakeApi: '/api/admin/property-platform/erie-county',
       ownerFractionalPropertyBridge: '/admin/fractional-property',
       ownerFractionalPropertyBridgeApi: '/api/admin/fractional-property/bridge',
+      ownerAlgorandPositionVerifier: '/admin/fractional-property/algorand-verifier',
+      ownerAlgorandPositionVerifierApi: '/api/admin/fractional-property/algorand-verify',
       propertyVault: '/real-estate/property/[propertyId]',
     },
     note: liveSecuritiesProviderActivated
       ? 'The approved owner-only real-estate securities rail is activated. This does not activate direct deed-linked or property-specific fractional investing.'
       : directPropertyInvestingActivated
         ? 'A controlled direct-property launch is active under its separate approved legal/provider gates.'
-        : 'Fail-closed regulated launch build: source-backed spatial parcel intake, an external property-specific fractional ownership handoff, and the real-estate securities execution implementation exist. Provider handoff claims remain reference-only until independently verified; county GIS and user-entered proof do not create property ownership. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
+        : 'Fail-closed regulated launch build: source-backed spatial parcel intake, an external property-specific fractional ownership handoff, read-only on-chain holding verification, and the real-estate securities execution implementation exist. A blockchain holding alone does not prove wallet control or legal property rights. Direct deed-linked investing, automated property acquisition, public pooled investing and mainnet property-token issuance remain disabled until their own verified launch gates pass.',
   });
 }
