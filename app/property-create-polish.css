@@ -1,53 +1,54 @@
-/* Presentation-only polish for the signed-in VoxelPop Create flow. */
+/* Focused presentation polish for the VoxelPop Create journey. */
 main:has([aria-label^="Step "]) [aria-label^="Step "]{
-  width:min(620px,100%);
-  margin:2px auto 12px;
-  padding:0;
+  width:min(600px,100%);
+  margin:2px auto 10px;
+  padding:5px;
   display:grid;
   grid-template-columns:repeat(5,minmax(0,1fr));
-  gap:7px;
+  gap:5px;
+  border:1px solid #e4dce8;
+  border-radius:18px;
+  background:rgba(255,255,255,.74);
+  box-shadow:0 8px 24px rgba(72,49,88,.045);
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span{
   position:relative;
   min-width:0;
-  height:58px;
-  border:1px solid #e4dce8;
-  border-radius:16px;
-  background:rgba(255,255,255,.86);
-  color:#8e838f;
-  box-shadow:0 7px 18px rgba(72,49,88,.045);
+  height:43px;
+  border-radius:13px;
+  background:#f1ecef;
+  color:#8a7f8b;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:5px;
-  transform:none;
+  gap:3px;
+  overflow:hidden;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:before{
-  width:21px;
-  height:21px;
-  border-radius:999px;
   display:grid;
   place-items:center;
-  background:#eee8ef;
-  color:#756b78;
-  font-size:9px;
-  line-height:1;
+  width:17px;
+  height:17px;
+  border-radius:999px;
+  background:#fff;
+  color:#746b77;
+  font-size:7.5px;
   font-weight:1000;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{
   display:block;
-  max-width:100%;
+  max-width:calc(100% - 6px);
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  font-size:8px;
+  font-size:7px;
   line-height:1;
   font-weight:1000;
-  letter-spacing:.045em;
+  letter-spacing:.035em;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(1):before{content:"1"}
@@ -57,17 +58,16 @@ main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):before{c
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):before{content:"5"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(1):after{content:"PHOTO"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(2):after{content:"PAY"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"3D PIC"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"VOXEL"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"MINT"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"VOXEL PHOTO"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"3D MODEL"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"SAVE / MINT"}
 
 main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(1),
 main:has([aria-label="Step 3 of 5"]) [aria-label="Step 3 of 5"]>span:nth-child(-n+2),
 main:has([aria-label="Step 4 of 5"]) [aria-label="Step 4 of 5"]>span:nth-child(-n+3),
 main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(-n+4){
-  border-color:#d6e9af;
-  background:linear-gradient(180deg,#fbfff2,#f1ffda);
-  color:#58712d;
+  background:#effbd8;
+  color:#567028;
 }
 
 main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(1):before,
@@ -84,118 +84,86 @@ main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(2
 main:has([aria-label="Step 3 of 5"]) [aria-label="Step 3 of 5"]>span:nth-child(3),
 main:has([aria-label="Step 4 of 5"]) [aria-label="Step 4 of 5"]>span:nth-child(4),
 main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(5){
-  border-color:#7540ef;
   background:linear-gradient(180deg,#8250ff,#6a32ed);
   color:#fff;
-  box-shadow:0 5px 0 #5120d0,0 13px 24px rgba(105,48,237,.17);
-}
-
-main:has([aria-label="Step 1 of 5"]) [aria-label="Step 1 of 5"]>span:nth-child(1):before,
-main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(2):before,
-main:has([aria-label="Step 3 of 5"]) [aria-label="Step 3 of 5"]>span:nth-child(3):before,
-main:has([aria-label="Step 4 of 5"]) [aria-label="Step 4 of 5"]>span:nth-child(4):before,
-main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(5):before{
-  background:#fff;
-  color:#6730ec;
+  box-shadow:0 3px 0 #5120d0;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
-  margin:0 auto 20px;
-  padding:7px 12px;
-  border:1px solid #e2d8f4;
+  margin:0 auto 18px;
+  padding:6px 10px;
   border-radius:999px;
   background:#f4efff;
   color:#6536ce;
-  font-size:10px;
+  font-size:9px;
   font-weight:1000;
-  letter-spacing:.1em;
+  letter-spacing:.075em;
 }
 
-/* Stage 3 is a deliberate approval gate before voxelization. */
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell){
-  outline:2px solid rgba(113,56,245,.24);
+  outline:2px solid rgba(113,56,245,.20);
   outline-offset:3px;
-  box-shadow:0 24px 62px rgba(72,49,88,.17);
+  box-shadow:0 20px 48px rgba(72,49,88,.14);
 }
 
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
-  content:"REVIEW BEFORE VOXEL";
+  content:"CHECK YOUR 3D VOXEL PHOTO";
   position:absolute;
   z-index:10;
-  top:13px;
-  right:13px;
+  top:12px;
+  right:12px;
   width:max-content;
-  max-width:calc(100% - 26px);
-  padding:8px 10px;
-  border:1px solid rgba(255,255,255,.7);
+  max-width:calc(100% - 24px);
+  padding:7px 9px;
+  border:1px solid rgba(255,255,255,.72);
   border-radius:999px;
   background:rgba(245,239,255,.94);
   color:#6730ec;
-  font-size:8px;
+  font-size:7.5px;
   line-height:1;
   font-weight:1000;
-  letter-spacing:.09em;
+  letter-spacing:.07em;
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   pointer-events:none;
 }
 
-/* The viewer already contains the source image. Enlarge it for an actual phone-size comparison. */
 main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){
-  right:14px;
-  bottom:14px;
-  width:126px;
-  padding:7px;
-  border-radius:17px;
+  right:12px;
+  bottom:12px;
+  width:110px;
+  padding:6px;
+  border-radius:16px;
   border-width:2px;
-}
-
-main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img)>span{
-  margin-top:6px;
-  font-size:8px;
-  letter-spacing:.08em;
 }
 
 @media(max-width:640px){
   main:has([aria-label^="Step "]) [aria-label^="Step "]{
-    width:100%;
-    gap:5px;
-    margin-bottom:10px;
+    gap:4px;
+    padding:4px;
+    border-radius:14px;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span{
-    height:54px;
-    border-radius:13px;
-    gap:4px;
+    height:9px;
+    border-radius:999px;
   }
-  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:before{
-    width:19px;
-    height:19px;
-    font-size:8px;
-  }
+  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:before,
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{
-    font-size:7px;
-    letter-spacing:.025em;
+    display:none;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
-    margin-bottom:16px;
+    margin-bottom:15px;
     font-size:9px;
   }
   main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
-    top:10px;
-    right:10px;
-    padding:7px 9px;
+    top:9px;
+    right:9px;
+    padding:6px 8px;
     font-size:7px;
   }
   main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){
-    width:106px;
-    right:10px;
-    bottom:10px;
+    width:92px;
+    right:9px;
+    bottom:9px;
   }
-}
-
-@media(max-width:380px){
-  main:has([aria-label^="Step "]) [aria-label^="Step "]{gap:4px}
-  main:has([aria-label^="Step "]) [aria-label^="Step "]>span{height:51px;border-radius:12px}
-  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{font-size:6.5px}
-  main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){width:98px}
 }
