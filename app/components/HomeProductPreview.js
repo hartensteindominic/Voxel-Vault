@@ -3,7 +3,8 @@
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './HomeProductPreview.module.css';
 
-const SAMPLE = '/voxelpop/demo-house.svg';
+// Raster sample is required for reliable canvas → voxel sampling.
+const SAMPLE = '/voxelpop/demo-house.png';
 
 export default function HomeProductPreview() {
   return <div className={styles.card}>
