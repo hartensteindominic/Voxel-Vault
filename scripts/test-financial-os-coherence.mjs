@@ -9,6 +9,7 @@ const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.
 const interactions = fs.readFileSync(new URL('../app/spatial-os-interactions.css', import.meta.url), 'utf8');
 const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
 const more = fs.readFileSync(new URL('../app/more/page.js', import.meta.url), 'utf8');
+const slice = fs.readFileSync(new URL('../app/geo/slice/page.js', import.meta.url), 'utf8');
 const integrationsPage = fs.readFileSync(new URL('../app/admin/integrations/page.js', import.meta.url), 'utf8');
 const integrationsApi = fs.readFileSync(new URL('../app/api/admin/integrations/status/route.ts', import.meta.url), 'utf8');
 const layout = fs.readFileSync(new URL('../app/layout.js', import.meta.url), 'utf8');
@@ -60,23 +61,32 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced tool
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/, 'tool finder must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain pure navigation and never execute side effects');
 
-// Consumer Home describes only the current zero-credit property flow.
-assert.match(rootHome, /START → SIGN IN \+ CREATE/, 'root Home should make the account-first transition explicit');
+// Consumer Home describes the actual guided, local-generation property flow.
+assert.match(rootHome, /START → SIGN IN \+ UPLOAD PHOTO/, 'root Home should accurately disclose sign-in before the upload picker');
 assert.match(rootHome, /href="\/property"/, 'root Home should route the primary CTA into the account-gated maker');
-assert.match(rootHome, /Photo → voxel → mapped 3D\./, 'root Home should describe the actual photo/local-preview/map flow');
-assert.match(rootHome, /<b>PHOTO<\/b>/, 'root Home should put the authorized photo first');
-assert.match(rootHome, /<b>VOXEL<\/b>/, 'root Home should expose the local VoxelPop stage');
-assert.match(rootHome, /<b>3D<\/b>/, 'root Home should expose mapped interactive 3D');
-assert.match(rootHome, /<b>WORLD<\/b>/, 'root Home should preview the asset in World before optional collection');
-assert.match(rootHome, /OPTIONAL COLLECT \+ VAULT/, 'root Home should make digital collection optional');
-assert.match(rootHome, /A wallet is optional/i, 'wallet must remain optional until a user chooses a downstream wallet action');
-assert.match(rootHome, /No Meshy credits are required/i, 'normal property creation should advertise its zero-Meshy dependency accurately');
+assert.match(rootHome, /Upload a picture\./, 'root Home should make one photo the obvious starting point');
+assert.match(rootHome, /After sign-in and your explicit creation checkout/, 'root Home should disclose the paid creation gate without implying hidden charging');
+assert.match(rootHome, /<b>UPLOAD<\/b>/, 'root Home should show the upload stage');
+assert.match(rootHome, /<b>CREATING<\/b>/, 'root Home should show local creation as the next stage');
+assert.match(rootHome, /<b>3D<\/b>/, 'root Home should expose movable 3D');
+assert.match(rootHome, /<b>MAP<\/b>/, 'root Home should expose source-backed mapping');
+assert.match(rootHome, /<b>READY<\/b>/, 'root Home should make the guided finish state obvious');
+assert.match(rootHome, /Payment, collection and minting remain explicit actions/, 'paid and blockchain actions must never appear automatic');
+assert.match(rootHome, /No wallet required to create/i, 'wallet must remain optional for creation');
+assert.match(rootHome, /No Meshy credits/i, 'normal property creation should accurately disclose the zero-Meshy dependency');
 assert.match(rootHome, /does not buy the physical property/i, 'root Home must distinguish collecting a voxel from buying physical property');
 assert.match(rootHome, /deed\/title, rent, occupancy, or investment rights/, 'root Home must preserve digital versus legal-rights truth');
 assert.match(rootHome, /href="\/more"/, 'optional and advanced tools must remain deliberately reachable');
 assert.doesNotMatch(rootHome, /YOUR 3D MONEY \+ ASSET WORLD|PROPERTY · CASH · CRYPTO · NFT|TRY THE \$1\.99 SLICE/, 'bank-like and sandbox-heavy language must not dominate the front door');
 assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'unverified physical-property purchase execution must stay out of the consumer front door');
 assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
+
+// The $1.99 comparison is intentionally a pure sandbox, not a faux bank/wallet surface.
+assert.match(slice, /PROPERTY SLICE · SANDBOX/, 'slice page must identify itself as a sandbox before the demo interaction');
+assert.match(slice, /DEMO BALANCE · NOT MONEY/, 'demo balance must never look like settled cash');
+assert.match(slice, /Simulation only · no checkout · no wallet · no ownership/, 'slice CTA must disclose that it cannot execute a real transaction');
+assert.match(slice, /no real funds, deed, equity, security, rent rights, or NFT moved/, 'demo completion must preserve the full legal/financial boundary');
+assert.doesNotMatch(slice, /useWalletIdentity|Connect wallet|Crypto estimated value|NFT estimated value|Make the NFT useful|PROPERTY · USD · CRYPTO · NFT/, 'the property sandbox must not imitate live wallet, crypto, NFT or banking execution');
 
 // Capability status remains safe even though it is not on the consumer front door.
 assert.match(homeCapabilities, /\/api\/world-atlas\/capabilities/, 'capability strip must use the safe public readiness endpoint wherever it is surfaced');
@@ -126,4 +136,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault condensed Create -> World -> Vault consumer journey + separated optional property/money tools + fail-closed advanced rails coherence checks passed');
+console.log('Voxel Vault guided upload -> local creation -> 3D -> map -> ready journey + unambiguous $1.99 sandbox + separated optional property/money tools + fail-closed advanced rails coherence checks passed');

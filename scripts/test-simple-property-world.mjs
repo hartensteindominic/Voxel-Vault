@@ -30,11 +30,11 @@ const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
-assert.match(home, /Photo → voxel → mapped 3D\./, 'home describes the actual local preview plus mapped 3D journey');
-assert.match(home, /START → SIGN IN \+ CREATE/, 'home enters the account-gated maker');
-assert.match(home, /wallet is optional|A wallet is optional/i, 'wallet must not block creation or checkout');
+assert.match(home, /ONE PHOTO → YOUR VOXEL WORLD|Upload a picture\./, 'home describes the current one-photo guided journey');
+assert.match(home, /START → SIGN IN \+ UPLOAD PHOTO/, 'home truthfully exposes the account gate before the photo picker');
+assert.match(home, /No wallet required to create/i, 'wallet must not block creation or checkout');
 assert.match(home, /does not buy the physical property/i, 'home distinguishes the voxel from physical real estate');
-assert.match(home, /No Meshy credits are required/i, 'home makes the no-Meshy provider dependency explicit');
+assert.match(home, /No Meshy credits/i, 'home makes the no-Meshy provider dependency explicit');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed/i, 'unverified property-purchase language stays out of the simple home');
 
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
