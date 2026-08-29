@@ -48,11 +48,20 @@ assert.match(modelDelivery, /timingSafeEqual/, '3D model delivery signatures mus
 assert.match(voxel3d, /propertyGenerationModelUrl\(apiKey, taskId\)/, '3D polling must return a same-origin model delivery URL for recovery jobs');
 assert.match(voxel3d, /displayUrlFor\(finalRow, apiKey\)/, 'persisted 3D polling must return the same-origin model delivery URL');
 assert.match(voxelModel, /verifyPropertyGenerationModelToken/, 'the model delivery endpoint must reject unsigned model requests');
+assert.match(voxelModel, /wantsPreview = url\.searchParams\.get\('preview'\) === '1'/, 'the signed model endpoint must expose a rendered 3D image mode');
+assert.match(voxelModel, /alpha_thumbnail_url \|\| refreshed\.task\?\.thumbnail_url/, 'thumbnail mode must use the Meshy rendered preview');
 assert.match(voxelModel, /model_storage_path/, 'the model delivery endpoint should prefer a durable cached GLB when one exists');
 assert.match(voxelModel, /model_urls\?\.glb/, 'the model delivery endpoint must refresh the current Meshy GLB when the cache is unavailable');
+assert.match(voxelModel, /persistModelBinary\(saved\.item_id, providerModelUrl\)/, 'a broken private GLB cache must be overwritten from the completed provider task');
+assert.match(voxelModel, /without starting or charging for another generation/, 'cache repair must remain distinct from paid regeneration');
+
+assert.match(modelViewer, /url\.pathname === '\/api\/property-voxel-model'/, 'the viewer must recognize signed property-model delivery URLs');
+assert.match(modelViewer, /preview\.searchParams\.set\('preview', '1'\)/, 'the viewer must derive the rendered 3D image automatically');
+assert.match(modelViewer, /3D IMAGE · LOADING INTERACTIVE 3D/, 'the rendered 3D image must be visibly staged before interactive 3D');
+assert.match(modelViewer, /3D IMAGE → INTERACTIVE 3D/, 'the viewer must describe the image-to-interactive transition');
 assert.match(modelViewer, /attempt < 3/, 'the 3D viewer must retry temporary model-load failures before showing an error');
 assert.match(modelViewer, /previewRetry/, '3D viewer retries must bypass stale browser or edge caching');
-assert.match(modelViewer, /Loading live 3D model/, '3D viewer must retain an explicit loading state while the live model is being delivered');
+assert.match(modelViewer, /readyRef\.current/, 'interactive controls must unlock only after the GLB has actually loaded');
 assert.doesNotMatch(modelViewer, /cached Meshy GLB could not be loaded/i, 'the old non-recovering cached-GLB error must be removed');
 assert.doesNotMatch(modelViewer, /Regenerating is not automatic/i, 'the viewer must not tell users a temporary GLB failure is permanently stuck');
 
@@ -67,4 +76,4 @@ assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> refreshed/snapshotted VoxelPop style -> same-origin resilient GLB delivery -> final voxel 3D, including signed account-bound recovery and live loading/retry behavior.');
+console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> rendered 3D image -> same-origin self-repairing interactive GLB -> VoxelPop style -> final movable voxel 3D.');
