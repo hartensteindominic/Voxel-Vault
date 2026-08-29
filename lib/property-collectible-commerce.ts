@@ -8,6 +8,7 @@ const PROVIDER = 'property-collectible-reservation';
 const HOLD_MINUTES = 35;
 
 export type PropertyCollectibleState = 'reserved' | 'checkout' | 'paid' | 'minted';
+export type PropertyCollectibleRepresentationKind = 'generated-3d' | 'map-voxel';
 
 export type PropertyCollectibleReservation = {
   identityKey: string;
@@ -16,6 +17,7 @@ export type PropertyCollectibleReservation = {
   atlasId: string;
   address: string;
   draftId: string;
+  representationKind: PropertyCollectibleRepresentationKind;
   modelTaskId: string;
   priceCents: number;
   priceTier: string;
@@ -32,6 +34,10 @@ function clean(value: unknown, max = 300) {
 function finite(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+export function normalizePropertyCollectibleRepresentation(value: unknown): PropertyCollectibleRepresentationKind {
+  return clean(value, 40) === 'map-voxel' ? 'map-voxel' : 'generated-3d';
 }
 
 function coordinatePointCount(value: any): number {
@@ -125,6 +131,7 @@ function decode(identityKey: string, row: any): PropertyCollectibleReservation |
       atlasId: String(parsed.atlasId),
       address: String(parsed.address || ''),
       draftId: String(parsed.draftId || ''),
+      representationKind: normalizePropertyCollectibleRepresentation(parsed.representationKind),
       modelTaskId: String(parsed.modelTaskId || ''),
       priceCents: Number(parsed.priceCents || 0),
       priceTier: String(parsed.priceTier || 'classic'),
@@ -180,7 +187,8 @@ export async function acquirePropertyCollectibleReservation(input: {
   atlasId: string;
   address: string;
   draftId: string;
-  modelTaskId: string;
+  representationKind?: PropertyCollectibleRepresentationKind;
+  modelTaskId?: string;
   priceCents: number;
   priceTier: string;
   priceLabel: string;
@@ -207,13 +215,17 @@ export async function acquirePropertyCollectibleReservation(input: {
       if (deleteError) throw deleteError;
     }
 
+    const representationKind = normalizePropertyCollectibleRepresentation(input.representationKind);
+    const modelTaskId = clean(input.modelTaskId, 260);
+    if (representationKind === 'generated-3d' && !modelTaskId) throw new Error('Finish the generated final 3D before checkout.');
     const payload = {
       state: 'reserved' as const,
       buyerId: input.buyerId,
       atlasId: clean(input.atlasId, 180),
       address: clean(input.address, 220),
       draftId: normalizePropertyDraftId(input.draftId),
-      modelTaskId: clean(input.modelTaskId, 260),
+      representationKind,
+      modelTaskId,
       priceCents: Math.max(0, Math.trunc(input.priceCents)),
       priceTier: clean(input.priceTier, 40),
       priceLabel: clean(input.priceLabel, 80),
@@ -264,6 +276,7 @@ export async function updatePropertyCollectibleReservation(input: {
     atlasId: current.atlasId,
     address: current.address,
     draftId: current.draftId,
+    representationKind: current.representationKind,
     modelTaskId: current.modelTaskId,
     priceCents: current.priceCents,
     priceTier: current.priceTier,
@@ -317,7 +330,12 @@ export async function secureStripePropertyCollectiblePurchase({
   if (!reservation || reservation.buyerId !== buyerId) throw new Error('PROPERTY_COLLECTIBLE_RESERVATION_MISMATCH');
   if (session.currency !== 'usd' || Number(session.amount_total) !== reservation.priceCents) throw new Error('PROPERTY_COLLECTIBLE_AMOUNT_MISMATCH');
   if (String(session.metadata?.atlas_id || '') !== reservation.atlasId) throw new Error('PROPERTY_COLLECTIBLE_ATLAS_MISMATCH');
-  if (String(session.metadata?.draft_id || '') !== reservation.draftId || String(session.metadata?.model_task_id || '') !== reservation.modelTaskId) throw new Error('PROPERTY_COLLECTIBLE_CREATION_MISMATCH');
+  if (String(session.metadata?.draft_id || '') !== reservation.draftId) throw new Error('PROPERTY_COLLECTIBLE_CREATION_MISMATCH');
+  const representationKind = normalizePropertyCollectibleRepresentation(session.metadata?.representation_kind);
+  if (representationKind !== reservation.representationKind) throw new Error('PROPERTY_COLLECTIBLE_REPRESENTATION_MISMATCH');
+  if (representationKind === 'generated-3d' && String(session.metadata?.model_task_id || '') !== reservation.modelTaskId) {
+    throw new Error('PROPERTY_COLLECTIBLE_CREATION_MISMATCH');
+  }
   if (String(session.metadata?.price_cents || '') !== String(reservation.priceCents)) throw new Error('PROPERTY_COLLECTIBLE_PRICE_MISMATCH');
   if (reservation.sourceId && reservation.sourceId !== session.id) throw new Error('PROPERTY_COLLECTIBLE_SESSION_MISMATCH');
 
@@ -331,7 +349,7 @@ export async function secureStripePropertyCollectiblePurchase({
     });
   }
 
-  return { ...reservation, state: 'paid' as const, source: 'stripe', sourceId: session.id };
+  return { ...reservation, representationKind, state: 'paid' as const, source: 'stripe', sourceId: session.id };
 }
 
 export function propertyCollectiblePaymentErrorMessage(error: unknown) {
@@ -344,7 +362,8 @@ export function propertyCollectiblePaymentErrorMessage(error: unknown) {
     PROPERTY_COLLECTIBLE_RESERVATION_MISMATCH: 'The one-property reservation could not be verified.',
     PROPERTY_COLLECTIBLE_AMOUNT_MISMATCH: 'The paid amount does not match the server-authoritative digital build price.',
     PROPERTY_COLLECTIBLE_ATLAS_MISMATCH: 'The checkout no longer matches the mapped World property identity.',
-    PROPERTY_COLLECTIBLE_CREATION_MISMATCH: 'The checkout does not match the generated voxel creation.',
+    PROPERTY_COLLECTIBLE_CREATION_MISMATCH: 'The checkout does not match this VoxelPop creation.',
+    PROPERTY_COLLECTIBLE_REPRESENTATION_MISMATCH: 'The checkout representation does not match the reserved VoxelPop item.',
     PROPERTY_COLLECTIBLE_PRICE_MISMATCH: 'The checkout price metadata does not match the reserved price.',
     PROPERTY_COLLECTIBLE_SESSION_MISMATCH: 'A different checkout session owns this reservation.',
   };
