@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" role="img" aria-labelledby="title desc">
+  <title id="title">Synthetic VoxelPop demo house</title>
+  <desc id="desc">A stylized red brick house used only as a public VoxelPop demonstration.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#edf3f5"/><stop offset="1" stop-color="#dbe7e7"/></linearGradient>
+    <linearGradient id="brick" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9a4c39"/><stop offset="1" stop-color="#713326"/></linearGradient>
+    <linearGradient id="roof" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#553f47"/><stop offset="1" stop-color="#33282f"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="20" stdDeviation="18" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="900" height="900" fill="url(#sky)"/>
+  <ellipse cx="450" cy="775" rx="340" ry="70" fill="#8ebd62"/>
+  <g filter="url(#shadow)">
+    <path d="M155 385 L450 175 L745 385 L690 425 L210 425 Z" fill="url(#roof)"/>
+    <rect x="218" y="385" width="464" height="340" rx="7" fill="url(#brick)"/>
+    <path d="M310 385 L450 265 L590 385 Z" fill="#43343b"/>
+    <rect x="348" y="330" width="204" height="86" rx="5" fill="#8f4636"/>
+    <rect x="390" y="348" width="120" height="58" rx="3" fill="#28343b" stroke="#eadcc9" stroke-width="12"/>
+    <g fill="#293943" stroke="#eadcc9" stroke-width="13">
+      <rect x="270" y="455" width="94" height="112" rx="4"/>
+      <rect x="408" y="455" width="94" height="112" rx="4"/>
+      <rect x="546" y="455" width="84" height="112" rx="4"/>
+    </g>
+    <g stroke="#b68b73" stroke-width="7" opacity=".62">
+      <path d="M218 440H682M218 486H682M218 532H682M218 578H682M218 624H682"/>
+      <path d="M290 385V725M390 385V725M510 385V725M610 385V725"/>
+    </g>
+    <rect x="355" y="603" width="190" height="122" rx="5" fill="#e6d5ba"/>
+    <rect x="407" y="602" width="86" height="123" fill="#362925"/>
+    <circle cx="475" cy="664" r="7" fill="#d9af58"/>
+    <rect x="245" y="593" width="96" height="132" rx="4" fill="#5f4438"/>
+    <rect x="559" y="593" width="96" height="132" rx="4" fill="#5f4438"/>
+    <path d="M300 713H600L640 755H260Z" fill="#eee6da"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <rect x="263" y="807" width="374" height="48" rx="24" fill="#ffffff" fill-opacity=".9"/>
+    <text x="450" y="837" font-size="20" font-weight="700" fill="#5b4a61">SYNTHETIC DEMO · NOT A REAL PROPERTY</text>
+  </g>
+</svg>
