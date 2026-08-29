@@ -1,9 +1,24 @@
 :root {
-  --vv-accent: #9ff5df;
-  --vv-accent-soft: rgba(159, 245, 223, .12);
-  --vv-border: rgba(171, 235, 212, .16);
-  --vv-focus: rgba(159, 245, 223, .92);
+  --vv-cream: #fffaf0;
+  --vv-paper: rgba(255, 255, 255, .94);
+  --vv-paper-solid: #ffffff;
+  --vv-ink: #171221;
+  --vv-muted: #746d7a;
+  --vv-purple: #7138f5;
+  --vv-purple-strong: #5b26da;
+  --vv-purple-soft: #eee8ff;
+  --vv-lime: #c9ff54;
+  --vv-lime-strong: #aee43c;
+  --vv-mint: #9ff5df;
+  --vv-accent: #7138f5;
+  --vv-accent-soft: rgba(113, 56, 245, .10);
+  --vv-border: #e4dfea;
+  --vv-border-strong: #d6cceb;
+  --vv-focus: rgba(113, 56, 245, .92);
+  --vv-shadow-soft: 0 16px 42px rgba(83, 55, 123, .10);
+  --vv-shadow-card: 0 24px 70px rgba(111, 81, 161, .10);
   --vv-radius-control: 14px;
+  --vv-radius-card: 28px;
   --vv-tap-min: 44px;
 }
 
@@ -49,7 +64,15 @@ textarea:focus-visible,
 }
 
 ::selection {
-  background: rgba(159, 245, 223, .24);
+  background: rgba(113, 56, 245, .16);
+}
+
+@media (hover: hover) {
+  a,
+  button,
+  [role='button'] {
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background-color .16s ease, color .16s ease;
+  }
 }
 
 @media (pointer: coarse) {
