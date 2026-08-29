@@ -122,7 +122,7 @@ export default function PropertySlicePage() {
         window.localStorage.setItem(SLICE_KEY, JSON.stringify({ slice, result: result.slice, savedAt: new Date().toISOString() }));
         window.localStorage.setItem(PURCHASE_KEY, JSON.stringify(nextPurchase));
       } catch {}
-      setMessage(`Added 1 demo slice for ${money(result.purchase.debitDemoUsdCents)} · ${unitLabelFor(result.purchase.demoUnitsAfter)} now shown below.`);
+      setMessage(`Added 1 demo slice for ${money(result.purchase.debitDemoUsdCents)} · ${unitLabelFor(result.purchase.demoUnitsAfter)} now shown below · no real funds, deed, equity, security, rent rights, or NFT moved.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not complete the demo purchase.');
     } finally {
@@ -137,7 +137,7 @@ export default function PropertySlicePage() {
     </header>
 
     <section className={styles.heading}>
-      <span>$1.99 PROPERTY SLICE · DEMO</span>
+      <span>PROPERTY SLICE · SANDBOX</span>
       <h1>Try a property slice</h1>
       <p>Choose a property, see its demo price, then tap Test Buy. It appears here as a demo slice. No checkout, wallet, real money, or real-estate ownership is involved.</p>
     </section>
@@ -145,7 +145,7 @@ export default function PropertySlicePage() {
     <form onSubmit={testBuy} className={styles.sliceForm}>
       <section className={styles.heroCard}>
         <div className={styles.sceneSide}>
-          <div className={styles.demoPill}>DEMO CREDIT · {demoBalance}</div>
+          <div className={styles.demoPill}>DEMO BALANCE · NOT MONEY · {demoBalance}</div>
           <VoxelScene/>
           <div className={styles.sceneCaption}><b>{slice.selectedName || 'Selected property'}</b><span>{referenceMoney(slice.selectedPrice)} reference value</span></div>
         </div>
@@ -155,7 +155,7 @@ export default function PropertySlicePage() {
           {needsRefill ? <button className={styles.buyButton} type="button" onClick={refillDemoBalance}>Refill demo credit</button> : <button className={styles.buyButton} disabled={busy}>
             <span className={styles.bag}>+</span>{busy ? 'Adding…' : 'Test Buy'}
           </button>}
-          <div className={styles.sandbox}>{needsRefill ? 'Free test credit · no payment' : 'Demo only · nothing is charged'}</div>
+          <div className={styles.sandbox}>{needsRefill ? 'Free test credit · no payment' : 'Simulation only · no checkout · no wallet · no ownership'}</div>
         </div>
       </section>
 
