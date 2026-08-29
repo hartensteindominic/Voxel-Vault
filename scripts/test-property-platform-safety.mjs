@@ -116,14 +116,14 @@ requireMarkers(distribution, 'distribution vault', [
 // while the front door must still preserve price clarity, optional minting and
 // the digital-only physical-property rights boundary.
 requireMarkers(root, 'simple root homepage', [
-  'VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL → NFT',
-  'Start VoxelPop · $4.99',
+  'ONE PHOTO → ONE VOXEL',
+  'Create mine · $4.99',
   '3D voxel photo',
-  'Movable 3D voxel',
+  'Your movable voxel is built and saved.',
   'NFT optional',
-  'No wallet until mint',
-  'VoxelPop is a digital creation product.',
-  'does not create ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property',
+  'no wallet needed to create',
+  'VoxelPop creates a digital asset only.',
+  'does not create or transfer ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property',
 ]);
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
