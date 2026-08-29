@@ -62,9 +62,14 @@ assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-im
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
 assert.match(photoPreview, /CanvasTexture/, 'recognizable picture keeps the real source photo as the visible texture');
-assert.match(photoPreview, /PlaneGeometry/, '3D picture is a real Three.js surface rather than a static label change');
-assert.match(photoPreview, /setZ\(/, '3D picture adds bounded relief before voxelization');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(cardWidth, cardHeight, depth/, '3D picture gets honest thickness without bending the photographed house');
+assert.match(photoPreview, /MeshBasicMaterial\(\{ map: texture, toneMapped: false \}\)/, 'the source-photo front is kept visually faithful instead of relit or recolored');
+assert.match(photoPreview, /averageEdgeColor/, '3D card edges derive their color from the actual source image');
+assert.match(photoPreview, /backgroundContext\.filter = 'blur\(22px\)/, '3D picture uses a soft source-derived backdrop instead of a flat dark slab');
+assert.match(photoPreview, /compact \? 2 : 2\.25/, '3D picture renders at a sharper mobile pixel ratio');
+assert.doesNotMatch(photoPreview, /positions\.setZ|\.setZ\(/, 'the source photo must never be warped into a melted brightness-relief surface');
 assert.match(photoPreview, /targetY = clamp/, '3D picture rotation is deliberately bounded so unseen sides are not invented');
+assert.match(photoPreview, /Showing the original photo instead/, 'WebGL failure falls back to the source photo instead of a dead panel');
 
 assert.match(viewer, /const GRID = 24/, 'photo-matched building uses a higher-detail local voxel grid');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells become empty space');
@@ -94,4 +99,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> recognizable 3D picture -> explicit approval -> separate local voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> sharp source-faithful 3D picture -> explicit approval -> separate local voxel -> auto-save to Vault -> Mint Now or Mint Later, with no photo warping, Meshy credits, hidden second paywall, or physical-property claim.');
