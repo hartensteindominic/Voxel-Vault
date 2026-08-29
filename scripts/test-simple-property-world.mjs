@@ -36,6 +36,7 @@ assert.match(propertyCss, /border-radius:38px/, 'property should keep one large 
 
 assert.match(property, /<h1>Property<\/h1>/, 'property maker must use the approved simple title');
 assert.match(property, /Create image/, 'property maker must expose Create image');
+assert.match(property, /Redo image/, 'property maker must allow an explicit image retry while troubleshooting likeness');
 assert.match(property, /Create 3D/, 'property maker must expose Create 3D');
 assert.match(property, /'Vault'/, 'property maker must expose Vault');
 assert.match(property, /Mint later/, 'property maker must expose Mint later');
@@ -44,6 +45,8 @@ assert.match(property, /\/api\/property-voxel-image/, 'Create image must use the
 assert.match(property, /\/api\/property-voxel-3d/, 'Create 3D must use the generated-image 3D route');
 assert.match(property, /MeshyModelViewer/, 'completed 3D must open in the interactive model viewer');
 assert.match(property, /references:\s*\[activeReference\]/, 'image generation must use the user-selected facade reference, not an uncontrolled neighborhood batch');
+assert.match(property, /setModel\(emptyModel\(\)\)/, 'a newly generated voxel image must invalidate the stale 3D view in the current session');
+assert.match(property, /modelRunning/, 'Create 3D controls must stay locked while the current model is processing');
 assert.match(property, /No facade invented\./, 'missing photo evidence must fail closed visually');
 assert.match(property, /The photo guides appearance\. Map data guides location\./, 'UI must explain the split between visual and geographic truth');
 assert.doesNotMatch(property, /GeoReferenceModel/, 'simple maker must not substitute a generic map extrusion for the photo-guided property');
@@ -60,6 +63,8 @@ assert.match(voxel3dRoute, /requireVoxelVaultAdmin/, 'paid 3D generation must re
 assert.match(voxel3dRoute, /image-to-3d/, '3D must be created from the approved voxel image');
 assert.match(voxel3dRoute, /property-voxel:/, 'property 3D models must be cached per mapped property');
 assert.match(voxel3dRoute, /persistModelBinary/, 'completed GLBs must be persisted instead of relying only on provider URLs');
+assert.match(voxel3dRoute, /sameSourceImage/, 'cached 3D reuse must be tied to the exact voxel image used to create it');
+assert.match(voxel3dRoute, /existing\?\.source_image_url/, 'the 3D route must compare cached source image identity before reuse');
 
 assert.match(openImagery, /selectionStrategy:\s*'newest-nearby-first'/, 'open imagery must expose newest-nearby-first selection');
 assert.match(openImagery, /primaryPhoto:\s*photos\[0\]/, 'newest nearby image must be the primary property reference');
@@ -79,4 +84,4 @@ assert.match(globe, /community-property/, 'globe renderer must recognize shared 
 assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'the bare maker must not be duplicated by a fixed app dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must stay hidden on simple consumer routes');
 
-console.log('Bare VoxelPop property flow checks passed: real address -> newest selectable open photo -> faithful voxel image -> image-driven 3D -> Vault -> mint later, with no consumer buying clutter and no generic map-extrusion facade.');
+console.log('Bare VoxelPop property flow checks passed: real address -> newest selectable open photo -> faithful/redoable voxel image -> source-matched image-driven 3D -> Vault -> mint later, with no consumer buying clutter and no generic map-extrusion facade.');
