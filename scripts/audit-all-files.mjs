@@ -174,10 +174,11 @@ function auditDeploymentSafety() {
   const knownLegacyCollisions = new Set(['002', '003']);
   for (const [version, files] of byVersion) {
     if (files.length <= 1) continue;
+    const filenames = files.map((file) => path.basename(file)).join(', ');
     if (knownLegacyCollisions.has(version)) {
-      record('warning', 'supabase/migrations', `reviewed legacy migration version ${version} is shared by ${files.map(path.basename).join(', ')}; do not rename already-applied migrations without reconciling production history`);
+      record('warning', 'supabase/migrations', `reviewed legacy migration version ${version} is shared by ${filenames}; do not rename already-applied migrations without reconciling production history`);
     } else {
-      record('error', 'supabase/migrations', `new duplicate migration version ${version}: ${files.map(path.basename).join(', ')}`);
+      record('error', 'supabase/migrations', `new duplicate migration version ${version}: ${filenames}`);
     }
   }
 }
