@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import {
@@ -33,12 +34,16 @@ function isHttpUrl(value: unknown) {
   }
 }
 
+function userScope(userId: string) {
+  return createHash('sha256').update(`voxel-vault-property-draft:${userId}`).digest('hex').slice(0, 24);
+}
+
 function itemIdFor(userId: string, atlasId: string) {
-  return `property-voxel:${userId}:${atlasId}`;
+  return `property-voxel:${userScope(userId)}:${atlasId}`;
 }
 
 function userItemPrefix(userId: string) {
-  return `property-voxel:${userId}:`;
+  return `property-voxel:${userScope(userId)}:`;
 }
 
 function taskKey(raw: string) {
