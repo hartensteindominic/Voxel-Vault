@@ -93,10 +93,27 @@ export function propertyCollectibleIdentity(atlasIdRaw: unknown) {
   return `property:${digest.slice(0, 48)}`;
 }
 
-export async function verifyOwnedFinalVoxelModel(input: { userId: string; draftId: unknown; modelTaskId: unknown }) {
+export async function verifyOwnedFinalVoxelModel(input: { userId: string; draftId: unknown; modelTaskId: unknown; atlasId?: unknown }) {
   const draftId = normalizePropertyDraftId(input.draftId);
   const modelTaskId = clean(input.modelTaskId, 260);
-  if (!modelTaskId) throw new Error('Finish the final voxel 3D before checkout.');
+  if (!modelTaskId) throw new Error('Finish the digital voxel preview before checkout.');
+
+  const mapBackedTaskId = `map-voxel:${draftId}`;
+  if (modelTaskId === mapBackedTaskId) {
+    const atlasId = clean(input.atlasId, 180);
+    if (!atlasId || atlasId.startsWith('location:') || atlasId.startsWith('draft:')) {
+      throw new Error('A source-backed mapped building identity is required for this map-backed voxel.');
+    }
+    return {
+      draftId,
+      modelTaskId,
+      savedModel: null,
+      modelUrl: null,
+      mapBacked: true,
+      atlasId,
+    };
+  }
+
   const savedModel = await readCatalog3DByTask(modelTaskId);
   const expectedItemId = propertyDraftItemId(input.userId, draftId, 'voxel');
   if (!savedModel?.item_id || savedModel.item_id !== expectedItemId) {
@@ -106,7 +123,7 @@ export async function verifyOwnedFinalVoxelModel(input: { userId: string; draftI
   const modelUrl = savedModel.model_storage_path
     ? await createModelSignedUrl(savedModel.model_storage_path, 60 * 60)
     : savedModel.model_url;
-  return { draftId, modelTaskId, savedModel, modelUrl: modelUrl || savedModel.model_url || null };
+  return { draftId, modelTaskId, savedModel, modelUrl: modelUrl || savedModel.model_url || null, mapBacked: false, atlasId: null };
 }
 
 function encode(value: Omit<PropertyCollectibleReservation, 'identityKey' | 'processedAt'>) {
@@ -344,7 +361,7 @@ export function propertyCollectiblePaymentErrorMessage(error: unknown) {
     PROPERTY_COLLECTIBLE_RESERVATION_MISMATCH: 'The one-property reservation could not be verified.',
     PROPERTY_COLLECTIBLE_AMOUNT_MISMATCH: 'The paid amount does not match the server-authoritative digital build price.',
     PROPERTY_COLLECTIBLE_ATLAS_MISMATCH: 'The checkout no longer matches the mapped World property identity.',
-    PROPERTY_COLLECTIBLE_CREATION_MISMATCH: 'The checkout does not match the generated voxel creation.',
+    PROPERTY_COLLECTIBLE_CREATION_MISMATCH: 'The checkout does not match the digital voxel creation.',
     PROPERTY_COLLECTIBLE_PRICE_MISMATCH: 'The checkout price metadata does not match the reserved price.',
     PROPERTY_COLLECTIBLE_SESSION_MISMATCH: 'A different checkout session owns this reservation.',
   };
