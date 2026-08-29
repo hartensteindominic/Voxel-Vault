@@ -131,11 +131,11 @@ export default function VaultPage() {
     <ProductTopNav/>
     <div className="shell">
       <header className="hero">
-        <small>MY VAULT</small>
-        <h1>Keep what<br/><em>you created.</em></h1>
+        <small>VAULT</small>
+        <h1>Your<br/><em>VoxelPops.</em></h1>
         <p>{note}</p>
         <div className="heroActions">
-          <Link href="/property?source=properties" className="primary">Create from properties →</Link>
+          <Link href="/property" className="primary">Create · $4.99 →</Link>
           {!session?.user ? <button type="button" onClick={signIn}>Sync with Google</button> : <span className="synced">✓ {syncing ? 'SYNCING' : 'SIGNED IN'}</span>}
         </div>
       </header>

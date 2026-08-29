@@ -20,7 +20,11 @@ export async function rasterizeImageUrl(url) {
     bitmap = await createImageBitmap(blob);
   } catch {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Never set crossOrigin for data:, blob:, or same-origin relative paths —
+    // it breaks canvas readback for those URL types.
+    if (url && !url.startsWith('data:') && !url.startsWith('blob:') && /^https?:\/\//i.test(url)) {
+      img.crossOrigin = 'anonymous';
+    }
     img.src = url;
     await img.decode();
     bitmap = img;

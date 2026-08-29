@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const VISIBLE_ROOTS = ['/property', '/world', '/vault', '/more', '/demo', '/privacy', '/terms', '/about'];
+const VISIBLE_ROOTS = ['/world', '/more', '/privacy', '/terms', '/about'];
+const PRODUCT_ROOTS = ['/demo', '/property', '/vault'];
 
 function shouldShow(pathname) {
+  if (pathname === '/') return false;
+  if (PRODUCT_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`))) return false;
   return VISIBLE_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 

@@ -7,7 +7,7 @@ import styles from './HomeProductPreview.module.css';
 export default function HomeProductPreview() {
   return <div className={styles.card}>
     <div className={styles.topline}>
-      <div><small>VOXELPOP</small><b>Drag to rotate</b></div>
+      <div><small>VOXELPOP</small><b>Drag to rotate</b><small style={{display:'block',fontSize:'9px',opacity:.7}}>Photo → 3D voxel photo review → movable voxel</small></div>
       <span className={styles.price}>$4.99</span>
     </div>
     <div className={styles.viewer} aria-label="Movable VoxelPop sample">
