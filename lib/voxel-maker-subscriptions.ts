@@ -22,6 +22,10 @@ function clean(value: unknown, max = 300) {
   return String(value || '').trim().slice(0, max);
 }
 
+function generationEventId(userId: string, draftId: string) {
+  return `${userId}:${clean(draftId, 120)}`;
+}
+
 function activeStatus(status: unknown) {
   return status === 'active' || status === 'trialing';
 }
@@ -116,7 +120,7 @@ async function recordFromStripeSubscription(userId: string, subscription: Stripe
 }
 
 export async function refreshVoxelMakerSubscription(userId: string) {
-  let record = await readVoxelMakerSubscription(userId);
+  const record = await readVoxelMakerSubscription(userId);
   if (!record) return null;
 
   try {
@@ -168,10 +172,23 @@ export async function countVoxelMakerGenerations(userId: string) {
   return Math.max(0, Number(count || 0));
 }
 
+export async function hasVoxelMakerGeneration(userId: string, draftId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('commerce_webhook_events')
+    .select('event_id,processed_at')
+    .eq('provider', GENERATION_PROVIDER)
+    .eq('event_id', generationEventId(userId, draftId))
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.event_id) return false;
+  return String(data.processed_at || '') >= monthStartIso();
+}
+
 export async function registerVoxelMakerGeneration(input: { userId: string; draftId: string; planId: VoxelMakerPlanId; address?: string }) {
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
-  const eventId = `${input.userId}:${clean(input.draftId, 120)}`;
+  const eventId = generationEventId(input.userId, input.draftId);
   const { error } = await supabase.from('commerce_webhook_events').upsert({
     provider: GENERATION_PROVIDER,
     event_id: eventId,
