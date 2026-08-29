@@ -40,28 +40,34 @@ assert.match(truth, />MINT</, 'minting may remain available as a later step');
 assert.match(truth, /MINTING IS A LATER CHOICE, NOT THE CREATION STEP/, 'minting must never be the event that creates the property draft');
 assert.doesNotMatch(truth, /mintVoxelFlip|eth_requestAccounts|MetaMask/, 'the 3D draft maker must not require wallet code');
 
-assert.match(vaultPage, /YOUR VAULT/, 'the consumer Vault must use simple property language');
+assert.match(vaultPage, /YOUR VOXEL VAULT/, 'the consumer Vault must present the VoxelPop inventory clearly');
+assert.match(vaultPage, /Your collection\./, 'Vault should read as a collection hub rather than a technical draft list');
 assert.match(vaultPage, /syncLocalPropertyDraftsToAccount/, 'the simplified Vault must retain cross-device account sync');
 assert.match(vaultPage, /SYNC WITH GOOGLE/, 'account sync must remain available without dominating the page');
+assert.match(vaultPage, /Create Another/, 'Vault must provide the repeat creation loop');
+assert.match(vaultPage, /View My World/, 'Vault must provide the World loop');
 assert.match(vaultPage, /OPEN 3D/, 'saved property cards must reopen their exact 3D model');
 assert.match(vaultPage, /\/vault\/property-drafts\/\$\{encodeURIComponent\(draft\.id\)\}/, 'saved cards must deep-link by stable draft id');
-assert.match(vaultPage, /setPropertyDraftWorldVisibility/, 'World publication must be explicit from the Vault');
+assert.match(vaultPage, /setPropertyDraftWorldVisibility/, 'public World publication must remain explicit from the Vault');
 assert.match(vaultPage, /deletePropertyDraftFromAccount/, 'synced deletions must not reappear from cloud storage');
-assert.match(vaultPage, /VERIFY \+ MINT/, 'mint must remain downstream of verification in the simple Vault');
-assert.match(vaultPage, /Real ownership, fractional rights and title remain separate/, 'simplification must preserve the legal/title boundary');
+assert.match(vaultPage, /MINT TO WALLET · OPTIONAL/, 'paid digital collectibles must keep mint optional');
+assert.match(vaultPage, /does not itself transfer deed\/title, rent, fractional investment, occupancy or other rights/, 'Vault must preserve digital-versus-real-property truth');
 assert.doesNotMatch(vaultPage, /MetaMask|eth_requestAccounts/, 'the basic property Vault must not require a wallet');
 
-assert.match(draftViewer, /readPropertyDraft\(draftId\)/, 'exact viewer must first load the saved local geometry snapshot');
+assert.match(draftViewer, /readPropertyDraft\(draftId\)/, 'exact viewer must first load the saved local snapshot');
 assert.match(draftViewer, /loadAccountPropertyDrafts/, 'exact viewer must restore a missing local snapshot from the signed-in account');
 assert.match(draftViewer, /geometry: parcelOnly \? null : \(draft\.geometry \|\| null\)/, 'parcel-only geometry must not be extruded as a fake building');
 assert.match(draftViewer, /parcelGeometry: draft\.geometry/, 'parcel-only drafts must still render their saved parcel geometry');
 assert.match(draftViewer, /PARCEL · NO BUILDING INVENTED/, 'land drafts must disclose that no structure was invented');
-assert.match(draftViewer, /GeoReferenceModel/, 'saved property geometry must reopen inside the real 3D renderer');
-assert.match(draftViewer, /live map updates do not silently replace it/, 'viewer must explain that the snapshot is stable until explicitly updated');
-assert.match(draftViewer, /CHECK CURRENT MAP EVIDENCE/, 'viewer must compare the saved snapshot with current map evidence without overwriting it');
+assert.match(draftViewer, /MeshyModelViewer/, 'purchased VoxelPop items must reopen the actual generated 3D model');
+assert.match(draftViewer, /generatedModelUrl \? <MeshyModelViewer/, 'generated model should take precedence over the map-only fallback viewer');
+assert.match(draftViewer, /GeoReferenceModel/, 'map/parcel-only drafts must retain the source-backed 3D fallback renderer');
+assert.match(draftViewer, /never silently changes the saved voxel/, 'current map evidence must never silently replace the saved collectible');
+assert.match(draftViewer, /CHECK CURRENT MAP EVIDENCE/, 'viewer must compare saved state with current map evidence without overwriting it');
 assert.match(draftViewer, /not a deed or guaranteed perfect replica/i, 'exact viewer must keep legal and fidelity claims conservative');
+assert.match(draftViewer, /single source photo cannot verify unseen sides/i, 'single-photo fidelity limits must remain visible');
 
 assert.match(earthPage, /PropertyTruthStack/, 'the advanced Earth property experience must remain available behind the simple product');
 assert.match(earthPage, /automatic|MESHY|Meshy/i, 'Earth must keep its controlled high-fidelity reconstruction layer');
 
-console.log('Property draft guards passed: simple Vault UX, wallet-free drafts, opt-in World sharing, account sync, exact 3D reopen, land truth, separate rights verification, and optional minting remain enforced.');
+console.log('Property draft guards passed: VoxelPop collection UX, wallet-free drafts, opt-in public World sharing, account sync, actual generated-model reopen, land truth, separate rights verification, and optional minting remain enforced.');
