@@ -2,15 +2,40 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function MeshyModelViewer({ modelUrl }) {
+function retryableUrl(value, retryCount) {
+  if (!value || retryCount <= 0 || typeof window === 'undefined') return value;
+  try {
+    const url = new URL(value, window.location.href);
+    url.searchParams.set('vv_reload', `${Date.now()}-${retryCount}`);
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+export default function MeshyModelViewer({
+  modelUrl,
+  fallbackImageUrl = '',
+  label = 'Interactive Meshy 3D model',
+}) {
   const mountRef = useRef(null);
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    setError('');
+    setLoaded(false);
+    setRetryCount(0);
+  }, [modelUrl]);
 
   useEffect(() => {
     if (!modelUrl || !mountRef.current) return undefined;
     let dead = false;
+    let retryTimer = 0;
     let cleanup = () => {};
     setError('');
+    setLoaded(false);
 
     Promise.all([
       import('three'),
@@ -22,9 +47,10 @@ export default function MeshyModelViewer({ modelUrl }) {
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
-        setError('3D model preview is unavailable in this browser.');
+        setError('3D preview is unavailable in this browser. Your image is still shown.');
         return;
       }
+
       const width = Math.max(280, mount.clientWidth || 360);
       const height = Math.max(260, mount.clientHeight || 340);
       const compact = width < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
@@ -37,6 +63,8 @@ export default function MeshyModelViewer({ modelUrl }) {
       renderer.shadowMap.enabled = !compact;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.style.touchAction = 'none';
+      renderer.domElement.style.opacity = '0';
+      renderer.domElement.style.transition = 'opacity 220ms ease';
       mount.innerHTML = '';
       mount.appendChild(renderer.domElement);
 
@@ -68,17 +96,20 @@ export default function MeshyModelViewer({ modelUrl }) {
 
       const loader = new loaderModule.GLTFLoader();
       let model = null;
-      loader.load(modelUrl, (gltf) => {
+      const requestedUrl = retryableUrl(modelUrl, retryCount);
+      loader.load(requestedUrl, (gltf) => {
         if (dead) return;
         model = gltf.scene;
         model.traverse((object) => {
           if (!object?.isMesh) return;
           object.castShadow = !compact;
           object.receiveShadow = !compact;
-          if (object.material) {
-            object.material.envMapIntensity = 0.75;
-            object.material.needsUpdate = true;
-          }
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => {
+            if (!material) return;
+            material.envMapIntensity = 0.75;
+            material.needsUpdate = true;
+          });
         });
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
@@ -90,8 +121,19 @@ export default function MeshyModelViewer({ modelUrl }) {
         model.scale.setScalar(scale);
         model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
         root.add(model);
+        renderer.domElement.style.opacity = '1';
+        setLoaded(true);
+        setError('');
       }, undefined, () => {
-        if (!dead) setError('The cached Meshy GLB could not be loaded. Regenerating is not automatic.');
+        if (dead) return;
+        if (retryCount === 0) {
+          setError('Refreshing the saved 3D model…');
+          retryTimer = window.setTimeout(() => {
+            if (!dead) setRetryCount(1);
+          }, 550);
+          return;
+        }
+        setError('3D preview could not open. Tap Reload 3D to retry the saved model.');
       });
 
       const pointers = new Map();
@@ -186,6 +228,7 @@ export default function MeshyModelViewer({ modelUrl }) {
       window.addEventListener('resize', resize);
 
       cleanup = () => {
+        if (retryTimer) window.clearTimeout(retryTimer);
         cancelAnimationFrame(frame);
         observer?.disconnect();
         document.removeEventListener('visibilitychange', visibility);
@@ -198,8 +241,8 @@ export default function MeshyModelViewer({ modelUrl }) {
         root.traverse((object) => {
           if (!object?.isMesh) return;
           object.geometry?.dispose?.();
-          const mats = Array.isArray(object.material) ? object.material : [object.material];
-          mats.forEach((material) => material?.dispose?.());
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => material?.dispose?.());
         });
         floorGeometry.dispose();
         floorMaterial.dispose();
@@ -207,16 +250,28 @@ export default function MeshyModelViewer({ modelUrl }) {
         mount.innerHTML = '';
       };
     }).catch(() => {
-      if (!dead) setError('The 3D model viewer could not start.');
+      if (!dead) setError('The 3D viewer could not start. Your image is still shown.');
     });
 
-    return () => { dead = true; cleanup(); };
-  }, [modelUrl]);
+    return () => {
+      dead = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+      cleanup();
+    };
+  }, [modelUrl, retryCount]);
+
+  function reloadModel() {
+    setError('');
+    setLoaded(false);
+    setRetryCount((current) => current + 1);
+  }
 
   return <div className="viewerShell">
-    <div ref={mountRef} className="viewer" aria-label="Interactive Meshy hero-property 3D model" />
-    {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">DRAG · PINCH TO ZOOM · CACHED GLB</div>
-    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0}.viewerError{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:#09100f}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#7e8c87;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
+    {fallbackImageUrl ? <img className={`viewerFallback ${loaded ? 'viewerFallbackHidden' : ''}`} src={fallbackImageUrl} alt="3D source preview"/> : null}
+    <div ref={mountRef} className="viewer" aria-label={label}/>
+    {!loaded && !fallbackImageUrl ? <div className="viewerLoading">LOADING 3D…</div> : null}
+    {error ? <div className="viewerError" role="status"><span>{error}</span>{retryCount > 0 ? <button type="button" onClick={reloadModel}>Reload 3D</button> : null}</div> : null}
+    <div className="viewerHint">{loaded ? 'DRAG · PINCH TO ZOOM · 3D READY' : 'IMAGE FIRST · LOADING 3D'}</div>
+    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewerFallback{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .22s ease}.viewerFallbackHidden{opacity:0}.viewer{position:absolute;inset:0;z-index:2}.viewerLoading{position:absolute;inset:0;display:grid;place-items:center;color:#a8b6b1;font-size:10px;letter-spacing:.12em;font-weight:900}.viewerError{position:absolute;z-index:4;left:14px;right:14px;bottom:34px;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;padding:10px 12px;text-align:center;color:#e7efec;font-size:10px;line-height:1.4;background:rgba(9,16,15,.82);border:1px solid rgba(255,255,255,.1);border-radius:14px;backdrop-filter:blur(10px)}.viewerError button{min-height:36px;border:0;border-radius:12px;padding:0 13px;background:#c9ff54;color:#24310e;font:900 10px inherit;cursor:pointer}.viewerHint{position:absolute;z-index:3;left:12px;right:12px;bottom:10px;text-align:center;color:#9aa9a4;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
   </div>;
 }
