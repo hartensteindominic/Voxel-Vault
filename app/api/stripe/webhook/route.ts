@@ -7,6 +7,7 @@ import { submitPhysicalFulfillment } from '../../../../lib/fulfillment';
 import { buildVerifiedRewardRecord } from '../../../../lib/rewards/stripeWebhook.js';
 import { persistRewardEvent } from '../../../../lib/rewards/persistence.js';
 import { secureStripeDigitalEstatePurchase } from '../../../../lib/digital-estate-purchases';
+import { secureStripePropertyCollectiblePurchase } from '../../../../lib/property-collectible-commerce';
 
 const WALLET_RE = /^0x[a-f0-9]{40}$/;
 type ShippingDetails = {
@@ -49,6 +50,17 @@ export async function POST(request: Request) {
         const secured = await secureStripeDigitalEstatePurchase({ session });
         console.info('Digital Estate secured from signed Stripe webhook', { estateId: secured.estate.id, buyerId: secured.buyerId, sessionId: session.id });
         return NextResponse.json({ received: true, digitalEstateSecured: true });
+      }
+
+      if (session.metadata?.kind === 'property_voxel_collectible') {
+        const secured = await secureStripePropertyCollectiblePurchase({ session });
+        console.info('VoxelPop property collectible secured from signed Stripe webhook', {
+          identityKey: secured.identityKey,
+          atlasId: secured.atlasId,
+          buyerId: secured.buyerId,
+          sessionId: session.id,
+        });
+        return NextResponse.json({ received: true, propertyCollectibleSecured: true });
       }
 
       if (session.metadata?.mint_mode === 'physical_nft') {

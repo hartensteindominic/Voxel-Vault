@@ -1,6 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
+import { readCatalog3DByTask } from '../../../lib/catalog3dStore';
+import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -52,6 +54,25 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+async function generated3DReference(userId: string, draftIdRaw: unknown, sourceTaskIdRaw: unknown) {
+  const draftId = normalizePropertyDraftId(draftIdRaw);
+  const sourceTaskId = clean(sourceTaskIdRaw, 260);
+  if (!sourceTaskId) throw new Error('Finish the first 3D build before the voxel style pass.');
+  const saved = await readCatalog3DByTask(sourceTaskId);
+  const expectedItemId = propertyDraftItemId(userId, draftId, 'source');
+  if (!saved || saved.item_id !== expectedItemId) throw new Error('That first 3D build does not belong to this signed-in creation.');
+  const sourceReady = Boolean(saved.model_storage_path || saved.model_url);
+  const thumbnailUrl = clean(saved.thumbnail_url, 2200);
+  if (!sourceReady) throw new Error('Finish the first 3D build before making the voxel.');
+  if (!isHttpUrl(thumbnailUrl)) throw new Error('The first 3D build finished without a usable preview render. Retry the 3D build before voxelizing it.');
+  return [{
+    url: thumbnailUrl,
+    rightsBasis: 'licensed-derivative',
+    rightsReference: 'Voxel Vault generated this 3D preview from the signed-in user-authorized source photo for this creation.',
+    label: 'Generated 3D preview',
+  }];
+}
+
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
@@ -61,20 +82,24 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const draftId = clean(body?.draftId, 100);
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
-    const references = validateReferences(body?.references);
-    if (!address || !atlasId) return privateJson({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
-    if (!references.length) return privateJson({ ok: false, error: 'A rights-cleared property photo is required before making the voxel.' }, { status: 400 });
+    const references = draftId
+      ? await generated3DReference(auth.user.id, draftId, body?.source3dTaskId)
+      : validateReferences(body?.references);
+    if (!draftId && (!address || !atlasId)) return privateJson({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
+    if (!references.length) return privateJson({ ok: false, error: 'A rights-cleared visual reference is required before making the voxel.' }, { status: 400 });
 
+    const subject = draftId ? 'the exact building shown in the generated 3D reference render' : `the exact property shown in the supplied reference photo${references.length > 1 ? 's' : ''}: ${address}`;
     const prompt = [
-      `Create a faithful voxel architectural rendering of the exact property shown in the supplied reference photo${references.length > 1 ? 's' : ''}: ${address}.`,
-      'Preserve the visible building identity: exact floor count, overall massing, roof shape and roofline, facade proportions, window count and placement, door count and placement, porch/garage openings, exterior material colors, trim, steps and other obvious permanent architectural details.',
+      `Create a faithful VoxelPop-style voxel architectural rendering of ${subject}.`,
+      'Preserve the visible building identity, overall massing, roof shape and roofline, facade proportions, window and door placement, major openings, material colors, trim, steps and other obvious permanent architectural details visible in the reference.',
       'Do not redesign, beautify, modernize, add floors, remove floors, invent windows, move doors, change the roof type, or substitute a generic house.',
-      'Use crisp premium VoxelPop-style block geometry and believable voxel materials while keeping the building immediately recognizable as the same property.',
-      'Keep the front yard, sidewalk, road and neighboring context simple and secondary so the selected building remains the clear subject.',
+      'Translate the reference into crisp premium block geometry, small readable voxel details and believable voxel materials while keeping the same building immediately recognizable.',
+      'Keep ground and surrounding context simple and secondary so the building remains the subject.',
       'No text, labels, logos, watermarks, UI, borders or fantasy additions.',
-      'This is a visual voxel interpretation from photographs, not a survey, deed, or claim of perfect physical accuracy.',
+      'This is a visual voxel interpretation from a generated 3D preview and/or source imagery, not a survey, deed, appraisal, or claim of perfect physical accuracy.',
     ].join(' ');
 
     const create = await fetch(ENDPOINT, {
@@ -102,7 +127,7 @@ export async function POST(request: Request) {
       taskToken: taskToken(apiKey, auth.user.id, taskId),
       referenceCount: references.length,
       sourceLabels: references.map((item) => item.label),
-      note: 'Voxel creation started from rights-cleared property imagery.',
+      note: draftId ? 'Voxel styling started from the signed-in user’s completed 3D preview.' : 'Voxel creation started from rights-cleared property imagery.',
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property voxel image generation failed.' }, { status: 400 });
@@ -142,7 +167,7 @@ export async function GET(request: Request) {
         progress: 100,
         taskId,
         imageUrl,
-        note: 'Voxel image created from rights-cleared property imagery. It is a visual interpretation, not a deed or survey.',
+        note: 'Voxel style pass complete. It is a visual interpretation, not a deed, survey, appraisal, or physical-property right.',
       });
     }
     if (['FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(status)) {

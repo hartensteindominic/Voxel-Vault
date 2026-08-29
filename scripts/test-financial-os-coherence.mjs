@@ -61,17 +61,20 @@ assert.match(commandCenter, /Search is navigation only\. It never executes trade
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
 // Consumer Home is intentionally much smaller than the underlying Spatial Asset OS.
-// The front door is account-first, then property photo -> voxel image -> approved 3D -> Vault.
+// The front door is account-first, then photo -> automatic 3D -> automatic voxel -> My World -> digital checkout -> Vault.
 assert.match(rootHome, /Sign in first\./, 'root Home should lead with account verification before property work');
 assert.match(rootHome, /href="\/property"/, 'root Home should route the single property CTA into the account-gated maker');
 assert.match(rootHome, /START PROPERTY → SIGN IN/, 'root Home should make the account-first transition explicit');
-assert.match(rootHome, /MAKE VOXEL/, 'root Home should expose voxel-image creation before 3D');
-assert.match(rootHome, /<b>3D<\/b>/, 'root Home should expose the downstream 3D step');
-assert.match(rootHome, /<b>VAULT<\/b>/, 'root Home should expose the account Vault as the save destination');
-assert.match(rootHome, /voxel image must finish first/i, 'root Home should block 3D until the voxel image finishes');
+assert.match(rootHome, /<b>PHOTO<\/b>/, 'root Home should put the authorized photo first');
+assert.match(rootHome, /<b>3D<\/b>/, 'root Home should build the first 3D before voxel styling');
+assert.match(rootHome, /<b>VOXEL<\/b>/, 'root Home should expose the automatic VoxelPop stage');
+assert.match(rootHome, /<b>WORLD<\/b>/, 'root Home should preview the completed voxel on World before checkout');
+assert.match(rootHome, /BUY \+ VAULT/, 'root Home should make paid Vault delivery the end of the guided purchase loop');
+assert.match(rootHome, /Wallet connection is optional/i, 'wallet must remain optional until a user chooses the downstream mint path');
+assert.match(rootHome, /Property checkout buys the generated digital collectible only/i, 'root Home must distinguish digital checkout from buying physical property');
 assert.match(rootHome, /Creating or minting a property model does not buy, rent, or create deed\/title rights/, 'root Home must preserve model versus title truth');
 assert.match(rootHome, /href="\/more"/, 'advanced Spatial Asset OS tools must remain deliberately reachable');
-assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'property purchase execution must stay out of the troubleshooting front door');
+assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'unverified physical-property purchase execution must stay out of the consumer front door');
 assert.doesNotMatch(rootHome, /HomeCapabilityStrip|FOUR CORE JOBS|title: 'Create'|title: 'Earth'|title: 'Invest'/, 'advanced capability and product taxonomy must not re-clutter the simple home');
 assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
 
@@ -107,7 +110,7 @@ assert.match(integrationsPage, /getSupabaseBrowserAsync/);
 assert.match(integrationsPage, /\/api\/admin\/integrations\/status/);
 assert.match(integrationsPage, /SIGN IN WITH GOOGLE/);
 
-// The detailed real-estate area remains an advanced, fail-closed subsystem while buying is absent from the simple maker.
+// The detailed real-estate area remains an advanced, fail-closed subsystem while direct physical-property buying is absent from the simple digital collectible maker.
 assert.match(home, /Explore → invest → verify → observe → own/);
 assert.match(home, /Your money,/);
 assert.match(home, /provider-backed investment assets/i);
@@ -123,4 +126,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault sign-in-first property maker + advanced Spatial Asset OS + safe app shell + capability + Financial OS coherence regression tests passed');
+console.log('Voxel Vault photo-first VoxelPop property journey + advanced Spatial Asset OS + safe app shell + capability + Financial OS coherence regression tests passed');
