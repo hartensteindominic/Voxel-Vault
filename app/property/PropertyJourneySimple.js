@@ -4,8 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import LocalVoxelModelViewer from './LocalVoxelModelViewer';
 import PropertyWorldMap from './PropertyWorldMap';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
-import { buildPropertyDraft, savePropertyDraft } from '../../lib/property-drafts';
-import { savePropertyDraftToAccount } from '../../lib/property-drafts-account';
+import {
+  buildPropertyDraft,
+  mergePropertyDraftRecords,
+  readPropertyDraft,
+  replaceLocalPropertyDrafts,
+  savePropertyDraft,
+} from '../../lib/property-drafts';
+import { loadAccountPropertyDrafts, savePropertyDraftToAccount } from '../../lib/property-drafts-account';
 import styles from './property.module.css';
 
 const CREATION_PRICE_LABEL = '$4.99';
@@ -129,47 +135,85 @@ async function normalizeIphonePhoto(file) {
   }
 }
 
-async function createVoxelPoster(file) {
+async function imageReferenceToFile(reference, filename = 'property-reference.jpg') {
+  const value = clean(reference);
+  if (!value) return null;
+  try {
+    const response = await fetch(value, { cache: 'no-store' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (!String(blob.type || '').startsWith('image/')) return null;
+    return new File([blob], filename, { type: blob.type || 'image/jpeg', lastModified: Date.now() });
+  } catch {
+    return null;
+  }
+}
+
+async function create3DPreviewImage(file) {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = url;
     await new Promise((resolve, reject) => {
       image.onload = resolve;
-      image.onerror = () => reject(new Error('The photo could not be opened for the VoxelPop image.'));
+      image.onerror = () => reject(new Error('The photo could not be opened for the VoxelPop 3D picture.'));
     });
-    const sampleSize = 72;
-    const sample = document.createElement('canvas');
-    sample.width = sampleSize;
-    sample.height = sampleSize;
-    const sampleContext = sample.getContext('2d');
-    if (!sampleContext) throw new Error('VoxelPop image processing is unavailable.');
+
+    const output = document.createElement('canvas');
+    output.width = 1000;
+    output.height = 1000;
+    const context = output.getContext('2d');
+    if (!context) throw new Error('VoxelPop image processing is unavailable.');
+
+    context.fillStyle = '#e9e3dc';
+    context.fillRect(0, 0, output.width, output.height);
+
+    const faceX = 70;
+    const faceY = 54;
+    const faceWidth = 850;
+    const faceHeight = 850;
+    for (let layer = 22; layer >= 1; layer -= 1) {
+      const shade = 62 + Math.round((22 - layer) * 1.4);
+      context.fillStyle = `rgb(${shade},${Math.max(38, shade - 18)},${Math.min(100, shade + 8)})`;
+      context.fillRect(faceX + layer * 2.2, faceY + layer * 2.8, faceWidth, faceHeight);
+    }
+
     const sourceRatio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
+    const targetRatio = faceWidth / faceHeight;
     let sx = 0;
     let sy = 0;
     let sw = image.naturalWidth || 1;
     let sh = image.naturalHeight || 1;
-    if (sourceRatio > 1) { sw = sh; sx = ((image.naturalWidth || 1) - sw) / 2; }
-    else if (sourceRatio < 1) { sh = sw; sy = ((image.naturalHeight || 1) - sh) / 2; }
-    sampleContext.filter = 'saturate(1.06) contrast(1.05)';
-    sampleContext.drawImage(image, sx, sy, sw, sh, 0, 0, sampleSize, sampleSize);
+    if (sourceRatio > targetRatio) {
+      sw = sh * targetRatio;
+      sx = ((image.naturalWidth || 1) - sw) / 2;
+    } else if (sourceRatio < targetRatio) {
+      sh = sw / targetRatio;
+      sy = ((image.naturalHeight || 1) - sh) / 2;
+    }
 
-    const output = document.createElement('canvas');
-    output.width = 864;
-    output.height = 864;
-    const context = output.getContext('2d');
-    if (!context) throw new Error('VoxelPop image processing is unavailable.');
-    context.imageSmoothingEnabled = false;
-    context.fillStyle = '#ede7df';
-    context.fillRect(0, 0, output.width, output.height);
-    context.drawImage(sample, 0, 0, output.width, output.height);
-    const shade = context.createLinearGradient(0, 0, output.width, output.height);
-    shade.addColorStop(0, 'rgba(255,255,255,.08)');
-    shade.addColorStop(0.62, 'rgba(255,255,255,0)');
-    shade.addColorStop(1, 'rgba(38,18,52,.12)');
-    context.fillStyle = shade;
-    context.fillRect(0, 0, output.width, output.height);
-    return output.toDataURL('image/jpeg', 0.92);
+    context.save();
+    context.beginPath();
+    context.roundRect(faceX, faceY, faceWidth, faceHeight, 34);
+    context.clip();
+    context.filter = 'saturate(1.035) contrast(1.025)';
+    context.drawImage(image, sx, sy, sw, sh, faceX, faceY, faceWidth, faceHeight);
+    context.filter = 'none';
+    const depthLight = context.createLinearGradient(faceX, faceY, faceX + faceWidth, faceY + faceHeight);
+    depthLight.addColorStop(0, 'rgba(255,255,255,.11)');
+    depthLight.addColorStop(0.55, 'rgba(255,255,255,0)');
+    depthLight.addColorStop(1, 'rgba(30,16,42,.12)');
+    context.fillStyle = depthLight;
+    context.fillRect(faceX, faceY, faceWidth, faceHeight);
+    context.restore();
+
+    context.strokeStyle = 'rgba(255,255,255,.72)';
+    context.lineWidth = 5;
+    context.beginPath();
+    context.roundRect(faceX, faceY, faceWidth, faceHeight, 34);
+    context.stroke();
+
+    return output.toDataURL('image/jpeg', 0.94);
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -183,7 +227,10 @@ export default function PropertyJourneySimple() {
   const [pendingPreview, setPendingPreview] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [paidSessionId, setPaidSessionId] = useState('');
+  const [reuseDraft, setReuseDraft] = useState(null);
+  const [reuseEntitled, setReuseEntitled] = useState(false);
   const [voxelPoster, setVoxelPoster] = useState('');
+  const [voxelBuildStarted, setVoxelBuildStarted] = useState(false);
   const [localRecipe, setLocalRecipe] = useState(null);
   const [final3d, setFinal3d] = useState(empty3d);
   const [address, setAddress] = useState('');
@@ -196,11 +243,13 @@ export default function PropertyJourneySimple() {
   const clientRef = useRef(null);
   const uploadInputRef = useRef(null);
   const checkoutHandledRef = useRef('');
+  const reuseHandledRef = useRef('');
 
   const localReady = final3d?.status === 'SUCCEEDED';
   const mapped = Boolean(building && mappedAddress);
-  const step = savedDraft ? 5 : mapped ? 4 : paidSessionId ? 3 : pendingPhoto ? 2 : 1;
-  const labels = ['PHOTO', 'PAY', '3D', 'MAP', 'MY WORLD'];
+  const creationIncluded = Boolean(paidSessionId || reuseEntitled);
+  const step = savedDraft ? 5 : mapped ? 4 : (voxelBuildStarted || localReady) ? 3 : voxelPoster ? 2 : 1;
+  const labels = ['PHOTO', '3D PIC', '3D VOXEL', 'MAP', 'MY WORLD'];
 
   useEffect(() => {
     let active = true;
@@ -214,7 +263,7 @@ export default function PropertyJourneySimple() {
       setAuthReady(true);
       if (data.session?.user) {
         setDraftId((current) => current || newDraftId());
-        setMessage('Signed in. Choose one property photo.');
+        setMessage('Signed in. Choose one property photo, or open an owned property from your Vault.');
       }
       const auth = client.auth.onAuthStateChange((_event, next) => {
         if (!active) return;
@@ -222,7 +271,7 @@ export default function PropertyJourneySimple() {
         setAuthReady(true);
         if (next?.user) {
           setDraftId((current) => current || newDraftId());
-          setMessage('Signed in. Choose one property photo.');
+          setMessage('Signed in. Choose one property photo, or open an owned property from your Vault.');
         } else setMessage('Sign in to start.');
       });
       subscription = auth.data.subscription;
@@ -258,6 +307,26 @@ export default function PropertyJourneySimple() {
     uploadInputRef.current?.click();
   }
 
+  function usePreparedPhoto(photo, { rights = false, notice = '' } = {}) {
+    setPendingPreview((current) => {
+      if (current?.startsWith?.('blob:')) URL.revokeObjectURL(current);
+      return URL.createObjectURL(photo);
+    });
+    setPendingPhoto(photo);
+    setRightsConfirmed(rights);
+    setVoxelPoster('');
+    setVoxelBuildStarted(false);
+    setLocalRecipe(null);
+    setFinal3d(empty3d());
+    setBuilding(null);
+    setAtlasBuildings([]);
+    setMappedAddress('');
+    setSavedDraft(null);
+    setMessage(notice || (creationIncluded
+      ? 'Photo ready. Create the 3D picture first—there is no second charge for this owned/paid property.'
+      : `Photo ready. Confirm permission, then pay ${CREATION_PRICE_LABEL} to create the 3D picture.`));
+  }
+
   async function selectPhoto(event) {
     const selected = event.target.files?.[0];
     event.target.value = '';
@@ -269,15 +338,7 @@ export default function PropertyJourneySimple() {
     try {
       const photo = await normalizeIphonePhoto(selected);
       if (photo.size > 8 * 1024 * 1024) throw new Error('This photo is still too large after preparation. Try a screenshot or smaller version.');
-      setPendingPreview((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return URL.createObjectURL(photo);
-      });
-      setPendingPhoto(photo);
-      setRightsConfirmed(false);
-      setMessage(paidSessionId
-        ? 'Payment is already verified. Confirm the photo and create the 3D—no second charge.'
-        : `Photo ready. Confirm permission, then pay ${CREATION_PRICE_LABEL} to create the 3D.`);
+      usePreparedPhoto(photo, { rights: false });
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
     } finally {
@@ -285,21 +346,33 @@ export default function PropertyJourneySimple() {
     }
   }
 
-  async function startLocalBuild(photo, activeDraftId) {
+  async function startLocalBuild(photo) {
     setBusy('local-build');
     setVoxelPoster('');
+    setVoxelBuildStarted(false);
     setLocalRecipe(null);
-    setFinal3d({ status: 'IN_PROGRESS', progress: 30, modelUrl: null, taskId: null });
+    setFinal3d(empty3d());
     setBuilding(null);
     setAtlasBuildings([]);
     setMappedAddress('');
     setSavedDraft(null);
-    setMessage('Payment confirmed. Creating a photo-matched VoxelPop building on this device…');
-    const poster = await createVoxelPoster(photo);
-    setVoxelPoster(poster);
+    setMessage('Creating a clear photo-matched 3D picture preview on this device…');
+    try {
+      const poster = await create3DPreviewImage(photo);
+      setVoxelPoster(poster);
+      setMessage('3D picture ready. Check that it still looks like your property, then tap Create 3D Voxel.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  function startVoxelBuild() {
+    if (!pendingPhoto || !voxelPoster) return setMessage('Create the 3D picture first.');
+    setVoxelBuildStarted(true);
+    setLocalRecipe(null);
     setFinal3d({ status: 'IN_PROGRESS', progress: 72, modelUrl: null, taskId: null });
     setBusy('local-3d');
-    setMessage('3D image ready. Building the movable voxel shape now…');
+    setMessage('Building the movable photo-matched 3D voxel now. No Meshy credits are used.');
   }
 
   async function verifyPaidSession(generationSessionId) {
@@ -334,7 +407,7 @@ export default function PropertyJourneySimple() {
     checkoutHandledRef.current = generationSessionId;
     let active = true;
     setBusy('payment-return');
-    setMessage('Payment received. Opening your private photo and creating the 3D…');
+    setMessage('Payment received. Opening your private photo and creating the 3D picture…');
 
     (async () => {
       try {
@@ -346,16 +419,11 @@ export default function PropertyJourneySimple() {
         if (!active) return;
         if (!photo) {
           setBusy('');
-          setMessage('Payment is verified. Choose the same property photo again and press Create 3D—you will not be charged again.');
+          setMessage('Payment is verified. Choose the same property photo again; you will not be charged a second time.');
           return;
         }
-        setPendingPhoto(photo);
-        setPendingPreview((current) => {
-          if (current) URL.revokeObjectURL(current);
-          return URL.createObjectURL(photo);
-        });
-        setRightsConfirmed(true);
-        await startLocalBuild(photo, data.draftId);
+        usePreparedPhoto(photo, { rights: true, notice: 'Payment verified. Reopening your photo and creating the 3D picture…' });
+        await startLocalBuild(photo);
       } catch (error) {
         if (active) {
           checkoutHandledRef.current = '';
@@ -368,17 +436,87 @@ export default function PropertyJourneySimple() {
     return () => { active = false; };
   }, [session?.access_token]);
 
+  useEffect(() => {
+    if (!session?.user || typeof window === 'undefined') return undefined;
+    const reuseId = clean(new URLSearchParams(window.location.search).get('reuse'));
+    if (!reuseId || reuseHandledRef.current === reuseId) return undefined;
+    reuseHandledRef.current = reuseId;
+    let active = true;
+
+    (async () => {
+      setBusy('reuse');
+      setMessage('Opening this property from your Vault…');
+      try {
+        let source = readPropertyDraft(reuseId);
+        if (!source) {
+          const client = clientRef.current || await getSupabaseBrowserAsync();
+          clientRef.current = client;
+          const cloud = await loadAccountPropertyDrafts(client, session.user);
+          const merged = mergePropertyDraftRecords(cloud);
+          replaceLocalPropertyDrafts(merged);
+          source = merged.find((item) => item.id === reuseId) || null;
+        }
+        if (!active) return;
+        if (!source) throw new Error('That property is not in this signed-in Vault.');
+
+        const entitled = source?.voxelpop?.paidCreation === true || source?.commerce?.status === 'paid';
+        setReuseDraft(source);
+        setReuseEntitled(entitled);
+        setDraftId(newDraftId());
+        if (clean(source?.label)) setAddress(clean(source.label));
+
+        const deviceKey = clean(
+          source?.voxelpop?.sourcePhotoDeviceKey
+          || source?.voxelpop?.creationDraftId
+          || source?.commerce?.generationDraftId,
+        );
+        let photo = deviceKey ? await loadDevicePhoto(deviceKey).catch(() => null) : null;
+        let reusedOriginal = Boolean(photo);
+        if (!photo) {
+          const reference = source?.visual?.thumbnailUrl || source?.voxelpop?.thumbnailUrl || '';
+          photo = await imageReferenceToFile(reference, 'owned-property-reference.jpg');
+          reusedOriginal = false;
+        }
+        if (!active) return;
+
+        if (photo) {
+          usePreparedPhoto(photo, {
+            rights: reusedOriginal,
+            notice: reusedOriginal
+              ? `Loaded the photo you already used for ${source.label || 'this property'}. Create the 3D picture, then the 3D voxel.`
+              : `Loaded the saved picture for ${source.label || 'this property'}. Confirm permission, then create the 3D picture and 3D voxel.`,
+          });
+        } else {
+          setPendingPhoto(null);
+          setPendingPreview('');
+          setRightsConfirmed(false);
+          setVoxelPoster('');
+          setVoxelBuildStarted(false);
+          setFinal3d(empty3d());
+          setMessage(`Opened ${source.label || 'your saved property'}. Its original photo is no longer on this device, so add the photo you want to use. ${entitled ? 'Your owned/paid property will not be charged a second creation fee.' : ''}`.trim());
+        }
+      } catch (error) {
+        reuseHandledRef.current = '';
+        setMessage(String(error?.message || error || 'This property could not be reopened.'));
+      } finally {
+        if (active) setBusy('');
+      }
+    })();
+
+    return () => { active = false; };
+  }, [session?.user]);
+
   async function payAndCreate() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
     setBusy('generation-checkout');
     try {
       await saveDevicePhoto(draftId, pendingPhoto);
-      if (paidSessionId) {
-        await startLocalBuild(pendingPhoto, draftId);
+      if (creationIncluded) {
+        await startLocalBuild(pendingPhoto);
         return;
       }
-      setMessage(`Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, the 3D starts automatically.`);
+      setMessage(`Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, your 3D picture starts automatically.`);
       const form = new FormData();
       form.append('draftId', draftId);
       form.append('rightsConfirmed', 'true');
@@ -404,12 +542,12 @@ export default function PropertyJourneySimple() {
         body: JSON.stringify({ draftId, recipe }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok) throw new Error(data?.error || 'The local 3D could not be linked to your Vault.');
+      if (!response.ok || !data?.ok) throw new Error(data?.error || 'The local 3D voxel could not be linked to your Vault.');
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: data.modelUrl || null, taskId: data.taskId || null });
-      setMessage('Your 3D is ready. Enter the property address to match it to the real mapped building footprint.');
+      setMessage('Your 3D voxel is ready. Check it, then match it to the property address.');
     } catch (error) {
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: null, taskId: `local-device:${draftId}` });
-      setMessage('Your 3D is ready on this device. Enter the address to continue; Vault syncing can retry later.');
+      setMessage('Your 3D voxel is ready on this device. Enter the address to continue; Vault syncing can retry later.');
     } finally {
       setBusy('');
     }
@@ -420,7 +558,7 @@ export default function PropertyJourneySimple() {
     const value = clean(address);
     if (!value || !localReady) return;
     setBusy('map');
-    setMessage('Matching your 3D to the mapped building and nearby neighborhood…');
+    setMessage('Matching your 3D voxel to the mapped building and nearby neighborhood…');
     try {
       const params = new URLSearchParams({ address: value, radius: '180' });
       const response = await fetch(`/api/world-atlas/inspect?${params.toString()}`, { cache: 'no-store' });
@@ -456,14 +594,26 @@ export default function PropertyJourneySimple() {
       const draft = {
         ...base,
         state: 'saved',
+        visual: {
+          ...(base.visual || {}),
+          thumbnailUrl: voxelPoster || null,
+          modelUrl: final3d?.modelUrl || null,
+          modelTaskId: final3d?.taskId || null,
+          renderMode: 'photo-preview-to-local-voxel',
+        },
         voxelpop: {
           paidCreation: true,
-          priceCents: CREATION_PRICE_CENTS,
+          priceCents: paidSessionId ? CREATION_PRICE_CENTS : (Number(reuseDraft?.voxelpop?.priceCents || reuseDraft?.commerce?.priceCents) || CREATION_PRICE_CENTS),
+          generationChargeCents: paidSessionId ? CREATION_PRICE_CENTS : (reuseEntitled ? 0 : CREATION_PRICE_CENTS),
+          creationAccess: reuseEntitled ? 'owned-vault-property' : 'paid-voxelpop-creation',
           engine: 'voxelpop-local-webgl-v2',
           sourcePhotoStoredByVoxelVault: false,
+          sourcePhotoAvailableOnDevice: true,
+          sourcePhotoDeviceKey: draftId,
           photoMatchedFront: true,
           mappedFootprintUsed: Boolean(building?.geometry),
           creationDraftId: draftId,
+          reusedFromDraftId: reuseDraft?.id || null,
           modelTaskId: final3d?.taskId || null,
           modelUrl: final3d?.modelUrl || null,
         },
@@ -480,11 +630,10 @@ export default function PropertyJourneySimple() {
         }
       } catch {}
       setSavedDraft(localSaved);
-      await removeDevicePhoto(draftId);
       if (typeof window !== 'undefined') window.history.replaceState({}, '', '/property');
       setMessage(synced
-        ? 'Saved. Your 3D property is in My World and your Vault account.'
-        : 'Saved to My World on this device. Account sync can retry from Vault later—your creation is not blocked.');
+        ? 'Saved. Your 3D property is in My World and your Vault account. The source photo stays private on this device so you can reuse it later.'
+        : 'Saved to My World on this device. The source photo stays private on this device; account sync can retry later.');
     } catch (error) {
       setMessage(String(error?.message || error || 'This 3D property could not be saved yet.'));
     } finally {
@@ -502,12 +651,16 @@ export default function PropertyJourneySimple() {
 
   function resetCreation() {
     const oldDraft = draftId;
+    const preservePhoto = Boolean(savedDraft);
     setDraftId(newDraftId());
     setPendingPhoto(null);
-    setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
+    setPendingPreview((current) => { if (current?.startsWith?.('blob:')) URL.revokeObjectURL(current); return ''; });
     setRightsConfirmed(false);
     setPaidSessionId('');
+    setReuseDraft(null);
+    setReuseEntitled(false);
     setVoxelPoster('');
+    setVoxelBuildStarted(false);
     setLocalRecipe(null);
     setFinal3d(empty3d());
     setAddress('');
@@ -517,7 +670,7 @@ export default function PropertyJourneySimple() {
     setSavedDraft(null);
     setBusy('');
     setMessage('Choose one property photo.');
-    removeDevicePhoto(oldDraft);
+    if (!preservePhoto) removeDevicePhoto(oldDraft);
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/property');
   }
 
@@ -553,76 +706,80 @@ export default function PropertyJourneySimple() {
       <p className={styles.stageLabel}>STEP {step} OF 5 · {labels[step - 1]}</p>
 
       {step === 1 ? <>
-        <p className={styles.bigPrompt}>Choose the building photo.</p>
-        <p className={styles.flowHint}>One photo → pay $4.99 → create 3D → match address → save to My World.</p>
+        <p className={styles.bigPrompt}>{reuseDraft ? 'Use this property picture.' : 'Choose the building photo.'}</p>
+        <p className={styles.flowHint}>{reuseDraft
+          ? `${reuseDraft.label || 'Owned property'} → picture → 3D picture → 3D voxel → map → My World.`
+          : 'Photo → pay $4.99 once → 3D picture → approve → 3D voxel → map → My World.'}</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
-        <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>iPhone photos supported</span></div>
-        <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>
-        <p className={styles.truth}>Use a clear front or three-quarter photo of the building for the closest local 3D match. The photo stays on this device through checkout and creation.</p>
+        {!pendingPreview ? <>
+          {reuseDraft ? <section className={styles.donePanel}><b>{reuseDraft.label || 'Your saved property'}</b><span>{reuseEntitled ? 'Owned/paid property loaded. Add the picture you want to turn into 3D; no second creation charge.' : 'Saved property loaded. Add the picture you want to turn into 3D.'}</span></section> : null}
+          <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>{reuseDraft ? 'Add property photo' : 'Choose a property photo'}</b><span>iPhone photos supported</span></div>
+          <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare' || busy === 'reuse'}>{busy === 'prepare' ? 'Preparing photo…' : reuseDraft ? 'Add photo' : 'Choose photo'}</button>
+        </> : <>
+          <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>{reuseDraft ? 'REUSED / ADDED PROPERTY PICTURE' : 'YOUR BUILDING PHOTO · DEVICE ONLY'}</span></div>
+          <div className={styles.choicePanel}>
+            <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use this picture for the digital creation.</span></label>
+            <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout' || busy === 'local-build'}>{busy === 'generation-checkout' ? 'Opening checkout…' : busy === 'local-build' ? 'Creating 3D picture…' : creationIncluded ? 'Create 3D Picture · included' : `Pay ${CREATION_PRICE_LABEL} & Create 3D Picture`}</button>
+            <button className={styles.textButton} type="button" onClick={choosePhoto}>Use a different picture</button>
+          </div>
+        </>}
+        <p className={styles.truth}>The picture is the visual reference, not proof of legal ownership. A saved original stays private on this device when available; it is not uploaded just to make the local 3D.</p>
       </> : null}
 
       {step === 2 ? <>
-        <p className={styles.bigPrompt}>Pay once. Create the 3D.</p>
-        <p className={styles.stepCopy}>The $4.99 purchase includes this VoxelPop 3D creation and saving it to My World. There is no second collection payment required just to continue.</p>
+        <p className={styles.bigPrompt}>Check the 3D picture.</p>
+        <p className={styles.stepCopy}>This preview keeps the property photo recognizable instead of immediately turning it into a rough voxel. If it looks right, create the movable 3D voxel next.</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
-        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>YOUR BUILDING PHOTO · DEVICE ONLY</span></div>
+        <div className={styles.heroCard}><img src={voxelPoster} alt="Photo-matched 3D property picture preview"/><span className={styles.badge}>PHOTO-MATCHED 3D PICTURE PREVIEW</span></div>
         <div className={styles.choicePanel}>
-          <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : `Pay ${CREATION_PRICE_LABEL} & Create 3D`}</button>
-          <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another photo</button>
+          <button className={styles.primaryPurple} type="button" onClick={startVoxelBuild} disabled={busy === 'local-3d'}>{busy === 'local-3d' ? 'Starting 3D voxel…' : 'Create 3D Voxel'}</button>
+          <button className={styles.textButton} type="button" onClick={choosePhoto}>Picture does not look right · change photo</button>
         </div>
-        <p className={styles.truth}>The $4.99 charge buys one digital VoxelPop creation. It does not buy the physical property, deed/title, investment rights, rent rights, or guaranteed value.</p>
+        <p className={styles.truth}>This is a photo-matched visual preview, not a survey or a perfect reconstruction of unseen sides. The next step makes the movable voxel model from the same source picture.</p>
       </> : null}
 
       {step === 3 ? <>
-        <p className={styles.bigPrompt}>{localReady ? 'Your 3D is ready.' : 'Creating your 3D.'}</p>
+        <p className={styles.bigPrompt}>{localReady ? 'Your 3D voxel is ready.' : 'Creating the 3D voxel.'}</p>
         <p className={styles.stepCopy}>{localReady
-          ? 'This version keeps the recognizable building front, removes most sky/ground from the voxel shape, and stays movable on your device. Add the address below to match it to the real mapped footprint.'
-          : 'VoxelPop is creating a photo-matched voxel building locally. No Meshy credits are used.'}</p>
+          ? 'Rotate the movable voxel and make sure it still resembles the building. Then match the address to the real source-backed map footprint.'
+          : 'VoxelPop is building the movable photo-matched voxel locally from the same picture you approved. No Meshy credits are used.'}</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
-        {!pendingPhoto && !voxelPoster ? <section className={styles.donePanel}>
-          <div className={styles.doneMark}>✓</div>
-          <b>PAYMENT VERIFIED</b>
-          <span>Your photo was not available after checkout. Choose it again—there is no second charge.</span>
-          <button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Choose photo again</button>
-        </section> : null}
-        {pendingPreview || voxelPoster ? <div className={styles.heroCard}>
-          <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster} onReady={handleLocal3DReady}/>
-          <span className={styles.badge}>{localReady ? 'PHOTO-MATCHED VOXEL 3D' : 'BUILDING LOCAL 3D'}</span>
+        {pendingPreview && voxelPoster ? <div className={styles.heroCard}>
+          <LocalVoxelModelViewer imageUrl={voxelPoster} sourceImageUrl={pendingPreview} onReady={handleLocal3DReady}/>
+          <span className={styles.badge}>{localReady ? 'PHOTO-MATCHED 3D VOXEL' : 'BUILDING LOCAL 3D VOXEL'}</span>
           {!localReady ? <div className={styles.buildPulse}/> : null}
         </div> : null}
-        {paidSessionId && pendingPhoto && !voxelPoster && busy !== 'local-build' ? <button className={styles.primaryPurple} type="button" onClick={payAndCreate}>Create 3D · already paid</button> : null}
         {localReady ? <form className={styles.searchForm} onSubmit={mapBuilding}>
           <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/>
-          <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Match 3D to this building'}</button>
-        </form> : <div className={styles.autoPanel}><b>ONE PURCHASE · ZERO MESHY CREDITS</b><span>Your $4.99 payment is already complete. The local 3D is the creation you paid for.</span></div>}
-        <p className={styles.truth}>The photo helps the front appearance. The address adds source-backed map footprint/location data. Unseen sides and details that are not present in the photo or map are not claimed as exact.</p>
+          <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Match voxel to this building'}</button>
+        </form> : <div className={styles.autoPanel}><b>3D PICTURE APPROVED → 3D VOXEL</b><span>The voxel is built locally from your source picture. Your payment or owned-property access is already settled before this step.</span></div>}
+        <p className={styles.truth}>The source picture helps the visible front appearance. The address adds source-backed footprint/location data. Unseen sides or dimensions are not claimed as exact.</p>
       </> : null}
 
       {step === 4 ? <>
         <p className={styles.bigPrompt}>Matched to the real map.</p>
-        <p className={styles.stepCopy}>The purple/lime building is your selected property inside its nearby mapped neighborhood. This is the clear next step after the 3D—save it directly to My World.</p>
+        <p className={styles.stepCopy}>Your 3D voxel is now paired with the selected property inside its nearby mapped neighborhood. Save it directly to My World.</p>
         <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>{building?.geometry ? 'SOURCE-BACKED BUILDING FOOTPRINT' : 'VERIFIED LOCATION REFERENCE'}</span></div>
-        {voxelPoster ? <div className={`${styles.miniModel} ${styles.voxelMini}`}><img src={voxelPoster} alt="VoxelPop building preview"/></div> : null}
+        {voxelPoster ? <div className={`${styles.miniModel} ${styles.voxelMini}`}><img src={voxelPoster} alt="VoxelPop 3D picture preview"/></div> : null}
         <section className={styles.donePanel}>
           <b>{mappedAddress}</b>
           <span>{building?.geometry ? 'Building footprint matched from map data.' : 'Location matched; exact building footprint was not available from the map source.'}</span>
           <button className={styles.primaryTeal} type="button" onClick={saveToMyWorld} disabled={busy === 'save'}>{busy === 'save' ? 'Saving…' : 'Save to My World'}</button>
           <button className={styles.textButton} type="button" onClick={changeAddress}>Use a different address</button>
         </section>
-        <p className={styles.truth}>Saving is included in the $4.99 creation. No second payment is required. My World is a digital 3D collection, not a land-title registry.</p>
+        <p className={styles.truth}>Saving is included in the creation flow. My World is a digital 3D collection, not a land-title registry.</p>
       </> : null}
 
       {step === 5 ? <>
         <p className={styles.bigPrompt}>Saved to My World.</p>
-        <p className={styles.stepCopy}>Your paid VoxelPop creation is complete. You can open it in My World or your Vault, or create another one.</p>
+        <p className={styles.stepCopy}>Your picture → 3D picture → 3D voxel flow is complete. The private source photo remains on this device so this saved property can reuse it later.</p>
         <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>MY WORLD · SAVED</span></div>
         <section className={styles.donePanel}>
           <div className={styles.doneMark}>✓</div>
           <b>{savedDraft?.label || mappedAddress}</b>
-          <span>3D created · map matched · saved. Optional minting can happen later from Vault; it is not required to use your creation.</span>
+          <span>3D picture created · voxel created · map matched · saved. Optional minting can happen later from Vault; it is never required just to use the 3D.</span>
           <a className={styles.primaryLink} href="/world">View My World</a>
-          <a className={styles.secondaryLink} href="/vault/property-drafts">Open My Vault</a>
+          <a className={styles.secondaryLink} href={`/vault/property-drafts/${encodeURIComponent(savedDraft?.id || '')}`}>Open this property</a>
           <button className={styles.textButton} type="button" onClick={resetCreation}>Create another</button>
         </section>
         <p className={styles.truth}>The digital creation does not create deed/title, ownership, occupancy, rent, fractional-investment, appreciation, or other rights in the physical property.</p>
