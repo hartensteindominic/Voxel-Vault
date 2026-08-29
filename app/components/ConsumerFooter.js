@@ -17,17 +17,16 @@ export default function ConsumerFooter() {
     <div className="vvConsumerFooterInner">
       <div className="vvConsumerFooterBrand">
         <Link href="/">VOXEL VAULT</Link>
-        <span>Photo → 3D preview → voxel → optional World / Vault / mint.</span>
+        <span>Photo → 3D voxel photo → movable voxel → optional mint.</span>
       </div>
       <nav aria-label="Voxel Vault footer" className="vvConsumerFooterLinks">
         <Link href="/property">Create</Link>
-        <Link href="/world">World</Link>
         <Link href="/vault">Vault</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
         <Link href="/about">About</Link>
       </nav>
-      <p className="vvConsumerFooterTruth">VoxelPop creations, map references, purchases, and NFTs are digital records. They do not create deed/title, rent, occupancy, investment, or appreciation rights in physical property.</p>
+      <p className="vvConsumerFooterTruth">A VoxelPop creation or NFT is a digital item. It does not create deed/title, rent, occupancy, investment, or appreciation rights in a physical property.</p>
     </div>
   </footer>;
 }
