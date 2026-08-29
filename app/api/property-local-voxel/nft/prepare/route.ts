@@ -43,8 +43,10 @@ function propertyLibrary(profile: any) {
   return Array.isArray(raw) ? raw.filter((item) => item && item.type === 'voxel-vault-property-3d-draft') : [];
 }
 
-function voucherIdFor(draftId: string, taskId: string) {
-  return `0x${createHash('sha256').update(`voxelpop-local-property:${draftId}:${taskId}`).digest('hex')}`;
+function voucherIdFor(taskId: string) {
+  // One reviewed local voxel gets one canonical mint voucher regardless of
+  // whether the user mints immediately or after later attaching map context.
+  return `0x${createHash('sha256').update(`voxelpop-local-property:${taskId}`).digest('hex')}`;
 }
 
 async function signVoucher(walletAddress: string, metadataUrl: string, voucherId: string) {
@@ -125,7 +127,7 @@ export async function POST(request: Request) {
     const metadataSig = hmac(`local-property-metadata:${draftId}:${taskId}:${label}`);
     const origin = new URL(request.url).origin;
     const metadataUrl = `${origin}/api/property-local-voxel/nft/metadata?${new URLSearchParams({ draftId, taskId, label, sig: metadataSig }).toString()}`;
-    const voucherId = voucherIdFor(draftId, taskId);
+    const voucherId = voucherIdFor(taskId);
     const voucher = await signVoucher(wallet, metadataUrl, voucherId);
     if (!voucher) return NextResponse.json({ ok: false, error: 'VoxelFlip mint signing is unavailable.' }, { status: 503 });
     if (voucher.signer.toLowerCase() !== deployment.mintSigner.toLowerCase()) {
