@@ -2,15 +2,28 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function MeshyModelViewer({ modelUrl }) {
+export default function MeshyModelViewer({
+  modelUrl,
+  previewImageUrl = '',
+  previewAlt = 'Generated 3D preview image',
+  onModelError = null,
+}) {
   const mountRef = useRef(null);
+  const onModelErrorRef = useRef(onModelError);
+  const repairAttemptRef = useRef('');
   const [error, setError] = useState('');
+  const [modelReady, setModelReady] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+
+  onModelErrorRef.current = onModelError;
 
   useEffect(() => {
     if (!modelUrl || !mountRef.current) return undefined;
     let dead = false;
     let cleanup = () => {};
     setError('');
+    setModelReady(false);
 
     Promise.all([
       import('three'),
@@ -22,7 +35,7 @@ export default function MeshyModelViewer({ modelUrl }) {
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
-        setError('3D model preview is unavailable in this browser.');
+        setError('Interactive 3D is unavailable in this browser. The generated preview image is still shown when available.');
         return;
       }
       const width = Math.max(280, mount.clientWidth || 360);
@@ -90,8 +103,23 @@ export default function MeshyModelViewer({ modelUrl }) {
         model.scale.setScalar(scale);
         model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
         root.add(model);
-      }, undefined, () => {
-        if (!dead) setError('The cached Meshy GLB could not be loaded. Regenerating is not automatic.');
+        repairAttemptRef.current = '';
+        setRepairing(false);
+        setError('');
+        setModelReady(true);
+      }, undefined, async () => {
+        if (dead) return;
+        setModelReady(false);
+        setError('Interactive 3D could not load from the cached GLB. Keeping the generated preview visible while Voxel Vault refreshes the model.');
+        const repairKey = String(modelUrl || '');
+        if (onModelErrorRef.current && repairAttemptRef.current !== repairKey) {
+          repairAttemptRef.current = repairKey;
+          setRepairing(true);
+          try {
+            await onModelErrorRef.current();
+          } catch {}
+          if (!dead) setRepairing(false);
+        }
       });
 
       const pointers = new Map();
@@ -207,16 +235,29 @@ export default function MeshyModelViewer({ modelUrl }) {
         mount.innerHTML = '';
       };
     }).catch(() => {
-      if (!dead) setError('The 3D model viewer could not start.');
+      if (!dead) {
+        setModelReady(false);
+        setError('The interactive 3D viewer could not start. The generated preview image is still available when provided.');
+      }
     });
 
     return () => { dead = true; cleanup(); };
-  }, [modelUrl]);
+  }, [modelUrl, retryKey]);
+
+  function retry3D() {
+    repairAttemptRef.current = '';
+    setError('');
+    setRepairing(false);
+    setModelReady(false);
+    setRetryKey((value) => value + 1);
+  }
 
   return <div className="viewerShell">
-    <div ref={mountRef} className="viewer" aria-label="Interactive Meshy hero-property 3D model" />
-    {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">DRAG · PINCH TO ZOOM · CACHED GLB</div>
-    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0}.viewerError{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:#09100f}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#7e8c87;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
+    {previewImageUrl ? <img className={`viewerPreview${modelReady ? ' ready' : ''}`} src={previewImageUrl} alt={previewAlt} referrerPolicy="no-referrer"/> : null}
+    <div ref={mountRef} className={`viewer${modelReady ? ' ready' : ''}`} aria-label="Interactive Meshy hero-property 3D model" />
+    {!modelReady && previewImageUrl ? <div className="viewerPhase">3D PREVIEW IMAGE</div> : null}
+    {error ? <div className="viewerError" role="status"><span>{error}</span><button type="button" onClick={retry3D} disabled={repairing}>{repairing ? 'REFRESHING 3D…' : 'TRY 3D AGAIN'}</button></div> : null}
+    <div className="viewerHint">{modelReady ? 'DRAG · PINCH TO ZOOM · INTERACTIVE 3D' : previewImageUrl ? 'PREVIEW → INTERACTIVE 3D' : 'LOADING INTERACTIVE 3D…'}</div>
+    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewerPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1;transform:scale(1.01);transition:opacity .32s ease,transform .45s ease}.viewerPreview.ready{opacity:0;transform:scale(1.025);pointer-events:none}.viewer{position:absolute;inset:0;opacity:0;transition:opacity .3s ease}.viewer.ready{opacity:1}.viewerPhase{position:absolute;z-index:3;left:12px;top:12px;padding:7px 9px;border-radius:999px;background:rgba(255,255,255,.9);color:#18211e;font-size:7px;letter-spacing:.1em;font-weight:950}.viewerError{position:absolute;z-index:4;left:12px;right:12px;bottom:34px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;border-radius:13px;color:#dbe5e1;font-size:9px;line-height:1.4;background:rgba(9,16,15,.9);backdrop-filter:blur(8px)}.viewerError span{min-width:0}.viewerError button{flex:0 0 auto;border:0;border-radius:9px;padding:9px 10px;background:#fff;color:#0b110f;font-size:7px;font-weight:950;letter-spacing:.08em}.viewerError button:disabled{opacity:.55}.viewerHint{position:absolute;z-index:3;left:12px;right:12px;bottom:10px;text-align:center;color:#a8b3af;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.75)}@media(max-width:520px){.viewerError{align-items:flex-start;flex-direction:column}.viewerError button{width:100%;min-height:42px}}`}</style>
   </div>;
 }
