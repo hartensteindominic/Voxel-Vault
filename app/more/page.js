@@ -4,7 +4,7 @@ import styles from './more.module.css';
 
 export const metadata = {
   title: 'More',
-  description: 'The organized directory for Voxel Vault products, tools, ownership workflows and owner operations.',
+  description: 'Advanced Voxel Vault tools, clearly separated by live, sandbox, evidence, and provider-gated status.',
 };
 
 export default function MorePage() {
@@ -12,16 +12,16 @@ export default function MorePage() {
     <div className={styles.shell}>
       <header className={styles.top}>
         <Link className={styles.brand} href="/">VOXEL VAULT</Link>
-        <span>ONE APP · CLEARLY ORGANIZED</span>
+        <span>ADVANCED · CLEAR STATUS</span>
       </header>
 
       <section className={styles.hero}>
-        <small>EVERYTHING, WITHOUT THE CLUTTER</small>
-        <h1>One Vault.<br/>Clear places for everything.</h1>
-        <p>Voxel Vault now separates the main jobs instead of making every screen explain the whole company. Explore real places, create 3D assets, manage your Vault, use provider-backed money tools, and keep operator controls in their own advanced area.</p>
+        <small>ONLY WHEN YOU NEED IT</small>
+        <h1>Advanced tools.<br/>No blurred promises.</h1>
+        <p>The normal product is Create → World → Vault. This page holds everything else and labels whether a feature is live, digital-only, sandboxed, evidence-based, owner-only, or dependent on an approved external provider.</p>
         <div className={styles.heroActions}>
-          <Link href="/vault/earth">EXPLORE EARTH</Link>
-          <Link href="/studio">CREATE 3D</Link>
+          <Link href="/property">CREATE PROPERTY VOXEL</Link>
+          <Link href="/world">OPEN WORLD</Link>
           <Link href="/vault">OPEN MY VAULT</Link>
         </div>
       </section>
@@ -43,8 +43,8 @@ export default function MorePage() {
       </section>)}
 
       <div className={styles.note}>
-        <b>PRODUCT TRUTH RULE</b>
-        <span>Map data, AI models, creator assets, securities, wallet holdings, income records and real-property title are intentionally separate data layers. Organizing them into one app does not make them legally equivalent.</span>
+        <b>ONE RULE</b>
+        <span>A digital voxel is a digital asset. Map evidence is map evidence. A wallet balance is a wallet balance. A security is a security. A deed is a deed. Voxel Vault can organize them together, but never silently converts one legal status into another.</span>
       </div>
     </div>
   </main>;
