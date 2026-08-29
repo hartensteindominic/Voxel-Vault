@@ -92,6 +92,7 @@ export default function PlanetStreamGlobe({
   onLocation,
   onViewport,
   streaming = false,
+  simpleMode = false,
 }) {
   const mountRef = useRef(null);
   const engineRef = useRef(null);
@@ -117,7 +118,7 @@ export default function PlanetStreamGlobe({
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
-        setWebglError('3D globe is unavailable here. Address search and source-backed Earth lookup still work.');
+        setWebglError('3D globe is unavailable here.');
         return;
       }
 
@@ -131,7 +132,7 @@ export default function PlanetStreamGlobe({
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.04;
       renderer.domElement.style.touchAction = 'none';
-      renderer.domElement.setAttribute('aria-label', 'Interactive streaming world globe. Drag to rotate, pinch to zoom, tap a marker for details, or tap Earth to inspect that location.');
+      renderer.domElement.setAttribute('aria-label', 'Interactive world globe. Drag to rotate, pinch to zoom, and tap a voxel property.');
       mount.innerHTML = '';
       mount.appendChild(renderer.domElement);
 
@@ -189,11 +190,39 @@ export default function PlanetStreamGlobe({
         atlasMarkers = [];
       }
 
+      function addCommunityHouse(listing, selected) {
+        const radius = selected ? 4.34 : 4.24;
+        const position = toVector(THREE, listing.latitude, listing.longitude, radius);
+        const normal = position.clone().normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, normal);
+        const scale = selected ? 1.45 : 1;
+        const bodyGeometry = new THREE.BoxGeometry(0.12 * scale, 0.15 * scale, 0.12 * scale);
+        const roofGeometry = new THREE.ConeGeometry(0.105 * scale, 0.09 * scale, 4);
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xffffff : 0x79efbc, emissive: selected ? 0x6e5bff : 0x164f3d, emissiveIntensity: selected ? 1.5 : 0.7, roughness: 0.38 });
+        const roofMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xd9d1ff : 0x25352f, emissive: selected ? 0x5844ce : 0x10231c, emissiveIntensity: 0.7, roughness: 0.48 });
+        markerResources.push(bodyGeometry, roofGeometry, bodyMaterial, roofMaterial);
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        body.quaternion.copy(quaternion);
+        roof.quaternion.copy(quaternion);
+        body.position.copy(position);
+        roof.position.copy(position.clone().add(normal.clone().multiplyScalar(0.12 * scale)));
+        body.userData.listingId = listing.id;
+        roof.userData.listingId = listing.id;
+        markerGroup.add(body, roof);
+        listingMarkers.push(body, roof);
+      }
+
       function updateMarkers(next = {}) {
         clearMarkers();
-        (next.listings || []).slice(0, 64).forEach((listing) => {
+        (next.listings || []).slice(0, 96).forEach((listing) => {
           if (!Number.isFinite(Number(listing?.latitude)) || !Number.isFinite(Number(listing?.longitude))) return;
           const selected = listing.id === next.selectedId;
+          if (listing?.kind === 'community-property') {
+            addCommunityHouse(listing, selected);
+            return;
+          }
           const geometry = new THREE.SphereGeometry(selected ? 0.115 : 0.068, 8, 7);
           const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffffff : 0x79efbc, emissive: selected ? 0x7560ff : 0x0e5945, emissiveIntensity: selected ? 2 : 1, roughness: 0.28 });
           markerResources.push(geometry, material);
@@ -244,7 +273,7 @@ export default function PlanetStreamGlobe({
 
       function scheduleViewport(delay = 420) {
         window.clearTimeout(viewportTimer);
-        viewportTimer = window.setTimeout(emitViewport, delay);
+        window.setTimeout(emitViewport, delay);
       }
 
       const setPointer = (event) => {
@@ -340,9 +369,7 @@ export default function PlanetStreamGlobe({
         lastRender = time;
         root.rotation.x += (targetX - root.rotation.x) * 0.075;
         root.rotation.y += (targetY - root.rotation.y) * 0.075;
-        if (!reducedMotion && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) {
-          targetY += 0.00018;
-        }
+        if (!reducedMotion && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
         renderer.render(scene, camera);
       };
 
@@ -396,25 +423,25 @@ export default function PlanetStreamGlobe({
         mount.innerHTML = '';
       };
     }).catch(() => {
-      if (!dead) setWebglError('3D globe could not start. Search and quick locations still work.');
+      if (!dead) setWebglError('3D globe could not start.');
     });
 
     return () => { dead = true; cleanup(); };
-  }, []);
+  }, [simpleMode]);
 
   if (webglError) {
-    return <div className="planetFallback" role="status"><b>EARTH SEARCH IS STILL AVAILABLE</b><span>{webglError}</span><style jsx>{`.planetFallback{position:absolute;inset:0;display:grid;place-content:center;gap:8px;text-align:center;padding:28px;background:radial-gradient(circle at 50% 45%,#173a33,#091015 65%);color:#d8e7e2}.planetFallback b{font-size:10px;letter-spacing:.14em}.planetFallback span{max-width:320px;color:#899a95;font-size:11px;line-height:1.5}`}</style></div>;
+    return <div className="planetFallback" role="status"><b>3D WORLD UNAVAILABLE</b><span>{webglError}</span><style jsx>{`.planetFallback{position:absolute;inset:0;display:grid;place-content:center;gap:8px;text-align:center;padding:28px;background:radial-gradient(circle at 50% 45%,#173a33,#091015 65%);color:#d8e7e2}.planetFallback b{font-size:10px;letter-spacing:.14em}.planetFallback span{max-width:320px;color:#899a95;font-size:11px;line-height:1.5}`}</style></div>;
   }
 
   return <div className="planetRoot">
     <div ref={mountRef} className="planetMount" />
-    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
+    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? 'PUBLIC 3D PROPERTY WORLD' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
     <div className="planetControls" aria-label="Globe controls">
       <button type="button" onClick={() => engineRef.current?.zoom?.(-0.7)} aria-label="Zoom in">+</button>
       <button type="button" onClick={() => engineRef.current?.zoom?.(0.7)} aria-label="Zoom out">−</button>
-      <button type="button" className="stream" onClick={() => engineRef.current?.streamHere?.()}>LOAD HERE</button>
+      {!simpleMode ? <button type="button" className="stream" onClick={() => engineRef.current?.streamHere?.()}>LOAD HERE</button> : null}
       <button type="button" className="stream" onClick={() => engineRef.current?.reset?.()}>RESET</button>
     </div>
-    <style jsx>{`.planetRoot,.planetMount{position:absolute;inset:0}.planetStatus{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(4,10,12,.7);backdrop-filter:blur(12px);color:#b8c9c4;font-size:7px;font-weight:900;letter-spacing:.1em}.planetStatus i{width:7px;height:7px;border-radius:50%;background:#79efbc;box-shadow:0 0 12px rgba(121,239,188,.5)}.planetStatus i.busy{animation:planetPulse .9s ease-in-out infinite alternate}.planetControls{position:absolute;right:12px;top:12px;z-index:3;display:flex;gap:6px}.planetControls button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,10,12,.72);backdrop-filter:blur(12px);color:#edf7f3;font-size:18px;font-weight:800}.planetControls .stream{width:auto;padding:0 10px;font-size:7px;letter-spacing:.08em}@keyframes planetPulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}@media(max-width:640px){.planetStatus{left:9px;top:9px;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetControls{right:9px;top:48px;display:grid;grid-template-columns:34px 34px}.planetControls button{width:34px;height:34px}.planetControls .stream{grid-column:span 2;width:74px}}`}</style>
+    <style jsx>{`.planetRoot,.planetMount{position:absolute;inset:0}.planetStatus{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(4,10,12,.7);backdrop-filter:blur(12px);color:#b8c9c4;font-size:7px;font-weight:900;letter-spacing:.1em}.planetStatus i{width:7px;height:7px;border-radius:50%;background:#79efbc;box-shadow:0 0 12px rgba(121,239,188,.5)}.planetStatus i.busy{animation:planetPulse .9s ease-in-out infinite alternate}.planetControls{position:absolute;right:12px;top:12px;z-index:3;display:flex;gap:6px}.planetControls button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,10,12,.72);backdrop-filter:blur(12px);color:#edf7f3;font-size:18px;font-weight:800}.planetControls .stream{width:auto;padding:0 10px;font-size:7px;letter-spacing:.08em}@keyframes planetPulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}@media(max-width:640px){.planetStatus{left:9px;top:9px;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetControls{right:9px;top:48px;display:grid;grid-template-columns:34px 34px}.planetControls button{width:34px;height:34px}.planetControls .stream{grid-column:span 2;width:74px}}`}</style>
   </div>;
 }
