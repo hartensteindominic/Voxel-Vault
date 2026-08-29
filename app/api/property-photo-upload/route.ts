@@ -1,12 +1,20 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { stripe } from '../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
-import { saveCatalog3D } from '../../../lib/catalog3dStore';
-import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
+import { readCatalog3D, saveCatalog3D } from '../../../lib/catalog3dStore';
+import { propertyDraftItemId } from '../../../lib/property-generation-ids';
 import {
   createPropertyGenerationRecoveryTaskId,
   propertyGenerationCanonicalTaskId,
 } from '../../../lib/property-generation-task';
+import {
+  PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
+  PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
+  deleteStagedPropertyPhoto,
+  loadPaidPropertyGenerationPhoto,
+  paidPropertyGenerationReceipt,
+} from '../../../lib/property-generation-payment';
 import {
   MESHY_PROPERTY_CREDITS,
   meshyClientStatus,
@@ -24,7 +32,7 @@ const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function clean(value: unknown, max = 240) {
+function clean(value: unknown, max = 260) {
   return String(value || '').trim().slice(0, max);
 }
 
@@ -33,6 +41,46 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
     ...init,
     headers: { 'Cache-Control': 'private, no-store, max-age=0', ...(init.headers || {}) },
   });
+}
+
+function generationResult(input: {
+  draftId: string;
+  digest: string;
+  taskId: string;
+  status?: string | null;
+  progress?: number | null;
+  recoveryMode?: boolean;
+  reused?: boolean;
+  paymentSessionId: string;
+}) {
+  const uploadedAt = new Date().toISOString();
+  return {
+    ok: true,
+    paid: true,
+    reused: input.reused === true,
+    priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
+    priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
+    paymentSessionId: input.paymentSessionId,
+    draftId: input.draftId,
+    reference: {
+      url: null,
+      draftId: input.draftId,
+      rightsBasis: 'user-owned',
+      rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital creation.',
+      label: 'Selected property photo',
+      sourcePhotoId: `upload:${input.digest.slice(0, 20)}`,
+      provider: 'user-photo-direct-generation',
+      storagePath: `meshy-source:${input.taskId}`,
+      uploadedAt,
+    },
+    source3d: {
+      taskId: input.taskId,
+      status: input.status || 'PENDING',
+      progress: Number(input.progress || 0),
+    },
+    recoveryMode: input.recoveryMode === true,
+    privacy: 'The authorized source photo was staged privately only for checkout and the paid Meshy handoff. Voxel Vault removes that staged source after generation starts; the account keeps the SHA-256 fingerprint and account-bound generation record rather than the original photo.',
+  };
 }
 
 export async function POST(request: Request) {
@@ -48,9 +96,42 @@ export async function POST(request: Request) {
 
   try {
     const form = await request.formData();
-    const photo = form.get('photo');
-    const draftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
-    const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
+    const generationSessionId = clean(form.get('generationSessionId'), 260);
+    if (!generationSessionId) {
+      return privateJson({
+        ok: false,
+        paymentRequired: true,
+        priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
+        priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
+        checkoutEndpoint: '/api/property-generation/checkout',
+        error: `Pay ${PROPERTY_VOXEL_GENERATION_PRICE_LABEL} before VoxelPop starts paid 3D generation.`,
+      }, { status: 402 });
+    }
+
+    const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
+    const draftId = receipt.draftId;
+    const rightsConfirmed = true;
+    const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
+    const sourceFingerprint = `inline-photo:${receipt.digest}`;
+
+    // A Stripe success page can be refreshed. Reuse the exact account/draft job
+    // instead of spending Meshy credits a second time for the same paid source.
+    const existing = await readCatalog3D(itemId);
+    if (existing?.task_id && existing?.source_image_url === sourceFingerprint) {
+      await deleteStagedPropertyPhoto(auth, draftId);
+      return privateJson(generationResult({
+        draftId,
+        digest: receipt.digest,
+        taskId: existing.task_id,
+        status: existing.status,
+        progress: existing.progress,
+        reused: true,
+        paymentSessionId: generationSessionId,
+      }));
+    }
+
+    const paidInput = await loadPaidPropertyGenerationPhoto(auth, receipt);
+    const photo = new File([paidInput.bytes], paidInput.fileName, { type: paidInput.contentType });
 
     if (!(photo instanceof File)) {
       return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
@@ -67,20 +148,20 @@ export async function POST(request: Request) {
 
     // The automatic Property journey is three paid Meshy calls: 15 credits for
     // this textured Smart Topology source 3D, 3 for nano-banana image-to-image,
-    // and 15 for the final textured Smart Topology 3D. Do not burn the first 15
-    // unless the provider account can afford the complete automatic journey.
+    // and 15 for the final textured Smart Topology 3D. Check again after Stripe
+    // so a paid user is never sent into a knowingly underfunded provider flow.
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
       return privateJson(
-        meshyCreditError('starting the complete property build', MESHY_PROPERTY_CREDITS.fullPipeline),
+        meshyCreditError('starting the complete paid property build', MESHY_PROPERTY_CREDITS.fullPipeline),
         { status: 503 },
       );
     }
 
     const bytes = Buffer.from(await photo.arrayBuffer());
     const digest = createHash('sha256').update(bytes).digest('hex');
+    if (digest !== receipt.digest) throw new Error('The paid source photo fingerprint no longer matches checkout.');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
-    const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
 
     const response = await fetch(ENDPOINT, {
       method: 'POST',
@@ -104,7 +185,7 @@ export async function POST(request: Request) {
           response.status,
           data,
           `3D provider returned ${response.status}.`,
-          'starting the first property 3D build',
+          'starting the first paid property 3D build',
           MESHY_PROPERTY_CREDITS.source3d,
         ),
         { status: meshyClientStatus(response.status) },
@@ -114,7 +195,6 @@ export async function POST(request: Request) {
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
     const canonicalTaskId = propertyGenerationCanonicalTaskId(providerTaskId);
-    const sourceFingerprint = `inline-photo:${digest}`;
     const saved = await saveCatalog3D(itemId, {
       task_id: canonicalTaskId,
       source_image_url: sourceFingerprint,
@@ -131,36 +211,21 @@ export async function POST(request: Request) {
       error: null,
     });
 
-    // Do not orphan a provider job just because the account catalog table or
-    // private metadata bucket is temporarily unavailable. A signed recovery ID
-    // is scoped to this account and can be verified statelessly by later routes.
+    // Do not orphan a provider job just because account catalog persistence is
+    // temporarily unavailable. The signed recovery ID remains account-bound.
     const taskId = saved?.task_id
       || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
 
-    const uploadedAt = new Date().toISOString();
-    return privateJson({
-      ok: true,
+    await deleteStagedPropertyPhoto(auth, draftId);
+    return privateJson(generationResult({
       draftId,
-      reference: {
-        url: null,
-        rightsBasis: 'user-owned',
-        rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital creation.',
-        label: 'Selected property photo',
-        sourcePhotoId: `upload:${digest.slice(0, 20)}`,
-        provider: 'user-photo-direct-generation',
-        storagePath: `meshy-source:${taskId}`,
-        uploadedAt,
-      },
-      source3d: {
-        taskId,
-        status: saved?.status || 'PENDING',
-        progress: Number(saved?.progress || 0),
-      },
+      digest,
+      taskId,
+      status: saved?.status || 'PENDING',
+      progress: Number(saved?.progress || 0),
       recoveryMode: !saved?.task_id,
-      privacy: saved?.task_id
-        ? 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.'
-        : 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider. Account job storage was temporarily unavailable, so Voxel Vault returned a signed account-bound recovery task reference and retained no copy of the original photo.',
-    });
+      paymentSessionId: generationSessionId,
+    }));
   } catch (error) {
     return privateJson({
       ok: false,
