@@ -532,9 +532,13 @@ export default function PropertyJourneyExact() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
     setBusy('generation-checkout');
+    let cachedOnDevice = false;
     try {
-      await saveDevicePhoto(draftId, pendingPhoto);
-      if (selectedProperty?.id) await saveDevicePhoto(propertyPhotoKey(selectedProperty.id), pendingPhoto);
+      try {
+        await saveDevicePhoto(draftId, pendingPhoto);
+        cachedOnDevice = true;
+      } catch {}
+      if (selectedProperty?.id) await saveDevicePhoto(propertyPhotoKey(selectedProperty.id), pendingPhoto).catch(() => {});
       writeGenerationContext(draftId, selectedProperty);
       if (paidSessionId) {
         setCreationUnlocked(true);
@@ -544,7 +548,9 @@ export default function PropertyJourneyExact() {
         setBusy('');
         return;
       }
-      setMessage(`Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D preview before any voxel is built.`);
+      setMessage(cachedOnDevice
+        ? `Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D preview before any voxel is built.`
+        : `Opening secure ${CREATION_PRICE_LABEL} checkout. Your browser could not keep the photo through checkout, so after payment you may need to choose the same photo once. You will not be charged again.`);
       const form = new FormData();
       form.append('draftId', draftId);
       form.append('rightsConfirmed', 'true');
