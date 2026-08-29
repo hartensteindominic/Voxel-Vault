@@ -36,7 +36,7 @@ export default function Home() {
 
       <footer className={styles.footer}>
         <span>VoxelPop</span>
-        <span><Link href="/demo">Demo</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link></span>
+        <span><Link href="/demo">Demo</Link> · <Link href="/about">About</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link></span>
       </footer>
     </div>
   </main>;
