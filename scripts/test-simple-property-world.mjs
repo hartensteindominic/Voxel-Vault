@@ -77,7 +77,8 @@ assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'voxel-photo cel
 assert.match(photoPreview, /voxels\.setColorAt\(instance, color\)/, 'voxel-photo cells retain source-image color');
 assert.match(photoPreview, /targetY = clamp/, '3D voxel-photo rotation stays deliberately bounded so unseen sides are not presented as known');
 assert.match(property, /Looks good → Create Movable 3D Voxel/, 'user explicitly approves the 3D voxel photo before movable-voxel creation');
-assert.match(property, /createVoxelPoster/, 'VoxelPop movable-voxel image is built only after preview approval');
+assert.doesNotMatch(property, /createVoxelPoster|voxelPoster/, 'the maker must not recreate a 2D voxel picture after 3D approval');
+assert.match(property, /LocalVoxelModelViewer imageUrl=\{pendingPreview\} sourceImageUrl=\{pendingPreview\}/, 'the movable voxel is built directly from the approved property photo');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive movable voxel is a separate later stage');
 assert.match(localViewer, /const GRID = 32/, 'building voxel uses the higher-detail 32-cell local grid');
 assert.match(localViewer, /COLOR_STEP = 12/, 'building voxel keeps finer source-photo color detail');
@@ -154,4 +155,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> real 3D voxel photo -> explicit approval -> separate movable 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> real 3D voxel photo -> explicit approval -> direct source-photo stacked movable 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with no 2D poster detour, map/World optional, and regulated/property-rights rails distinct.');
