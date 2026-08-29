@@ -3,6 +3,9 @@ import styles from './home.module.css';
 
 // Product truth: the interface may unify 3D assets, property, USD and crypto visually, while the legal/provider rails remain separate.
 // A voxel/NFT is never presented as a deed. Estimated asset value is never presented as settled cash.
+// Nothing is uploaded, generated, or charged before sign-in.
+// Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.
+// A 3D model, payment, map marker, Property Passport, or NFT is not a deed and does not create rent, occupancy, investment, or appreciation rights.
 export default function Home() {
   return <main className={styles.page}>
     <div className={styles.shell}>
