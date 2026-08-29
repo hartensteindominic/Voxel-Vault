@@ -6,6 +6,14 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function sampleGrid(image) {
+  const ratio = Math.max(0.2, Math.min(5, (image.naturalWidth || 1) / (image.naturalHeight || 1)));
+  const longSide = 96;
+  const minShort = 52;
+  if (ratio >= 1) return { width: longSide, height: Math.max(minShort, Math.round(longSide / ratio)) };
+  return { width: Math.max(minShort, Math.round(longSide * ratio)), height: longSide };
+}
+
 export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
   const mountRef = useRef(null);
   const callbackRef = useRef(onReady);
@@ -51,6 +59,8 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         fill.position.set(-4, 2, 3);
         scene.add(fill);
 
+        // The visible material is the full uploaded photo. No square crop is
+        // introduced at the preview stage.
         const sourceCanvas = document.createElement('canvas');
         const maxTexture = compact ? 1024 : 1400;
         const scale = Math.min(1, maxTexture / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
@@ -63,34 +73,39 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() || 1);
 
-        const sampleSize = 64;
+        // Relief sampling now follows the source aspect ratio as well. The old
+        // square luminance map could warp a wide roofline even though the front
+        // texture itself was correct.
+        const sample = sampleGrid(image);
         const sampleCanvas = document.createElement('canvas');
-        sampleCanvas.width = sampleSize;
-        sampleCanvas.height = sampleSize;
+        sampleCanvas.width = sample.width;
+        sampleCanvas.height = sample.height;
         const sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true });
         if (!sampleContext) throw new Error('The 3D photo preview is unavailable on this device.');
         sampleContext.filter = 'contrast(1.06) saturate(1.02)';
-        sampleContext.drawImage(image, 0, 0, sampleSize, sampleSize);
-        const pixels = sampleContext.getImageData(0, 0, sampleSize, sampleSize).data;
+        sampleContext.drawImage(image, 0, 0, image.naturalWidth || 1, image.naturalHeight || 1, 0, 0, sample.width, sample.height);
+        const pixels = sampleContext.getImageData(0, 0, sample.width, sample.height).data;
         const luminance = (x, y) => {
-          const cx = clamp(Math.round(x), 0, sampleSize - 1);
-          const cy = clamp(Math.round(y), 0, sampleSize - 1);
-          const index = (cy * sampleSize + cx) * 4;
+          const cx = clamp(Math.round(x), 0, sample.width - 1);
+          const cy = clamp(Math.round(y), 0, sample.height - 1);
+          const index = (cy * sample.width + cx) * 4;
           return (pixels[index] * 0.2126 + pixels[index + 1] * 0.7152 + pixels[index + 2] * 0.0722) / 255;
         };
 
-        const ratio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
-        const planeHeight = ratio >= 1 ? 5.1 : 5.7;
-        const planeWidth = ratio >= 1 ? planeHeight * ratio : planeHeight * ratio;
-        const boundedWidth = Math.min(7.6, Math.max(3.3, planeWidth));
-        const boundedHeight = boundedWidth / ratio;
-        const geometry = new THREE.PlaneGeometry(boundedWidth, boundedHeight, 48, 48);
+        const ratio = Math.max(0.2, Math.min(5, (image.naturalWidth || 1) / (image.naturalHeight || 1)));
+        const maxPlaneWidth = 7.6;
+        const maxPlaneHeight = 6.1;
+        const planeWidth = ratio >= 1 ? maxPlaneWidth : maxPlaneHeight * ratio;
+        const planeHeight = ratio >= 1 ? maxPlaneWidth / ratio : maxPlaneHeight;
+        const xSegments = ratio >= 1 ? 64 : Math.max(36, Math.round(64 * ratio));
+        const ySegments = ratio >= 1 ? Math.max(36, Math.round(64 / ratio)) : 64;
+        const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, xSegments, ySegments);
         const positions = geometry.attributes.position;
         for (let index = 0; index < positions.count; index += 1) {
           const u = geometry.attributes.uv.getX(index);
           const v = geometry.attributes.uv.getY(index);
-          const sx = u * (sampleSize - 1);
-          const sy = (1 - v) * (sampleSize - 1);
+          const sx = u * (sample.width - 1);
+          const sy = (1 - v) * (sample.height - 1);
           const center = luminance(sx, sy);
           const edge = Math.abs(luminance(sx + 1, sy) - luminance(sx - 1, sy))
             + Math.abs(luminance(sx, sy + 1) - luminance(sx, sy - 1));
@@ -104,7 +119,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         const group = new THREE.Group();
         scene.add(group);
         const backing = new THREE.Mesh(
-          new THREE.BoxGeometry(boundedWidth + 0.08, boundedHeight + 0.08, 0.20),
+          new THREE.BoxGeometry(planeWidth + 0.08, planeHeight + 0.08, 0.20),
           new THREE.MeshStandardMaterial({ color: 0x170f20, roughness: 0.88, metalness: 0 }),
         );
         backing.position.z = -0.11;
@@ -115,12 +130,14 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         group.add(photoMesh);
 
         const camera = new THREE.PerspectiveCamera(32, width / height, 0.1, 60);
-        const cameraDistance = Math.max(8.4, boundedWidth * 1.45);
+        const cameraDistance = Math.max(8.4, Math.max(planeWidth, planeHeight) * 1.45);
         camera.position.set(0, 0, cameraDistance);
         camera.lookAt(0, 0, 0);
 
-        let targetX = -0.035;
-        let targetY = 0.08;
+        // Keep movement gentle: this stage is for comparing the preview with
+        // the uploaded house, not for pretending unseen sides were generated.
+        let targetX = -0.025;
+        let targetY = 0.05;
         let pointerId = null;
         let lastX = 0;
         let lastY = 0;
@@ -136,8 +153,8 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           const dy = event.clientY - lastY;
           lastX = event.clientX;
           lastY = event.clientY;
-          targetY = clamp(targetY + dx * 0.006, -0.48, 0.48);
-          targetX = clamp(targetX + dy * 0.004, -0.24, 0.22);
+          targetY = clamp(targetY + dx * 0.0045, -0.34, 0.34);
+          targetX = clamp(targetX + dy * 0.003, -0.18, 0.17);
         };
         const up = (event) => {
           if (pointerId === event.pointerId) pointerId = null;
