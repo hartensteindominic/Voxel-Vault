@@ -8,7 +8,6 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return <main className={styles.page}><div className={styles.shell}>
-    <nav className={styles.top}><Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link><div><Link href="/demo">Public demo</Link><Link href="/property">Create</Link></div></nav>
     <header className={styles.hero}><small>PRIVACY</small><h1>Your photo starts<br/>on your device.</h1><p>Voxel Vault is designed so the property source photo used by the current VoxelPop creation flow stays on the user’s device rather than becoming a public property-photo database.</p></header>
     <section className={styles.card}>
       <div className={styles.notice}><strong>Current product boundary:</strong> the normal $4.99 property creation flow uses local browser processing for the 3D preview and voxel creation and does not require Meshy credits.</div>
@@ -30,6 +29,5 @@ export default function PrivacyPage() {
       <p>For privacy questions or data-handling concerns, use the project contact route on the About page or open a repository issue without posting passwords, payment credentials, private keys, identity documents, deeds, leases, or other sensitive personal information.</p>
       <div className={styles.links}><Link href="/about">About + contact</Link><Link href="/terms">Terms</Link><Link href="/demo">See public demo</Link></div>
     </section>
-    <footer className={styles.footer}><Link href="/">Home</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/about">About</Link></footer>
   </div></main>;
 }
