@@ -34,8 +34,8 @@ export default function MorePage() {
 
       <section className={styles.hero}>
         <small>MORE</small>
-        <h1>Optional tools.<br/><em>Out of your way.</em></h1>
-        <p><b>Create → World → Vault is the main app.</b> Everything below is secondary, experimental, provider-dependent, or advanced.</p>
+        <h1>More tools.<br/><em>Less confusion.</em></h1>
+        <p><b>Create → World → Vault is the main app.</b> Everything below is optional, secondary, experimental, provider-dependent, or advanced—and kept out of your way until you need it.</p>
       </section>
 
       <section className={styles.coreCard}>
