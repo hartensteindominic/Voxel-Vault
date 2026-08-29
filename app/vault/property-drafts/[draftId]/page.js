@@ -10,6 +10,7 @@ import { mergePropertyDraftRecords, readPropertyDraft, replaceLocalPropertyDraft
 import { loadAccountPropertyDrafts } from '../../../../lib/property-drafts-account';
 
 function fidelityLabel(value) {
+  if (value === 'source-backed-local-map-voxel') return 'COLLECTED · SOURCE-BACKED MAP VOXEL';
   if (value === 'photo-to-3d-to-voxel-collectible' || value === 'purchased-photo-guided-voxel-3d') return 'COLLECTED · VOXELPOP 3D';
   if (value === 'parcel-linked-ready-for-high-fidelity') return 'PARCEL-LINKED · HIGH-FIDELITY READY';
   if (value === 'source-backed-ready-for-high-fidelity') return 'SOURCE-BACKED · HIGH-FIDELITY READY';
@@ -67,9 +68,10 @@ export default function SavedPropertyDraft3DPage() {
   const [liveStatus, setLiveStatus] = useState('');
   const [session, setSession] = useState(null);
   const [busy, setBusy] = useState(false);
-  const reference = useMemo(() => savedReference(draft), [draft]);
+  const reference = useMemo(() => draft?.visual?.localMapReference || savedReference(draft), [draft]);
   const authoritativeTwin = useMemo(() => savedAuthoritativeTwin(draft), [draft]);
   const generatedModelUrl = draft?.visual?.modelUrl || null;
+  const localMapVoxel = draft?.visual?.representation === 'source-backed-local-map-voxel' || draft?.fidelity === 'source-backed-local-map-voxel';
   const collected = draft?.commerce?.kind === 'property_voxel_collectible' && draft?.commerce?.status === 'paid';
 
   useEffect(() => {
@@ -81,7 +83,11 @@ export default function SavedPropertyDraft3DPage() {
       const local = readPropertyDraft(draftId);
       if (local) {
         setDraft(local);
-        setStatus(local?.visual?.modelUrl ? 'Loaded the exact saved VoxelPop model from your Vault.' : 'Loaded the exact geometry snapshot saved in your Vault.');
+        setStatus(local?.visual?.modelUrl
+          ? 'Loaded the exact saved VoxelPop model from your Vault.'
+          : local?.visual?.localMapReference
+            ? 'Loaded the saved source-backed local 3D map voxel from your Vault.'
+            : 'Loaded the exact geometry snapshot saved in your Vault.');
         return;
       }
       if (!nextSession?.user) {
@@ -95,7 +101,13 @@ export default function SavedPropertyDraft3DPage() {
         const restored = merged.find((item) => item.id === draftId) || null;
         if (!active) return;
         setDraft(restored);
-        setStatus(restored ? (restored?.visual?.modelUrl ? 'Restored this saved VoxelPop model from your account.' : 'Restored this exact saved 3D property snapshot from your account.') : 'This draft was not found in your synced account library.');
+        setStatus(restored
+          ? restored?.visual?.modelUrl
+            ? 'Restored this saved VoxelPop model from your account.'
+            : restored?.visual?.localMapReference
+              ? 'Restored this source-backed local 3D map voxel from your account.'
+              : 'Restored this exact saved 3D property snapshot from your account.'
+          : 'This draft was not found in your synced account library.');
       } catch (error) {
         if (active) setStatus(String(error?.message || error || 'Could not restore this draft.'));
       }
@@ -155,18 +167,18 @@ export default function SavedPropertyDraft3DPage() {
 
   return <main className="page">
     <header><Link href="/vault/property-drafts">← MY VAULT</Link><span>{collected ? 'OWNED DIGITAL VOXEL' : 'EXACT SAVED 3D SNAPSHOT'}</span><Link href="/vault/properties/claim">{collected ? 'MINT · OPTIONAL ↗' : 'VERIFY ↗'}</Link></header>
-    <section className="hero"><small>{fidelityLabel(draft.fidelity)}</small><h1>{draft.label || 'Saved property draft'}</h1><p>{status} The generated collectible and source-backed map evidence stay separate; checking current map data never silently changes the saved voxel.</p></section>
+    <section className="hero"><small>{fidelityLabel(draft.fidelity)}</small><h1>{draft.label || 'Saved property draft'}</h1><p>{status} {localMapVoxel ? 'This voxel is rendered from its saved source-backed map context without Meshy.' : 'The generated collectible and source-backed map evidence stay separate; checking current map data never silently changes the saved voxel.'}</p></section>
     <section className="viewer">{generatedModelUrl ? <MeshyModelViewer modelUrl={generatedModelUrl}/> : <GeoReferenceModel reference={reference} authoritativeTwin={authoritativeTwin} viewMode="orbit" resetKey={0}/>}</section>
     <section className="panel">
       <div><small>ITEM</small><b>{collected ? 'COLLECTED DIGITAL VOXEL' : 'SAVED 3D DRAFT'}</b></div>
       <div><small>MAP EVIDENCE</small><b>{draft.geometryKind === 'parcel-boundary' ? 'PARCEL · NO BUILDING INVENTED' : draft?.evidence?.exactParcelLinkedBuilding ? 'PARCEL-LINKED BUILDING' : draft?.evidence?.sourceBackedBuilding ? 'SOURCE-BACKED BUILDING' : 'REFERENCE'}</b></div>
+      <div><small>3D MODE</small><b>{localMapVoxel ? 'LOCAL MAP · 0 MESHY' : generatedModelUrl ? 'GENERATED GLB' : 'MAP SNAPSHOT'}</b></div>
       <div><small>MINT</small><b>{draft?.blockchain?.minted ? 'MINTED' : 'OPTIONAL'}</b></div>
-      <div><small>REAL TITLE</small><b>{draft?.legal?.titleVerified ? 'VERIFIED' : 'SEPARATE'}</b></div>
     </section>
     <div className="actions"><Link className="primary" href="/property">+ CREATE ANOTHER</Link><Link href="/world">VIEW MY WORLD</Link><Link href="/vault/properties/claim">{collected ? 'MINT TO WALLET · OPTIONAL' : 'VERIFY PROPERTY RIGHTS'}</Link></div>
     <button className="evidence" onClick={refreshLiveEvidence} disabled={busy}>{busy ? 'CHECKING CURRENT EVIDENCE…' : 'CHECK CURRENT MAP EVIDENCE'}</button>
     {liveStatus ? <div className="live" role="status">{liveStatus}</div> : null}
-    <p className="truth">The VoxelPop model is a saved digital collectible/representation, not a deed or guaranteed perfect replica. A single source photo cannot verify unseen sides, roof details or exact dimensions. Parcel-only evidence stays parcel-only; no vacant land is turned into a fake building. Payment or optional minting does not create deed/title, rent, occupancy, fractional investment or appreciation rights.</p>
+    <p className="truth">The VoxelPop item is a saved digital collectible/representation, not a deed or guaranteed perfect replica. A source-backed local map voxel is derived from mapped footprint, location, and available height/context evidence—not a Meshy photorealistic reconstruction. Payment or optional minting does not create deed/title, rent, occupancy, fractional investment or appreciation rights.</p>
     <style jsx>{styles}</style>
   </main>;
 }
