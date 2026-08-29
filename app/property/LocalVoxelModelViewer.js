@@ -172,8 +172,6 @@ function sampleRecipe(image) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
-  // Preserve the entire photo and sample more densely than the original 24-cell pass.
-  // The final voxel should retain roofline, window spacing and facade color relationships.
   context.filter = 'saturate(1.035) contrast(1.035)';
   context.drawImage(image, 0, 0, image.naturalWidth || 1, image.naturalHeight || 1, 0, 0, width, height);
   const data = context.getImageData(0, 0, width, height).data;
@@ -241,8 +239,6 @@ function sampleRecipe(image) {
   let mask = fillSmallGaps(keepBestComponent(stabilizeMask(rawMask, width, height), width, height), width, height);
   let activeCount = mask.filter(Boolean).length;
 
-  // Difficult lighting can make a facade resemble sky/ground. Relax toward evidence
-  // still present in the source, then retain the strongest connected central object.
   if (activeCount < width * height * 0.10) {
     const relaxed = new Array(width * height).fill(false);
     for (let row = 0; row < height; row += 1) {
@@ -340,85 +336,95 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         const initialHeight = Math.max(280, mount.clientHeight || 360);
         const compact = initialWidth < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.22 : 1.55));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.18 : 1.5));
         renderer.setSize(initialWidth, initialHeight);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.08;
+        renderer.toneMappingExposure = 1.04;
         renderer.setClearColor(0x000000, 0);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.domElement.style.touchAction = 'none';
         renderer.domElement.style.opacity = '0';
         renderer.domElement.style.transition = 'opacity .34s ease';
+        renderer.domElement.tabIndex = 0;
+        renderer.domElement.setAttribute('aria-label', 'Interactive movable 3D voxel model. Drag to rotate the stacked cube volume and pinch to zoom.');
         mount.innerHTML = '';
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
-        scene.add(new THREE.HemisphereLight(0xfffbef, 0x21122d, 2.45));
-        const key = new THREE.DirectionalLight(0xfff7ec, 3.7);
+        scene.add(new THREE.HemisphereLight(0xfffbef, 0x21122d, 2.55));
+        const key = new THREE.DirectionalLight(0xfff7ec, 3.25);
         key.position.set(5, 8, 7);
         key.castShadow = true;
-        key.shadow.mapSize.set(1024, 1024);
+        key.shadow.mapSize.set(compact ? 512 : 1024, compact ? 512 : 1024);
         scene.add(key);
-        const fill = new THREE.DirectionalLight(0xd6c9ff, 1.3);
+        const fill = new THREE.DirectionalLight(0xd6c9ff, 1.15);
         fill.position.set(-4, 3, 5);
         scene.add(fill);
-        const rim = new THREE.DirectionalLight(0xc9ff54, 0.72);
+        const rim = new THREE.DirectionalLight(0xc9ff54, 0.68);
         rim.position.set(-5, 3, -4);
         scene.add(rim);
 
         const longestSide = Math.max(recipe.width, recipe.height);
-        const cell = (compact ? 6.15 : 6.55) / longestSide;
+        const cell = (compact ? 6.05 : 6.5) / longestSide;
+        const cubeSize = cell * 0.89;
         const facadeWidth = recipe.width * cell;
         const facadeHeight = recipe.height * cell;
-        const maxDimension = Math.max(facadeWidth, facadeHeight);
+        const maxDepth = Math.max(1, ...recipe.depths);
+        const volumeDepth = maxDepth * cubeSize;
+        const maxDimension = Math.max(facadeWidth, facadeHeight, volumeDepth * 1.35);
         const camera = new THREE.PerspectiveCamera(32, initialWidth / initialHeight, 0.1, 80);
-        let cameraDistance = clamp(maxDimension * 1.62 + 1.35, 7.1, 12.8);
+        let cameraDistance = clamp(maxDimension * 1.65 + 1.7, 7.2, 13.8);
         camera.position.set(0, 0.08, cameraDistance);
         camera.lookAt(0, -0.08, 0);
 
         const root = new THREE.Group();
         root.rotation.x = -0.055;
-        root.rotation.y = 0.08;
+        root.rotation.y = 0.12;
         scene.add(root);
 
-        const active = recipe.depths.reduce((count, depth) => count + (depth > 0 ? 1 : 0), 0);
-        const geometry = new THREE.BoxGeometry(cell * 0.93, cell * 0.93, 1);
-        const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.005 });
-        const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, active));
+        const totalVoxels = recipe.depths.reduce((count, depth) => count + Math.max(0, Math.trunc(depth)), 0);
+        const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+        const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0 });
+        const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, totalVoxels));
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         const dummy = new THREE.Object3D();
         const color = new THREE.Color();
+        const backZ = -volumeDepth / 2;
         let instance = 0;
 
         for (let row = 0; row < recipe.height; row += 1) {
           for (let column = 0; column < recipe.width; column += 1) {
             const index = row * recipe.width + column;
-            if (recipe.depths[index] <= 0) continue;
-            const depth = 0.50 + (recipe.depths[index] / 9) * 0.80;
-            dummy.position.set(
-              (column - (recipe.width - 1) / 2) * cell,
-              ((recipe.height - 1) / 2 - row) * cell,
-              depth / 2 - 0.43,
-            );
-            dummy.scale.set(1, 1, depth);
-            dummy.updateMatrix();
-            mesh.setMatrixAt(instance, dummy.matrix);
-            color.set(`#${recipe.colors[index]}`);
-            mesh.setColorAt(instance, color);
-            instance += 1;
+            const depth = Math.max(0, Math.trunc(recipe.depths[index] || 0));
+            if (!depth) continue;
+            const x = (column - (recipe.width - 1) / 2) * cell;
+            const y = ((recipe.height - 1) / 2 - row) * cell - 0.12;
+
+            for (let layer = 0; layer < depth; layer += 1) {
+              dummy.position.set(x, y, backZ + cubeSize * (layer + 0.5));
+              dummy.rotation.set(0, 0, 0);
+              dummy.scale.set(1, 1, 1);
+              dummy.updateMatrix();
+              mesh.setMatrixAt(instance, dummy.matrix);
+
+              const layerShade = 0.66 + 0.34 * ((layer + 1) / depth);
+              color.set(`#${recipe.colors[index]}`).multiplyScalar(layerShade);
+              mesh.setColorAt(instance, color);
+              instance += 1;
+            }
           }
         }
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         root.add(mesh);
 
-        const platformGeometry = new THREE.BoxGeometry(Math.max(3.1, facadeWidth + 0.75), 0.18, 2.35);
+        const platformGeometry = new THREE.BoxGeometry(Math.max(3.1, facadeWidth + 0.8), 0.18, Math.max(2.5, volumeDepth + 0.85));
         const platformMaterial = new THREE.MeshStandardMaterial({ color: 0xeee7dd, roughness: 0.96, metalness: 0 });
         const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-        platform.position.set(0, -facadeHeight / 2 - 0.28, -0.22);
+        platform.position.set(0, -facadeHeight / 2 - 0.29, -0.05);
         platform.castShadow = true;
         platform.receiveShadow = true;
         scene.add(platform);
@@ -433,7 +439,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x21162d, roughness: 1, transparent: true, opacity: 0.72 });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
-        floor.position.set(0, -facadeHeight / 2 - 0.39, -1.12);
+        floor.position.set(0, -facadeHeight / 2 - 0.40, -1.15);
         floor.receiveShadow = true;
         scene.add(floor);
 
@@ -442,7 +448,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         let lastY = 0;
         let pinch = 0;
         let targetX = -0.055;
-        let targetY = 0.08;
+        let targetY = 0.12;
 
         const distance = () => {
           const pair = [...pointers.values()].slice(0, 2);
@@ -451,6 +457,12 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         const updateCamera = () => {
           camera.position.set(0, 0.08, cameraDistance);
           camera.lookAt(0, -0.08, 0);
+        };
+        const resetView = () => {
+          targetX = -0.055;
+          targetY = 0.12;
+          cameraDistance = clamp(maxDimension * 1.65 + 1.7, 7.2, 13.8);
+          updateCamera();
         };
         const down = (event) => {
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -464,15 +476,15 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
           if (pointers.size >= 2) {
             const next = distance();
-            if (pinch) cameraDistance = clamp(cameraDistance - (next - pinch) * 0.011, 5.7, 14.8);
+            if (pinch) cameraDistance = clamp(cameraDistance - (next - pinch) * 0.011, 5.5, 15.5);
             pinch = next;
             updateCamera();
             return;
           }
           const dx = event.clientX - lastX;
           const dy = event.clientY - lastY;
-          targetY = clamp(targetY + dx * 0.0065, -0.58, 0.58);
-          targetX = clamp(targetX + dy * 0.0035, -0.28, 0.22);
+          targetY += dx * 0.008;
+          targetX = clamp(targetX + dy * 0.0038, -0.42, 0.30);
           lastX = event.clientX;
           lastY = event.clientY;
         };
@@ -483,22 +495,34 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         };
         const wheel = (event) => {
           event.preventDefault();
-          cameraDistance = clamp(cameraDistance + Math.sign(event.deltaY) * 0.42, 5.7, 14.8);
+          cameraDistance = clamp(cameraDistance + Math.sign(event.deltaY) * 0.42, 5.5, 15.5);
           updateCamera();
+        };
+        const keydown = (event) => {
+          let handled = true;
+          if (event.key === 'ArrowLeft') targetY -= 0.12;
+          else if (event.key === 'ArrowRight') targetY += 0.12;
+          else if (event.key === 'ArrowUp') targetX = clamp(targetX - 0.06, -0.42, 0.30);
+          else if (event.key === 'ArrowDown') targetX = clamp(targetX + 0.06, -0.42, 0.30);
+          else if (event.key === 'Home' || event.key === '0') resetView();
+          else handled = false;
+          if (handled) event.preventDefault();
         };
         renderer.domElement.addEventListener('pointerdown', down);
         renderer.domElement.addEventListener('pointermove', move);
         renderer.domElement.addEventListener('pointerup', up);
         renderer.domElement.addEventListener('pointercancel', up);
         renderer.domElement.addEventListener('wheel', wheel, { passive: false });
+        renderer.domElement.addEventListener('keydown', keydown);
+        renderer.domElement.addEventListener('dblclick', resetView);
 
         let frame = 0;
         let firstFrame = true;
         const animate = () => {
           frame = requestAnimationFrame(animate);
           if (!reducedMotion) {
-            root.rotation.x += (targetX - root.rotation.x) * 0.08;
-            root.rotation.y += (targetY - root.rotation.y) * 0.08;
+            root.rotation.x += (targetX - root.rotation.x) * 0.09;
+            root.rotation.y += (targetY - root.rotation.y) * 0.09;
           } else {
             root.rotation.x = targetX;
             root.rotation.y = targetY;
@@ -508,7 +532,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
             firstFrame = false;
             renderer.domElement.style.opacity = '1';
             setReady(true);
-            const signature = `${recipe.width}x${recipe.height}:${recipe.colors.slice(0, 6).join('')}`;
+            const signature = `${recipe.width}x${recipe.height}:${recipe.colors.slice(0, 6).join('')}:${totalVoxels}`;
             if (reportedRef.current !== signature) {
               reportedRef.current = signature;
               callbackRef.current?.(recipe);
@@ -536,6 +560,8 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           renderer.domElement.removeEventListener('pointerup', up);
           renderer.domElement.removeEventListener('pointercancel', up);
           renderer.domElement.removeEventListener('wheel', wheel);
+          renderer.domElement.removeEventListener('keydown', keydown);
+          renderer.domElement.removeEventListener('dblclick', resetView);
           geometry.dispose();
           material.dispose();
           platformGeometry.dispose();
@@ -545,6 +571,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           floorGeometry.dispose();
           floorMaterial.dispose();
           renderer.dispose();
+          renderer.forceContextLoss?.();
           mount.innerHTML = '';
         };
       }).catch(() => {
@@ -557,6 +584,8 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
 
     return () => {
       dead = true;
+      image.onload = null;
+      image.onerror = null;
       cleanup();
     };
   }, [imageUrl, sourceImageUrl]);
@@ -566,10 +595,10 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
     {posterUrl ? <img className={`viewerPoster ${ready ? 'hidden' : ''}`} src={posterUrl} alt="Approved property photo"/> : null}
     <div className="viewerGlow" aria-hidden="true"/>
     <div ref={mountRef} className="viewerCanvas" aria-label="Interactive property voxel model"/>
-    {!ready && !error ? <div className="viewerStage">APPROVED HOUSE → HIGH-DETAIL VOXEL</div> : null}
-    {ready ? <div className="viewerQuality">PHOTO-MATCHED · 32-CELL DETAIL</div> : null}
+    {!ready && !error ? <div className="viewerStage">APPROVED HOUSE → STACKING REAL VOXEL CUBES</div> : null}
+    {ready ? <div className="viewerQuality">STACKED CUBE VOLUME · 32-CELL SOURCE GRID</div> : null}
     {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">{ready ? '3D VOXEL · DRAG BUILDING · PINCH TO ZOOM' : 'THE APPROVED HOUSE PHOTO STAYS VISIBLE WHILE VOXELS BUILD'}</div>
+    <div className="viewerHint">{ready ? '3D VOXEL · DRAG BUILDING · PINCH TO ZOOM · ROTATE VOXEL' : 'THE APPROVED HOUSE PHOTO STAYS VISIBLE WHILE VOXELS BUILD'}</div>
     <style jsx>{`
       .viewerShell{position:relative;width:100%;height:100%;min-height:280px;overflow:hidden;background:radial-gradient(circle at 50% 28%,#4a3560 0,#2a1b38 40%,#17101f 78%)}
       .viewerGlow{position:absolute;z-index:0;inset:10% 14% 20%;border-radius:50%;background:radial-gradient(circle,rgba(201,255,84,.12),rgba(113,56,245,.08) 45%,transparent 72%);filter:blur(22px)}
