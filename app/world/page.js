@@ -86,7 +86,7 @@ export default function WorldPage() {
     <section className="globe">
       <PlanetStreamGlobe listings={items} selectedId={selectedId} onSelect={setSelectedId} atlasBuildings={[]} simpleMode />
       {!items.length ? <div className="empty">
-        <div className="emptyProof"><img src="/voxelpop/demo-house.svg" alt="Built-in illustrative VoxelPop sample house"/><div><small>SAMPLE · NOT A PUBLIC LISTING</small><b>3D creations live here after you save them.</b></div></div>
+        <div className="emptyProof"><img src="/voxelpop/demo-house.jpg" alt="Built-in illustrative VoxelPop sample house"/><div><small>SAMPLE · NOT A PUBLIC LISTING</small><b>3D creations live here after you save them.</b></div></div>
         <p>World adds place context after creation. You can inspect the real 3D interaction first or make your own property voxel.</p>
         <div className="emptyActions"><Link className="primary" href="/demo">See 3D demo</Link><Link href="/property">Create yours · $4.99</Link>{signedIn ? <Link href="/vault">Open Vault</Link> : null}</div>
       </div> : null}

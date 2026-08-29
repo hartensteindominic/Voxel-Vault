@@ -7,7 +7,7 @@ import PhotoReliefModelViewer from '../property/PhotoReliefModelViewer';
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './demo.module.css';
 
-const SAMPLE = '/voxelpop/demo-house.svg';
+const SAMPLE = '/voxelpop/demo-house.jpg';
 
 export default function DemoPage() {
   const [stage, setStage] = useState('preview');

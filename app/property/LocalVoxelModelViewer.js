@@ -35,9 +35,17 @@ function averageRgb(pixels) {
   return total.map((value) => value / pixels.length);
 }
 
+function imagePixelSize(image) {
+  const width = Math.max(0, Number(image?.naturalWidth || image?.width || 0));
+  const height = Math.max(0, Number(image?.naturalHeight || image?.height || 0));
+  if (width > 1 && height > 1) return { width, height };
+  // SVG without width/height often reports 0x0 in Chrome, which used to sample 1 pixel
+  // and made the homepage/demo 3D look empty.
+  return { width: 960, height: 640 };
+}
+
 function recipeDimensions(image) {
-  const width = Math.max(1, image.naturalWidth || 1);
-  const height = Math.max(1, image.naturalHeight || 1);
+  const { width, height } = imagePixelSize(image);
   const ratio = clamp(width / height, 0.5, 2.25);
   if (ratio >= 1) return { width: GRID, height: Math.max(MIN_GRID, Math.round(GRID / ratio)) };
   return { width: Math.max(MIN_GRID, Math.round(GRID * ratio)), height: GRID };
@@ -173,7 +181,9 @@ function sampleRecipe(image) {
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
   context.filter = 'saturate(1.035) contrast(1.035)';
-  context.drawImage(image, 0, 0, image.naturalWidth || 1, image.naturalHeight || 1, 0, 0, width, height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(image, 0, 0, width, height);
   const data = context.getImageData(0, 0, width, height).data;
   const rgb = [];
   const luminance = [];
@@ -264,6 +274,20 @@ function sampleRecipe(image) {
   }
 
   if (activeCount < Math.max(18, Math.round(width * height * 0.055))) {
+    // Never leave the 3D stage blank. If isolation cannot find a facade, voxelize
+    // the visible frame so the user still gets a rotatable cube volume.
+    mask = new Array(width * height).fill(true);
+    for (let row = 0; row < height; row += 1) {
+      for (let column = 0; column < width; column += 1) {
+        const x = width > 1 ? column / (width - 1) : 0.5;
+        const y = height > 1 ? row / (height - 1) : 0.5;
+        if (x < 0.01 || x > 0.99 || y < 0.01 || y > 0.99) mask[row * width + column] = false;
+      }
+    }
+    activeCount = mask.filter(Boolean).length;
+  }
+
+  if (activeCount < 8) {
     throw new Error('VoxelPop could not isolate enough of the uploaded building to make a trustworthy voxel. Try a clearer front or three-quarter photo.');
   }
 
@@ -310,6 +334,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
 
     const image = new Image();
     image.decoding = 'async';
+    image.crossOrigin = 'anonymous';
     image.src = sampleUrl;
 
     image.onload = () => {
@@ -602,7 +627,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
     <style jsx>{`
       .viewerShell{position:relative;width:100%;height:100%;min-height:280px;overflow:hidden;background:radial-gradient(circle at 50% 28%,#4a3560 0,#2a1b38 40%,#17101f 78%)}
       .viewerGlow{position:absolute;z-index:0;inset:10% 14% 20%;border-radius:50%;background:radial-gradient(circle,rgba(201,255,84,.12),rgba(113,56,245,.08) 45%,transparent 72%);filter:blur(22px)}
-      .viewerCanvas,.viewerPoster{position:absolute;inset:0;width:100%;height:100%}.viewerCanvas{z-index:2}.viewerPoster{z-index:1;object-fit:contain;background:#18101f;transition:opacity .34s ease}.viewerPoster.hidden{opacity:0;pointer-events:none}
+      .viewerCanvas,.viewerPoster{position:absolute;inset:0;width:100%;height:100%}.viewerCanvas{z-index:2}.viewerCanvas canvas{display:block;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;outline:none;touch-action:none}.viewerPoster{z-index:1;object-fit:contain;background:#18101f;transition:opacity .34s ease}.viewerPoster.hidden{opacity:0;pointer-events:none}
       .viewerStage,.viewerQuality{position:absolute;z-index:4;top:12px;padding:8px 10px;border-radius:999px;background:rgba(28,18,35,.78);color:#f4edff;font-size:7px;font-weight:1000;letter-spacing:.105em;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08)}
       .viewerStage{left:12px}.viewerQuality{right:12px;color:#e9ffc1;border-color:rgba(201,255,84,.22)}
       .viewerError{position:absolute;z-index:5;left:12px;right:12px;bottom:38px;padding:9px 11px;border-radius:13px;background:rgba(28,18,35,.86);color:#efe8f5;font-size:9px;line-height:1.45;backdrop-filter:blur(9px)}

@@ -23,6 +23,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
 
     const image = new Image();
     image.decoding = 'async';
+    image.crossOrigin = 'anonymous';
     image.src = imageUrl;
     image.onload = async () => {
       try {
@@ -66,7 +67,9 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         rim.position.set(3.5, 3.8, -3.6);
         scene.add(rim);
 
-        const ratio = clamp((image.naturalWidth || 1) / (image.naturalHeight || 1), 0.45, 2.8);
+        const sourceWidth = Math.max(1, image.naturalWidth || image.width || 960);
+        const sourceHeight = Math.max(1, image.naturalHeight || image.height || 640);
+        const ratio = clamp(sourceWidth / sourceHeight, 0.45, 2.8);
         const maxWidth = compact ? 5.0 : 5.7;
         const maxHeight = compact ? 4.0 : 4.45;
         let photoWidth = maxWidth;

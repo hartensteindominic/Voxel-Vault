@@ -6,6 +6,15 @@ Voxel Vault currently has one primary consumer story:
 
 Changes to the public product should make that story clearer, faster, safer, or more reliable.
 
+## Agent / ChatGPT rules
+
+If you are an AI assistant, also obey `AGENTS.md` and `CLAUDE.md`.
+
+- Do not add screens in front of photo → pay → 3D.
+- Do not replace the raster demo house (`/voxelpop/demo-house.jpg`) with SVG for WebGL sampling.
+- Do not restyle VoxelPop into a finance dashboard.
+- If the latest change made 3D or the UI worse, revert it.
+
 ## Before opening a pull request
 
 1. Keep the core Create → World → Vault journey understandable on iPhone-sized screens.

@@ -164,7 +164,7 @@ export default function VaultPage() {
             </div>
           </article>;
         })}</div> : <div className="empty">
-          <div className="emptyPreview"><img src="/voxelpop/demo-house.svg" alt="Built-in illustrative VoxelPop sample house"/><span><small>WHAT YOUR VAULT WILL HOLD</small><b>Property source → 3D preview → finished voxel</b></span></div>
+          <div className="emptyPreview"><img src="/voxelpop/demo-house.jpg" alt="Built-in illustrative VoxelPop sample house"/><span><small>WHAT YOUR VAULT WILL HOLD</small><b>Property source → 3D preview → finished voxel</b></span></div>
           <h3>Your first voxel will live here.</h3>
           <p>See the real interaction before paying, or start with one property photo. After the 3D preview is approved and the voxel is built, you can reopen it here.</p>
           <div className="emptyActions"><Link className="emptyPrimary" href="/demo">See 3D demo</Link><Link href="/property">Create yours · $4.99</Link></div>

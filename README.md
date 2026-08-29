@@ -5,7 +5,7 @@
 Live product: **https://www.voxelvault.io**  
 Public no-login sample: **https://www.voxelvault.io/demo**
 
-![Illustrative VoxelPop public demo house](public/voxelpop/demo-house.svg)
+![Illustrative VoxelPop public demo house](public/voxelpop/demo-house.jpg)
 
 > The image above is built-in demo artwork, not a customer property or a claim of photogrammetric accuracy.
 

@@ -1,5 +1,4 @@
 import { normalizePropertyDraftId } from './property-generation-ids';
-import { readPropertyCollectibleReservation, updatePropertyCollectibleReservation } from './property-collectible-commerce';
 
 export const PROPERTY_VOXEL_GENERATION_PRICE_CENTS = 499;
 export const PROPERTY_VOXEL_GENERATION_PRICE_LABEL = '$4.99';
@@ -16,9 +15,6 @@ export async function paidPropertyGenerationReceipt(auth: any, stripe: any, sess
   const session = await stripe.checkout.sessions.retrieve(sessionId);
   const metadata = session?.metadata || {};
   const draftId = normalizePropertyDraftId(clean(metadata.draft_id, 100));
-  const identityKey = clean(metadata.identity_key, 100);
-  const atlasId = clean(metadata.atlas_id, 180);
-  const propertyAddress = clean(metadata.property_address, 220);
 
   if (metadata.kind !== PROPERTY_VOXEL_GENERATION_KIND) throw new Error('This payment is not for a VoxelPop 3D creation.');
   if (session.payment_status !== 'paid') throw new Error('Payment has not completed yet.');
@@ -34,35 +30,11 @@ export async function paidPropertyGenerationReceipt(auth: any, stripe: any, sess
   if (metadata.generation_engine !== PROPERTY_VOXEL_GENERATION_ENGINE || metadata.source_storage !== 'device-local') {
     throw new Error('This VoxelPop purchase uses an unsupported generation mode.');
   }
-  if (!identityKey || !atlasId || metadata.one_property_one_purchase !== 'true') {
-    throw new Error('This VoxelPop purchase is missing its one-property identity lock.');
-  }
-
-  const reservation = await readPropertyCollectibleReservation(identityKey);
-  if (!reservation || reservation.buyerId !== auth.user.id || reservation.atlasId !== atlasId) {
-    throw new Error('The one-property purchase reservation could not be verified.');
-  }
-  if (reservation.sourceId && reservation.sourceId !== session.id) {
-    throw new Error('This property is locked to a different checkout session.');
-  }
-  if (reservation.state !== 'paid' && reservation.state !== 'minted') {
-    await updatePropertyCollectibleReservation({
-      identityKey,
-      buyerId: auth.user.id,
-      state: 'paid',
-      source: 'generation-stripe',
-      sourceId: session.id,
-    });
-  }
 
   return {
     session,
     draftId,
     engine: PROPERTY_VOXEL_GENERATION_ENGINE,
     sourceStorage: 'device-local',
-    identityKey,
-    atlasId,
-    propertyAddress: propertyAddress || reservation.address,
-    onePropertyOnePurchase: true,
   };
 }

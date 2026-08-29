@@ -24,6 +24,7 @@ assert.match(home, /Your movable voxel is built and saved\./, 'home must make th
 assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product result instead of decorative art');
 assert.doesNotMatch(home, /secondaryAction|Try voxel sample · no login/, 'home must not add a competing hero action');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production movable-voxel viewer');
+assert.match(homePreview, /\/voxelpop\/demo-house\.jpg/, 'home 3D proof must use a raster house image, not an SVG that WebGL cannot sample');
 assert.doesNotMatch(homePreview, /PhotoReliefModelViewer/, 'home proof must not force users through a stage switcher before creating');
 assert.match(homePreview, /3D voxel photo review/, 'home proof must disclose the intermediate review even while showing the final result');
 assert.match(homePreview, /MOVABLE 3D VOXEL/, 'home proof must identify the interactive final result');
@@ -46,6 +47,7 @@ assert.match(photoViewerStyles, /focus-visible/, '3D viewer must keep a visible 
 assert.match(photoViewerStyles, /width:132px/, 'desktop likeness review must keep a large original-photo comparison card');
 
 assert.match(demo, /FREE SAMPLE · NO LOGIN · NO PAYMENT/, 'demo route must remain public and free to inspect even though it is no longer a competing hero CTA');
+assert.match(demo, /\/voxelpop\/demo-house\.jpg/, 'public demo 3D must use the raster VoxelPop house so Three.js can sample pixels');
 assert.match(demo, /built-in demo artwork/i, 'demo must identify its built-in artwork');
 assert.match(demo, /3D VOXEL PHOTO/, 'demo must present the intermediate voxel-photo state');
 assert.match(demo, /MOVABLE 3D VOXEL/, 'demo must present the separate movable voxel state');

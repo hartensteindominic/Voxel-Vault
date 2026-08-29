@@ -3,7 +3,7 @@
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './HomeProductPreview.module.css';
 
-const SAMPLE = '/voxelpop/demo-house.svg';
+const SAMPLE = '/voxelpop/demo-house.jpg';
 
 export default function HomeProductPreview() {
   return <div className={styles.card}>

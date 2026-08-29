@@ -26,6 +26,7 @@ const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
 assert.match(propertyRoute, /PropertyJourneySimple/, '/property must use the condensed creator');
+assert.doesNotMatch(propertyRoute, /PropertyIdentityGate/, 'paid creator must not insert an extra address-lock screen before the photo');
 assert.match(home, /ONE PHOTO → ONE VOXEL/, 'home communicates the product in one short line');
 assert.match(home, /3D voxel photo/i, 'home names the real review stage');
 assert.match(home, /Create mine · \$4\.99/, 'home has one clear paid creation CTA');
@@ -62,8 +63,12 @@ assert.match(property, /Looks good · continue/, 'one explicit approval gates mo
 assert.doesNotMatch(property, /createVoxelPoster|voxelPoster/, 'the creator cannot recreate a fake 2D voxel picture');
 assert.match(property, /LocalVoxelModelViewer imageUrl=\{pendingPreview\} sourceImageUrl=\{pendingPreview\}/, 'movable voxel builds directly from the approved property photo');
 assert.match(localViewer, /const GRID = 32/, 'building voxel keeps the higher-detail local grid');
+assert.match(localViewer, /function imagePixelSize/, 'local voxel sampling must handle SVG/zero intrinsic sizes');
+assert.match(localViewer, /context\.drawImage\(image, 0, 0, width, height\)/, 'local voxel must sample the full source image, not a 1-pixel SVG crop');
+assert.doesNotMatch(localViewer, /drawImage\(image, 0, 0, image\.naturalWidth \|\| 1/, 'must not crop SVG sources to 1x1');
 assert.match(localViewer, /InstancedMesh/, 'local viewer builds real Three.js voxel geometry');
 assert.match(localVoxel, /const MAX_SIDE = 32/, 'server accepts the higher-detail local recipe');
+assert.doesNotMatch(generationCheckout, /acquirePropertyCollectibleReservation/, 'core $4.99 checkout must not require a mapped property identity lock');
 assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto|storage\.from/i, 'generation checkout cannot call Meshy or private source-photo Storage');
 assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot call Meshy or source-photo cloud Storage');
 

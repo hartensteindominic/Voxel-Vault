@@ -18,6 +18,7 @@ const mintPage = read('app/property/mint/page.js');
 const vault = read('app/vault/property-drafts/page.js');
 
 assert.match(route, /PropertyJourneySimple/, 'the /property route must use the condensed creator');
+assert.doesNotMatch(route, /PropertyIdentityGate/, 'paid creator must not add an extra property-address gate before the photo');
 assert.match(property, /const PRICE = '\$4\.99'/, 'maker shows the $4.99 creation price');
 assert.match(property, /const labels = \['PHOTO', 'REVIEW', 'BUILD', 'DONE'\]/, 'creator is condensed to four user-facing stages');
 assert.match(property, /Sign in once\./, 'creator keeps one account gate');
