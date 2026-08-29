@@ -39,14 +39,14 @@ const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
 assert.match(propertyRoute, /PropertyJourneyExact/, '/property must use the strict voxel-photo -> movable-voxel -> optional-mint journey');
-assert.match(home, /VOXELPOP · PHOTO → 3D → VOXEL → NFT/, 'home clearly presents the centered creation sequence');
-assert.match(home, /3D preview/, 'home names the intermediate 3D review stage');
+assert.match(home, /VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL → NFT/, 'home clearly presents the centered creation sequence');
+assert.match(home, /3D voxel photo/i, 'home names the intermediate high-fidelity 3D voxel-photo review stage');
 assert.match(home, /Start VoxelPop · \$4\.99/, 'home has one clear paid creation CTA');
 assert.match(home, /NFT optional/, 'home keeps minting downstream and optional');
 assert.match(home, /No wallet until mint/, 'wallet must not block core creation');
 assert.match(home, /does not create ownership, deed\/title, rent, occupancy, investment, appreciation, or other rights in a physical property/i, 'home separates the digital product from physical-property rights');
 assert.match(homePreview, /source:\s*\{[\s\S]*label: 'House photo'/, 'home preview includes the original source-photo stage');
-assert.match(homePreview, /preview:\s*\{[\s\S]*label: '3D preview'/, 'home preview includes the real Stage 3 review state');
+assert.match(homePreview, /preview:\s*\{[\s\S]*label: '3D voxel photo'/, 'home preview includes the real high-fidelity Stage 3 voxel-photo review state');
 assert.match(homePreview, /voxel:\s*\{[\s\S]*label: 'Movable 3D voxel'/, 'home preview includes the separate movable-voxel stage');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 assert.doesNotMatch(layout, /property-create-polish\.css/, 'legacy Create progress overrides stay unloaded');

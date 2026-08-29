@@ -52,7 +52,7 @@ must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proo
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/VOXELPOP OUTPUT/.test(home) && /3D preview/.test(home) && /Movable 3D voxel/.test(home) && /Optional NFT/.test(home), 'Homepage must explain the three useful VoxelPop outputs without restoring dense product clutter.');
+must(/VOXELPOP OUTPUT/.test(home) && /3D voxel photo/i.test(home) && /Movable 3D voxel/.test(home) && /Optional NFT/.test(home), 'Homepage must explain the real voxel-photo, movable-voxel and optional-NFT outputs without restoring dense product clutter.');
 must(/VoxelPop is a digital creation product\./.test(home) && /does not create ownership[\s\S]*physical property/i.test(home), 'Homepage must keep the digital-only physical-property boundary visible.');
 must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
 
@@ -117,5 +117,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real 3D proof, concise VoxelPop value messaging, focused Home/Create navigation, condensed secondary mobile dock, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real high-fidelity 3D voxel-photo proof, concise VoxelPop value messaging, focused Home/Create navigation, condensed secondary mobile dock, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }

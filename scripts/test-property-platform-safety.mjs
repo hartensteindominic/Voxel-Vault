@@ -116,9 +116,9 @@ requireMarkers(distribution, 'distribution vault', [
 // while the front door must still preserve price clarity, optional minting and
 // the digital-only physical-property rights boundary.
 requireMarkers(root, 'simple root homepage', [
-  'VOXELPOP · PHOTO → 3D → VOXEL → NFT',
+  'VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL → NFT',
   'Start VoxelPop · $4.99',
-  '3D preview',
+  '3D voxel photo',
   'Movable 3D voxel',
   'NFT optional',
   'No wallet until mint',
@@ -245,4 +245,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the clear $4.99 VoxelPop flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the clear $4.99 high-fidelity 3D voxel-photo -> separate movable-voxel flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
