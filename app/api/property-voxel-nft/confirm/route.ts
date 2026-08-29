@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { requireVoxelVaultUser } from '../../../../../lib/user-auth';
-import { verifyOwnedFinalVoxelModel } from '../../../../../lib/property-collectible-commerce';
-import { propertyVoxelMetadataUrl, propertyVoxelVoucherId, verifyPropertyVoxelMint } from '../../../../../lib/property-voxel-mint';
+import { requireVoxelVaultUser } from '../../../../lib/user-auth';
+import { verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
+import { propertyVoxelMetadataUrl, propertyVoxelVoucherId, verifyPropertyVoxelMint } from '../../../../lib/property-voxel-mint';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
