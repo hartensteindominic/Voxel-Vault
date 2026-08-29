@@ -22,7 +22,7 @@ export default function DemoPage() {
       <header className={styles.hero}>
         <small>NO LOGIN · NO PAYMENT · PUBLIC SAMPLE</small>
         <h1>See VoxelPop<br/><em>before you sign in.</em></h1>
-        <p>This built-in sample demonstrates the same two visual stages used in the property creator: first a textured 3D photo-relief preview, then a separate movable voxel model.</p>
+        <p>This built-in sample demonstrates the same two visual stages used in the property creator: first a source-faithful 3D picture, then a separate movable voxel model.</p>
       </header>
 
       <section className={styles.demoCard}>
@@ -34,9 +34,9 @@ export default function DemoPage() {
 
         <div className={styles.viewerSide}>
           <div className={styles.viewerHead}>
-            <div><small>{stage === 'preview' ? '2 · 3D PREVIEW' : '3 · MOVABLE VOXEL'}</small><h2>{stage === 'preview' ? 'See the house first.' : 'Then voxelize it.'}</h2></div>
+            <div><small>{stage === 'preview' ? '2 · 3D PICTURE' : '3 · MOVABLE VOXEL'}</small><h2>{stage === 'preview' ? 'Keep the house recognizable.' : 'Then voxelize it.'}</h2></div>
             <div className={styles.switcher}>
-              <button className={stage === 'preview' ? styles.active : ''} onClick={() => setStage('preview')}>3D preview</button>
+              <button className={stage === 'preview' ? styles.active : ''} onClick={() => setStage('preview')}>3D picture</button>
               <button className={stage === 'voxel' ? styles.active : ''} onClick={() => setStage('voxel')}>Voxel</button>
             </div>
           </div>
@@ -46,13 +46,13 @@ export default function DemoPage() {
               : <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE} onReady={() => setVoxelReady(true)}/>} 
           </div>
           <div className={styles.viewerNote}>{stage === 'preview'
-            ? 'Drag gently to tilt the textured 3D preview. Rotation is intentionally bounded so the demo does not invent unseen sides.'
+            ? 'The source picture stays sharp and unwarped. Drag gently to reveal real card thickness; tilt is intentionally limited so VoxelPop does not invent unseen walls.'
             : voxelReady ? 'The voxel is built locally from the same visible source image. Drag to rotate.' : 'Building the local voxel from the same visible sample image…'}</div>
         </div>
       </section>
 
       <section className={styles.flow}>
-        <div><small>THE PAID FLOW</small><h2>Your photo follows the same order.</h2><p>Sign in → choose an authorized property photo → pay $4.99 once → inspect the 3D preview → approve it → build the voxel → optionally mint the finished digital voxel.</p></div>
+        <div><small>THE PAID FLOW</small><h2>Your photo follows the same order.</h2><p>Sign in → choose an authorized property photo → pay $4.99 once → inspect the sharp 3D picture → approve it → build the voxel → optionally mint the finished digital voxel.</p></div>
         <Link href="/property">Create my house voxel · $4.99 →</Link>
       </section>
 
