@@ -36,17 +36,13 @@ const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
-assert.match(propertyRoute, /PropertyJourneyExact/, '/property must use the strict preview -> voxel -> mint journey');
-assert.match(home, /Upload a picture\./, 'home describes the photo-first journey');
-assert.match(home, /START → SIGN IN \+ UPLOAD PHOTO/, 'home truthfully exposes the account gate before the photo picker');
-assert.match(home, /One VoxelPop creation costs \$4\.99/, 'home clearly discloses the creation price');
-assert.match(home, /source photo stays on your device/i, 'home explains the device-local source photo boundary');
-assert.match(home, /without Meshy credits/i, 'home makes the no-Meshy dependency explicit');
-assert.match(home, /3D preview[\s\S]*voxel[\s\S]*Mint/i, 'home states the required preview -> voxel -> mint order');
-assert.match(home, /Optional Collect later is a separate digital-item purchase/i, 'home may describe the separate optional collectible product');
-assert.match(home, /no wallet is required to create/i, 'wallet must not block core creation');
-assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank status');
-assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
+assert.match(propertyRoute, /PropertyJourneyExact/, '/property must use the strict voxel-photo -> movable-voxel -> optional-mint journey');
+assert.match(home, /Your house photo\./, 'home must lead with the source-photo promise');
+assert.match(home, /Create my voxel · \$4\.99/, 'home clearly discloses the creation price');
+assert.match(home, /Photo stays on device/i, 'home explains the device-local source photo boundary');
+assert.match(home, /3D voxel photo[\s\S]*movable 3D voxel/i, 'home states the required voxel-photo -> movable-voxel order');
+assert.match(home, /No wallet required/i, 'wallet must not block core creation');
+assert.match(home, /does not buy or transfer the physical property/i, 'home must separate the digital product from real-property rights');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0|#fffaf2/i, 'simple surfaces keep the warm VoxelPop canvas');
@@ -59,24 +55,25 @@ assert.match(propertyCss, /prefers-reduced-motion/, 'property flow respects redu
 
 assert.match(property, /Sign in first\./, 'maker exposes the account gate');
 assert.match(property, /Continue with Google/, 'account gate has one clear sign-in action');
-assert.match(property, /const labels = \['PHOTO', 'PAY', '3D PREVIEW', 'VOXEL', 'MINT'\]/, 'labels enforce the requested creation order');
+assert.match(property, /const labels = \['PHOTO', 'PAY', '3D VOXEL PHOTO', 'MOVABLE VOXEL', 'MINT'\]/, 'labels enforce the requested creation order');
 assert.match(property, /Choose a clear house photo\./, 'first signed-in step is photo-first');
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone photo preparation remains automatic');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo requires rights confirmation');
-assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Picture/, 'paid CTA explicitly creates the 3D picture first');
-assert.match(property, /You see and approve the 3D picture before VoxelPop creates the separate voxel/, 'one payment preserves the picture-before-voxel order');
+assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Voxel Photo/, 'paid CTA explicitly creates the 3D voxel photo first');
+assert.match(property, /You see and approve the 3D voxel photo before VoxelPop creates the separate movable 3D voxel/, 'one payment preserves the voxel-photo-before-model order');
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
-assert.match(property, /PhotoReliefModelViewer/, 'recognizable 3D photo preview is a first-class stage');
-assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'first 3D preview uses the actual uploaded photo texture');
-assert.match(photoPreview, /PlaneGeometry\(photoWidth, photoHeight, 1, 1\)/, 'the visible source photo stays on an undistorted flat surface');
-assert.match(photoPreview, /BoxGeometry\(photoWidth \+ 0\.18, photoHeight \+ 0\.18, depth/, 'real 3D depth comes from a physical backing instead of pixel warping');
-assert.doesNotMatch(photoPreview, /getImageData|luminance\(|positions\.setZ|setZ\(/, 'first preview must not reshape source pixels from brightness or edges');
-assert.match(photoPreview, /targetY = clamp/, '3D picture rotation stays deliberately bounded so unseen sides are not invented');
-assert.match(property, /Looks good → Create 3D Voxel/, 'user explicitly approves the 3D picture before voxelization');
-assert.match(property, /createVoxelPoster/, 'VoxelPop voxel image is built only after preview approval');
-assert.match(property, /LocalVoxelModelViewer/, 'local interactive voxel is a separate later stage');
+assert.match(property, /PhotoReliefModelViewer/, '3D voxel photo is a first-class approval stage');
+assert.match(photoPreview, /getImageData/, 'voxel-photo stage samples source-image colors');
+assert.match(photoPreview, /InstancedMesh/, 'voxel-photo stage renders real voxel instances');
+assert.match(photoPreview, /BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage uses block geometry');
+assert.match(photoPreview, /const depth = 0\.11/, 'voxel-photo blocks have shallow 3D inspection depth');
+assert.match(photoPreview, /ORIGINAL PHOTO/, 'voxel-photo stage keeps the source photo visible for comparison');
+assert.match(photoPreview, /targetY = clamp/, 'voxel-photo rotation stays deliberately bounded so unseen sides are not invented');
+assert.match(property, /Looks good → Create Movable 3D Voxel/, 'user explicitly approves the 3D voxel photo before movable-model creation');
+assert.match(property, /createVoxelPoster/, 'movable voxel image is built only after preview approval');
+assert.match(property, /LocalVoxelModelViewer/, 'local interactive movable voxel is a separate later stage');
 assert.match(localViewer, /const GRID = 32/, 'building voxel uses the higher-detail 32-cell local grid');
 assert.match(localViewer, /COLOR_STEP = 12/, 'building voxel keeps finer source-photo color detail');
 assert.match(localViewer, /keepBestComponent/, 'building extraction keeps the strongest connected property region');
@@ -152,4 +149,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable photo-faithful 3D picture -> explicit approval -> separate higher-detail 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> 3D voxel photo -> explicit approval -> separate higher-detail movable 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
