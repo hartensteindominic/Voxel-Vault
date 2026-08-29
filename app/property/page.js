@@ -34,6 +34,40 @@ function readableDate(value) {
 function terminal(value) {
   return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(value || '').toUpperCase());
 }
+function isHeic(file) {
+  return /image\/(heic|heif)/i.test(String(file?.type || '')) || /\.(heic|heif)$/i.test(String(file?.name || ''));
+}
+function isSupportedPhoto(file) {
+  return ['image/jpeg', 'image/png', 'image/webp'].includes(String(file?.type || '').toLowerCase()) || isHeic(file);
+}
+async function normalizeIphonePhoto(file) {
+  if (!isHeic(file)) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('HEIC preview could not be decoded.'));
+    });
+    const maxEdge = 2400;
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+    const width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+    const height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Photo conversion is unavailable on this device.');
+    context.drawImage(image, 0, 0, width, height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) throw new Error('Photo conversion failed.');
+    const filename = String(file.name || 'property-photo.heic').replace(/\.(heic|heif)$/i, '.jpg');
+    return new File([blob], filename || 'property-photo.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 const emptyModel = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
 
 export default function SimplePropertyPage() {
@@ -42,6 +76,7 @@ export default function SimplePropertyPage() {
   const [building, setBuilding] = useState(null);
   const [openImagery, setOpenImagery] = useState(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [streetPhotoChosen, setStreetPhotoChosen] = useState(false);
   const [uploadedReference, setUploadedReference] = useState(null);
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [pendingPreview, setPendingPreview] = useState('');
@@ -178,6 +213,7 @@ export default function SimplePropertyPage() {
     setBuilding(null);
     setOpenImagery(null);
     setPhotoIndex(0);
+    setStreetPhotoChosen(false);
     setUploadedReference(null);
     setUploadRightsConfirmed(false);
     setVoxelImage('');
@@ -220,17 +256,28 @@ export default function SimplePropertyPage() {
     uploadInputRef.current?.click();
   }
 
-  function selectLocalPhoto(event) {
-    const photo = event.target.files?.[0];
+  async function selectLocalPhoto(event) {
+    const selected = event.target.files?.[0];
     event.target.value = '';
-    if (!photo) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(photo.type)) return setMessage('Choose a JPG, PNG, or WebP photo.');
-    if (photo.size > 8 * 1024 * 1024) return setMessage('Choose a photo smaller than 8 MB.');
-    clearPendingPhoto();
-    setPendingPhoto(photo);
-    setPendingPreview(URL.createObjectURL(photo));
-    setUploadRightsConfirmed(false);
-    setMessage('Nice. Confirm you can use this photo, then continue.');
+    if (!selected) return;
+    if (!isSupportedPhoto(selected)) return setMessage('Choose a JPG, PNG, WebP, HEIC, or HEIF photo.');
+    if (selected.size > 12 * 1024 * 1024) return setMessage('Choose a photo smaller than 12 MB.');
+    setBusy('prepare-photo');
+    setMessage(isHeic(selected) ? 'Preparing your iPhone photo…' : 'Preparing your photo…');
+    try {
+      const photo = await normalizeIphonePhoto(selected);
+      if (photo.size > 8 * 1024 * 1024) return setMessage('This photo is still too large after preparation. Try a screenshot or a smaller version.');
+      clearPendingPhoto();
+      setPendingPhoto(photo);
+      setPendingPreview(URL.createObjectURL(photo));
+      setStreetPhotoChosen(false);
+      setUploadRightsConfirmed(false);
+      setMessage('Nice. Confirm you can use this photo, then continue.');
+    } catch {
+      setMessage('This iPhone photo could not be prepared. A screenshot of the property photo will work too.');
+    } finally {
+      setBusy('');
+    }
   }
 
   async function usePendingPhoto() {
@@ -257,6 +304,7 @@ export default function SimplePropertyPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.reference?.url) throw new Error(data?.error || 'Property photo upload failed.');
       imageIterationRef.current += 1;
+      setStreetPhotoChosen(false);
       setUploadedReference(data.reference);
       clearPendingPhoto();
       setVoxelImage('');
@@ -268,10 +316,11 @@ export default function SimplePropertyPage() {
   }
 
   function useStreetPhoto() {
-    if (!photos.length) return;
+    if (!activeReference) return;
     imageIterationRef.current += 1;
     clearPendingPhoto();
     setUploadedReference(null);
+    setStreetPhotoChosen(true);
     setVoxelImage('');
     setModel(emptyModel());
     setSaved(null);
@@ -345,6 +394,7 @@ export default function SimplePropertyPage() {
   function changePhoto() {
     imageIterationRef.current += 1;
     clearPendingPhoto();
+    setStreetPhotoChosen(false);
     setUploadedReference(null);
     setVoxelImage('');
     setModel(emptyModel());
@@ -358,6 +408,7 @@ export default function SimplePropertyPage() {
     setBuilding(null);
     setResolvedQuery('');
     setOpenImagery(null);
+    setStreetPhotoChosen(false);
     setUploadedReference(null);
     setUploadRightsConfirmed(false);
     setVoxelImage('');
@@ -367,7 +418,8 @@ export default function SimplePropertyPage() {
   }
 
   const modelRunning = Boolean(model?.taskId && !model?.modelUrl && !terminal(model?.status));
-  const stage = !building ? 1 : pendingPhoto ? 2 : !activeReference ? 2 : !voxelImage ? 3 : !model?.modelUrl ? 4 : !saved ? 5 : 6;
+  const photoChosen = Boolean(uploadedReference || streetPhotoChosen);
+  const stage = !building ? 1 : model?.modelUrl ? (saved ? 6 : 5) : modelRunning ? 4 : (pendingPhoto || !photoChosen) ? 2 : !voxelImage ? 3 : 4;
   const displayImage = model?.modelUrl ? '' : voxelImage || pendingPreview || activePhoto?.imageUrl || '';
   const photoDate = readableDate(activePhoto?.shotDate);
 
@@ -393,9 +445,9 @@ export default function SimplePropertyPage() {
             ? <MeshyModelViewer modelUrl={model.modelUrl}/>
             : displayImage
               ? <img src={displayImage} alt={voxelImage ? `Voxel rendering of ${resolvedQuery}` : `Property reference for ${resolvedQuery}`} referrerPolicy="no-referrer"/>
-              : <div className={styles.noPhoto}><b>Add a photo</b><span>We will not invent the facade.</span></div>}
+              : <div className={styles.noPhoto}><b>Add a photo</b><span>No facade invented.</span></div>}
           <span className={styles.badge}>{model?.modelUrl ? '3D VOXEL' : voxelImage ? 'VOXEL IMAGE' : pendingPhoto ? 'YOUR PHOTO' : activeReference ? 'PROPERTY PHOTO' : 'PHOTO NEEDED'}</span>
-          {!pendingPhoto && !uploadedReference && !voxelImage && !model?.modelUrl && photos.length > 1 ? <div className={styles.photoPicker}>
+          {stage === 2 && !pendingPhoto && !uploadedReference && photos.length > 1 ? <div className={styles.photoPicker}>
             <button type="button" onClick={() => setPhotoIndex((photoIndex - 1 + photos.length) % photos.length)} aria-label="Previous reference photo">‹</button>
             <b>{photoIndex + 1}/{photos.length}</b>
             <button type="button" onClick={() => setPhotoIndex((photoIndex + 1) % photos.length)} aria-label="Next reference photo">›</button>
@@ -404,15 +456,15 @@ export default function SimplePropertyPage() {
 
         <div className={styles.meta}>
           <b>{resolvedQuery}</b>
-          <span>{model?.modelUrl ? '3D voxel property' : voxelImage ? 'Generated from your selected property photo' : pendingPhoto ? 'Your selected photo' : activePhoto ? `${uploadedReference ? 'Your uploaded photo' : 'Open street photo'}${photoDate ? ` · ${photoDate}` : ''}` : 'Choose or upload a property photo'}</span>
+          <span>{model?.modelUrl ? '3D voxel property' : voxelImage ? 'Generated from your selected property photo' : pendingPhoto ? 'Your selected photo' : activePhoto ? `${uploadedReference ? 'Your uploaded photo' : 'Available street photo'}${photoDate ? ` · ${photoDate}` : ''}` : 'Choose or upload a property photo'}</span>
         </div>
 
         {stage === 2 && !pendingPhoto ? <div className={styles.choicePanel}>
           <p className={styles.bigPrompt}>Pick the best photo.</p>
-          <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={selectLocalPhoto}/>
-          <button className={styles.primaryPurple} type="button" onClick={chooseUpload}>Upload your photo</button>
+          <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectLocalPhoto}/>
+          <button className={styles.primaryPurple} type="button" onClick={chooseUpload} disabled={busy === 'prepare-photo'}>{busy === 'prepare-photo' ? 'Preparing photo…' : 'Upload your photo'}</button>
           {activeReference ? <button className={styles.secondaryButton} type="button" onClick={useStreetPhoto}>Use this street photo</button> : null}
-          <small>JPG, PNG or WebP · up to 8 MB</small>
+          <small>iPhone photos supported · JPG, PNG, WebP, HEIC/HEIF</small>
         </div> : null}
 
         {stage === 2 && pendingPhoto ? <div className={styles.choicePanel}>
@@ -440,7 +492,7 @@ export default function SimplePropertyPage() {
         {stage === 5 ? <div className={styles.choicePanel}>
           <p className={styles.bigPrompt}>Keep it.</p>
           <button className={styles.primaryPurple} type="button" onClick={saveToVault}>Save to Vault</button>
-          <button className={styles.textButton} type="button" onClick={createImage}>Redo image</button>
+          <button className={styles.textButton} type="button" onClick={changePhoto}>Start over with photo</button>
         </div> : null}
 
         {stage === 6 ? <div className={styles.donePanel}>
