@@ -1,22 +1,35 @@
-export const metadata = { title: 'Privacy | Voxel Vault' };
+import Link from 'next/link';
+import styles from '../legal-page.module.css';
 
-const sectionStyle = { marginTop: 28 };
-const textStyle = { color: '#a4abbb', lineHeight: 1.7, fontSize: 13, margin: 0 };
+export const metadata = {
+  title: 'Privacy',
+  description: 'How Voxel Vault handles property photos, accounts, payments, maps, and optional wallet activity.',
+};
 
 export default function PrivacyPage() {
-  return (
-    <main style={{ minHeight: '100vh', background: '#070912', color: '#eef0f7', padding: '24px 18px', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <a href="/" style={{ color: '#9b7cff', textDecoration: 'none', fontSize: 13 }}>← Voxel Vault</a>
-        <h1 style={{ fontSize: 42, margin: '28px 0 4px', letterSpacing: '-.04em' }}>Privacy</h1>
-        <p style={{ color: '#737c8f', fontSize: 12 }}>Last updated August 24, 2026.</p>
-        <section style={sectionStyle}><h2>What we use</h2><p style={textStyle}>Voxel Vault may process account, wallet, transaction, device, and gameplay information needed to operate the service.</p></section>
-        <section style={sectionStyle}><h2>VoxelPop conversion analytics</h2><p style={textStyle}>VoxelPop uses privacy-minimized first-party conversion analytics to understand stages such as studio visits, checkout starts, completed purchases, successful image generation, completed 3D meshes, and GLB downloads. These funnel records may include a randomly generated session identifier and campaign attribution such as UTM source, medium, campaign, or content. The VoxelPop conversion analytics table is not designed to store the text of your prompt, your email address, or your IP address.</p></section>
-        <section style={sectionStyle}><h2>Location</h2><p style={textStyle}>Location is optional and may power nearby discovery when enabled. Precise location is not intended to become an on-chain ownership record.</p></section>
-        <section style={sectionStyle}><h2>Third parties</h2><p style={textStyle}>Blockchain networks, wallet providers, hosting, analytics, payments, storage, AI generation providers, and other integrations may process information under their own policies.</p></section>
-        <section style={sectionStyle}><h2>Your choices</h2><p style={textStyle}>You can deny location access and disconnect your wallet from the application.</p></section>
-        <section style={sectionStyle}><h2>Updates</h2><p style={textStyle}>This notice may change as the platform grows. The current version will be published here.</p></section>
-      </div>
-    </main>
-  );
+  return <main className={styles.page}><div className={styles.shell}>
+    <nav className={styles.top}><Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link><div><Link href="/demo">Public demo</Link><Link href="/property">Create</Link></div></nav>
+    <header className={styles.hero}><small>PRIVACY</small><h1>Your photo starts<br/>on your device.</h1><p>Voxel Vault is designed so the property source photo used by the current VoxelPop creation flow stays on the user’s device rather than becoming a public property-photo database.</p></header>
+    <section className={styles.card}>
+      <div className={styles.notice}><strong>Current product boundary:</strong> the normal $4.99 property creation flow uses local browser processing for the 3D preview and voxel creation and does not require Meshy credits.</div>
+      <h2>Property photos</h2>
+      <p>The current VoxelPop property flow processes the selected source image in the browser. When supported by the browser, Voxel Vault may keep a private copy in on-device browser storage so the same paid creation can resume after checkout. If that local cache is unavailable, the user may be asked to choose the same photo again. The source photo is not intentionally published in NFT metadata.</p>
+      <h2>Accounts</h2>
+      <p>Google sign-in may be used to associate saved property drafts, creation records, and other account-scoped product state with one Voxel Vault identity. The authentication provider and configured backend services process the information required for sign-in and account storage.</p>
+      <h2>Payments</h2>
+      <p>Paid checkouts are handled through the configured payment provider. Voxel Vault should not store complete card numbers in the application database. Payment-provider records may include transaction identifiers and the minimum metadata needed to verify the purchase.</p>
+      <h2>Maps and property context</h2>
+      <p>If a user chooses to map a finished creation, Voxel Vault may request address, coordinate, building, parcel, or other source-backed place information. Map data is kept conceptually separate from the user’s private source photo and from legal ownership records.</p>
+      <h2>Wallets and minting</h2>
+      <p>A wallet is not required for the core creation flow. If a user explicitly chooses to mint a finished digital voxel, public blockchain transaction information may be visible on the relevant network. Voxel Vault does not ask users to commit private keys or seed phrases to the public repository.</p>
+      <h2>Public sharing</h2>
+      <p>Items are not meant to become public property claims merely because they appear in World, Vault, metadata, or an NFT. Public-facing coordinates may be reduced or transformed where the product intentionally limits precision.</p>
+      <h2>Third-party services</h2>
+      <p>Authentication, payment, map, hosting, blockchain, analytics, or other providers may have their own privacy practices. Only services actually configured on the live deployment should be treated as active.</p>
+      <h2>Questions</h2>
+      <p>For privacy questions or data-handling concerns, use the project contact route on the About page or open a repository issue without posting passwords, payment credentials, private keys, identity documents, deeds, leases, or other sensitive personal information.</p>
+      <div className={styles.links}><Link href="/about">About + contact</Link><Link href="/terms">Terms</Link><Link href="/demo">See public demo</Link></div>
+    </section>
+    <footer className={styles.footer}><Link href="/">Home</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/about">About</Link></footer>
+  </div></main>;
 }
