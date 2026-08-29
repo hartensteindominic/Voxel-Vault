@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const GRID = 32;
 const MIN_GRID = 16;
 const COLOR_STEP = 12;
+const GLOBAL_RENDER_KEY = '__VOXELPOP_PROPERTY_RENDER__';
 
 function clamp(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -172,8 +173,8 @@ function sampleRecipe(image) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
-  // Preserve the entire photo and sample more densely than the original 24-cell pass.
-  // The final voxel should retain roofline, window spacing and facade color relationships.
+  // The approved VoxelPop house render is sampled densely enough to preserve roofline,
+  // window spacing, facade colors and the generated collectible silhouette.
   context.filter = 'saturate(1.035) contrast(1.035)';
   context.drawImage(image, 0, 0, image.naturalWidth || 1, image.naturalHeight || 1, 0, 0, width, height);
   const data = context.getImageData(0, 0, width, height).data;
@@ -241,8 +242,6 @@ function sampleRecipe(image) {
   let mask = fillSmallGaps(keepBestComponent(stabilizeMask(rawMask, width, height), width, height), width, height);
   let activeCount = mask.filter(Boolean).length;
 
-  // Difficult lighting can make a facade resemble sky/ground. Relax toward evidence
-  // still present in the source, then retain the strongest connected central object.
   if (activeCount < width * height * 0.10) {
     const relaxed = new Array(width * height).fill(false);
     for (let row = 0; row < height; row += 1) {
@@ -268,7 +267,7 @@ function sampleRecipe(image) {
   }
 
   if (activeCount < Math.max(18, Math.round(width * height * 0.055))) {
-    throw new Error('VoxelPop could not isolate enough of the uploaded building to make a trustworthy voxel. Try a clearer front or three-quarter photo.');
+    throw new Error('VoxelPop could not isolate enough of the approved house render to make a trustworthy voxel. Regenerate the 3D house or use a clearer source photo.');
   }
 
   const smoothLuminance = luminance.map((value, index) => {
@@ -304,7 +303,8 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
   callbackRef.current = onReady;
 
   useEffect(() => {
-    const sampleUrl = sourceImageUrl || imageUrl;
+    const approvedRender = typeof window !== 'undefined' ? String(window[GLOBAL_RENDER_KEY] || '') : '';
+    const sampleUrl = approvedRender || sourceImageUrl || imageUrl;
     if (!sampleUrl || !mountRef.current) return undefined;
     let dead = false;
     let cleanup = () => {};
@@ -332,7 +332,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         try {
           renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
         } catch {
-          setError('Interactive 3D is unavailable here. Your approved house photo remains visible.');
+          setError('Interactive 3D is unavailable here. Your approved VoxelPop house render remains available.');
           return;
         }
 
@@ -548,11 +548,11 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           mount.innerHTML = '';
         };
       }).catch(() => {
-        if (!dead) setError('Interactive voxel 3D could not start. Your approved house photo remains visible.');
+        if (!dead) setError('Interactive voxel 3D could not start. Your approved VoxelPop house render remains available.');
       });
     };
     image.onerror = () => {
-      if (!dead) setError('The approved property photo could not be opened for voxel conversion.');
+      if (!dead) setError('The approved VoxelPop house render could not be opened for voxel conversion.');
     };
 
     return () => {
@@ -561,15 +561,16 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
     };
   }, [imageUrl, sourceImageUrl]);
 
-  const posterUrl = sourceImageUrl || imageUrl;
+  const approvedPoster = typeof window !== 'undefined' ? String(window[GLOBAL_RENDER_KEY] || '') : '';
+  const posterUrl = approvedPoster || sourceImageUrl || imageUrl;
   return <div className="viewerShell">
-    {posterUrl ? <img className={`viewerPoster ${ready ? 'hidden' : ''}`} src={posterUrl} alt="Approved property photo"/> : null}
+    {posterUrl ? <img className={`viewerPoster ${ready ? 'hidden' : ''}`} src={posterUrl} alt="Approved VoxelPop 3D house render"/> : null}
     <div className="viewerGlow" aria-hidden="true"/>
     <div ref={mountRef} className="viewerCanvas" aria-label="Interactive property voxel model"/>
-    {!ready && !error ? <div className="viewerStage">APPROVED HOUSE → HIGH-DETAIL VOXEL</div> : null}
-    {ready ? <div className="viewerQuality">PHOTO-MATCHED · 32-CELL DETAIL</div> : null}
+    {!ready && !error ? <div className="viewerStage">APPROVED 3D HOUSE → HIGH-DETAIL VOXEL</div> : null}
+    {ready ? <div className="viewerQuality">VOXELPOP RENDER-MATCHED · 32-CELL DETAIL</div> : null}
     {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">{ready ? '3D VOXEL · DRAG BUILDING · PINCH TO ZOOM' : 'THE APPROVED HOUSE PHOTO STAYS VISIBLE WHILE VOXELS BUILD'}</div>
+    <div className="viewerHint">{ready ? '3D VOXEL · DRAG BUILDING · PINCH TO ZOOM' : 'THE APPROVED VOXELPOP HOUSE RENDER STAYS VISIBLE WHILE VOXELS BUILD'}</div>
     <style jsx>{`
       .viewerShell{position:relative;width:100%;height:100%;min-height:280px;overflow:hidden;background:radial-gradient(circle at 50% 28%,#4a3560 0,#2a1b38 40%,#17101f 78%)}
       .viewerGlow{position:absolute;z-index:0;inset:10% 14% 20%;border-radius:50%;background:radial-gradient(circle,rgba(201,255,84,.12),rgba(113,56,245,.08) 45%,transparent 72%);filter:blur(22px)}
