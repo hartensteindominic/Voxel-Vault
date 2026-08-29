@@ -56,7 +56,7 @@ assert.match(property, /PhotoReliefModelViewer/, 'voxel image remains a real gen
 assert.match(photoPreview, /getImageData\(0, 0, columns, rows\)/, 'voxel image samples the uploaded image');
 assert.match(photoPreview, /new THREE\.InstancedMesh/, 'voxel image uses real voxel geometry');
 assert.match(property, /setStage\('model'\)/, 'voxel image automatically advances to 3D generation');
-assert.doesNotMatch(property, /Looks good · continue|approveVoxelImage|previewApproved/, 'there is no extra approval step after the address');
+assert.doesNotMatch(property, /Looks good · continue|approveVoxelImage|approvePreviewAndBuildVoxel/, 'there is no extra approval step after the address');
 
 assert.match(property, /LocalVoxelModelViewer imageUrl=\{photoUrl\} sourceImageUrl=\{photoUrl\} onReady=\{saveFinishedVoxel\}/, '3D voxel builds directly from the uploaded house photo');
 assert.match(localViewer, /const GRID = 32/, 'building voxel keeps the higher-detail local grid');
