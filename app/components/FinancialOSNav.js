@@ -14,8 +14,7 @@ import {
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
-  // The property maker intentionally mirrors the ultra-condensed VoxelPop screen.
-  // Its own large actions are the navigation; a second fixed dock would duplicate controls.
+  // The property maker intentionally stays ultra-condensed; its large actions are its navigation.
   if (pathname === '/property') return null;
   const simple = isSimplePropertyRoute(pathname);
   const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
@@ -23,83 +22,21 @@ export default function FinancialOSNav() {
 
   return (
     <>
-      <div aria-hidden="true" style={{ height: 'calc(82px + env(safe-area-inset-bottom))' }} />
-      <nav aria-label="Voxel Vault primary navigation" style={{ ...styles.nav, gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))`, ...(simple ? styles.simpleNav : {}) }}>
+      <div aria-hidden="true" className="vvDockSpacer" />
+      <nav aria-label="Voxel Vault primary navigation" className={`vvDock ${simple ? 'vvDockSimple' : ''}`} style={{ gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))` }}>
         {dock.map((item) => {
           const selected = item.id === active.id;
           return (
-            <Link
-              key={item.id}
-              href={item.href}
-              aria-current={selected ? 'page' : undefined}
-              style={{ ...styles.item, ...(selected ? styles.itemActive : {}) }}
-            >
-              <span style={{ ...styles.icon, ...(selected ? styles.iconActive : {}) }}>{item.icon}</span>
-              <b style={{ ...styles.label, ...(selected ? styles.labelActive : {}) }}>{item.label}</b>
+            <Link key={item.id} href={item.href} aria-current={selected ? 'page' : undefined} className={`vvDockItem ${selected ? 'vvDockItemActive' : ''}`}>
+              <span className="vvDockIcon" aria-hidden="true">{item.icon}</span>
+              <b className="vvDockLabel">{item.label}</b>
             </Link>
           );
         })}
       </nav>
+      <style jsx global>{`
+        .vvDockSpacer{height:calc(90px + env(safe-area-inset-bottom))}.vvDock{position:fixed;z-index:90;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(600px,calc(100vw - 18px));display:grid;gap:5px;padding:7px;box-sizing:border-box;border:1px solid rgba(75,48,89,.13);border-radius:25px;background:rgba(255,252,247,.92);box-shadow:0 20px 58px rgba(50,29,61,.20),0 1px 0 rgba(255,255,255,.95) inset;backdrop-filter:blur(24px) saturate(1.35);-webkit-backdrop-filter:blur(24px) saturate(1.35);font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,sans-serif}.vvDockSimple{width:min(480px,calc(100vw - 18px))}.vvDockItem{position:relative;min-width:0;min-height:55px;display:grid;place-items:center;align-content:center;gap:3px;padding:5px 3px;border-radius:18px;color:#756b79;text-decoration:none;border:1px solid transparent;touch-action:manipulation;overflow:hidden}.vvDockItem:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(124,77,255,.08),rgba(202,255,89,.08));opacity:0;transition:opacity .15s ease}.vvDockItemActive{color:#fff;border-color:rgba(87,43,204,.24);background:linear-gradient(160deg,#8557ff,#6734e8);box-shadow:0 4px 0 #4d20be,0 9px 20px rgba(103,52,232,.24)}.vvDockItemActive:before{opacity:1}.vvDockIcon,.vvDockLabel{position:relative;z-index:1}.vvDockIcon{min-width:29px;height:27px;padding:0 6px;border-radius:10px;display:grid;place-items:center;font-size:11px;font-weight:1000;letter-spacing:-.04em;color:#766d7c;background:rgba(105,78,118,.07)}.vvDockItemActive .vvDockIcon{color:#31420f;background:#caff59;box-shadow:0 2px 0 rgba(85,119,13,.18)}.vvDockLabel{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:9px;line-height:1.05;white-space:nowrap}.vvDockItemActive .vvDockLabel{color:#fff}@media(hover:hover){.vvDockItem:hover:not(.vvDockItemActive){background:rgba(124,77,255,.055);color:#4c3d54}}@media(max-width:520px){.vvDock{bottom:max(7px,env(safe-area-inset-bottom));width:calc(100vw - 12px);gap:2px;padding:5px;border-radius:22px}.vvDockSimple{width:calc(100vw - 12px)}.vvDockItem{min-height:52px;border-radius:16px;padding-inline:1px}.vvDockIcon{min-width:25px;height:24px;font-size:9px;padding:0 4px}.vvDockLabel{font-size:8px}.vvDockSpacer{height:calc(82px + env(safe-area-inset-bottom))}}
+      `}</style>
     </>
   );
 }
-
-const styles = {
-  nav: {
-    position: 'fixed',
-    zIndex: 90,
-    left: '50%',
-    bottom: 'max(10px, env(safe-area-inset-bottom))',
-    transform: 'translateX(-50%)',
-    width: 'min(590px, calc(100vw - 18px))',
-    display: 'grid',
-    gap: 4,
-    padding: 6,
-    boxSizing: 'border-box',
-    border: '1px solid rgba(72,48,85,.12)',
-    borderRadius: 23,
-    background: 'rgba(255,251,244,.94)',
-    boxShadow: '0 18px 52px rgba(48,31,57,.2), 0 1px 0 rgba(255,255,255,.85) inset',
-    backdropFilter: 'blur(22px)',
-    WebkitBackdropFilter: 'blur(22px)',
-    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  simpleNav: {
-    width: 'min(430px, calc(100vw - 18px))',
-  },
-  item: {
-    minWidth: 0,
-    minHeight: 52,
-    display: 'grid',
-    placeItems: 'center',
-    alignContent: 'center',
-    gap: 3,
-    padding: '6px 4px',
-    borderRadius: 17,
-    color: '#2a2030',
-    textDecoration: 'none',
-    border: '1px solid transparent',
-    touchAction: 'manipulation',
-  },
-  itemActive: {
-    border: '1px solid rgba(92,48,218,.2)',
-    background: 'linear-gradient(180deg, #7d42ff, #6630e9)',
-    boxShadow: '0 4px 0 #4d1bc5, 0 8px 18px rgba(103,54,223,.2)',
-  },
-  icon: {
-    minWidth: 28,
-    height: 26,
-    padding: '0 6px',
-    borderRadius: 9,
-    display: 'grid',
-    placeItems: 'center',
-    fontSize: 10,
-    fontWeight: 950,
-    letterSpacing: '-.04em',
-    color: '#766d7c',
-    background: 'rgba(105,78,118,.07)',
-  },
-  iconActive: { color: '#2e400c', background: '#c9ff54' },
-  label: { fontSize: 9, lineHeight: 1.05, color: '#756d7a' },
-  labelActive: { color: '#fff' },
-};
