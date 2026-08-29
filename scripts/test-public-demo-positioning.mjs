@@ -17,15 +17,15 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /Try the sample · no login/, 'home must show product value before Google sign-in');
+assert.match(home, /Try 3D sample · no login/, 'home must show product value before Google sign-in');
 assert.match(home, /href="\/demo"/, 'home must link to the public product sample');
-assert.match(home, /Create my VoxelPop · \$4\.99/, 'home must keep the paid creation price visible');
-assert.match(home, /3D voxel photo[\s\S]*movable 3D voxel/i, 'home must preserve voxel-photo-before-model positioning');
+assert.match(home, /Start VoxelPop · \$4\.99/, 'home must keep the paid creation price visible');
+assert.match(home, /3D preview[\s\S]*Movable 3D voxel/i, 'home must preserve 3D-review-before-movable-voxel positioning');
 assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product preview instead of decorative art');
 assert.match(homePreview, /PhotoReliefModelViewer/, 'home product proof must use the production voxel-photo viewer');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production local voxel viewer');
 assert.match(homePreview, /House photo/, 'home preview must expose the source-photo state');
-assert.match(homePreview, /3D voxel photo/, 'home preview must name the intermediate voxel-photo state');
+assert.match(homePreview, /3D preview/, 'home preview must name the intermediate 3D review state');
 assert.match(homePreview, /Movable 3D voxel/, 'home preview must name the final movable-model state');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
@@ -34,12 +34,14 @@ assert.match(home, /About/, 'home footer must expose About/contact information')
 assert.match(photoViewer, /getImageData\(0, 0, columns, rows\)/, 'voxel-photo stage must sample visible source-image colors');
 assert.match(photoViewer, /new THREE\.InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
 assert.match(photoViewer, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage must use real block geometry');
-assert.match(photoViewer, /const depth = 0\.42/, 'voxel-photo blocks must have meaningful inspectable depth');
+assert.match(photoViewer, /const longSide = compact \? 50 : 64/, 'likeness review must keep enough source samples to preserve property details');
+assert.match(photoViewer, /const depth = clamp\(0\.30 \+ edge \* 0\.34 \+ \(1 - light\) \* 0\.08, 0\.30, 0\.72\)/, 'voxel-photo blocks must have bounded inspectable depth without over-warping the facade');
+assert.match(photoViewer, /dummy\.position\.set\(xPos, yPos, -depth \* 0\.5\)/, 'voxel fronts must share one source-photo plane while relief extends backward');
 assert.match(photoViewer, /edge \* 0\.34/, 'voxel depth should respond to visible image structure instead of staying paper-thin');
 assert.doesNotMatch(photoViewer, /backingGeometry/, 'the voxel photo must not be mounted to a rectangular picture backing');
 assert.match(photoViewer, /plinthGeometry/, 'the voxel object may stand on a small floor reference without becoming a backed picture');
-assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo preview must keep the original source visible for comparison');
-assert.match(photoViewer, /PHOTO-MATCHED BLOCKS/, 'viewer must identify the source-faithful output as real blocks, not a styled image');
+assert.match(photoViewer, /ORIGINAL PHOTO · COMPARE/, 'voxel-photo preview must keep the original source visible for comparison');
+assert.match(photoViewer, /SOURCE-MATCHED FRONT/, 'viewer must identify the source-faithful front view as the likeness reference');
 assert.match(photoViewer, /ArrowLeft|ArrowRight/, '3D voxel photo must support keyboard inspection as well as drag input');
 assert.match(photoViewerStyles, /focus-visible/, '3D viewer must keep a visible keyboard focus treatment');
 
@@ -74,5 +76,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: sample-first product proof, real photo-matched 3D voxel geometry without a picture backing, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
+console.log('Public VoxelPop positioning checks passed: sample-first product proof, high-fidelity photo-matched 3D voxel geometry without a picture backing, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
 await import('./test-public-surface-coherence.mjs');

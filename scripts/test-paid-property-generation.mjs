@@ -64,12 +64,17 @@ assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credit
 assert.match(photoPreview, /getImageData\(0, 0, columns, rows\)/, '3D voxel photo samples the selected source image into voxel data');
 assert.match(photoPreview, /new THREE\.InstancedMesh/, '3D voxel photo renders real block geometry');
 assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, '3D voxel photo is composed of physical cubes');
-assert.match(photoPreview, /const depth = 0\.42/, '3D voxel photo has meaningful block depth instead of a flat picture body');
+assert.match(photoPreview, /const longSide = compact \? 50 : 64/, 'likeness review keeps a substantially denser source-sampled voxel grid');
+assert.match(photoPreview, /const depth = clamp\(0\.30 \+ edge \* 0\.34 \+ \(1 - light\) \* 0\.08, 0\.30, 0\.72\)/, '3D voxel photo keeps shallow bounded relief instead of exaggerating facade geometry');
+assert.match(photoPreview, /dummy\.position\.set\(xPos, yPos, -depth \* 0\.5\)/, 'all voxel fronts share the source-photo plane and depth extrudes backward for likeness');
+assert.match(photoPreview, /THREE\.NoToneMapping/, 'source-photo color matching is not shifted by cinematic tone mapping');
 assert.match(photoPreview, /voxels\.setColorAt\(instance, color\)/, 'voxel-photo colors remain tied to the source image');
-assert.match(photoPreview, /ORIGINAL PHOTO/, 'the original photo remains visible for a direct likeness check');
+assert.match(photoPreview, /SOURCE-MATCHED FRONT/, 'review UI tells the user the front view is the likeness reference');
+assert.match(photoPreview, /ORIGINAL PHOTO · COMPARE/, 'the original photo remains visible for a direct likeness check');
 assert.doesNotMatch(photoPreview, /backingGeometry/, '3D voxel photo must not be mounted to a rectangular picture backing');
 assert.match(photoPreview, /plinthGeometry/, 'voxel photo may use a floor reference without becoming a backed picture');
 assert.match(photoPreview, /targetY = clamp/, 'voxel-photo rotation is deliberately bounded so unseen sides are not presented as known');
+assert.match(photoPreview, /-0\.38, 0\.38/, 'voxel-photo rotation stays tighter than a free-spinning model during likeness review');
 
 assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-detail 32-cell local voxel grid');
 assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
@@ -103,4 +108,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> real photo-matched 3D voxel-photo review -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> high-fidelity source-plane 3D voxel-photo review -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
