@@ -78,7 +78,7 @@ function generationResult(input: {
       progress: Number(input.progress || 0),
     },
     recoveryMode: input.recoveryMode === true,
-    privacy: 'The selected photo stayed on the customer device through Stripe checkout. After payment, Voxel Vault verifies its SHA-256 fingerprint and sends it directly to the 3D provider for this paid generation; Voxel Vault does not require a private checkout Storage bucket for the source photo.',
+    privacy: 'The selected photo stayed on the customer device through Stripe checkout. After payment, Voxel Vault verifies its SHA-256 fingerprint and sends it directly to the 3D provider for this paid generation. Voxel Vault does not store the original source photo in its Storage bucket for this flow and does not require a private checkout Storage bucket.',
   };
 }
 
