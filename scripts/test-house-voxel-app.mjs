@@ -15,6 +15,7 @@ const mintPrepareApi = read('app/api/property-voxel-nft/prepare/route.ts');
 const mintConfirmApi = read('app/api/property-voxel-nft/confirm/route.ts');
 
 assert.match(route, /HouseVoxelApp/, '/property must render the focused HouseVoxelApp');
+assert.doesNotMatch(route, /<PropertyJourneySimple\b|<PropertyIdentityGate\b/, 'the active route must not render legacy property wrappers around the focused app');
 assert.match(creator, /const steps = \['PHOTO', 'ADDRESS', 'VOXEL IMAGE', '3D VOXEL', 'MINT'\]/, 'creator must expose exactly the requested five-step journey');
 assert.match(creator, /Choose house photo/, 'photo upload must be the first creation action');
 assert.match(creator, /capture="environment"/, 'mobile users should be able to capture a house photo directly');
