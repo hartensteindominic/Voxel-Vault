@@ -20,7 +20,7 @@ export default function Image() {
       <div style={{ width: 360, height: 420, borderRadius: 42, background: 'rgba(255,255,255,.78)', border: '2px solid #e4dbe8', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: '0 24px 55px rgba(83,53,111,.14)' }}>
         <div style={{ position: 'absolute', left: 45, right: 45, bottom: 45, height: 85, borderRadius: 999, background: '#9dd35e', display: 'flex' }}/>
         <div style={{ width: 235, height: 220, position: 'relative', display: 'flex' }}>
-          <div style={{ position: 'absolute', left: 28, top: 24, width: 180, height: 92, background: '#6f3df4', clipPath: 'polygon(50% 0,100% 68%,80% 100%,20% 100%,0 68%)', display: 'flex' }}/>
+          <div style={{ position: 'absolute', left: 45, top: 34, width: 145, height: 64, borderRadius: 18, background: '#6f3df4', transform: 'rotate(-8deg)', boxShadow: '10px 10px 0 #4c258f', display: 'flex' }}/>
           <div style={{ position: 'absolute', left: 48, top: 102, width: 145, height: 105, borderRadius: 8, background: '#f0d6a8', boxShadow: '14px 14px 0 #b58e60', display: 'flex' }}>
             <div style={{ position: 'absolute', left: 19, top: 28, width: 31, height: 31, background: '#73c8e4', border: '6px solid #fff3d8', display: 'flex' }}/>
             <div style={{ position: 'absolute', right: 19, top: 28, width: 31, height: 31, background: '#73c8e4', border: '6px solid #fff3d8', display: 'flex' }}/>
