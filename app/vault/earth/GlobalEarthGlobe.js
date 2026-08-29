@@ -44,6 +44,8 @@ export default function GlobalEarthGlobe({
 }) {
   const [streamedBuildings, setStreamedBuildings] = useState([]);
   const [streaming, setStreaming] = useState(false);
+  const [visitedCount, setVisitedCount] = useState(0);
+  const [lastCoverage, setLastCoverage] = useState(null);
   const visitedRef = useRef(new Map());
   const inflightRef = useRef(new Set());
   const streamedRef = useRef([]);
@@ -75,6 +77,12 @@ export default function GlobalEarthGlobe({
         const oldest = visitedRef.current.keys().next().value;
         if (oldest) visitedRef.current.delete(oldest);
       }
+      setVisitedCount(visitedRef.current.size);
+      setLastCoverage({
+        tileCount: Number(data.tileCount || 0),
+        buildingCount: Number(data.buildingCount || 0),
+        source: data.coverage?.source || 'Overture Maps Foundation',
+      });
 
       const incoming = Array.isArray(data.buildings) ? data.buildings : [];
       if (incoming.length) {
@@ -111,15 +119,25 @@ export default function GlobalEarthGlobe({
     }
   }, [atlasBuildings, onAtlasSelect, onLocation]);
 
-  return <PlanetStreamGlobe
-    listings={listings}
-    selectedId={selectedId}
-    onSelect={onSelect}
-    atlasBuildings={combinedBuildings}
-    selectedAtlasId={selectedAtlasId}
-    onAtlasSelect={chooseAtlas}
-    onLocation={onLocation}
-    onViewport={streamViewport}
-    streaming={streaming}
-  />;
+  return <div className="worldStreamShell">
+    <PlanetStreamGlobe
+      listings={listings}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      atlasBuildings={combinedBuildings}
+      selectedAtlasId={selectedAtlasId}
+      onAtlasSelect={chooseAtlas}
+      onLocation={onLocation}
+      onViewport={streamViewport}
+      streaming={streaming}
+    />
+    <div className="worldCoverage" aria-live="polite">
+      <div><b>{visitedCount}</b><span>REGIONS VISITED</span></div>
+      <div><b>{streamedBuildings.length}</b><span>STREAMED MAP BUILDINGS</span></div>
+      <div><b>{atlasBuildings.length}</b><span>DETAILED LOCAL BUILDINGS</span></div>
+      <em>MAP REFERENCE · NOT TITLE</em>
+      {lastCoverage ? <small>LAST LOAD · {lastCoverage.tileCount} TILE{lastCoverage.tileCount === 1 ? '' : 'S'} · {lastCoverage.buildingCount} SOURCE BUILDINGS · {lastCoverage.source}</small> : <small>Rotate or tap LOAD HERE to progressively read the visible Overture region.</small>}
+    </div>
+    <style jsx>{`.worldStreamShell{position:absolute;inset:0}.worldCoverage{position:absolute;z-index:4;left:12px;bottom:12px;max-width:min(560px,calc(100% - 24px));display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:8px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(4,10,12,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#edf7f3;pointer-events:none}.worldCoverage div{display:grid;gap:2px;min-width:0;padding:5px 7px;border-radius:10px;background:rgba(255,255,255,.04)}.worldCoverage b{font-size:13px}.worldCoverage span{font-size:6px;letter-spacing:.08em;color:#8fa59e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.worldCoverage em{grid-column:1/-1;font-style:normal;font-size:7px;font-weight:950;letter-spacing:.12em;color:#ffbd98}.worldCoverage small{grid-column:1/-1;font-size:7px;line-height:1.4;color:#849690}@media(max-width:640px){.worldCoverage{left:9px;right:9px;bottom:9px;max-width:none}.worldCoverage b{font-size:11px}.worldCoverage span{font-size:5.5px}.worldCoverage small{display:none}}`}</style>
+  </div>;
 }
