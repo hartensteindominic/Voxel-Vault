@@ -58,7 +58,7 @@ export default function MorePage() {
         <div className={styles.sectionHead}><small>PROPERTY EXTRAS</small><h2>Useful when you need them.</h2><p>These are separate from the normal creation journey.</p></div>
         <div className={styles.quickGrid}>
           <Link className={styles.quickCard} href="/geo/slice"><div className={styles.icon}>¢</div><span className={styles.badge}>DEMO</span><h3>$1.99 Property Sandbox</h3><p>Try hypothetical property-slice math with demo credit only. No real property rights or customer funds move.</p><b>Try demo →</b></Link>
-          <Link className={styles.quickCard} href="/vault#purchased-twins"><div className={styles.icon}>⌂</div><span className={styles.badge}>PURCHASED</span><h3>Purchased Digital Twins</h3><p>Open an account-secured digital purchase and create its included custom voxel when eligible.</p><b>Open purchases →</b></Link>
+          <Link className={styles.quickCard} href="/vault#purchased-twins"><div className={styles.icon}>⌂</div><span className={styles.badge}>PURCHASED</span><h3>My purchased twins</h3><p>Open an account-secured digital purchase and create its included custom voxel when eligible.</p><b>Open purchases →</b></Link>
           <Link className={styles.quickCard} href="/geo"><div className={styles.icon}>⌖</div><span className={styles.badge}>MAP DATA</span><h3>Property details</h3><p>Inspect map, building, parcel, and evidence context without treating it as title or ownership.</p><b>Open details →</b></Link>
         </div>
       </section>
