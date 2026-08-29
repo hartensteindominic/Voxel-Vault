@@ -18,13 +18,31 @@ function safeSegment(value: unknown, fallback = 'item') {
   return text || fallback;
 }
 
+function bucketMissing(error: any) {
+  const status = Number(error?.statusCode ?? error?.status ?? 0);
+  const message = String(error?.message || error || '');
+  return status === 404 || /bucket.*not found|not found.*bucket|bucket.*does not exist/i.test(message);
+}
+
 async function ensureBucket(admin: any) {
-  const { data, error } = await admin.storage.listBuckets();
-  if (!error && data?.some((bucket: any) => bucket.name === BUCKET)) return;
   const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
   if (created.error && !/already exists/i.test(created.error.message || '')) {
-    throw new Error('Private VoxelPop checkout storage could not be prepared.');
+    throw new Error('Private VoxelPop storage is unavailable on this deployment.');
   }
+}
+
+async function uploadStagedPhoto(admin: any, storagePath: string, bytes: Buffer, contentType: string) {
+  const options = { contentType, cacheControl: '0', upsert: true };
+  let uploaded = await admin.storage.from(BUCKET).upload(storagePath, bytes, options);
+  if (!uploaded.error) return;
+
+  if (!bucketMissing(uploaded.error)) {
+    throw new Error('Your photo could not be staged securely for checkout.');
+  }
+
+  await ensureBucket(admin);
+  uploaded = await admin.storage.from(BUCKET).upload(storagePath, bytes, options);
+  if (uploaded.error) throw new Error('Your photo could not be staged securely for checkout.');
 }
 
 export function propertyGenerationStagePath(userId: unknown, draftIdRaw: unknown) {
@@ -42,13 +60,7 @@ export async function stagePaidPropertyPhoto(auth: any, draftIdRaw: unknown, pho
   const bytes = Buffer.from(await photo.arrayBuffer());
   const digest = createHash('sha256').update(bytes).digest('hex');
   const storagePath = propertyGenerationStagePath(auth.user.id, draftId);
-  await ensureBucket(auth.admin);
-  const { error } = await auth.admin.storage.from(BUCKET).upload(storagePath, bytes, {
-    contentType,
-    cacheControl: '0',
-    upsert: true,
-  });
-  if (error) throw new Error('Your photo could not be staged securely for checkout.');
+  await uploadStagedPhoto(auth.admin, storagePath, bytes, contentType);
 
   return {
     draftId,

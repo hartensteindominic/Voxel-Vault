@@ -31,6 +31,11 @@ assert.match(planetGlobe, /time - lastRender < 33/, 'streaming Earth globe must 
 assert.match(planetGlobe, /activePointers\.size >= 2/, 'streaming Earth globe must retain two-finger pinch zoom');
 assert.match(planetGlobe, /IntersectionObserver/, 'streaming Earth globe must pause offscreen');
 assert.match(planetGlobe, /prefers-reduced-motion/, 'streaming Earth globe must respect reduced motion');
+assert.match(planetGlobe, /function selectedFocusPoint\(next = \{\}\)/, 'property World mode must be able to resolve the selected map point without a provider call');
+assert.match(planetGlobe, /targetY = -Number\(point\.longitude\) \* Math\.PI \/ 180/, 'selected property longitude must rotate to the front of the globe');
+assert.match(planetGlobe, /simpleMode \? 10\.9 : 10\.5|compact \? 10\.9 : 10\.5/, 'selected property World mode must use a closer focused camera');
+assert.match(planetGlobe, /if \(simpleMode && focusSelected\(dataRef\.current\)\) return/, 'World reset must return to the selected property instead of an arbitrary global view');
+assert.match(planetGlobe, /PROPERTY WORLD · FOCUSED LOCATION/, 'focused property World mode must explain what the map is showing');
 assert.match(earthGlobe, /MAX_STREAMED_BUILDINGS = 420/, 'client globe cache must remain bounded');
 assert.match(earthGlobe, /MAX_VISITED_REGIONS = 96/, 'visited-region memory must remain bounded');
 assert.match(earthGlobe, /\/api\/world-atlas\/stream/, 'globe must stream visible Earth regions through the bounded API');
@@ -62,4 +67,4 @@ assert.match(realEstateCss, /mobileTabBar/, 'Real estate homepage must expose mo
 assert.match(realEstateCss, /safe-area-inset-bottom/, 'Real estate homepage must account for iPhone safe area');
 assert.match(realEstateCss, /calc\(100% - 22px\)/, 'Real estate mobile shell width must use valid CSS math');
 
-console.log('Mobile WebGL source guard passed: Voxel, GEO, streaming Globe, free open street Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks, bounded caches and rendering limits.');
+console.log('Mobile WebGL source guard passed: Voxel, GEO, focused no-credit property World map, streaming Globe, free open street Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks, bounded caches and rendering limits.');
