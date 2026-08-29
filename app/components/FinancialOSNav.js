@@ -17,12 +17,20 @@ function activeDockItem(pathname) {
   return 'home';
 }
 
+function usesPropertyStudioNavigation(pathname) {
+  return pathname === '/'
+    || pathname === '/property'
+    || pathname.startsWith('/property/')
+    || pathname === '/vault/property-drafts'
+    || pathname.startsWith('/vault/property-drafts/');
+}
+
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
 
-  // Home and the paid creator already use the focused top navigation.
-  if (pathname === '/' || pathname === '/property') return null;
+  // The focused property studio, mint and inventory pages provide their own consistent navigation.
+  if (usesPropertyStudioNavigation(pathname)) return null;
 
   const active = activeDockItem(pathname);
 
