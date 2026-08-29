@@ -14,8 +14,7 @@ import {
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
-  // The property maker intentionally mirrors the ultra-condensed VoxelPop screen.
-  // Its own large actions are the navigation; a second fixed dock would duplicate controls.
+  // The bare property maker keeps its own ultra-condensed VoxelPop controls.
   if (pathname === '/property') return null;
   const simple = isSimplePropertyRoute(pathname);
   const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
@@ -23,17 +22,12 @@ export default function FinancialOSNav() {
 
   return (
     <>
-      <div aria-hidden="true" style={{ height: 'calc(82px + env(safe-area-inset-bottom))' }} />
+      <div aria-hidden="true" style={{ height: 'calc(86px + env(safe-area-inset-bottom))' }} />
       <nav aria-label="Voxel Vault primary navigation" style={{ ...styles.nav, gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))`, ...(simple ? styles.simpleNav : {}) }}>
         {dock.map((item) => {
           const selected = item.id === active.id;
           return (
-            <Link
-              key={item.id}
-              href={item.href}
-              aria-current={selected ? 'page' : undefined}
-              style={{ ...styles.item, ...(selected ? styles.itemActive : {}) }}
-            >
+            <Link key={item.id} href={item.href} aria-current={selected ? 'page' : undefined} style={{ ...styles.item, ...(selected ? styles.itemActive : {}) }}>
               <span style={{ ...styles.icon, ...(selected ? styles.iconActive : {}) }}>{item.icon}</span>
               <b style={{ ...styles.label, ...(selected ? styles.labelActive : {}) }}>{item.label}</b>
             </Link>
@@ -49,57 +43,57 @@ const styles = {
     position: 'fixed',
     zIndex: 90,
     left: '50%',
-    bottom: 'max(10px, env(safe-area-inset-bottom))',
+    bottom: 'max(8px, env(safe-area-inset-bottom))',
     transform: 'translateX(-50%)',
-    width: 'min(590px, calc(100vw - 18px))',
+    width: 'min(590px, calc(100vw - 16px))',
     display: 'grid',
-    gap: 4,
-    padding: 6,
+    gap: 5,
+    padding: 7,
     boxSizing: 'border-box',
-    border: '1px solid rgba(72,48,85,.12)',
-    borderRadius: 23,
-    background: 'rgba(255,251,244,.94)',
-    boxShadow: '0 18px 52px rgba(48,31,57,.2), 0 1px 0 rgba(255,255,255,.85) inset',
-    backdropFilter: 'blur(22px)',
-    WebkitBackdropFilter: 'blur(22px)',
-    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    border: '1px solid rgba(84,64,75,.12)',
+    borderRadius: 25,
+    background: 'rgba(255,252,246,.96)',
+    boxShadow: '0 18px 48px rgba(63,42,76,.16), 0 1px 0 rgba(255,255,255,.95) inset',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    fontFamily: 'Inter, ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
-  simpleNav: {
-    width: 'min(430px, calc(100vw - 18px))',
-  },
+  simpleNav: { width: 'min(470px, calc(100vw - 16px))' },
   item: {
     minWidth: 0,
-    minHeight: 52,
+    minHeight: 54,
     display: 'grid',
     placeItems: 'center',
     alignContent: 'center',
     gap: 3,
-    padding: '6px 4px',
-    borderRadius: 17,
-    color: '#2a2030',
+    padding: '5px 3px',
+    borderRadius: 18,
+    color: '#4b424c',
     textDecoration: 'none',
     border: '1px solid transparent',
     touchAction: 'manipulation',
+    transition: 'transform .12s ease, background .12s ease, box-shadow .12s ease',
   },
   itemActive: {
-    border: '1px solid rgba(92,48,218,.2)',
-    background: 'linear-gradient(180deg, #7d42ff, #6630e9)',
-    boxShadow: '0 4px 0 #4d1bc5, 0 8px 18px rgba(103,54,223,.2)',
+    border: '1px solid rgba(49,145,113,.22)',
+    background: 'linear-gradient(180deg,#efffd5,#dcf7cb)',
+    boxShadow: '0 4px 0 #b7db87, 0 8px 20px rgba(77,125,60,.12)',
+    transform: 'translateY(-1px)',
   },
   icon: {
-    minWidth: 28,
-    height: 26,
-    padding: '0 6px',
-    borderRadius: 9,
+    minWidth: 30,
+    height: 28,
+    padding: '0 7px',
+    borderRadius: 10,
     display: 'grid',
     placeItems: 'center',
-    fontSize: 10,
-    fontWeight: 950,
+    fontSize: 12,
+    fontWeight: 1000,
     letterSpacing: '-.04em',
-    color: '#766d7c',
-    background: 'rgba(105,78,118,.07)',
+    color: '#776d78',
+    background: 'rgba(112,87,119,.07)',
   },
-  iconActive: { color: '#2e400c', background: '#c9ff54' },
-  label: { fontSize: 9, lineHeight: 1.05, color: '#756d7a' },
-  labelActive: { color: '#fff' },
+  iconActive: { color: '#1e7052', background: '#a9e7c8', boxShadow: 'inset 0 -3px 0 rgba(43,131,99,.16)' },
+  label: { fontSize: 9, lineHeight: 1.05, color: '#746b75', fontWeight: 850 },
+  labelActive: { color: '#265d48' },
 };
