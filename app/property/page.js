@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import MeshyModelViewer from '../vault/earth/MeshyModelViewer';
 import PlanetStreamGlobe from '../vault/earth/PlanetStreamGlobe';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
+import {
+  readPropertyCheckoutPhoto,
+  removePropertyCheckoutPhoto,
+  savePropertyCheckoutPhoto,
+} from '../../lib/property-checkout-photo-client';
 import styles from './property.module.css';
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -71,6 +76,17 @@ function selectedOrLocation(atlas, address) {
     mappedIdentityReady: false,
   };
 }
+function buildingHeightMeters(building) {
+  if (typeof building?.height === 'number') return Number(building.height || 0);
+  const value = Number(
+    building?.height?.referenceHeightMeters
+    ?? building?.height?.heightMeters
+    ?? building?.height?.estimatedHeightMeters
+    ?? building?.tags?.height
+    ?? (Number(building?.tags?.['building:levels'] || 0) * 3),
+  );
+  return Number.isFinite(value) ? value : 0;
+}
 function dollars(cents) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(cents || 0) / 100);
 }
@@ -100,8 +116,9 @@ export default function PropertyJourneyPage() {
   const pipelineRef = useRef(0);
   const checkoutHandledRef = useRef('');
 
-  const finalReady = Boolean(final3d?.modelUrl);
-  const sourceReady = Boolean(source3d?.modelUrl);
+  const mapVoxelMode = pipelinePhase === 'map-voxel';
+  const finalReady = Boolean(final3d?.modelUrl) || mapVoxelMode;
+  const sourceReady = Boolean(source3d?.modelUrl) || mapVoxelMode;
   const mapped = Boolean(building && mappedAddress);
   const step = !sourceReference ? 1 : !sourceReady ? 2 : !finalReady ? 3 : !mapped ? 4 : 5;
   const labels = ['PHOTO', 'BUILD', 'VOXEL', 'WORLD', 'COLLECT'];
@@ -110,16 +127,18 @@ export default function PropertyJourneyPage() {
     return [{
       id: 'my-voxel-preview',
       kind: 'community-property',
-      label: 'MY VOXEL · PREVIEW',
+      label: mappedAddress || building?.tags?.name || 'MY VOXEL · PREVIEW',
       latitude: Number(building.latitude),
       longitude: Number(building.longitude),
+      heightMeters: buildingHeightMeters(building),
       geometry: building.geometry || null,
       geometryKind: building.geometry ? 'source-backed-building' : 'location-reference',
-      fidelity: 'private-world-preview',
+      fidelity: mapVoxelMode ? 'source-backed-map-voxel' : 'private-world-preview',
+      mapVoxel: mapVoxelMode,
       minted: false,
       rightsVerified: false,
     }];
-  }, [building]);
+  }, [building, mapVoxelMode, mappedAddress]);
 
   useEffect(() => {
     let active = true;
@@ -166,7 +185,8 @@ export default function PropertyJourneyPage() {
       if (checkoutHandledRef.current === cancelKey) return undefined;
       checkoutHandledRef.current = cancelKey;
       setBusy('');
-      setMessage('Checkout canceled. No paid 3D generation was started.');
+      setMessage('Enhanced 3D checkout canceled. Your no-credit Map Voxel option is still available.');
+      removePropertyCheckoutPhoto(canceledDraftId).catch(() => {});
       fetch(`/api/property-generation/checkout?draftId=${encodeURIComponent(canceledDraftId)}`, {
         method: 'DELETE',
         headers: authHeaders(),
@@ -176,17 +196,20 @@ export default function PropertyJourneyPage() {
     }
 
     const generationSessionId = clean(params.get('generation_session'));
+    const returnDraftId = clean(params.get('draftId'));
     if (!generationSessionId || checkoutHandledRef.current === generationSessionId) return undefined;
     checkoutHandledRef.current = generationSessionId;
     let active = true;
     const iteration = ++pipelineRef.current;
     setBusy('payment-return');
-    setMessage('Payment received. Starting your VoxelPop 3D creation…');
+    setMessage('Payment received. Starting your optional enhanced VoxelPop 3D creation…');
 
     (async () => {
       try {
+        const checkoutPhoto = returnDraftId ? await readPropertyCheckoutPhoto(returnDraftId) : null;
         const form = new FormData();
         form.append('generationSessionId', generationSessionId);
+        if (checkoutPhoto) form.append('photo', checkoutPhoto);
         const response = await fetch('/api/property-photo-upload', {
           method: 'POST',
           headers: authHeaders(),
@@ -194,9 +217,10 @@ export default function PropertyJourneyPage() {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.ok || !data?.reference?.storagePath) {
-          throw new Error(data?.error || 'Your paid 3D creation could not start.');
+          throw new Error(data?.error || 'Your paid enhanced 3D creation could not start.');
         }
         if (!active) return;
+        if (returnDraftId) removePropertyCheckoutPhoto(returnDraftId).catch(() => {});
         setDraftId(data.draftId);
         setSourceReference(data.reference);
         setPendingPhoto(null);
@@ -216,7 +240,7 @@ export default function PropertyJourneyPage() {
         if (active && iteration === pipelineRef.current) {
           setBusy('');
           setPipelinePhase('photo');
-          setMessage(String(error?.message || error || 'Your paid VoxelPop creation could not start.'));
+          setMessage(String(error?.message || error || 'Your paid enhanced VoxelPop creation could not start.'));
         }
       }
     })();
@@ -261,7 +285,7 @@ export default function PropertyJourneyPage() {
       setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return URL.createObjectURL(photo); });
       setPendingPhoto(photo);
       setRightsConfirmed(false);
-      setMessage(`Photo ready. Confirm you can use it, then pay ${CREATION_PRICE_LABEL} to create the complete 3D voxel.`);
+      setMessage('Photo ready. Continue with the no-credit Map Voxel, or choose the optional enhanced AI 3D build.');
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
     } finally { setBusy(''); }
@@ -356,7 +380,7 @@ export default function PropertyJourneyPage() {
       const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
       setFinal3d(finalDone);
       setPipelinePhase('world');
-      setMessage('Your paid voxel is ready. Add the property address to place the reference on My World.');
+      setMessage('Your enhanced voxel is ready. Add the property address to place the reference on My World.');
     } catch (error) {
       if (iteration === pipelineRef.current) {
         setMessage(String(error?.message || error || 'The automatic build stopped.'));
@@ -367,22 +391,52 @@ export default function PropertyJourneyPage() {
     }
   }
 
+  function continueWithMapVoxel() {
+    if (!pendingPhoto || !session?.access_token || !draftId) return;
+    if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
+    pipelineRef.current += 1;
+    const reference = {
+      url: pendingPreview || null,
+      draftId,
+      rightsBasis: 'user-owned',
+      rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it as a visual reference for this digital map voxel.',
+      label: 'Selected property photo',
+      sourcePhotoId: `local-map:${draftId}`,
+      provider: 'voxelpop-source-backed-map',
+      storagePath: `map-voxel:${draftId}`,
+      uploadedAt: new Date().toISOString(),
+    };
+    setSourceReference(reference);
+    setSource3d({ ...empty3d(), status: 'SUCCEEDED', progress: 100, mapVoxel: true });
+    setVoxelJob(emptyImage());
+    setVoxelImage('');
+    setFinal3d({ ...empty3d(), status: 'SUCCEEDED', progress: 100, mapVoxel: true });
+    setBuilding(null);
+    setMappedAddress('');
+    setQuote(null);
+    setAvailability('');
+    setPipelinePhase('map-voxel');
+    setMessage('Map Voxel ready with no AI generation credits. Add the property address to build its source-backed 3D World representation.');
+  }
+
   async function usePhotoAndBuild() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
     setBusy('generation-checkout');
-    setMessage(`Securing your photo and opening ${CREATION_PRICE_LABEL} checkout…`);
+    setMessage(`Opening optional ${CREATION_PRICE_LABEL} enhanced 3D checkout…`);
     try {
+      await savePropertyCheckoutPhoto(draftId, pendingPhoto);
       const form = new FormData();
       form.append('photo', pendingPhoto);
       form.append('draftId', draftId);
       form.append('rightsConfirmed', 'true');
       const response = await fetch('/api/property-generation/checkout', { method: 'POST', headers: authHeaders(), body: form });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok || !data?.url) throw new Error(data?.error || 'Secure 3D creation checkout could not open.');
+      if (!response.ok || !data?.ok || !data?.url) throw new Error(data?.error || 'Secure enhanced 3D checkout could not open.');
       window.location.assign(data.url);
     } catch (error) {
-      setMessage(String(error?.message || error || 'Secure 3D creation checkout could not open.'));
+      await removePropertyCheckoutPhoto(draftId).catch(() => {});
+      setMessage(String(error?.message || error || 'Secure enhanced 3D checkout could not open.'));
       setBusy('');
     }
   }
@@ -415,7 +469,7 @@ export default function PropertyJourneyPage() {
       const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
       setFinal3d(finalDone);
       setPipelinePhase('world');
-      setMessage('Your paid voxel is ready. Add the property address to place the reference on My World.');
+      setMessage('Your enhanced voxel is ready. Add the property address to place the reference on My World.');
     } catch (error) {
       if (iteration === pipelineRef.current) {
         const text = String(error?.message || error || 'Final voxel 3D could not resume.');
@@ -431,7 +485,7 @@ export default function PropertyJourneyPage() {
 
   async function retryBuild() {
     if (pipelinePhase === 'paused-final' && voxelImage && voxelJob?.taskId && voxelJob?.taskToken) return resumeFinal3D();
-    if (!sourceReference) return;
+    if (!sourceReference || mapVoxelMode) return;
     const iteration = ++pipelineRef.current;
     setSource3d(empty3d());
     setVoxelJob(emptyImage());
@@ -471,21 +525,28 @@ export default function PropertyJourneyPage() {
       if (!quoteResponse.ok || !priced?.ok) throw new Error(priced?.error || 'The voxel collection price could not be verified.');
       setQuote(priced.quote);
       setAvailability(priced.availability || 'AVAILABLE');
-      setMessage(priced.sold ? 'This mapped digital voxel has already been collected.' : 'My World preview ready. If it looks right, collect the voxel and save it to your Vault.');
+      setMessage(priced.sold ? 'This mapped digital voxel has already been collected.' : 'My World preview ready. The selected building is focused automatically; collect it if it looks right.');
     } catch (error) {
       setMessage(String(error?.message || error || 'World placement failed.'));
     } finally { setBusy(''); }
   }
 
   async function collectAndSave() {
-    if (!quote || !building?.atlasId || !final3d?.taskId || !session?.access_token) return;
+    if (!quote || !building?.atlasId || !session?.access_token) return;
+    if (!mapVoxelMode && !final3d?.taskId) return;
     setBusy('checkout');
     setMessage('Opening secure checkout for the digital voxel…');
     try {
       const response = await fetch('/api/property-collectible/checkout', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ address: mappedAddress, atlasId: building.atlasId, draftId, modelTaskId: final3d.taskId }),
+        body: JSON.stringify({
+          address: mappedAddress,
+          atlasId: building.atlasId,
+          draftId,
+          representationKind: mapVoxelMode ? 'map-voxel' : 'generated-3d',
+          ...(mapVoxelMode ? {} : { modelTaskId: final3d.taskId }),
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.url) throw new Error(data?.error || 'Checkout could not open.');
@@ -498,6 +559,7 @@ export default function PropertyJourneyPage() {
 
   function resetCreation() {
     pipelineRef.current += 1;
+    removePropertyCheckoutPhoto(draftId).catch(() => {});
     setDraftId(newDraftId());
     setPendingPhoto(null);
     setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
@@ -548,29 +610,30 @@ export default function PropertyJourneyPage() {
       <p className={styles.stageLabel}>STEP {step} OF 5 · {labels[step - 1]}</p>
 
       {step === 1 ? <>
-        <p className={styles.bigPrompt}>{pendingPhoto ? 'Ready to voxel it?' : 'Choose one photo.'}</p>
-        <p className={styles.flowHint}>Photo → {CREATION_PRICE_LABEL} checkout → first 3D → VoxelPop image → final movable 3D → My World.</p>
+        <p className={styles.bigPrompt}>{pendingPhoto ? 'Ready to map it?' : 'Choose one photo.'}</p>
+        <p className={styles.flowHint}>Photo → Map Voxel → My World. No AI credits required. Enhanced AI 3D stays optional.</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
         {displaySource ? <div className={styles.heroCard}><img src={displaySource} alt="Selected property reference"/><span className={styles.badge}>YOUR PHOTO</span></div> : <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>iPhone photos supported</span></div>}
         {pendingPhoto ? <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <span>One-time creation · {CREATION_PRICE_LABEL} · secure Stripe checkout · wallet not required.</span>
-          <button className={styles.primaryPurple} type="button" onClick={usePhotoAndBuild} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening $4.99 checkout…' : 'Pay $4.99 · Use photo → start build'}</button>
+          <span>Map Voxel uses the mapped building footprint/location and available height evidence. It does not spend Meshy credits.</span>
+          <button className={styles.primaryPurple} type="button" onClick={continueWithMapVoxel} disabled={!rightsConfirmed}>Continue with Map Voxel · no AI credits</button>
+          <button className={styles.primaryOrange} type="button" onClick={usePhotoAndBuild} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening $4.99 checkout…' : 'Optional enhanced AI 3D · $4.99'}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another</button>
         </div> : <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>}
-        <p className={styles.truth}>The {CREATION_PRICE_LABEL} charge is for one digital VoxelPop creation, including the generated 3D stages; it does not buy or value the physical property. The authorized photo is staged privately for checkout, then removed from that staging area when the paid provider handoff starts. One photo still cannot verify unseen sides, roof details, exact dimensions, or legal property facts.</p>
+        <p className={styles.truth}>The no-credit Map Voxel is a digital map representation built from source-backed location/footprint/height evidence when available; it is not an AI reconstruction of unseen building details. Optional {CREATION_PRICE_LABEL} enhanced AI 3D uses a separate provider. For that optional checkout, the source photo stays on your device across Stripe and is fingerprint-verified afterward—Voxel Vault no longer creates a private checkout photo bucket. Neither path buys or values the physical property.</p>
       </> : null}
 
       {step === 2 ? <>
         <p className={styles.bigPrompt}>Building the first 3D.</p>
-        <p className={styles.stepCopy}>Payment is verified. VoxelPop is making a 3D interpretation from your authorized photo. When it finishes, the voxel step starts automatically.</p>
+        <p className={styles.stepCopy}>Payment is verified. VoxelPop is making an optional enhanced 3D interpretation from your authorized photo. When it finishes, the voxel step starts automatically.</p>
         <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>PAID 3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
         <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>No extra button. First 3D → VoxelPop look → final 3D voxel.</span></div>
       </> : null}
 
       {step === 3 ? <>
         <p className={styles.bigPrompt}>{pipelinePhase === 'paused-final' ? 'Voxel image ready. Final 3D is paused.' : pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
-        <p className={styles.stepCopy}>The VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.</p>
+        <p className={styles.stepCopy}>The optional enhanced VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.</p>
         <div className={styles.heroCard}>
           {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl}/> : voxelImage ? <img src={voxelImage} alt="VoxelPop property rendering"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : null}
           <span className={styles.badge}>{pipelinePhase === 'voxel-3d' ? `FINAL 3D VOXEL · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL LOOK · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
@@ -581,27 +644,27 @@ export default function PropertyJourneyPage() {
 
       {step === 4 ? <>
         <p className={styles.bigPrompt}>Add the property address.</p>
-        <p className={styles.stepCopy}>Enter the address for the property shown in your photo. We use it to place this digital representation on the map and check its mapped identity.</p>
-        <div className={styles.heroCard}><MeshyModelViewer modelUrl={final3d.modelUrl}/><span className={styles.badge}>VOXEL READY</span></div>
+        <p className={styles.stepCopy}>{mapVoxelMode ? 'Enter the address so VoxelPop can find the source-backed building and build its no-credit 3D map voxel.' : 'Enter the address for the property shown in your photo. We use it to place this digital representation on the map and check its mapped identity.'}</p>
+        <div className={styles.heroCard}>{mapVoxelMode ? (displaySource ? <img src={displaySource} alt="Property reference for map voxel"/> : null) : <MeshyModelViewer modelUrl={final3d.modelUrl}/>}<span className={styles.badge}>{mapVoxelMode ? 'MAP VOXEL · NO AI CREDITS' : 'VOXEL READY'}</span></div>
         <form className={styles.searchForm} onSubmit={placeOnWorld}><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/><button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Checking address…' : 'Verify address + preview'}</button></form>
         <small className={styles.mapNote}>The address helps locate the reference. It is not proof of ownership, title, property value, or an investment offering.</small>
       </> : null}
 
       {step === 5 ? <>
         <p className={styles.bigPrompt}>Your World preview.</p>
-        <p className={styles.stepCopy}>This preview is private to your account. It is not published publicly unless you choose to share it later from Vault.</p>
+        <p className={styles.stepCopy}>{mapVoxelMode ? 'Your selected building is focused automatically in the 3D World. Drag, pinch, zoom, or tap FOCUS to return to it.' : 'This preview is private to your account. It is not published publicly unless you choose to share it later from Vault.'}</p>
         <div className={styles.worldCard}><PlanetStreamGlobe listings={worldListing} selectedId="my-voxel-preview" simpleMode/><span className={styles.worldBadge}>MY WORLD · PRIVATE PREVIEW</span></div>
-        <div className={styles.miniModel}><MeshyModelViewer modelUrl={final3d.modelUrl}/></div>
+        {mapVoxelMode ? <div className={styles.miniModel}>{displaySource ? <img src={displaySource} alt="Source photo for map voxel" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : null}</div> : <div className={styles.miniModel}><MeshyModelViewer modelUrl={final3d.modelUrl}/></div>}
         <div className={styles.priceCard}>
-          <div><small>DIGITAL VOXEL</small><b>{quote?.label || 'World preview'}</b><span>{mappedAddress}</span></div>
+          <div><small>{mapVoxelMode ? 'DIGITAL MAP VOXEL' : 'DIGITAL VOXEL'}</small><b>{quote?.label || 'World preview'}</b><span>{mappedAddress}</span></div>
           <strong>{quote ? dollars(quote.priceCents) : '—'}</strong>
-          {quote ? <p>{quote.explanation} This is the price of the generated digital voxel—not the market value of the house or land.</p> : null}
+          {quote ? <p>{quote.explanation} This is the price of the digital voxel—not the market value of the house or land.</p> : null}
           {availability === 'SOLD' ? <div className={styles.sold}>ALREADY COLLECTED · THIS MAPPED DIGITAL VOXEL IS ONE-OF-ONE</div> : null}
           {!quote && !building?.mappedIdentityReady ? <div className={styles.sold}>PREVIEW ONLY · A SOURCE-BACKED BUILDING ID IS NEEDED BEFORE COLLECTION</div> : null}
           {quote && availability !== 'SOLD' ? <button className={styles.primaryOrange} type="button" onClick={collectAndSave} disabled={busy === 'checkout'}>{busy === 'checkout' ? 'Opening secure checkout…' : `Collect voxel · ${dollars(quote.priceCents)}`}</button> : null}
           <button className={styles.textButton} type="button" onClick={() => { setBuilding(null); setMappedAddress(''); setQuote(null); setAvailability(''); setMessage('Enter the correct property address.'); }}>Change address</button>
         </div>
-        <p className={styles.truth}>The {CREATION_PRICE_LABEL} generation payment covers creating the digital VoxelPop model. Any later collection price shown here is a separate digital-collectible purchase and is not the market value of the physical property. Neither payment nor optional minting creates deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property. Real-property investing can only appear through a separately verified offering.</p>
+        <p className={styles.truth}>{mapVoxelMode ? 'The Map Voxel path uses no Meshy generation credits and stores the mapped representation rather than a generated GLB.' : `The ${CREATION_PRICE_LABEL} enhanced generation payment covers creating the optional AI-generated VoxelPop model.`} Any collection price shown here is a separate digital-collectible purchase and is not the market value of the physical property. Payment or optional minting does not create deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property. Real-property investing can only appear through a separately verified offering.</p>
       </> : null}
 
       {step > 1 && !pipelineRunning ? <button className={styles.change} type="button" onClick={resetCreation}>Start over with another photo</button> : null}
