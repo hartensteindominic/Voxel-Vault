@@ -59,11 +59,15 @@ function voxelImageTaskToken(apiKey: string, userId: string, taskId: string) {
 }
 
 async function displayUrlFor(saved: any) {
+  // Active property generations should display Meshy's current provider URL first.
+  // The persisted private GLB remains the durable fallback for later sessions,
+  // but a stale/missing cache object must never hide a still-valid live model.
+  if (isHttpUrl(saved?.model_url)) return saved.model_url;
   if (saved?.model_storage_path) {
     const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
     if (signed) return signed;
   }
-  return saved?.model_url || null;
+  return null;
 }
 
 function publicState(saved: any, displayModelUrl: string | null = null) {
