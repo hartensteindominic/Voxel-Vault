@@ -14,6 +14,7 @@ export type VoxelMakerSubscriptionRecord = {
   stripeSubscriptionId?: string;
   stripeCheckoutSessionId?: string;
   cancelAtPeriodEnd?: boolean;
+  currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   updatedAt: string;
 };
@@ -30,9 +31,19 @@ function activeStatus(status: unknown) {
   return status === 'active' || status === 'trialing';
 }
 
-function subscriptionPeriodEnd(subscription: Stripe.Subscription) {
-  const unix = Number((subscription as any)?.current_period_end || 0);
+function isoFromUnix(value: unknown) {
+  const unix = Number(value || 0);
   return Number.isFinite(unix) && unix > 0 ? new Date(unix * 1000).toISOString() : null;
+}
+
+function subscriptionPeriod(subscription: Stripe.Subscription) {
+  const items = Array.isArray(subscription.items?.data) ? subscription.items.data : [];
+  const starts = items.map((item: any) => Number(item?.current_period_start || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  const ends = items.map((item: any) => Number(item?.current_period_end || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  return {
+    start: starts.length ? isoFromUnix(Math.min(...starts)) : null,
+    end: ends.length ? isoFromUnix(Math.max(...ends)) : null,
+  };
 }
 
 function decodeRecord(userId: string, row: any): VoxelMakerSubscriptionRecord | null {
@@ -49,6 +60,7 @@ function decodeRecord(userId: string, row: any): VoxelMakerSubscriptionRecord | 
       stripeSubscriptionId: clean(parsed?.stripeSubscriptionId, 160) || undefined,
       stripeCheckoutSessionId: clean(parsed?.stripeCheckoutSessionId, 160) || undefined,
       cancelAtPeriodEnd: Boolean(parsed?.cancelAtPeriodEnd),
+      currentPeriodStart: clean(parsed?.currentPeriodStart, 80) || null,
       currentPeriodEnd: clean(parsed?.currentPeriodEnd, 80) || null,
       updatedAt: clean(parsed?.updatedAt, 80) || String(row.processed_at || ''),
     };
@@ -97,6 +109,7 @@ export async function beginVoxelMakerCheckout(input: {
     stripeSubscriptionId: current?.stripeSubscriptionId,
     stripeCheckoutSessionId: input.checkoutSessionId,
     cancelAtPeriodEnd: current?.cancelAtPeriodEnd || false,
+    currentPeriodStart: current?.currentPeriodStart || null,
     currentPeriodEnd: current?.currentPeriodEnd || null,
     updatedAt: new Date().toISOString(),
   });
@@ -106,6 +119,7 @@ async function recordFromStripeSubscription(userId: string, subscription: Stripe
   const plan = voxelMakerPlan(subscription.metadata?.plan_id || fallback?.planId);
   if (!plan) throw new Error('Voxel Maker subscription plan metadata is missing.');
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+  const period = subscriptionPeriod(subscription);
   return writeVoxelMakerSubscription({
     userId,
     planId: plan.id,
@@ -114,7 +128,8 @@ async function recordFromStripeSubscription(userId: string, subscription: Stripe
     stripeSubscriptionId: subscription.id,
     stripeCheckoutSessionId: fallback?.stripeCheckoutSessionId,
     cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
-    currentPeriodEnd: subscriptionPeriodEnd(subscription),
+    currentPeriodStart: period.start || fallback?.currentPeriodStart || null,
+    currentPeriodEnd: period.end || fallback?.currentPeriodEnd || null,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -156,23 +171,28 @@ export async function getVoxelMakerEntitlement(userId: string) {
   };
 }
 
-function monthStartIso(now = new Date()) {
+function fallbackPeriodStart(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0)).toISOString();
 }
 
-export async function countVoxelMakerGenerations(userId: string) {
+function usagePeriodStart(value?: string | null) {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : fallbackPeriodStart();
+}
+
+export async function countVoxelMakerGenerations(userId: string, periodStart?: string | null) {
   const supabase = getSupabaseAdmin();
   const { count, error } = await supabase
     .from('commerce_webhook_events')
     .select('event_id', { count: 'exact', head: true })
     .eq('provider', GENERATION_PROVIDER)
     .like('event_id', `${userId}:%`)
-    .gte('processed_at', monthStartIso());
+    .gte('processed_at', usagePeriodStart(periodStart));
   if (error) throw error;
   return Math.max(0, Number(count || 0));
 }
 
-export async function hasVoxelMakerGeneration(userId: string, draftId: string) {
+export async function hasVoxelMakerGeneration(userId: string, draftId: string, periodStart?: string | null) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('commerce_webhook_events')
@@ -182,7 +202,7 @@ export async function hasVoxelMakerGeneration(userId: string, draftId: string) {
     .maybeSingle();
   if (error) throw error;
   if (!data?.event_id) return false;
-  return String(data.processed_at || '') >= monthStartIso();
+  return String(data.processed_at || '') >= usagePeriodStart(periodStart);
 }
 
 export async function registerVoxelMakerGeneration(input: { userId: string; draftId: string; planId: VoxelMakerPlanId; address?: string }) {
@@ -194,6 +214,6 @@ export async function registerVoxelMakerGeneration(input: { userId: string; draf
     event_id: eventId,
     event_type: JSON.stringify({ userId: input.userId, draftId: input.draftId, planId: input.planId, address: clean(input.address, 220) || null }),
     processed_at: now,
-  }, { onConflict: 'provider,event_id', ignoreDuplicates: true });
+  }, { onConflict: 'provider,event_id' });
   if (error) throw error;
 }
