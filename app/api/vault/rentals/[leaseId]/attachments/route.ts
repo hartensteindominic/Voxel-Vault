@@ -26,6 +26,27 @@ function clean(value: unknown, max = 180) {
   return String(value || '').trim().slice(0, max);
 }
 
+function finite(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function boundedTransform(value: any) {
+  const position = Array.isArray(value?.position) ? value.position : [];
+  const rotation = Array.isArray(value?.rotation) ? value.rotation : [];
+  const scale = Array.isArray(value?.scale) ? value.scale : [];
+  const uniformScale = clamp(finite(scale[0], 1), 0.3, 2.2);
+  return {
+    position: [clamp(finite(position[0]), -3.45, 3.45), 0, clamp(finite(position[2]), -2.45, 2.45)],
+    rotation: [0, clamp(finite(rotation[1]), -Math.PI * 8, Math.PI * 8), 0],
+    scale: [uniformScale, uniformScale, uniformScale],
+  };
+}
+
 function currentNftConfig() {
   const contract = clean(process.env.NEXT_PUBLIC_VOXEL_NFT_ADDRESS, 80);
   const rpc = clean(
@@ -172,6 +193,47 @@ export async function POST(request: Request, context: Context) {
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Tenant voxel attachment failed.' }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: Request, context: Context) {
+  const auth = await requireVoxelVaultUser(request);
+  if (auth.ok === false) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+
+  try {
+    const { leaseId: rawLeaseId } = await context.params;
+    const leaseId = clean(rawLeaseId, 80);
+    const body = await request.json().catch(() => ({}));
+    const attachmentId = clean(body?.attachmentId, 80);
+    if (!leaseId || !attachmentId) return NextResponse.json({ ok: false, error: 'Attachment ID is required.' }, { status: 400 });
+
+    const lease = await ownLease(auth.admin, auth.user.id, leaseId);
+    if (!lease) return NextResponse.json({ ok: false, error: 'That rental is not in your Vault.' }, { status: 404 });
+    if (!canTenantUseProperty({ status: lease.status, leaseVerifiedAt: lease.lease_verified_at, terminationVerifiedAt: lease.termination_verified_at })) {
+      return NextResponse.json({ ok: false, error: 'An ended or unverified tenant layer is read-only.' }, { status: 409 });
+    }
+
+    const transform = boundedTransform(body?.transform);
+    const { data, error } = await auth.admin
+      .from('vault_tenant_voxel_attachments')
+      .update({ placed_transform: transform })
+      .eq('id', attachmentId)
+      .eq('lease_id', leaseId)
+      .eq('tenant_user_id', auth.user.id)
+      .eq('status', 'active')
+      .select('id,lease_id,voxel_session_id,token_id,voxel_name,status,placed_transform,created_at,archived_at')
+      .maybeSingle();
+    if (error) throw new Error('The room layout could not be saved.');
+    if (!data) return NextResponse.json({ ok: false, error: 'That voxel is not an active item in this rental.' }, { status: 404 });
+
+    return NextResponse.json({
+      ok: true,
+      attachment: data,
+      transformBounded: true,
+      truth: 'This saves only the renter decoration layer. Canonical property geometry is unchanged.',
+    }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Room layout save failed.' }, { status: 400 });
   }
 }
 
