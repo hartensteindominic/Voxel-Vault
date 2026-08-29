@@ -9,8 +9,6 @@ const property = read('app/property/page.js');
 const propertyCss = read('app/property/property.module.css');
 const success = read('app/property/success/page.js');
 const photoUploadRoute = read('app/api/property-photo-upload/route.ts');
-const supabaseAdmin = read('lib/supabase-admin.ts');
-const storageMigration = read('supabase/migrations/022_voxel_system_storage_bucket.sql');
 const voxelImageRoute = read('app/api/property-voxel-image/route.ts');
 const voxel3dRoute = read('app/api/property-voxel-3d/route.ts');
 const generationIds = read('lib/property-generation-ids.ts');
@@ -56,13 +54,27 @@ assert.match(property, /Choose one photo\./, 'first signed-in step must be photo
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone HEIC preparation remains automatic');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo must require rights confirmation');
-assert.match(property, /form\.append\('draftId', draftId\)/, 'photo-first upload must use an account-bound creation ID before map placement');
+assert.match(property, /form\.append\('draftId', draftId\)/, 'photo-first handoff must use an account-bound creation ID before map placement');
 assert.match(property, /Use photo → start build/, 'one photo approval must start the automatic generation journey');
 assert.doesNotMatch(property, /Use this street photo/, 'simple journey should not branch into a street-photo chooser');
 
+// Normal source-photo creation goes directly to the provider and must not depend on Supabase Storage.
+assert.match(photoUploadRoute, /requireVoxelVaultUser/, 'photo handoff requires a verified account');
+assert.match(photoUploadRoute, /rightsConfirmed/, 'server enforces source-photo rights confirmation');
+assert.match(photoUploadRoute, /data:\$\{photo\.type\};base64/, 'authorized source photo must become an inline provider input');
+assert.match(photoUploadRoute, /createHash\('sha256'\)/, 'source photo must receive a non-reversible fingerprint');
+assert.match(photoUploadRoute, /source_image_url: sourceFingerprint/, 'account generation records retain the fingerprint rather than source photo bytes');
+assert.match(photoUploadRoute, /meshy-property-direct-photo-to-3d/, 'direct photo source generation must have an explicit provider marker');
+assert.match(photoUploadRoute, /storagePath: `meshy-source:\$\{taskId\}`/, 'UI handoff uses an opaque account-bound direct-job reference');
+assert.match(photoUploadRoute, /does not store the original source photo in its Storage bucket/, 'privacy disclosure must accurately describe the storage-free source path');
+assert.doesNotMatch(photoUploadRoute, /storage\.from\(|createBucket\(|createSignedUrl\(|PrivateStorageError|getSupabaseAdminCandidates/, 'normal VoxelPop source creation must not require Supabase Storage administration');
+
 // Automatic source 3D -> voxel style -> final 3D.
-assert.match(property, /phase: 'source'/, 'original authorized photo must create the first 3D phase');
-assert.match(property, /sourceStoragePath: reference\.storagePath/, 'source 3D must use the private account-owned upload path');
+assert.match(property, /phase: 'source'/, 'automatic pipeline must continue through the first 3D source phase');
+assert.match(property, /sourceStoragePath: reference\.storagePath/, 'source continuation passes the opaque account-bound direct-job reference');
+assert.match(voxel3dRoute, /sourceStoragePath\.startsWith\('meshy-source:'\)/, '3D route must recognize a pre-started direct-photo job');
+assert.match(voxel3dRoute, /directJob\.item_id !== itemId/, 'pre-started source job must remain bound to the signed-in user and draft');
+assert.match(voxel3dRoute, /directPhoto: true/, 'direct-photo continuation must be explicit in the server response');
 assert.match(property, /source3dTaskId: sourceDone\.taskId/, 'voxel styling must use the completed 3D preview');
 assert.match(property, /voxelImageTaskId: voxelDone\.taskId/, 'final 3D must use the verified voxel-image task');
 assert.match(property, /phase: 'voxel'/, 'final 3D must have a distinct voxel phase');
@@ -70,31 +82,13 @@ assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3
 assert.match(property, /MeshyModelViewer/, 'generated source/final models must be viewable interactively');
 assert.doesNotMatch(property, /eth_requestAccounts|mintVoxelFlip/, 'wallet/mint execution must not block the guided maker');
 
-// Private upload must fail clearly and recover from storage races/credential configuration.
-assert.match(photoUploadRoute, /requireVoxelVaultUser/, 'photo upload requires a verified account');
-assert.match(photoUploadRoute, /draftId/, 'photo upload must support creation-before-location');
-assert.match(photoUploadRoute, /public:\s*false/, 'source-photo bucket creation stays private');
-assert.match(photoUploadRoute, /createSignedUrl/, 'providers receive short-lived source-photo access');
-assert.match(photoUploadRoute, /rightsConfirmed/, 'server enforces source-photo rights confirmation');
-assert.match(photoUploadRoute, /PrivateStorageError/, 'storage infrastructure failures must be distinguishable from bad user input');
-assert.match(photoUploadRoute, /randomUUID/, 'retries must use a unique private object name instead of overwriting one deterministic path');
-assert.match(photoUploadRoute, /upsert:\s*false/, 'property photo uploads should be insert-only');
-assert.match(photoUploadRoute, /attempt < 2/, 'private photo upload must retry once after re-checking storage');
-assert.match(photoUploadRoute, /setupRequired/, 'storage setup failures must be surfaced explicitly');
-assert.match(photoUploadRoute, /getSupabaseAdminCandidates/, 'private storage should try every configured supported server credential');
-assert.match(supabaseAdmin, /getSupabaseAdminCandidates/, 'Supabase server helper must expose credential candidates');
-assert.match(supabaseAdmin, /SUPABASE_SECRET_KEY/, 'new Supabase server secret must remain supported');
-assert.match(supabaseAdmin, /SUPABASE_SERVICE_ROLE_KEY/, 'legacy service-role credential must remain supported');
-assert.match(storageMigration, /'voxel-system', 'voxel-system', false, 78643200/, 'migration must guarantee the private voxel-system bucket');
-assert.match(storageMigration, /on conflict \(id\) do update/, 'storage bucket migration must be idempotent');
-
 assert.match(generationIds, /property-create:/, 'photo-first phases use separate account-scoped creation IDs');
 assert.match(generationIds, /propertyGenerationUserScope/, 'generation IDs must hash/scope by user');
 assert.match(voxel3dRoute, /phase === 'source'/, '3D route must support the source-photo 3D phase');
 assert.match(voxel3dRoute, /propertyDraftItemId\(auth\.user\.id, draftId, phase\)/, '3D phase records must be user- and draft-bound');
 assert.match(voxel3dRoute, /propertyGenerationItemBelongsToUser/, '3D polling must reject other users jobs');
 assert.match(voxel3dRoute, /verifiedVoxelImageUrl/, 'final voxel 3D must verify the account-bound voxel-image task');
-assert.match(voxel3dRoute, /persistModelBinary/, 'completed GLBs must be persisted');
+assert.match(voxel3dRoute, /persistModelBinary/, 'completed GLBs should still attempt durable persistence while retaining provider URL fallback');
 assert.match(voxelImageRoute, /generated3DReference/, 'voxel style pass must reference the completed source 3D');
 assert.match(voxelImageRoute, /propertyDraftItemId\(userId, draftId, 'source'\)/, 'voxelizer must verify the exact source-3D creation record');
 assert.match(voxelImageRoute, /licensed-derivative/, 'generated 3D preview must carry explicit derivative-rights classification');
@@ -167,4 +161,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'fixed app dock stays out of the guided maker');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> first 3D -> automatic voxel styling -> final 3D voxel -> address verification -> private My World preview -> server-priced digital collection -> Vault -> optional verified mint, with resilient private storage and real-property rights kept separate.');
+console.log('Guided VoxelPop property checks passed: sign in -> authorized photo -> direct source 3D -> automatic voxel styling -> final 3D voxel -> address verification -> private My World preview -> server-priced digital collection -> Vault -> optional verified mint, without requiring source-photo bucket storage and with real-property rights kept separate.');
