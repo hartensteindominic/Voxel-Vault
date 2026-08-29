@@ -8,9 +8,9 @@ export const maxDuration = 60;
 const STALE_AFTER_MS = 25 * 60 * 1000;
 
 function authorized(request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) return request.headers.get('authorization') === `Bearer ${secret}`;
-  return /vercel-cron/i.test(request.headers.get('user-agent') || '');
+  const secret = String(process.env.CRON_SECRET || '').trim();
+  if (!secret) return null;
+  return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
 function terminalFailure(row) {
@@ -28,7 +28,11 @@ function isStale(row) {
 }
 
 export async function GET(request) {
-  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = authorized(request);
+  if (auth === null) {
+    return NextResponse.json({ error: 'Cron authentication is not configured.' }, { status: 503 });
+  }
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const health = await catalog3DStoreHealth();
   if (!health.ready) {
