@@ -16,6 +16,11 @@ export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
 
+  // Home and the paid VoxelPop creator already have their own focused top
+  // navigation. Showing a second five-item dock here made the core funnel feel
+  // like an operating system instead of one clear product, especially on iPhone.
+  if (pathname === '/' || pathname === '/property' || pathname.startsWith('/property/')) return null;
+
   const simple = isSimplePropertyRoute(pathname);
   const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
   const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);
