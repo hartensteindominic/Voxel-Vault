@@ -95,7 +95,7 @@ assert.match(property, /\/api\/property-collectible\/quote/, 'server quote follo
 assert.match(property, /Buy & save/, 'buy action should promise the post-payment Vault handoff');
 
 // Variable pricing is digital-build complexity only, never a real-estate appraisal.
-for (const cents of ['999', '1499', '1999']) assert.match(collectibleCommerce, new RegExp(`priceCents: ${cents}`), 'three simple digital build price tiers must remain');
+for (const cents of ['199', '299', '399']) assert.match(collectibleCommerce, new RegExp(`priceCents: ${cents}`), 'three simple low-cost digital build price tiers must remain');
 for (const tier of ['classic', 'detailed', 'landmark']) assert.match(collectibleCommerce, new RegExp(`tier: '${tier}'`), `pricing must include ${tier}`);
 assert.match(collectibleCommerce, /footprintPoints/, 'pricing may use source-backed mapped footprint complexity');
 assert.match(collectibleCommerce, /heightMeters/, 'pricing may use source-backed mapped height complexity');
@@ -106,7 +106,9 @@ assert.match(quoteRoute, /digital build complexity, not the market value of the 
 assert.match(collectibleCommerce, /propertyCollectibleIdentity/, 'purchase uniqueness must use a server-derived World identity key');
 assert.match(collectibleCommerce, /atlasId\.startsWith\('location:'\)/, 'fallback coordinates cannot become a once-only property identity');
 assert.match(collectibleCommerce, /state === 'paid' \|\| state === 'minted'/, 'paid/minted reservations remain permanently locked');
-assert.match(checkoutRoute, /propertyDraftItemId\(auth\.user\.id, draftId, 'voxel'\)/, 'checkout must verify the final model belongs to the buyer and creation');
+assert.match(collectibleCommerce, /verifyOwnedFinalVoxelModel/, 'shared commerce helper must verify the exact final voxel model belongs to the buyer creation');
+assert.match(collectibleCommerce, /propertyDraftItemId\(input\.userId, draftId, 'voxel'\)/, 'final model proof must resolve to the account-scoped voxel phase');
+assert.match(checkoutRoute, /verifyOwnedFinalVoxelModel/, 'checkout must verify the final model belongs to the buyer and creation');
 assert.match(checkoutRoute, /quotePropertyCollectible\(building\)/, 'checkout recomputes price on the server');
 assert.match(checkoutRoute, /kind: 'property_voxel_collectible'/, 'Stripe metadata must identify this product rail');
 assert.match(checkoutRoute, /digital_only_no_real_property_rights/, 'Stripe checkout metadata preserves digital-only rights');
@@ -114,6 +116,7 @@ assert.match(checkoutRoute, /optional_after_purchase_and_property_verification/,
 assert.match(checkoutRoute, /success_url: `\$\{appUrl\}\/property\/success/, 'payment returns through the Vault delivery page');
 assert.match(webhook, /secureStripePropertyCollectiblePurchase/, 'signed Stripe webhook must independently secure the purchase');
 assert.match(completeRoute, /secureStripePropertyCollectiblePurchase/, 'success path must re-verify Stripe payment and buyer');
+assert.match(completeRoute, /verifyOwnedFinalVoxelModel/, 'success delivery must reopen only the purchased account-owned model');
 assert.match(success, /savePropertyDraftToAccount/, 'successful checkout must sync the purchased item into the account Vault');
 assert.match(success, /Create Another/, 'success loop must offer another creation');
 assert.match(success, /View My World/, 'success loop must offer My World');
