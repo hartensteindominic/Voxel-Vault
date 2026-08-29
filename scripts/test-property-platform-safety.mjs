@@ -115,10 +115,10 @@ requireMarkers(distribution, 'distribution vault', [
 ]);
 
 requireMarkers(root, 'simple root homepage', [
-  'Sign in first.',
-  'Nothing uploads, generates, buys, rents or saves before you sign in.',
-  'Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.',
-  'A 3D model or NFT alone is not a deed.',
+  'START → SIGN IN',
+  'Nothing is uploaded, generated, or charged before sign-in.',
+  'Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.',
+  'A 3D model, payment, map marker, Property Passport, or NFT is not a deed',
   'href="/more"',
 ]);
 requireMarkers(productMap, 'advanced product directory', [
