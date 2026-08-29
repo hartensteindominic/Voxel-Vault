@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cjProductImages, getCjProductBySku } from '../../../lib/cjApi';
 import { persistModelBinary, readCatalog3D, readCatalog3DByTask, saveCatalog3D } from '../../../lib/catalog3dStore';
+import { REAL_WORLD_CATALOG } from '../../../lib/realWorldCatalog';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -8,6 +9,17 @@ export const maxDuration = 60;
 const IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MULTI_IMAGE_ENDPOINT = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
 const MAX_TEXTURE_PROMPT = 560;
+
+function authorized(request) {
+  const secret = String(process.env.CRON_SECRET || '').trim();
+  return Boolean(secret && request.headers.get('authorization') === `Bearer ${secret}`);
+}
+
+function trustedCatalogItem(body = {}) {
+  const requestedId = String(body?.item?.id || body?.itemId || '').trim();
+  if (!requestedId) return null;
+  return REAL_WORLD_CATALOG.find((item) => item.id === requestedId) || null;
+}
 
 function buildPrompt(item = {}) {
   const name = [item.name, item.type].filter(Boolean).join(' / ') || 'the product';
@@ -45,9 +57,8 @@ async function scrapeProductImage(sourceUrl) {
   return '';
 }
 
-async function resolveProductImages(requestedImageUrl, item) {
+async function resolveProductImages(item) {
   const images = [];
-  if (requestedImageUrl && !isPlaceholderImage(requestedImageUrl)) images.push(requestedImageUrl);
   if (item?.supplierSku) {
     try {
       const product = await getCjProductBySku(item.supplierSku);
@@ -65,15 +76,17 @@ function parseTaskId(value = '') {
 }
 
 export async function POST(request) {
+  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const apiKey = process.env.MESHY_API_KEY;
   if (!apiKey) return NextResponse.json({ configured: false, error: 'Model generation is not configured.' }, { status: 503 });
   try {
     const body = await request.json();
-    const item = body?.item && typeof body.item === 'object' ? body.item : {};
-    const itemId = String(item?.id || body?.itemId || '').trim();
+    const item = trustedCatalogItem(body);
+    if (!item) return NextResponse.json({ error: 'Trusted catalog item is required.' }, { status: 404 });
+    const itemId = item.id;
     const forceRestart = body?.forceRestart === true;
 
-    if (itemId && !forceRestart) {
+    if (!forceRestart) {
       const saved = await readCatalog3D(itemId);
       if (saved?.model_url || saved?.model_storage_path) {
         return NextResponse.json({ configured: true, reused: true, modelUrl: saved.model_url || null, stored: Boolean(saved.model_storage_path), taskId: saved.task_id || null, progress: 100 });
@@ -83,8 +96,7 @@ export async function POST(request) {
       }
     }
 
-    const requestedImageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl.trim() : '';
-    const imageUrls = await resolveProductImages(requestedImageUrl, item);
+    const imageUrls = await resolveProductImages(item);
     if (!imageUrls.length) return NextResponse.json({ error: 'Public product media could not be resolved.' }, { status: 400 });
 
     const useMultiView = imageUrls.length >= 2;
@@ -133,7 +145,7 @@ export async function POST(request) {
 
     const rawTaskId = data?.result || data?.id || null;
     const taskId = rawTaskId ? `${useMultiView ? 'multi' : 'image'}:${rawTaskId}` : null;
-    if (itemId && taskId) {
+    if (taskId) {
       await saveCatalog3D(itemId, {
         supplier_sku: item?.supplierSku || null,
         task_id: taskId,
@@ -156,6 +168,7 @@ export async function POST(request) {
 }
 
 export async function GET(request) {
+  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const apiKey = process.env.MESHY_API_KEY;
   const taskId = new URL(request.url).searchParams.get('taskId');
   if (!apiKey) return NextResponse.json({ configured: false, error: 'Model generation is not configured.' }, { status: 503 });
