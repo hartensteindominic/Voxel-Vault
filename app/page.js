@@ -11,7 +11,7 @@ export default function Home() {
     <div className={styles.shell}>
       <section className={styles.hero}>
         <p className={styles.kicker}>VOXELPOP · ONE PHOTO · ONE SIMPLE FLOW</p>
-        <h1><em>MAKE YOUR HOUSE A VOXEL.</em></h1>
+        <h1><em>HOUSE → VOXEL.</em></h1>
         <p className={styles.heroLine}>Choose a photo. Pay once. Approve the 3D voxel photo. Your movable voxel is built and saved automatically.</p>
 
         <div className={styles.centerMachine}>
@@ -37,7 +37,7 @@ export default function Home() {
           <h2>Photo → approve → done.</h2>
           <span>VoxelPop keeps the technical steps in the background so each screen has one obvious next action.</span>
         </div>
-        <div className={styles.flowSteps}>
+        <div className={styles.flowSteps} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           <div><i>1</i><b>Choose photo</b><small>Use a clear house photo.</small></div>
           <div><i>2</i><b>Approve voxel photo</b><small>Confirm the photo-matched 3D voxel view looks right.</small></div>
           <div><i>3</i><b>Done</b><small>Your movable 3D voxel is built and saved to Vault. Mint only if you want.</small></div>
