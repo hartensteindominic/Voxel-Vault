@@ -55,7 +55,7 @@ export default function Home() {
         <div><small>DIGITAL</small><strong>Photo → 3D preview → voxel → optional NFT</strong></div><span>≠</span><div><small>PHYSICAL PROPERTY</small><strong>Deed / title / rent / regulated investment rights</strong></div><Link href="/terms">Read terms →</Link>
       </section>
 
-      <footer className={styles.footer}><span>Voxel Vault is a digital creation product. Voxel Vault is not a bank, broker, exchange, custodian, escrow service, or deed registry, and a VoxelPop item is not a deed. The $1.99 property comparison is a sandbox; financial products remain provider-gated.</span><span><Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/about">About + contact</Link> · <Link href="/more">More</Link></span></footer>
+      <footer className={styles.footer}><span>Voxel Vault is a digital creation product. Voxel Vault is not a bank, broker, exchange, custodian, escrow service, or deed registry, and a VoxelPop item is not a deed. The $1.99 property comparison is a sandbox; financial products remain provider-gated.</span><span><Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/about">About</Link> · <Link href="/about#contact">Contact</Link> · <Link href="/more">More</Link></span></footer>
     </div>
   </main>;
 }
