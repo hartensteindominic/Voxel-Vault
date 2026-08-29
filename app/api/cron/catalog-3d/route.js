@@ -7,10 +7,15 @@ export const maxDuration = 60;
 
 const STALE_AFTER_MS = 25 * 60 * 1000;
 
-function authorized(request) {
+function cronAuthorizationHeader() {
   const secret = String(process.env.CRON_SECRET || '').trim();
-  if (!secret) return null;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
+  return secret ? `Bearer ${secret}` : '';
+}
+
+function authorized(request) {
+  const expected = cronAuthorizationHeader();
+  if (!expected) return null;
+  return request.headers.get('authorization') === expected;
 }
 
 function terminalFailure(row) {
@@ -28,6 +33,7 @@ function isStale(row) {
 }
 
 export async function GET(request) {
+  const authHeader = cronAuthorizationHeader();
   const auth = authorized(request);
   if (auth === null) {
     return NextResponse.json({ error: 'Cron authentication is not configured.' }, { status: 503 });
@@ -49,10 +55,12 @@ export async function GET(request) {
   const rows = await listCatalog3D();
   const byItem = new Map(rows.map(row => [row.item_id, row]));
   const operations = [];
+  const internalHeaders = { authorization: authHeader };
 
   for (const row of rows) {
     if (!row.task_id || hasFinishedModel(row) || terminalFailure(row) || isStale(row)) continue;
     operations.push(fetch(`${origin}/api/image-to-3d?taskId=${encodeURIComponent(row.task_id)}`, {
+      headers: internalHeaders,
       cache: 'no-store',
     }).then(async response => ({ kind: 'poll', itemId: row.item_id, ok: response.ok, data: await response.json().catch(() => ({})) })));
   }
@@ -70,8 +78,8 @@ export async function GET(request) {
   for (const item of toRestart) {
     operations.push(fetch(`${origin}/api/image-to-3d`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ item, forceRestart: true }),
+      headers: { 'content-type': 'application/json', authorization: authHeader },
+      body: JSON.stringify({ itemId: item.id, forceRestart: true }),
       cache: 'no-store',
     }).then(async response => ({ kind: 'restart', itemId: item.id, ok: response.ok, data: await response.json().catch(() => ({})) })));
   }
@@ -79,8 +87,8 @@ export async function GET(request) {
   for (const item of toStart) {
     operations.push(fetch(`${origin}/api/image-to-3d`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ item }),
+      headers: { 'content-type': 'application/json', authorization: authHeader },
+      body: JSON.stringify({ itemId: item.id }),
       cache: 'no-store',
     }).then(async response => ({ kind: 'start', itemId: item.id, ok: response.ok, data: await response.json().catch(() => ({})) })));
   }
