@@ -27,8 +27,7 @@ export default function Home() {
           <span>VOXELPOP OUTPUT</span>
           <span>3D voxel photo first</span>
           <span>Movable 3D voxel second</span>
-          <span>Optional NFT</span>
-          <span>NFT optional</span>
+          <span aria-label="NFT optional">Optional NFT</span>
           <span>No wallet until mint</span>
         </div>
       </section>
