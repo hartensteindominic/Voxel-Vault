@@ -9,7 +9,7 @@ const SAMPLE = '/voxelpop/demo-house.svg';
 
 const STAGES = {
   source: {
-    label: 'House photo',
+    label: 'Your house photo',
     copy: 'Start with one clear front or three-quarter photo of the house.',
   },
   preview: {
