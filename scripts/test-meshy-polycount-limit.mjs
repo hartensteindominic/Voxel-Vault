@@ -11,8 +11,12 @@ for (const [name, source] of [
   ['voxel image -> final 3D', property3dRoute],
 ]) {
   assert.match(source, /ai_model:\s*'meshy-t2'/, `${name} must keep the intended Meshy model explicit`);
-  assert.match(source, /target_polycount:\s*15000/, `${name} must stay within the meshy-t2 maximum polycount`);
-  assert.doesNotMatch(source, /target_polycount:\s*(?:1[5-9]\d{3}|[2-9]\d{4,})/, `${name} must never request more than 15000 polygons from meshy-t2`);
+  const polycounts = [...source.matchAll(/target_polycount:\s*(\d+)/g)].map((match) => Number(match[1]));
+  assert.ok(polycounts.length > 0, `${name} must declare a target polycount`);
+  for (const value of polycounts) {
+    assert.ok(value >= 100 && value <= 15000, `${name} target_polycount ${value} must stay within the meshy-t2 100..15000 range`);
+  }
+  assert.ok(polycounts.includes(15000), `${name} should use the supported meshy-t2 maximum of 15000`);
 }
 
-console.log('Meshy property polycount checks passed: source and final 3D requests stay at the meshy-t2 maximum of 15000.');
+console.log('Meshy property polycount checks passed: source and final 3D requests stay within the meshy-t2 100..15000 range.');
