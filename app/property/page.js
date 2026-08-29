@@ -102,10 +102,61 @@ function VaultPropertyHandoff() {
   return null;
 }
 
+function SimpleJourneyPresentation() {
+  useEffect(() => {
+    const root = document.getElementById('voxelpop-journey');
+    if (!root) return undefined;
+
+    const simplify = () => {
+      // The real native button remains visible and keyboard-accessible. Only the
+      // duplicate custom photo drop target is hidden.
+      for (const control of Array.from(root.querySelectorAll('[role="button"]'))) {
+        const text = String(control.textContent || '').trim();
+        if (text.includes('Choose a property photo')) control.setAttribute('data-vv-hide-duplicate', 'true');
+      }
+
+      for (const action of Array.from(root.querySelectorAll('button, a'))) {
+        const text = String(action.textContent || '').trim();
+        if (!text) continue;
+
+        if (text === 'Upload / Photos' || text === 'My Properties') action.setAttribute('data-vv-compact-choice', 'true');
+
+        if (
+          text.startsWith('Choose another photo') ||
+          text.startsWith('Use a different photo') ||
+          text.startsWith('Start over') ||
+          text === 'Mint Now'
+        ) action.setAttribute('data-vv-secondary-action', 'true');
+
+        if (text.includes('Mint Later · Saved to Vault') || text === 'Done · Open Vault') {
+          if (text !== 'Done · Open Vault') action.textContent = 'Done · Open Vault';
+          action.setAttribute('data-vv-primary-finish', 'true');
+        }
+      }
+    };
+
+    simplify();
+    const observer = new MutationObserver(simplify);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, []);
+
+  return <style>{`
+    #voxelpop-journey [data-vv-hide-duplicate="true"] { display: none !important; }
+    #voxelpop-journey [data-vv-compact-choice="true"] { min-height: 44px !important; font-size: 13px !important; box-shadow: none !important; }
+    #voxelpop-journey [data-vv-secondary-action="true"] { box-shadow: none !important; opacity: .72; }
+    #voxelpop-journey [data-vv-primary-finish="true"] { order: -1; background: #7138f5 !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 8px 20px rgba(113,56,245,.17) !important; }
+  `}</style>;
+}
+
 export default function PropertyJourneyPage() {
   return <>
     <OAuthRecovery/>
     <ProductTopNav/>
-    <div id="voxelpop-journey"><VaultPropertyHandoff/><PropertyJourneyExact/></div>
+    <div id="voxelpop-journey">
+      <SimpleJourneyPresentation/>
+      <VaultPropertyHandoff/>
+      <PropertyJourneyExact/>
+    </div>
   </>;
 }
