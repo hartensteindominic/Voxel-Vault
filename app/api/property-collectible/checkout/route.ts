@@ -24,6 +24,10 @@ function findMappedBuilding(atlas: any, atlasId: string) {
   return candidates.find((item: any) => String(item?.atlasId || '') === atlasId) || null;
 }
 
+function paidSuccessUrl(sessionId: string) {
+  return `/property/success?session_id=${encodeURIComponent(sessionId)}`;
+}
+
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
@@ -69,7 +73,8 @@ export async function POST(request: Request) {
           const paidSession = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
           if (paidSession.payment_status === 'paid') {
             await secureStripePropertyCollectiblePurchase({ session: paidSession, expectedBuyerId: auth.user.id });
-            return NextResponse.json({ ok: true, paid: true, sessionId: paidSession.id, successUrl: `/property/success?session_id=${encodeURIComponent(paidSession.id)}`, quote });
+            const successUrl = paidSuccessUrl(paidSession.id);
+            return NextResponse.json({ ok: true, paid: true, sessionId: paidSession.id, successUrl, url: successUrl, quote });
           }
         } catch {}
       }
@@ -85,7 +90,8 @@ export async function POST(request: Request) {
         const existing = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
         if (existing.payment_status === 'paid') {
           await secureStripePropertyCollectiblePurchase({ session: existing, expectedBuyerId: auth.user.id });
-          return NextResponse.json({ ok: true, paid: true, sessionId: existing.id, successUrl: `/property/success?session_id=${encodeURIComponent(existing.id)}`, quote });
+          const successUrl = paidSuccessUrl(existing.id);
+          return NextResponse.json({ ok: true, paid: true, sessionId: existing.id, successUrl, url: successUrl, quote });
         }
         if (existing.status === 'open' && existing.url) {
           return NextResponse.json({ ok: true, reused: true, url: existing.url, sessionId: existing.id, quote });
