@@ -129,19 +129,19 @@ assert.match(integrationsPage, /getSupabaseBrowserAsync/);
 assert.match(integrationsPage, /\/api\/admin\/integrations\/status/);
 assert.match(integrationsPage, /SIGN IN WITH GOOGLE/);
 
-// Detailed real-estate remains an advanced, fail-closed subsystem.
-assert.match(home, /Explore → invest → verify → observe → own/);
-assert.match(home, /Your money,/);
-assert.match(home, /provider-backed investment assets/i);
-assert.match(home, /observed income/i);
+// Detailed real-estate stays advanced, status-driven, and fail-closed without finance-dashboard theater.
+assert.match(home, /Explore · sandbox · invest through providers · own through title/);
+assert.match(home, /Real estate,[\s\S]*without pretending\./);
+assert.match(home, /Try \$1\.99 property math/);
+assert.match(home, /LIVE DIGITAL/);
+assert.match(home, /DEMO/);
+assert.match(home, /PARTNER REQUIRED/);
+assert.match(home, /TITLE REQUIRED/);
+assert.match(home, /Map ≠ collectible ≠ investment ≠ deed/);
+assert.match(home, /Live investing is locked until provider requirements are satisfied/);
+assert.match(home, /Demo data only · no real purchase/);
 assert.match(home, /recorded title/i);
-assert.match(home, /Provider-gated/i);
-assert.match(home, /Live investing is locked/);
-assert.match(home, /Demo data only/);
-assert.match(home, /Direct property closes through normal title systems/);
-assert.match(home, /Every number should know where it came from/);
-assert.match(home, /Start with access\. Build toward ownership\./);
-assert.match(home, /Fail-closed for real money/);
+assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodian, escrow service, or deed registry/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
