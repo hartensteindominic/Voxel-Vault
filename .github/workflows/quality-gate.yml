@@ -38,7 +38,35 @@ jobs:
       - run: npm run test:liquidity-engine
       - run: npm run test:multipair
       - run: npm run test:ai-licensing
-      - run: npm run test:property-platform
+      # Keep property-platform checks split into named steps. These regressions
+      # cover very different surfaces, so one aggregate shell failure hid the
+      # actual stale assertion whenever the VoxelPop UI changed.
+      - name: Property platform safety
+        run: node scripts/test-property-platform-safety.mjs
+      - name: Erie County spatial intake
+        run: node scripts/test-erie-county-spatial-intake.mjs
+      - name: Fractional property bridge
+        run: node scripts/test-fractional-property-bridge.mjs
+      - name: Algorand position verifier
+        run: node scripts/test-algorand-position-verifier.mjs
+      - name: GEO property onboarding
+        run: node scripts/test-geo-property-onboarding.mjs
+      - name: GEO finish polish
+        run: node scripts/test-geo-finish-polish.mjs
+      - name: GEO map context
+        run: node scripts/test-geo-map-context.mjs
+      - name: GEO map explorer
+        run: node scripts/test-geo-map-explorer.mjs
+      - name: Buffalo property reference
+        run: node scripts/test-buffalo-property-reference.mjs
+      - name: Financial OS coherence
+        run: node scripts/test-financial-os-coherence.mjs
+      - name: Hyperreal voxel building
+        run: node scripts/test-hyperreal-voxel-building.mjs
+      - name: Property draft funnel
+        run: npm run test:property-draft-funnel
+      - name: Simple VoxelPop property world
+        run: npm run test:simple-property-world
       - name: First real Erie parcel evidence
         run: npm run test:first-real-erie-parcel
       - run: npm run test:global-rent
