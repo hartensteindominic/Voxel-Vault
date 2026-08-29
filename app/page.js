@@ -67,7 +67,7 @@ export default function Home() {
           <h2>Create. Explore. Keep.</h2>
           <span>Everything else stays out of the way until you actually need it.</span>
         </div>
-        <div className={styles.assetGrid}>
+        <div className={styles.assetGrid} style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))' }}>
           <Link href="/property" className={`${styles.assetTile} ${styles.propertyTile}`}>
             <div className={styles.tileIcon}>+</div><small>CREATE</small><strong>Property voxel</strong><span>Photo preview + source-backed 3D map.</span><b>Create →</b>
           </Link>
@@ -91,7 +91,9 @@ export default function Home() {
           <i>·</i>
           <FlowIcon icon="¢" label="$1.99 Slice" note="sandbox" />
           <i>·</i>
-          <FlowIcon icon="⌂" label="Real investing" note="provider-gated" />
+          <FlowIcon icon="$" label="Real investing" note="provider-gated" />
+          <i>·</i>
+          <FlowIcon icon="⌂" label="Deed / title" note="external legal record" />
         </div>
         <Link className={styles.convertAction} href="/more">SEE ADVANCED TOOLS + STATUS</Link>
       </section>
