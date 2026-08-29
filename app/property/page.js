@@ -34,6 +34,7 @@ function readableDate(value) {
 function terminal(value) {
   return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(value || '').toUpperCase());
 }
+const emptyModel = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
 
 export default function SimplePropertyPage() {
   const [query, setQuery] = useState('');
@@ -42,12 +43,13 @@ export default function SimplePropertyPage() {
   const [openImagery, setOpenImagery] = useState(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [voxelImage, setVoxelImage] = useState('');
-  const [model, setModel] = useState({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
+  const [model, setModel] = useState(emptyModel);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('Add an address.');
   const [saved, setSaved] = useState(null);
   const [session, setSession] = useState(null);
   const clientRef = useRef(null);
+  const imageIterationRef = useRef(0);
 
   const photos = Array.isArray(openImagery?.photos) ? openImagery.photos : [];
   const activePhoto = photos[photoIndex] || photos[0] || null;
@@ -99,14 +101,15 @@ export default function SimplePropertyPage() {
   }, []);
 
   useEffect(() => {
-    if (!building?.atlasId || !session?.access_token) return;
+    if (!building?.atlasId || !session?.access_token) return undefined;
     let active = true;
+    const iterationAtStart = imageIterationRef.current;
     fetch(`/api/property-voxel-3d?atlasId=${encodeURIComponent(building.atlasId)}`, {
       cache: 'no-store',
       headers: { Authorization: `Bearer ${session.access_token}` },
     }).then(async (response) => {
       const data = await response.json().catch(() => ({}));
-      if (!active || !response.ok || !data?.ok) return;
+      if (!active || iterationAtStart !== imageIterationRef.current || !response.ok || !data?.ok) return;
       if (data?.exists && (data?.taskId || data?.modelUrl)) setModel(data);
     }).catch(() => {});
     return () => { active = false; };
@@ -147,12 +150,13 @@ export default function SimplePropertyPage() {
   async function search(value = query) {
     const address = clean(value);
     if (!address) return;
+    imageIterationRef.current += 1;
     setBusy('search');
     setBuilding(null);
     setOpenImagery(null);
     setPhotoIndex(0);
     setVoxelImage('');
-    setModel({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
+    setModel(emptyModel());
     setSaved(null);
     setMessage('Finding the property…');
     try {
@@ -169,7 +173,8 @@ export default function SimplePropertyPage() {
       setBuilding(selected);
       setOpenImagery(imagery?.ok ? imagery : { photos: [], meshyReferences: [], note: imagery?.note || imagery?.error || '' });
       const nextDraft = buildPropertyDraft({ building: selected, openImagery: imagery?.ok ? imagery : null, fallbackLabel: address });
-      setSaved(nextDraft?.id ? readPropertyDraft(nextDraft.id) : null);
+      const existingDraft = nextDraft?.id ? readPropertyDraft(nextDraft.id) : null;
+      setSaved(existingDraft);
       setMessage(imagery?.photos?.length
         ? 'Newest nearby open photo loaded. Make sure it shows the right facade, then create the voxel image.'
         : 'No rights-cleared street photo was found here, so Voxel Vault will not invent the building appearance.');
@@ -195,8 +200,10 @@ export default function SimplePropertyPage() {
       await signIn();
       return;
     }
+    const nextIteration = imageIterationRef.current + 1;
+    imageIterationRef.current = nextIteration;
     setBusy('image');
-    setMessage('Creating a voxel image from this exact selected photo…');
+    setMessage(voxelImage ? 'Rebuilding the voxel image from this selected property photo…' : 'Creating a voxel image from this exact selected photo…');
     try {
       const response = await fetch('/api/property-voxel-image', {
         method: 'POST',
@@ -210,6 +217,8 @@ export default function SimplePropertyPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Voxel image could not be created.');
       setVoxelImage(data.imageUrl);
+      setModel(emptyModel());
+      setSaved(null);
       setMessage('Voxel image ready. Compare it to the real photo, then create 3D.');
     } catch (error) { setMessage(String(error?.message || error)); }
     finally { setBusy(''); }
@@ -222,6 +231,7 @@ export default function SimplePropertyPage() {
       await signIn();
       return;
     }
+    if (model?.taskId && !terminal(model?.status) && !model?.modelUrl) return;
     setBusy('3d');
     setMessage('Creating 3D from the voxel image…');
     try {
@@ -253,17 +263,19 @@ export default function SimplePropertyPage() {
   }
 
   function changeProperty() {
+    imageIterationRef.current += 1;
     setBuilding(null);
     setResolvedQuery('');
     setOpenImagery(null);
     setVoxelImage('');
-    setModel({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
+    setModel(emptyModel());
     setSaved(null);
     setMessage('Add an address.');
   }
 
   const displayImage = voxelImage || activePhoto?.imageUrl || '';
   const photoDate = readableDate(activePhoto?.shotDate);
+  const modelRunning = Boolean(model?.taskId && !model?.modelUrl && !terminal(model?.status));
 
   return <main className={styles.page}>
     <section className={styles.maker}>
@@ -298,8 +310,8 @@ export default function SimplePropertyPage() {
         </div>
 
         <div className={styles.actions}>
-          <button className={styles.imageButton} type="button" onClick={createImage} disabled={!activeReference || Boolean(voxelImage) || busy === 'image'}>{voxelImage ? '✓ Image created' : busy === 'image' ? 'Creating image…' : 'Create image'}</button>
-          <button className={styles.modelButton} type="button" onClick={create3D} disabled={!voxelImage || Boolean(model?.modelUrl) || busy === '3d'}>{model?.modelUrl ? '✓ 3D created' : busy === '3d' || (model?.taskId && !terminal(model?.status)) ? `Creating 3D${Number(model?.progress) ? ` · ${Math.round(Number(model.progress))}%` : '…'}` : 'Create 3D'}</button>
+          <button className={styles.imageButton} type="button" onClick={createImage} disabled={!activeReference || busy === 'image' || modelRunning}>{busy === 'image' ? 'Creating image…' : voxelImage ? 'Redo image' : 'Create image'}</button>
+          <button className={styles.modelButton} type="button" onClick={create3D} disabled={!voxelImage || Boolean(model?.modelUrl) || busy === '3d' || modelRunning}>{model?.modelUrl ? '✓ 3D created' : busy === '3d' || modelRunning ? `Creating 3D${Number(model?.progress) ? ` · ${Math.round(Number(model.progress))}%` : '…'}` : 'Create 3D'}</button>
           <button className={styles.vaultButton} type="button" onClick={saveToVault} disabled={!model?.modelUrl || Boolean(saved)}>{saved ? '✓ In Vault' : 'Vault'}</button>
         </div>
 
