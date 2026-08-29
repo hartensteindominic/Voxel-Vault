@@ -4,46 +4,31 @@ import AppCommandCenter from './components/AppCommandCenter';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 import './spatial-os-interactions.css';
+import './voxelpop-cute-system.css';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: {
-    default: 'Voxel Vault | Spatial Asset OS',
-    template: '%s | Voxel Vault',
-  },
-  description: 'Create 3D assets, explore source-backed real places, organize digital and provider-backed holdings, observe reported income and use clearly separated ownership workflows in one spatial app.',
-  keywords: ['spatial assets', '3D creation', 'real estate digital twin', 'tokenized real estate', 'digital assets', 'Voxel Vault'],
+  title: { default: 'Voxel Vault | Your 3D Asset Vault', template: '%s | Voxel Vault' },
+  description: 'Create and collect 3D voxel assets, explore real places, organize NFTs and connected financial tools, and keep ownership status clear in one spatial app.',
+  keywords: ['3D assets', 'voxel creator', 'NFT vault', 'spatial wallet', 'real estate digital twin', 'digital assets', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
-  icons: {
-    icon: '/voxelpop/voxelpop-logo.png',
-    apple: '/voxelpop/voxelpop-logo.png',
-  },
+  icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
-    title: 'Voxel Vault | Spatial Asset OS',
-    description: 'One organized spatial home for 3D creation, real-world exploration, digital assets, provider-backed finance and ownership workflows.',
-    type: 'website',
-    url: SITE_URL,
-    siteName: 'Voxel Vault',
-    images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
+    title: 'Voxel Vault | Your 3D Asset Vault',
+    description: 'A playful spatial home for 3D creation, NFTs, real-world exploration and connected financial tools.',
+    type: 'website', url: SITE_URL, siteName: 'Voxel Vault', images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
   },
-  twitter: {
-    card: 'summary',
-    title: 'Voxel Vault | Spatial Asset OS',
-    description: 'Create, explore, organize and verify spatial assets from one app.',
-    images: ['/voxelpop/voxelpop-logo.png'],
-  },
+  twitter: { card: 'summary', title: 'Voxel Vault | Your 3D Asset Vault', description: 'Create, explore, collect and organize spatial assets from one app.', images: ['/voxelpop/voxelpop-logo.png'] },
 };
 
 export const viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
+  width: 'device-width', initialScale: 1, viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f3ec' },
-    { media: '(prefers-color-scheme: dark)', color: '#101a24' },
+    { media: '(prefers-color-scheme: light)', color: '#fffaf0' },
+    { media: '(prefers-color-scheme: dark)', color: '#fffaf0' },
   ],
 };
 
