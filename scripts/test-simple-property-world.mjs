@@ -30,10 +30,11 @@ const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
-assert.match(home, /PHOTO → 3D → VOXEL → YOUR WORLD/, 'home keeps the photo-first journey');
-assert.match(home, /START → SIGN IN/, 'home enters the account-gated maker');
+assert.match(home, /Photo → voxel → mapped 3D\./, 'home describes the actual local preview plus mapped 3D journey');
+assert.match(home, /START → SIGN IN \+ CREATE/, 'home enters the account-gated maker');
 assert.match(home, /wallet is optional|A wallet is optional/i, 'wallet must not block creation or checkout');
 assert.match(home, /does not buy the physical property/i, 'home distinguishes the voxel from physical real estate');
+assert.match(home, /No Meshy credits are required/i, 'home makes the no-Meshy provider dependency explicit');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed/i, 'unverified property-purchase language stays out of the simple home');
 
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
@@ -106,7 +107,7 @@ assert.match(canonicalRegistry, /PropertyAlreadyRegistered/, 'canonical registry
 assert.match(propertyPassport, /PassportAlreadyMinted/, 'Property Passport rejects a second canonical mint');
 assert.match(interestToken, /off-chain legal/, 'economic rights remain defined separately by legal agreements');
 
-assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'fixed app dock stays out of the guided maker');
+assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the same condensed consumer navigation instead of a separate mini-app dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> authorized device-local photo -> $4.99 paid unlock -> VoxelPop image -> local interactive 3D -> improved source-backed property map -> digital collection/Vault, without Meshy credits or checkout Storage.');
+console.log('Guided VoxelPop property checks passed: sign in -> authorized device-local photo -> explicit paid unlock -> VoxelPop image -> local interactive 3D -> improved source-backed property map -> digital collection/Vault, without Meshy credits or checkout Storage.');
