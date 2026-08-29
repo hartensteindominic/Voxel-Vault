@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import ProductTopNav from '../components/ProductTopNav';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
-import HouseVoxelMintFlow from './HouseVoxelMintFlow';
+import PropertyStudioFlow from './PropertyStudioFlow';
 import VoxelMakerSubscriptionGate from './VoxelMakerSubscriptionGate';
 
 function cleanOAuthParams() {
@@ -46,9 +45,8 @@ function OAuthRecovery() {
 export default function PropertyJourneyPage() {
   return <>
     <OAuthRecovery/>
-    <ProductTopNav/>
     <VoxelMakerSubscriptionGate>
-      <HouseVoxelMintFlow/>
+      <PropertyStudioFlow/>
     </VoxelMakerSubscriptionGate>
   </>;
 }
