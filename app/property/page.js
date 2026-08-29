@@ -242,9 +242,18 @@ export default function PropertyJourneyPage() {
       if (!sourceResponse.ok || !sourceStart?.ok || !sourceStart?.taskId) throw new Error(sourceStart?.error || 'The first 3D build could not start.');
       setSource3d(sourceStart);
       const sourceDone = sourceStart.modelUrl ? sourceStart : await poll3D(sourceStart.taskId, setSource3d, iteration, 'Building your first 3D');
+      setSource3d(sourceDone);
+
+      // Keep the completed first 3D visible long enough to be understood before
+      // the automatic VoxelPop conversion starts. This is a presentation hold only;
+      // it does not start a second provider job or require another user action.
+      setPipelinePhase('source-preview');
+      setMessage('First 3D ready. This is your 3D preview — VOXEL is next.');
+      await wait(3200);
+      if (iteration !== pipelineRef.current) throw new Error('Creation changed.');
 
       setPipelinePhase('voxel-image');
-      setMessage('First 3D ready. Turning it into the VoxelPop look…');
+      setMessage('VOXEL · Turning your 3D preview into the VoxelPop look…');
       const imageResponse = await fetch('/api/property-voxel-image', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -257,7 +266,7 @@ export default function PropertyJourneyPage() {
       setVoxelImage(voxelDone.imageUrl);
 
       setPipelinePhase('voxel-3d');
-      setMessage('Voxel look ready. Building the final movable 3D voxel…');
+      setMessage('VOXEL look ready. Building the final movable 3D voxel…');
       const finalResponse = await fetch('/api/property-voxel-3d', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -274,7 +283,7 @@ export default function PropertyJourneyPage() {
       const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
       setFinal3d(finalDone);
       setPipelinePhase('world');
-      setMessage('Your voxel is ready. Add the property address to place the reference on My World.');
+      setMessage('Your VOXEL is ready. Add the property address to place the reference on My World.');
     } catch (error) {
       if (iteration === pipelineRef.current) {
         setMessage(String(error?.message || error || 'The automatic build stopped.'));
@@ -425,7 +434,7 @@ export default function PropertyJourneyPage() {
   }
 
   const displaySource = pendingPreview || sourceReference?.url || '';
-  const pipelineRunning = busy === 'pipeline' || ['source3d', 'voxel-image', 'voxel-3d'].includes(pipelinePhase);
+  const pipelineRunning = busy === 'pipeline' || ['source3d', 'source-preview', 'voxel-image', 'voxel-3d'].includes(pipelinePhase);
 
   return <main className={styles.page}>
     <section className={styles.maker}>
@@ -456,14 +465,14 @@ export default function PropertyJourneyPage() {
       </> : null}
 
       {step === 3 ? <>
-        <p className={styles.bigPrompt}>{pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
-        <p className={styles.stepCopy}>The VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.</p>
+        <p className={styles.bigPrompt}>{pipelinePhase === 'source-preview' ? 'Your first 3D preview.' : pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
+        <p className={styles.stepCopy}>{pipelinePhase === 'source-preview' ? 'This is the finished 3D made from your photo. It stays visible here before the automatic VOXEL conversion begins.' : 'The VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.'}</p>
         <div className={styles.heroCard}>
           {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl}/> : voxelImage ? <img src={voxelImage} alt="VoxelPop property rendering"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : null}
-          <span className={styles.badge}>{pipelinePhase === 'voxel-3d' ? `FINAL 3D VOXEL · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL LOOK · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
+          <span className={styles.badge}>{pipelinePhase === 'source-preview' ? '3D PREVIEW · VOXEL NEXT' : pipelinePhase === 'voxel-3d' ? `FINAL 3D VOXEL · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
           {pipelineRunning ? <div className={styles.buildPulse}/> : null}
         </div>
-        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>Keep this page open while the current build finishes.</span></div>}
+        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>{pipelinePhase === 'source-preview' ? '3D PREVIEW → VOXEL' : 'VOXEL · AUTOMATIC'}</b><span>{pipelinePhase === 'source-preview' ? 'Look at the movable first 3D now. The voxel version starts next automatically.' : 'Keep this page open while the current voxel build finishes.'}</span></div>}
       </> : null}
 
       {step === 4 ? <>
