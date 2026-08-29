@@ -31,6 +31,7 @@ function retryUrl(modelUrl, attempt) {
 
 export default function MeshyModelViewer({ modelUrl }) {
   const mountRef = useRef(null);
+  const readyRef = useRef(false);
   const presentation = useMemo(() => modelPresentation(modelUrl), [modelUrl]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(Boolean(presentation.assetUrl));
@@ -42,6 +43,7 @@ export default function MeshyModelViewer({ modelUrl }) {
     let cleanup = () => {};
     let loadRetryTimer = 0;
     let revealTimer = 0;
+    readyRef.current = false;
     setError('');
     setLoading(true);
     setReady(false);
@@ -135,6 +137,7 @@ export default function MeshyModelViewer({ modelUrl }) {
           const previewDelay = presentation.previewImageUrl ? Math.max(0, 650 - (Date.now() - startedAt)) : 0;
           revealTimer = window.setTimeout(() => {
             if (dead) return;
+            readyRef.current = true;
             renderer.domElement.style.opacity = '1';
             setLoading(false);
             setReady(true);
@@ -147,6 +150,7 @@ export default function MeshyModelViewer({ modelUrl }) {
             loadRetryTimer = window.setTimeout(() => loadModel(attempt + 1), 900 * (attempt + 1));
             return;
           }
+          readyRef.current = false;
           setLoading(false);
           setReady(false);
           setError(presentation.previewImageUrl
@@ -172,7 +176,7 @@ export default function MeshyModelViewer({ modelUrl }) {
         camera.lookAt(0, 1.25, 0);
       };
       const down = (event) => {
-        if (!ready) return;
+        if (!readyRef.current) return;
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         renderer.domElement.setPointerCapture?.(event.pointerId);
         moved = false;
@@ -205,7 +209,7 @@ export default function MeshyModelViewer({ modelUrl }) {
         if (pointers.size < 2) pinch = 0;
       };
       const wheel = (event) => {
-        if (!ready) return;
+        if (!readyRef.current) return;
         event.preventDefault();
         cameraDistance = Math.max(6.5, Math.min(13.5, cameraDistance + Math.sign(event.deltaY) * 0.5));
         updateCamera();
@@ -250,6 +254,7 @@ export default function MeshyModelViewer({ modelUrl }) {
       window.addEventListener('resize', resize);
 
       cleanup = () => {
+        readyRef.current = false;
         cancelAnimationFrame(frame);
         window.clearTimeout(loadRetryTimer);
         window.clearTimeout(revealTimer);
