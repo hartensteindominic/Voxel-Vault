@@ -50,21 +50,33 @@ assert.match(voxel3d, /displayUrlFor\(finalRow, apiKey\)/, 'persisted 3D polling
 assert.match(voxelModel, /verifyPropertyGenerationModelToken/, 'the model delivery endpoint must reject unsigned model requests');
 assert.match(voxelModel, /model_storage_path/, 'the model delivery endpoint should prefer a durable cached GLB when one exists');
 assert.match(voxelModel, /model_urls\?\.glb/, 'the model delivery endpoint must refresh the current Meshy GLB when the cache is unavailable');
+
 assert.match(modelViewer, /attempt < 3/, 'the 3D viewer must retry temporary model-load failures before showing an error');
 assert.match(modelViewer, /previewRetry/, '3D viewer retries must bypass stale browser or edge caching');
-assert.match(modelViewer, /Loading live 3D model/, '3D viewer must retain an explicit loading state while the live model is being delivered');
+assert.match(modelViewer, /fallbackImageUrl = ''/, '3D viewer must support an image-first visual fallback');
+assert.match(modelViewer, /viewerFallbackHidden/, 'the source image must remain visible until GLTFLoader has actually succeeded');
+assert.match(modelViewer, /Reload 3D/, 'a failed 3D viewer must offer a direct reload action');
+assert.match(modelViewer, /IMAGE FIRST · LOADING 3D/, 'the loading state must explicitly describe the image-first 3D transition');
+assert.match(modelViewer, /renderer\.domElement\.style\.opacity = '1'/, 'the 3D canvas must become visible only after a model has loaded');
 assert.doesNotMatch(modelViewer, /cached Meshy GLB could not be loaded/i, 'the old non-recovering cached-GLB error must be removed');
 assert.doesNotMatch(modelViewer, /Regenerating is not automatic/i, 'the viewer must not tell users a temporary GLB failure is permanently stuck');
+
+assert.match(property, /Keep the local photo File \+ object URL alive for this creation/, 'the selected source photo must remain available for image-first loading and rebuild recovery');
+assert.match(property, /fallbackImageUrl=\{displaySource\}/, 'the first 3D viewer must keep the source photo visible until the model renders');
+assert.match(property, /fallbackImageUrl=\{voxelImage \|\| displaySource\}/, 'the final 3D viewer must keep the VoxelPop image visible until the model renders');
+assert.doesNotMatch(property, /setSourceReference\(data\.reference\);\s*setPendingPhoto\(null\);\s*setPendingPreview/, 'starting a 3D job must not immediately discard the user-visible source photo');
+assert.match(property, /if \(pendingPhoto && rightsConfirmed\)/, 'paused generation must be able to create a fresh provider job from the retained photo');
+assert.match(property, /await usePhotoAndBuild\(\)/, 'rebuild recovery must re-submit the retained authorized photo when needed');
 
 assert.match(property, /Building a first 3D model from your photo/, 'user must see the first automatic 3D processing state');
 assert.match(property, /Turning the 3D into VoxelPop/, 'user must see the voxel processing state');
 assert.match(property, /Building your final VoxelPop 3D/, 'user must see final voxel 3D progress');
 assert.match(property, /setPipelinePhase\('paused'\)/, 'provider failure must move the automatic chain to a recoverable paused state');
 assert.match(property, /async function retryBuild\(\)/, 'paused automatic chain must preserve a retry path');
-assert.match(property, /Try build again/, 'paused voxel stage must expose a clear retry action');
-assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3D voxel\./, 'visible copy must make the automatic handoff obvious');
+assert.match(property, /Rebuild from photo/, 'paused voxel stage must expose a fresh-photo rebuild action');
+assert.match(property, /Image first → first 3D → VoxelPop image → final movable 3D\./, 'visible copy must make the image-first handoff obvious');
 
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> refreshed/snapshotted VoxelPop style -> same-origin resilient GLB delivery -> final voxel 3D, including signed account-bound recovery and live loading/retry behavior.');
+console.log('Property automatic journey regression passed: authorized photo stays visible -> refreshed/snapshotted VoxelPop pipeline -> same-origin resilient GLB delivery -> final movable 3D, with image-first fallback and fresh-photo rebuild recovery.');
