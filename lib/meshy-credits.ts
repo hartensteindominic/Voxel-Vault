@@ -12,6 +12,12 @@ function messageFrom(payload: any) {
   return String(payload?.task_error?.message || payload?.message || payload?.error || '').trim();
 }
 
+function numericBalance(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const balance = Number(value);
+  return Number.isFinite(balance) ? Math.max(0, balance) : null;
+}
+
 export function isMeshyCreditFailure(status: unknown, payload: any = {}) {
   const code = Number(status || 0);
   const message = messageFrom(payload);
@@ -19,7 +25,7 @@ export function isMeshyCreditFailure(status: unknown, payload: any = {}) {
 }
 
 export function meshyCreditFailure(requiredCredits: number, availableCredits: number | null, stage: string) {
-  const available = Number.isFinite(Number(availableCredits)) ? Math.max(0, Number(availableCredits)) : null;
+  const available = numericBalance(availableCredits);
   const balanceCopy = available === null ? '' : ` The connected Meshy API account currently has ${available} credit${available === 1 ? '' : 's'}.`;
   return {
     ok: false,
@@ -29,7 +35,7 @@ export function meshyCreditFailure(requiredCredits: number, availableCredits: nu
     stage,
     requiredCredits,
     availableCredits: available,
-    error: `VoxelPop 3D credits are currently unavailable for ${stage}. ${requiredCredits} Meshy API credits are needed before this stage starts.${balanceCopy} Nothing new was generated for this stage.`,
+    error: `VoxelPop 3D credits are currently unavailable for ${stage}. ${requiredCredits} Meshy API credits are needed before this stage starts.${balanceCopy} This is the Meshy generation balance, not your Voxel Vault USD, crypto, or property balance. Nothing new was generated for this stage.`,
   };
 }
 
@@ -40,9 +46,9 @@ export async function readMeshyCreditBalance(apiKey: string) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    const balance = Number(data?.balance);
-    if (!response.ok || !Number.isFinite(balance)) return null;
-    return Math.max(0, balance);
+    const balance = numericBalance(data?.balance);
+    if (!response.ok || balance === null) return null;
+    return balance;
   } catch {
     return null;
   }
