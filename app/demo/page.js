@@ -7,6 +7,7 @@ import PhotoReliefModelViewer from '../property/PhotoReliefModelViewer';
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './demo.module.css';
 
+// Explicit width/height on the SVG is required so canvas sampling gets real pixels.
 const SAMPLE = '/voxelpop/demo-house.svg';
 
 export default function DemoPage() {
