@@ -6,8 +6,8 @@ import { isOrganizedUserRoute } from '../../lib/product-map';
 import styles from './ProductTopNav.module.css';
 
 const ITEMS = [
-  { href: '/property', label: 'Create · $4.99' },
-  { href: '/vault', label: 'Vault' },
+  { href: '/property', label: 'Create' },
+  { href: '/vault', label: 'Inventory' },
 ];
 
 function activeFor(pathname, href) {
@@ -20,9 +20,9 @@ export default function ProductTopNav({ className = '' }) {
   const focusedFunnel = pathname === '/' || pathname === '/property';
   const dockedMobile = isOrganizedUserRoute(pathname) && !focusedFunnel;
 
-  return <nav className={`${styles.nav} ${focusedFunnel ? styles.focusedFunnel : ''} ${dockedMobile ? styles.mobileDocked : ''} ${className}`.trim()} aria-label="VoxelPop product navigation">
-    <Link className={styles.brand} href="/" aria-label="VoxelPop home">
-      <span className={styles.mark}>V</span><b>VOXELPOP</b>
+  return <nav className={`${styles.nav} ${focusedFunnel ? styles.focusedFunnel : ''} ${dockedMobile ? styles.mobileDocked : ''} ${className}`.trim()} aria-label="Voxel Vault product navigation">
+    <Link className={styles.brand} href="/" aria-label="Voxel Vault home">
+      <span className={styles.mark}>V</span><b>VOXEL VAULT</b>
     </Link>
     <div className={styles.links}>
       {ITEMS.map((item) => {
