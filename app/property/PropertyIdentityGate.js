@@ -9,7 +9,7 @@ export default function PropertyIdentityGate({ children }) {
   const [selected, setSelected] = useState(false);
   const [address, setAddress] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('Enter the property address. This is how Voxel Vault prevents duplicate purchases and mints.');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -43,7 +43,7 @@ export default function PropertyIdentityGate({ children }) {
     event.preventDefault();
     if (!token || !address.trim() || busy) return;
     setBusy(true);
-    setMessage('Checking the World building identity and one-of-one availability…');
+    setMessage('Checking property…');
     try {
       const response = await fetch('/api/property-identity', {
         method: 'POST',
@@ -54,7 +54,7 @@ export default function PropertyIdentityGate({ children }) {
       if (!response.ok || !result?.available) throw new Error(result?.error || 'This property could not be verified.');
       setAddress(result.address || address);
       setSelected(true);
-      setMessage('Property verified. Only one Voxel Vault purchase and one NFT mint can exist for it.');
+      setMessage('');
     } catch (error) {
       setMessage(String(error?.message || error || 'Property verification failed.'));
     } finally {
@@ -65,30 +65,55 @@ export default function PropertyIdentityGate({ children }) {
   async function changeProperty() {
     if (token) await fetch('/api/property-identity', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setSelected(false);
-    setMessage('Enter the property address. This is how Voxel Vault prevents duplicate purchases and mints.');
+    setMessage('');
   }
 
   if (!authReady || !token) return children;
-  if (selected) return <>
-    <div style={{maxWidth:680,margin:'10px auto 0',padding:'10px 12px',border:'1px solid #dce9c4',borderRadius:14,background:'#f8ffe9',fontFamily:'Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',textAlign:'center'}}>
-      <b style={{display:'block',fontSize:10,letterSpacing:'.07em',color:'#52672b'}}>✓ ONE-OF-ONE PROPERTY LOCK</b>
-      <span style={{display:'block',marginTop:4,fontSize:11,color:'#667057'}}>{address}</span>
-      <button type="button" onClick={changeProperty} style={{marginTop:6,border:0,background:'transparent',color:'#6b4ab0',fontWeight:800,textDecoration:'underline',cursor:'pointer'}}>Change property</button>
-    </div>
-    {children}
-  </>;
 
-  return <main style={{minHeight:'100vh',padding:'32px 12px 100px',background:'#fffaf2',color:'#251912',fontFamily:'Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'}}>
-    <section style={{width:'min(620px,100%)',margin:'0 auto',textAlign:'center'}}>
-      <div style={{width:'max-content',margin:'0 auto 18px',padding:'7px 11px',border:'1px solid #e5dde8',borderRadius:999,background:'#fff',color:'#7138f5',fontSize:9,fontWeight:1000,letterSpacing:'.12em'}}>VOXELPOP · ONE OF ONE</div>
-      <h1 style={{margin:'0 0 10px',fontSize:'clamp(38px,8vw,56px)',lineHeight:.95,letterSpacing:'-.055em'}}>One property.<br/>One voxel.</h1>
-      <p style={{maxWidth:500,margin:'0 auto 20px',color:'#786e67',fontSize:13,lineHeight:1.55}}>Verify the property before choosing its photo. Once purchased, that mapped property cannot be purchased or minted again by another account.</p>
-      <form onSubmit={verify} style={{display:'grid',gap:10,padding:14,border:'1px solid #e1dce3',borderRadius:20,background:'#fff'}}>
-        <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" autoComplete="street-address" style={{width:'100%',minHeight:56,border:'1.5px solid #ded8df',borderRadius:14,padding:'0 15px',font:'750 16px inherit',outline:'none',boxSizing:'border-box'}}/>
-        <button type="submit" disabled={!address.trim() || busy} style={{minHeight:56,border:0,borderRadius:15,background:'#7138f5',color:'#fff',font:'900 16px inherit',boxShadow:'0 7px 0 #5120d0',opacity:(!address.trim() || busy) ? .55 : 1}}>{busy ? 'Checking property…' : 'Verify property & continue'}</button>
-      </form>
-      <p role="status" style={{minHeight:20,margin:'12px auto',color:'#756d78',fontSize:10.5,fontWeight:700,lineHeight:1.45}}>{message}</p>
-      <p style={{maxWidth:540,margin:'8px auto',color:'#918993',fontSize:9,lineHeight:1.5}}>The lock applies to the digital Voxel Vault collectible. It does not create or transfer deed, title, occupancy, rent, investment, or other rights in the physical property.</p>
+  return <>
+    <section className="identityDock" aria-label="One-of-one property identity">
+      {selected ? <div className="lockedRow">
+        <div className="lockIcon">✓</div>
+        <div className="lockCopy">
+          <b>Property locked</b>
+          <span>{address}</span>
+        </div>
+        <button type="button" onClick={changeProperty}>Change</button>
+      </div> : <form className="lockForm" onSubmit={verify}>
+        <div className="lockIntro">
+          <span className="spark">◇</span>
+          <div><b>Make it one-of-one</b><small>Add the property address before checkout.</small></div>
+        </div>
+        <div className="fieldRow">
+          <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" autoComplete="street-address"/>
+          <button type="submit" disabled={!address.trim() || busy}>{busy ? 'Checking…' : 'Lock'}</button>
+        </div>
+        {message ? <p role="status">{message}</p> : null}
+      </form>}
     </section>
-  </main>;
+    {children}
+    <style jsx>{`
+      .identityDock{width:min(680px,calc(100% - 24px));margin:10px auto 0;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;position:relative;z-index:8}
+      .lockForm,.lockedRow{border:1px solid rgba(113,56,245,.14);border-radius:18px;background:rgba(255,255,255,.88);box-shadow:0 8px 26px rgba(70,45,95,.07);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+      .lockForm{padding:10px}
+      .lockIntro{display:flex;align-items:center;gap:9px;padding:1px 2px 9px;text-align:left}
+      .spark{width:31px;height:31px;flex:0 0 31px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#7b45ff,#bf6cff);color:white;font-size:17px;font-weight:1000;box-shadow:0 5px 12px rgba(113,56,245,.18)}
+      .lockIntro div{min-width:0;display:grid;gap:1px}
+      .lockIntro b{font-size:11px;color:#2d2035;letter-spacing:-.01em}
+      .lockIntro small{font-size:9px;color:#8b8290;line-height:1.35}
+      .fieldRow{display:grid;grid-template-columns:minmax(0,1fr) 82px;gap:7px}
+      input{width:100%;min-width:0;height:48px;border:1px solid #e3dce7;border-radius:13px;background:#fff;padding:0 13px;color:#2d2530;font:750 13px inherit;outline:none;box-sizing:border-box}
+      input:focus{border-color:#9b80e8;box-shadow:0 0 0 4px rgba(113,56,245,.08)}
+      .fieldRow button{height:48px;border:0;border-radius:13px;background:linear-gradient(180deg,#7c48ff,#6c35ef);color:#fff;font:900 12px inherit;box-shadow:0 5px 0 #5521d4;cursor:pointer}
+      .fieldRow button:disabled{opacity:.45;box-shadow:none;cursor:default}
+      .lockForm p{margin:8px 2px 1px;color:#a14e43;font-size:9px;font-weight:750;line-height:1.35;text-align:left}
+      .lockedRow{display:flex;align-items:center;gap:9px;padding:8px 9px}
+      .lockIcon{width:34px;height:34px;flex:0 0 34px;border-radius:11px;display:grid;place-items:center;background:#c9ff54;color:#3f5b15;font-size:15px;font-weight:1000}
+      .lockCopy{min-width:0;flex:1;display:grid;gap:1px;text-align:left}
+      .lockCopy b{font-size:10px;color:#3e5220;text-transform:uppercase;letter-spacing:.055em}
+      .lockCopy span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#746b79;font-size:9.5px}
+      .lockedRow button{border:0;background:transparent;color:#6c45ba;font:850 10px inherit;text-decoration:underline;text-underline-offset:3px;padding:8px;cursor:pointer}
+      @media(max-width:520px){.identityDock{width:calc(100% - 16px);margin-top:6px}.lockForm{padding:9px}.lockIntro{padding-bottom:7px}.fieldRow{grid-template-columns:minmax(0,1fr) 72px}.fieldRow button,input{height:46px}.lockIntro small{font-size:8.5px}}
+    `}</style>
+  </>;
 }
