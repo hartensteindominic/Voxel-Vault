@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
-import { verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
+import { readPropertyCollectibleReservation, verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
 import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
 import { buildPropertyVoxelVoucher, propertyVoxelVoucherUsed } from '../../../../lib/property-voxel-mint';
 
@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     const taskId = clean(body?.taskId, 260);
     const wallet = clean(body?.wallet, 60);
     const name = clean(body?.name, 72) || 'VoxelPop Property';
-    if (!draftId || !taskId || !ADDRESS_RE.test(wallet)) {
-      return privateJson({ ok: false, error: 'A finished property voxel and connected wallet are required.' }, { status: 400 });
+    const propertyIdentity = clean(body?.propertyIdentity, 100);
+    if (!draftId || !taskId || !ADDRESS_RE.test(wallet) || !propertyIdentity.startsWith('property:')) {
+      return privateJson({ ok: false, error: 'A finished property voxel, canonical property identity, and connected wallet are required.' }, { status: 400 });
     }
 
     const owned = await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId: taskId });
@@ -36,8 +37,19 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, error: 'Finish the local photo-approved voxel before minting.' }, { status: 409 });
     }
 
+    const reservation = await readPropertyCollectibleReservation(propertyIdentity);
+    if (!reservation || reservation.buyerId !== auth.user.id || !['paid', 'minted'].includes(reservation.state)) {
+      return privateJson({ ok: false, error: 'This property does not have a paid one-of-one purchase lock for this account.' }, { status: 403 });
+    }
+    if (reservation.draftId !== owned.draftId) {
+      return privateJson({ ok: false, error: 'This finished voxel does not match the property purchase lock.' }, { status: 409 });
+    }
+    if (reservation.state === 'minted') {
+      return privateJson({ ok: false, alreadyMinted: true, error: 'This property has already been minted. A second NFT for the same property is blocked.' }, { status: 409 });
+    }
+
     const origin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
-    const voucher = await buildPropertyVoxelVoucher({ userId: auth.user.id, draftId: owned.draftId, taskId, wallet, name, origin });
+    const voucher = await buildPropertyVoxelVoucher({ propertyIdentity, draftId: owned.draftId, taskId, wallet, name, origin });
     const deployment = await getVoxelFlipDeployment();
     if (voucher.signer.toLowerCase() !== deployment.mintSigner.toLowerCase()) {
       return privateJson({ ok: false, error: 'VoxelFlip mint signer does not match the reviewed Base deployment.' }, { status: 503 });
@@ -50,7 +62,7 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, error: 'Base could not be checked safely. No mint was sent. Try again before approving a wallet transaction.' }, { status: 503 });
     }
     if (used) {
-      return privateJson({ ok: false, alreadyMinted: true, error: 'This finished property voxel has already used its one-time VoxelFlip mint voucher. A duplicate mint is blocked.' }, { status: 409 });
+      return privateJson({ ok: false, alreadyMinted: true, error: 'This property has already used its one-time VoxelFlip mint voucher. A duplicate mint is blocked.' }, { status: 409 });
     }
 
     return privateJson({
@@ -60,6 +72,9 @@ export async function POST(request: Request) {
       wallet,
       draftId: owned.draftId,
       taskId,
+      propertyIdentity,
+      atlasId: reservation.atlasId,
+      propertyAddress: reservation.address,
       modelUrl: owned.modelUrl,
       metadataUrl: voucher.metadataUrl,
       voucherId: voucher.voucherId,
@@ -68,6 +83,7 @@ export async function POST(request: Request) {
       contractAddress: deployment.address,
       chainId: deployment.chainId,
       network: deployment.network,
+      onePropertyOneMint: true,
       digitalOnly: true,
       noMeshy: true,
     });
