@@ -1,1 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://hartensteindominic.github.io/Ad-Revenue/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/tools/profit-margin/</loc><changefreq>monthly</changefreq><priority>0.9</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/tools/discount-calculator/</loc><changefreq>monthly</changefreq><priority>0.9</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/tools/break-even-calculator/</loc><changefreq>monthly</changefreq><priority>0.9</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/tools/loan-payment/</loc><changefreq>monthly</changefreq><priority>0.9</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/tools/hourly-rate/</loc><changefreq>monthly</changefreq><priority>0.9</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/privacy.html</loc><priority>0.3</priority></url><url><loc>https://hartensteindominic.github.io/Ad-Revenue/terms.html</loc><priority>0.3</priority></url></urlset>
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.voxelvault.io/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.voxelvault.io/property</loc><changefreq>daily</changefreq><priority>0.95</priority></url>
+  <url><loc>https://www.voxelvault.io/world</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.voxelvault.io/vault</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.voxelvault.io/about</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://www.voxelvault.io/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://www.voxelvault.io/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+</urlset>
