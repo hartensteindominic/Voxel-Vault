@@ -1,7 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect } from 'react';
+import ProductTopNav from '../components/ProductTopNav';
 import PropertyJourneyExact from './PropertyJourneyExact';
+import shellStyles from './property-shell.module.css';
 
 const DEMO_PURCHASE_KEY = 'voxel-vault:property-slice-purchases';
 const DRAFT_PREFIX = 'voxel-vault:property-draft:';
@@ -69,5 +72,14 @@ function VaultPropertyHandoff() {
 }
 
 export default function PropertyJourneyPage() {
-  return <><VaultPropertyHandoff/><PropertyJourneyExact/></>;
+  return <>
+    <ProductTopNav/>
+    <aside className={shellStyles.proof} aria-label="VoxelPop creation preview and steps">
+      <img src="/voxelpop/demo-house.svg" alt="Built-in VoxelPop sample house"/>
+      <div className={shellStyles.copy}><small>BEFORE YOU PAY</small><b>See the real 3D interaction first.</b><span>The demo uses the same preview and voxel viewers as Create.</span></div>
+      <div className={shellStyles.actions}><Link className={shellStyles.demo} href="/demo">Try 3D demo</Link><a className={shellStyles.flow} href="#voxelpop-journey">See steps</a></div>
+      <div className={shellStyles.steps}><b>PHOTO</b><i>→</i><b>$4.99</b><i>→</i><b>3D PREVIEW</b><i>→</i><b>APPROVE</b><i>→</i><b>VOXEL</b></div>
+    </aside>
+    <div id="voxelpop-journey"><VaultPropertyHandoff/><PropertyJourneyExact/></div>
+  </>;
 }

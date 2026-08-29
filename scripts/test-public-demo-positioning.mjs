@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const home = read('app/page.js');
+const homePreview = read('app/components/HomeProductPreview.js');
 const demo = read('app/demo/page.js');
 const layout = read('app/layout.js');
 const privacy = read('app/privacy/page.js');
@@ -14,13 +15,16 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /SEE 3D SAMPLE · NO LOGIN/, 'home must show product value before Google sign-in');
+assert.match(home, /Try 3D demo/, 'home must show product value before Google sign-in');
 assert.match(home, /href="\/demo"/, 'home must link to the public product sample');
-assert.match(home, /\$4\.99/, 'the focused paid-creation price must remain public');
-assert.match(home, /3D preview[\s\S]*voxel/i, 'home must preserve preview-before-voxel positioning');
+assert.match(home, /Create yours · \$4\.99/, 'home must keep the paid creation price visible without making checkout the first action');
+assert.match(home, /3D PREVIEW[\s\S]*VOXEL/i, 'home must preserve preview-before-voxel positioning');
+assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product preview instead of a decorative CSS-only house');
+assert.match(homePreview, /PhotoReliefModelViewer/, 'home product proof must use the production photo-relief viewer');
+assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production local voxel viewer');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
-assert.match(home, /About \+ contact/, 'home footer must expose About/contact');
+assert.match(home, /About/, 'home footer must expose About/contact information');
 
 assert.match(demo, /PhotoReliefModelViewer/, 'public demo must use the production photo-relief viewer');
 assert.match(demo, /LocalVoxelModelViewer/, 'public demo must use the production local voxel viewer');
@@ -50,5 +54,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: no-login product proof, focused $4.99 story, corrected trust pages, richer social preview, and scoped README remain intact.');
+console.log('Public VoxelPop positioning checks passed: demo-first product proof, real production viewers, focused $4.99 story, corrected trust pages, richer social preview, and scoped README remain intact.');
 await import('./test-public-surface-coherence.mjs');

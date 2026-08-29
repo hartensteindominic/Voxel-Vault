@@ -64,20 +64,25 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced tool
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/, 'tool finder must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain pure navigation and never execute side effects');
 
-// Consumer Home describes the actual guided, paid local-generation property flow.
+// Consumer Home describes the actual demo-first, account-gated, paid preview-before-voxel flow.
 assert.match(rootHome, /START → SIGN IN \+ UPLOAD PHOTO/, 'root Home should accurately disclose sign-in before the upload picker');
-assert.match(rootHome, /href="\/property"/, 'root Home should route the primary CTA into the account-gated maker');
-assert.match(rootHome, /Upload a picture\./, 'root Home should make one photo the obvious starting point');
+assert.match(rootHome, /href="\/demo"/, 'root Home should let visitors inspect real 3D interaction before sign-in');
+assert.match(rootHome, /href="\/property"/, 'root Home should route creation into the account-gated maker');
+assert.match(rootHome, /Upload a picture\./, 'root Home should keep one photo as the obvious creation source');
 assert.match(rootHome, /After sign-in and the \$4\.99 creation checkout/, 'root Home should disclose the exact paid creation gate without implying hidden charging');
 assert.match(rootHome, /One VoxelPop creation costs \$4\.99/i, 'root Home must disclose the generation price');
 assert.match(rootHome, /source photo stays on your device/i, 'root Home must explain the device-local source-photo boundary');
 assert.match(rootHome, /without Meshy credits/i, 'root Home must accurately describe the local generation engine');
 assert.match(rootHome, /Optional Collect later is a separate digital-item purchase/i, 'root Home must distinguish generation from the later collectible checkout');
-assert.match(rootHome, /<b>UPLOAD<\/b>/, 'root Home should show the upload stage');
-assert.match(rootHome, /<b>\$4\.99 CREATE<\/b>/, 'root Home should disclose the paid creation stage in the flow');
-assert.match(rootHome, /<b>3D<\/b>/, 'root Home should expose movable 3D');
-assert.match(rootHome, /<b>MAP<\/b>/, 'root Home should expose source-backed mapping');
-assert.match(rootHome, /<b>READY<\/b>/, 'root Home should make the guided finish state obvious');
+assert.match(rootHome, /HomeProductPreview/, 'root Home should prove the product with the production visual stages rather than a decorative CSS house');
+assert.match(rootHome, /<b>PHOTO<\/b>/, 'root Home should show the photo stage');
+assert.match(rootHome, /<b>\$4\.99<\/b>/, 'root Home should disclose the paid creation stage in the flow');
+assert.match(rootHome, /<b>3D PREVIEW<\/b>/, 'root Home should expose the preview before voxelization');
+assert.match(rootHome, /<b>APPROVE<\/b>/, 'root Home should require explicit preview approval');
+assert.match(rootHome, /<b>VOXEL<\/b>/, 'root Home should expose the separate movable voxel stage');
+assert.match(rootHome, /<b>OPTIONAL MINT<\/b>/, 'root Home should make minting explicitly optional');
+assert.match(rootHome, /href="\/world"/, 'source-backed map context should remain reachable after creation');
+assert.match(rootHome, /href="\/vault"/, 'finished creations should have a clear Vault destination');
 assert.match(rootHome, /Collection and minting remain separate optional actions/, 'paid and blockchain actions must never appear automatic');
 assert.match(rootHome, /no wallet is required to create/i, 'wallet must remain optional for creation');
 assert.match(rootHome, /Voxel Vault is not a bank/i, 'root Home must not imply bank status');
@@ -149,4 +154,4 @@ assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodia
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault guided sign-in -> upload -> $4.99 local creation -> 3D -> map -> ready journey + unambiguous $1.99 sandbox + simplified optional property/money tools + fail-closed advanced rails coherence checks passed');
+console.log('Voxel Vault demo-first photo -> $4.99 -> 3D preview -> approve -> movable voxel -> optional World/Vault/mint + unambiguous $1.99 sandbox + fail-closed advanced rails coherence checks passed');
