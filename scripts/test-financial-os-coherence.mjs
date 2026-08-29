@@ -107,11 +107,15 @@ assert.doesNotMatch(homeCapabilities, /process\.env|MESHY_API_KEY|BRIDGE_ACCESS_
 assert.match(capabilitiesApi, /automaticGeneration:\s*false/, 'server capability contract must keep Meshy automatic generation disabled');
 assert.match(capabilitiesApi, /Boolean\(process\.env\.MESHY_API_KEY\?\.trim\(\)\)/, 'Meshy readiness may expose only a boolean');
 
-assert.match(more, /Know what each feature actually is/i, 'More must explain its status-driven purpose');
-assert.match(more, /APP_SECTIONS/);
-assert.match(more, /ONE SIMPLE RULE/);
-assert.match(more, /Create → World → Vault/, 'More must keep the main consumer journey short');
-assert.match(more, /LIVE · SANDBOX · PROVIDER-GATED/, 'More must expose feature status at the top');
+// More keeps the core app short while surfacing useful property actions first and advanced rails second.
+assert.match(more, /More tools\.[\s\S]*Less confusion\./i, 'More must explain its simplified purpose');
+assert.match(more, /Bought or saved a property\?/i, 'More must lead with the reusable property workflow');
+assert.match(more, /3D preview → approve → 3D voxel → optional mint/i, 'More must state the actual property creation order');
+assert.match(more, /Create from My Properties →/, 'More must link directly to the reusable property picker');
+assert.match(more, /\$1\.99 Property Sandbox/, 'More must keep the demo property tool clearly labeled');
+assert.match(more, /ADVANCED \+ PROVIDER-GATED/, 'provider and legal rails must stay visibly advanced');
+assert.match(more, /A demo, NFT, investment security, lease record, and property deed are different things/, 'More must preserve the legal and financial separation');
+assert.match(more, /A VoxelPop model or NFT can represent a digital creation/, 'More must preserve the digital-not-deed boundary');
 
 assert.match(integrationsApi, /requireVoxelVaultAdmin/, 'integration status must be owner-authenticated');
 assert.match(integrationsApi, /MESHY_API_KEY/);
@@ -145,4 +149,4 @@ assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodia
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault guided sign-in -> upload -> $4.99 local creation -> 3D -> map -> ready journey + unambiguous $1.99 sandbox + separated optional property/money tools + fail-closed advanced rails coherence checks passed');
+console.log('Voxel Vault guided sign-in -> upload -> $4.99 local creation -> 3D -> map -> ready journey + unambiguous $1.99 sandbox + simplified optional property/money tools + fail-closed advanced rails coherence checks passed');
