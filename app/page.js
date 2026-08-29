@@ -41,7 +41,7 @@ export default function Home() {
 
       <section className={styles.truthCard}>
         <div><b>Simple by default.</b><span>One obvious action per screen. Vault, World, and minting stay out of the way until they matter.</span></div>
-        <p>VoxelPop is a digital creation product. A VoxelPop, payment, map marker, or NFT does not create ownership of any physical property or create deed/title, rent, occupancy, investment, appreciation, or other physical-property rights.</p>
+        <p>VoxelPop is a digital creation product. A VoxelPop, payment, map marker, or NFT does not create ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property.</p>
       </section>
 
       <footer className={styles.footer}>
