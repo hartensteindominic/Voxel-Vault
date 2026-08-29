@@ -9,7 +9,7 @@ import './voxelpop-cute-system.css';
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
 const TITLE = 'Voxel Vault | Turn a House Photo into a 3D Voxel';
-const DESCRIPTION = 'Upload an authorized house photo, see a textured 3D preview, approve it, then create a movable VoxelPop voxel for $4.99. Source photo stays on your device; minting is optional.';
+const DESCRIPTION = 'Your 3D Asset Vault for turning an authorized house photo into a textured 3D preview and movable VoxelPop voxel for $4.99. Source photo stays on your device; minting is optional.';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
