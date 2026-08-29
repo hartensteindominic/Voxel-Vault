@@ -177,6 +177,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const atlasIdRaw = url.searchParams.get('atlasId') || '';
   const taskId = url.searchParams.get('taskId') || '';
+  const repairCachedModel = url.searchParams.get('repair') === '1';
 
   if (atlasIdRaw && !taskId) {
     try {
@@ -208,7 +209,10 @@ export async function GET(request: Request) {
     const saved = await readCatalog3DByTask(taskId);
     let modelStoragePath = saved?.model_storage_path || null;
 
-    if (providerModelUrl && saved?.item_id && !modelStoragePath) modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+    if (providerModelUrl && saved?.item_id && (repairCachedModel || !modelStoragePath)) {
+      const repairedStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+      if (repairedStoragePath) modelStoragePath = repairedStoragePath;
+    }
     let updated = saved;
     if (saved?.item_id) {
       updated = await saveCatalog3D(saved.item_id, {
@@ -227,6 +231,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       configured: true,
       exists: true,
+      repaired: repairCachedModel && Boolean(providerModelUrl),
       aiModel: WORLD_ATLAS_MESH_POLICY.aiModel,
       ...safeMeshState({
         ...(updated || {}),
