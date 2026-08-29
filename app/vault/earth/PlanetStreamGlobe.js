@@ -82,6 +82,20 @@ function pointerDistance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function selectedFocusPoint(next = {}) {
+  const listing = (next.listings || []).find((item) => (
+    item?.id === next.selectedId
+    && Number.isFinite(Number(item?.latitude))
+    && Number.isFinite(Number(item?.longitude))
+  ));
+  if (listing) return listing;
+  return (next.atlasBuildings || []).find((item) => (
+    item?.atlasId === next.selectedAtlasId
+    && Number.isFinite(Number(item?.latitude))
+    && Number.isFinite(Number(item?.longitude))
+  )) || null;
+}
+
 export default function PlanetStreamGlobe({
   listings = [],
   selectedId = '',
@@ -196,11 +210,11 @@ export default function PlanetStreamGlobe({
         const normal = position.clone().normalize();
         const up = new THREE.Vector3(0, 1, 0);
         const quaternion = new THREE.Quaternion().setFromUnitVectors(up, normal);
-        const scale = selected ? 1.45 : 1;
+        const scale = selected ? 1.8 : 1;
         const bodyGeometry = new THREE.BoxGeometry(0.12 * scale, 0.15 * scale, 0.12 * scale);
         const roofGeometry = new THREE.ConeGeometry(0.105 * scale, 0.09 * scale, 4);
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xffffff : 0x79efbc, emissive: selected ? 0x6e5bff : 0x164f3d, emissiveIntensity: selected ? 1.5 : 0.7, roughness: 0.38 });
-        const roofMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xd9d1ff : 0x25352f, emissive: selected ? 0x5844ce : 0x10231c, emissiveIntensity: 0.7, roughness: 0.48 });
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xffffff : 0x79efbc, emissive: selected ? 0x6e5bff : 0x164f3d, emissiveIntensity: selected ? 1.75 : 0.7, roughness: 0.38 });
+        const roofMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xd9d1ff : 0x25352f, emissive: selected ? 0x5844ce : 0x10231c, emissiveIntensity: selected ? 0.9 : 0.7, roughness: 0.48 });
         markerResources.push(bodyGeometry, roofGeometry, bodyMaterial, roofMaterial);
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         const roof = new THREE.Mesh(roofGeometry, roofMaterial);
@@ -283,6 +297,18 @@ export default function PlanetStreamGlobe({
       };
 
       const updateCamera = () => camera.position.set(0, 0.18, cameraDistance);
+
+      function focusSelected(next = dataRef.current) {
+        const point = selectedFocusPoint(next);
+        if (!point) return false;
+        targetX = Math.max(-1.05, Math.min(1.05, Number(point.latitude) * Math.PI / 180));
+        targetY = -Number(point.longitude) * Math.PI / 180;
+        if (simpleMode) cameraDistance = compact ? 10.9 : 10.5;
+        updateCamera();
+        scheduleViewport(520);
+        return true;
+      }
+
       const down = (event) => {
         activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         renderer.domElement.setPointerCapture?.(event.pointerId);
@@ -369,7 +395,7 @@ export default function PlanetStreamGlobe({
         lastRender = time;
         root.rotation.x += (targetX - root.rotation.x) * 0.075;
         root.rotation.y += (targetY - root.rotation.y) * 0.075;
-        if (!reducedMotion && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
+        if (!simpleMode && !reducedMotion && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
         renderer.render(scene, camera);
       };
 
@@ -384,8 +410,12 @@ export default function PlanetStreamGlobe({
       window.addEventListener('resize', resize);
 
       const engine = {
-        updateMarkers,
+        updateMarkers(next) {
+          updateMarkers(next);
+          if (simpleMode) focusSelected(next);
+        },
         reset() {
+          if (simpleMode && focusSelected(dataRef.current)) return;
           targetX = 0.18;
           targetY = -0.42;
           cameraDistance = compact ? 13.9 : 13.1;
@@ -401,6 +431,7 @@ export default function PlanetStreamGlobe({
       };
       engineRef.current = engine;
       updateMarkers(dataRef.current);
+      if (simpleMode) focusSelected(dataRef.current);
       animate();
       scheduleViewport(900);
 
@@ -435,7 +466,7 @@ export default function PlanetStreamGlobe({
 
   return <div className="planetRoot">
     <div ref={mountRef} className="planetMount" />
-    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? 'PUBLIC 3D PROPERTY WORLD' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
+    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? 'PROPERTY WORLD · FOCUSED LOCATION' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
     <div className="planetControls" aria-label="Globe controls">
       <button type="button" onClick={() => engineRef.current?.zoom?.(-0.7)} aria-label="Zoom in">+</button>
       <button type="button" onClick={() => engineRef.current?.zoom?.(0.7)} aria-label="Zoom out">−</button>
