@@ -28,7 +28,7 @@ for (const label of ['Home', 'Create', 'World', 'Vault', 'More']) {
 assert.match(productMap, /SIMPLE_PROPERTY_DOCK/, 'the wider product directory can still classify simple property routes');
 assert.doesNotMatch(productMap.split('export const APP_DOCK')[0], /label: '\$1\.99'|label: 'Rented'|label: 'Add'/, 'sandbox/rental shortcuts must not clutter the canonical dock');
 assert.match(productMap, /APP_SECTIONS/);
-for (const route of ['/property', '/vault/earth', '/geo', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
+for (const route of ['/property', '/vault/earth', '/geo', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/vault/money', '/vault/estates', '/forge/mainnet', '/admin/integrations']) {
   assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
 }
 assert.match(productMap, /\$1\.99 Property Sandbox/, 'the tiny property comparison must remain explicitly sandboxed under More');

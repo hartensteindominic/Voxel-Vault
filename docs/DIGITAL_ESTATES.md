@@ -1,64 +1,81 @@
-# Voxel Vault Digital Estates
+# Voxel Vault Digital Properties
 
-Digital Estates are unique blockchain collectibles presented with a premium real-estate interface. They are **not physical real estate** and do not include a deed, title, tenancy, rental income, security, mortgage, appraisal, or legal claim on any real-world parcel or building.
+Digital Properties are unique, account-owned 3D collectibles with optional Base NFT portability. They are not physical real estate and do not include a deed, title, tenancy, rent, equity, a security, a mortgage, an appraisal or a legal claim on a real-world parcel or building.
 
-## Pricing model
+## $1.99 founder-reference pricing
 
-For this launch phase, each estate has two deliberately matching displayed values:
+The first collectible, `kensington-reference-home`, is the founder pricing anchor:
 
-- **Real-World Reference Value** — a creative pricing reference for the modeled building and lot.
-- **Digital Estate List Price** — the actual amount required to purchase the digital collectible.
+- digital collectible price: **$1.99**;
+- modeled-size anchor: **2,016 sq ft**;
+- relative index: **1.00x**;
+- visual/right status: stylized digital model, not an asserted exact architectural replica or ownership record.
 
-The values are numerically equal by product design, but the reference value is not an appraisal and does not state that the NFT is worth or represents an actual physical property.
+Every other Digital Property uses the same server-side formula:
 
-The first district stays below Stripe's general 8-digit USD amount ceiling. Browser-supplied prices are ignored; checkout always reloads the price from `lib/digital-estates.js`.
+```text
+relative index = clamp(sqrt(modeled sq ft / 2,016), 0.75, 2.50)
+digital price  = round($1.99 × relative index)
+```
 
-## Payment rails
+The square root keeps the low-cost marketplace range compact as modeled homes become larger. This is a Voxel Vault **digital collectible scale index**. It does not use or imitate an appraisal, assessed value, listing price, future value or expected appreciation.
 
-### Hosted Checkout
+Authoritative constants and calculations live in `lib/digital-estates.js`. The browser submits only `estateId`; it never supplies price, anchor or index values to checkout. Stripe metadata binds the pricing model version, exact anchor cents and selected relative-index basis points so the return/webhook verifier can reject stale or manipulated checkout data.
 
-`POST /api/digital-estates/checkout` creates a server-authoritative Stripe Checkout Session after:
+## Purchase model
 
-1. authenticated Voxel Vault user verification,
-2. wallet binding,
-3. VoxelFlip mint-signer readiness,
-4. onchain voucher availability,
-5. unique inventory reservation.
+### USD hosted checkout
 
-The integration does not hard-code a card-only list. Stripe Hosted Checkout may display cards, Apple Pay, Google Pay, Link, bank methods, PayPal, stablecoins, or other methods only when they are enabled and eligible for that account/customer/currency/amount.
+`POST /api/digital-estates/checkout` requires a signed-in Voxel Vault account and verified email, reloads the estate from the server catalog, locks unique inventory, and creates an exact hosted checkout amount. The buyer must acknowledge the digital-only rights boundary before the browser opens checkout.
 
-After return, `POST /api/digital-estates/claim` re-reads the Checkout Session from Stripe and requires `payment_status=paid`, exact catalog amount, exact buyer, exact estate metadata, and the pre-bound wallet before creating a one-use VoxelFlip mint voucher.
+The purchase becomes account-owned after a signed Stripe webhook or authenticated checkout-return verification confirms:
 
-### Direct Base USDC
+1. `payment_status=paid`;
+2. the exact signed-in buyer;
+3. the exact server catalog amount;
+4. the current pricing-model version, $1.99 anchor and property index;
+5. the same unique inventory reservation.
 
-For high-value crypto buyers, `/api/digital-estates/crypto-config` preflights the purchase before any transfer is requested. It uses native Circle USDC on Base mainnet:
+A crypto wallet is not required to buy.
+
+### Base USDC
+
+The optional crypto rail uses native Circle USDC on Base:
 
 `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 
-The server returns the exact 6-decimal USDC amount and reviewed recipient only after inventory and mint readiness are verified. The browser submits a normal USDC `transfer` through the buyer's wallet.
+Before the wallet displays a transfer, the server returns the reviewed token, recipient and exact 6-decimal amount. After confirmation, the server independently verifies chain, transaction status, USDC contract, sender, recipient, exact amount, reservation window and transaction-id reuse. The USDC payment secures account ownership first; it never mints automatically.
 
-The claim route then independently verifies the mined transaction's chain, receipt status, USDC contract, sender, recipient, exact amount, reservation time window, and one-time transaction idempotency key before issuing the NFT voucher.
+## Optional NFT
 
-A direct USDC purchase therefore requires two explicit wallet approvals:
+An owner may later bind one wallet and mint the Digital Property through the reviewed VoxelFlip voucher path. Minting adds public provenance and wallet portability. It does not create physical-property rights, investment rights, liquidity, a buyer, a floor price or appreciation.
 
-1. the real USDC payment,
-2. the Base NFT mint transaction after server verification.
+## Money Hub
 
-## Server-only configuration
+`/vault/money` presents three source-separated layers:
 
-Optional:
+| Layer | Current source | Custody/right boundary |
+| --- | --- | --- |
+| Cash / USD | No customer balance until a regulated partner is integrated | Voxel Vault is not the bank and does not hold customer dollars |
+| Crypto | Read-only ETH and USDC balances from the connected Base address | Self-custody; no seed phrase and no transfer without a separate wallet approval |
+| Property + NFTs | Signed-in Digital Property ownership plus optional chain state | Digital collectibles are not deeds; securities and direct-property interests require their own verified providers/legal records |
+
+The UI intentionally does not calculate a fake total balance across USD, ETH, USDC, collectibles, listings, securities and direct-property interests.
+
+### Conversion truth
+
+- USD → Digital Property: exact server-authoritative checkout can be available.
+- Digital Property → NFT: optional owner mint can be available.
+- NFT → USDC: requires a real listing, buyer and settled sale; no instant conversion is promised.
+- USDC → USD: requires an approved regulated off-ramp and identity/compliance controls.
+- Property security → USD: must follow the issuer/provider/market transfer and redemption rules.
+
+Voxel Vault can become the single interface for these routes without taking unlicensed custody or relabeling one asset as another.
+
+## Verification
 
 ```bash
-DIGITAL_ESTATE_USDC_RECIPIENT=
-DIGITAL_ESTATES_METADATA_SECRET=
+npm run test:digital-estates
+npm run test:money-hub
+npm run build
 ```
-
-`DIGITAL_ESTATE_USDC_RECIPIENT` may be set to a dedicated public receiving address. If blank, the implementation falls back to the reviewed VoxelFlip royalty receiver from `lib/voxelflip-deployment.ts`.
-
-`DIGITAL_ESTATES_METADATA_SECRET` is an optional dedicated HMAC secret for signed metadata URLs. If blank, the existing server-only VoxelFlip mint signer secret is used for metadata HMAC compatibility. Never expose either secret with a `NEXT_PUBLIC_` prefix.
-
-## Inventory truth
-
-Each estate's voucher ID is deterministic from the estate ID, not from a payment session. The VoxelFlip contract's `usedVouchers` mapping is therefore the final onchain uniqueness lock: one catalog estate can consume its voucher only once.
-
-The existing server-only `commerce_webhook_events` table is reused for short-lived reservation/idempotency records so concurrent buyers cannot intentionally be sent into checkout for the same estate. Paid reservations remain locked even if the buyer closes the browser before completing the mint.

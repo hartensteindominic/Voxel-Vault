@@ -76,6 +76,18 @@ A one-photo creation preserves the photographed view; it does not pretend to rec
 - **World** is optional map/place context for finished creations.
 - Neither screen converts a digital item, payment, map marker, or NFT into physical-property title.
 
+## $1.99 Digital Property market
+
+The separate `/vault/estates` market offers low-cost 3D **digital property collectibles**. Its stylized 2,016-modeled-square-foot founder reference is exactly **$1.99**; the other catalog prices are calculated from that anchor with one disclosed server-side formula.
+
+- Checkout receives only the catalog ID and reloads the exact price server-side.
+- USD checkout is account-first; a crypto wallet is optional.
+- Base USDC is independently verified for exact token, sender, recipient, amount and reservation.
+- NFT minting is an optional portability/provenance step after purchase.
+- `/vault/money` shows USD-provider, self-custody crypto, and property/NFT layers together without inventing a bank balance or guaranteed conversion.
+
+These collectibles do not include a deed, appraisal, rent, equity, investment rights, or a claim on a physical address. NFT-to-cash requires an actual sale and buyer; crypto-to-USD requires an approved regulated off-ramp.
+
 ## Privacy boundary
 
 The source property photo used by the normal VoxelPop creation flow is processed in the browser. When browser storage is available, a private on-device copy may be retained so a paid creation can resume after checkout. If that cache is unavailable, the user can re-select the image without paying the creation charge again.

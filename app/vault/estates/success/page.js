@@ -148,7 +148,7 @@ export default function DigitalEstateSuccessPage() {
   return (
     <main className="page">
       <section className="card">
-        <Link href="/vault/earth" className="back">← EARTH PROPERTIES</Link>
+        <Link href="/vault/estates" className="back">← DIGITAL PROPERTY MARKET</Link>
         <div className={`badge ${secured ? 'good' : ''}`}><span /> {secured ? 'PURCHASE OWNERSHIP SECURED' : 'VERIFYING PURCHASE'}</div>
         <h1>{mint ? 'Backed up.' : secured ? 'It’s yours.' : 'Securing estate.'}</h1>
         <p className="lead">Buying and minting are separate. A verified payment secures the unique Digital Estate to your Voxel Vault account first. Connecting a crypto wallet is only needed if you choose the encouraged blockchain backup.</p>

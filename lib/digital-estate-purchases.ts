@@ -52,7 +52,9 @@ export async function secureStripeDigitalEstatePurchase({ session, expectedBuyer
     throw new Error('DIGITAL_ESTATE_AMOUNT_MISMATCH');
   }
   if (String(session.metadata?.purchase_price_cents || '') !== String(estate.purchasePriceCents)
-    || String(session.metadata?.reference_value_cents || '') !== String(estate.referenceValueCents)) {
+    || String(session.metadata?.pricing_model || '') !== String(estate.pricingModel)
+    || String(session.metadata?.anchor_price_cents || '') !== String(estate.anchorPriceCents)
+    || String(session.metadata?.relative_index_bps || '') !== String(estate.relativeIndexBps)) {
     throw new Error('DIGITAL_ESTATE_CATALOG_MISMATCH');
   }
 

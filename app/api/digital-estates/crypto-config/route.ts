@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       amountUsdCents: estate.purchasePriceCents,
       amountUsd: estate.purchasePriceCents / 100,
       mintOptional: true,
-      warning: 'This is a real USDC transfer for a digital-only NFT estate. The purchase secures the estate first. Minting to Base is optional and can be done later.',
+      warning: 'This is a real USDC transfer for a digital-only property collectible priced by the disclosed index. The purchase secures the collectible first. Minting to Base is optional and can be done later.',
     });
   } catch (error) {
     console.error('Digital Estate USDC preflight failed', error);
