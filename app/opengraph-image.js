@@ -13,7 +13,7 @@ export default function Image() {
         <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 3, color: '#7138f5', marginBottom: 18 }}>VOXEL VAULT · VOXELPOP</div>
         <div style={{ fontSize: 68, lineHeight: .96, fontWeight: 900, letterSpacing: -4 }}>Turn a house photo into a movable 3D voxel.</div>
         <div style={{ display: 'flex', gap: 12, marginTop: 30 }}>
-          {['PHOTO', '3D PREVIEW', 'VOXEL'].map((label) => <div key={label} style={{ padding: '12px 16px', borderRadius: 999, background: label === 'VOXEL' ? '#7138f5' : '#ffffff', color: label === 'VOXEL' ? '#ffffff' : '#574e59', border: '1px solid #ded6e3', fontSize: 17, fontWeight: 800 }}>{label}</div>)}
+          {['PHOTO', '3D VOXEL PHOTO', 'MOVABLE VOXEL'].map((label) => <div key={label} style={{ padding: '12px 16px', borderRadius: 999, background: label === 'MOVABLE VOXEL' ? '#7138f5' : '#ffffff', color: label === 'MOVABLE VOXEL' ? '#ffffff' : '#574e59', border: '1px solid #ded6e3', fontSize: 16, fontWeight: 800 }}>{label}</div>)}
         </div>
         <div style={{ marginTop: 20, fontSize: 20, color: '#746c76' }}>$4.99 digital creation · source photo stays on device · mint optional</div>
       </div>
