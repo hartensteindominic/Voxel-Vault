@@ -46,11 +46,12 @@ assert.match(property, /let cachedOnDevice = false/, 'private photo caching is b
 assert.match(property, /browser could not keep the photo through checkout/, 'checkout has an explicit recovery path when private browser storage is unavailable');
 assert.match(property, /\/api\/property-generation\/checkout/, 'photo approval opens paid generation checkout');
 assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Picture/, 'paid CTA promises the 3D picture first, not an immediate voxel');
-assert.match(property, /After payment, you will see the 3D picture before any voxel is built/, 'checkout handoff preserves the strict stage order');
+assert.match(property, /After payment, VoxelPop will generate the 3D house image before any voxel is built/, 'checkout handoff preserves the strict generated-house-before-voxel order');
 assert.match(property, /you will not be charged again/i, 'missing local photo recovery must never charge twice');
 assert.match(property, /PhotoReliefModelViewer imageUrl=\{pendingPreview\}/, 'paid flow enters the generated VoxelPop house picture stage');
 assert.match(property, /Looks good → Create 3D Voxel/, 'the user explicitly approves the generated house picture before voxel conversion');
 assert.match(property, /approvePreviewAndBuildVoxel/, 'picture approval owns the voxel-build transition');
+assert.match(property, /Creating the 3D voxel from the approved VoxelPop house render/, 'the generated house render is explicitly handed to the voxel stage');
 assert.match(property, /LocalVoxelModelViewer/, 'the separate voxel stage uses local interactive voxel geometry');
 assert.match(property, /\/api\/property-local-voxel/, 'local voxel recipe is account-linked after rendering');
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel is saved before optional minting');
