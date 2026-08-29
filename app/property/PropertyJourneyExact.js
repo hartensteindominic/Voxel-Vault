@@ -5,14 +5,22 @@ import LocalVoxelModelViewer from './LocalVoxelModelViewer';
 import PhotoReliefModelViewer from './PhotoReliefModelViewer';
 import PropertyWorldMap from './PropertyWorldMap';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
-import { buildPropertyDraft, savePropertyDraft } from '../../lib/property-drafts';
-import { savePropertyDraftToAccount } from '../../lib/property-drafts-account';
+import {
+  buildPropertyDraft,
+  mergePropertyDraftRecords,
+  readPropertyDrafts,
+  replaceLocalPropertyDrafts,
+  savePropertyDraft,
+} from '../../lib/property-drafts';
+import { loadAccountPropertyDrafts, savePropertyDraftToAccount } from '../../lib/property-drafts-account';
 import styles from './property.module.css';
 
 const CREATION_PRICE_LABEL = '$4.99';
 const CREATION_PRICE_CENTS = 499;
 const DEVICE_DB = 'voxelpop-property-device-v1';
 const DEVICE_STORE = 'pending-photos';
+const GENERATION_CONTEXT_PREFIX = 'voxel-vault:property-generation-context:';
+const DEMO_PURCHASE_KEY = 'voxel-vault:property-slice-purchases';
 const empty3d = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
 
 function clean(value) { return String(value || '').trim(); }
@@ -20,6 +28,8 @@ function newDraftId() {
   const random = globalThis.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random().toString(16).slice(2)}`;
   return `vp-${random.slice(0, 28)}`;
 }
+function propertyPhotoKey(id) { return `property:${String(id || '').slice(0, 220)}`; }
+function isSavedPropertyDraft(value) { return value?.type === 'voxel-vault-property-3d-draft'; }
 function isHeic(file) {
   return /image\/(heic|heif)/i.test(String(file?.type || '')) || /\.(heic|heif)$/i.test(String(file?.name || ''));
 }
@@ -41,6 +51,41 @@ function selectedOrLocation(atlas, address) {
     mappedIdentityReady: false,
   };
 }
+function buildingFromDraft(draft) {
+  if (!isSavedPropertyDraft(draft)) return null;
+  const latitude = Number(draft?.coordinates?.latitude);
+  const longitude = Number(draft?.coordinates?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return {
+    atlasId: draft?.propertyIdentity?.atlasId || draft.id,
+    latitude,
+    longitude,
+    geometry: draft.geometry || null,
+    tags: { name: draft.label || 'Saved property' },
+    source: {
+      authority: draft?.evidence?.mapAuthority || null,
+      license: draft?.evidence?.mapLicense || null,
+      sourceUrl: draft?.evidence?.mapSourceUrl || null,
+    },
+    mappedIdentityReady: true,
+  };
+}
+function readDemoProperty() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(DEMO_PURCHASE_KEY) || 'null');
+    if (!raw?.lastPurchase?.selectedName) return null;
+    return {
+      id: `demo-slice:${clean(raw.lastPurchase.selectedName).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80)}`,
+      type: 'voxel-vault-demo-property-slice',
+      label: raw.lastPurchase.selectedName,
+      demoOnly: true,
+      demoPurchase: raw.lastPurchase,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function openDeviceDb() {
   return new Promise((resolve, reject) => {
@@ -55,6 +100,7 @@ function openDeviceDb() {
 }
 
 async function saveDevicePhoto(draftId, file) {
+  if (!draftId || !file) return;
   const db = await openDeviceDb();
   const bytes = await file.arrayBuffer();
   await new Promise((resolve, reject) => {
@@ -67,12 +113,13 @@ async function saveDevicePhoto(draftId, file) {
       savedAt: Date.now(),
     });
     request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error || new Error('Photo could not be kept on this device for checkout.'));
+    request.onerror = () => reject(request.error || new Error('Photo could not be kept on this device.'));
   });
   db.close();
 }
 
 async function loadDevicePhoto(draftId) {
+  if (!draftId) return null;
   const db = await openDeviceDb();
   const record = await new Promise((resolve, reject) => {
     const request = db.transaction(DEVICE_STORE, 'readonly').objectStore(DEVICE_STORE).get(draftId);
@@ -98,6 +145,30 @@ async function removeDevicePhoto(draftId) {
     });
     db.close();
   } catch {}
+}
+
+async function loadSavedPropertyPhoto(property) {
+  if (!property?.id) return null;
+  const stable = await loadDevicePhoto(propertyPhotoKey(property.id)).catch(() => null);
+  if (stable) return stable;
+  const originalDraftId = clean(property?.voxelpop?.creationDraftId);
+  if (!originalDraftId) return null;
+  return loadDevicePhoto(originalDraftId).catch(() => null);
+}
+
+function writeGenerationContext(draftId, selectedProperty) {
+  if (typeof window === 'undefined' || !draftId) return;
+  try {
+    window.localStorage.setItem(`${GENERATION_CONTEXT_PREFIX}${draftId}`, JSON.stringify({ selectedProperty: selectedProperty || null }));
+  } catch {}
+}
+function readGenerationContext(draftId) {
+  if (typeof window === 'undefined' || !draftId) return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(`${GENERATION_CONTEXT_PREFIX}${draftId}`) || 'null');
+  } catch {
+    return null;
+  }
 }
 
 async function normalizeIphonePhoto(file) {
@@ -177,10 +248,14 @@ export default function PropertyJourneyExact() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
   const [draftId, setDraftId] = useState('');
+  const [sourceMode, setSourceMode] = useState('photo');
+  const [propertyChoices, setPropertyChoices] = useState([]);
+  const [selectedProperty, setSelectedProperty] = useState(null);
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [pendingPreview, setPendingPreview] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [paidSessionId, setPaidSessionId] = useState('');
+  const [creationUnlocked, setCreationUnlocked] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewApproved, setPreviewApproved] = useState(false);
   const [voxelPoster, setVoxelPoster] = useState('');
@@ -200,8 +275,28 @@ export default function PropertyJourneyExact() {
 
   const localReady = final3d?.status === 'SUCCEEDED' && Boolean(final3d?.taskId && final3d?.modelUrl);
   const mintReady = localReady && String(final3d.taskId || '').startsWith('local-v1:');
-  const stage = localReady ? 5 : previewApproved ? 4 : paidSessionId ? 3 : pendingPhoto ? 2 : 1;
+  const stage = localReady ? 5 : previewApproved ? 4 : creationUnlocked ? 3 : pendingPhoto ? 2 : 1;
   const labels = ['PHOTO', 'PAY', '3D PREVIEW', 'VOXEL', 'MINT'];
+
+  const setPreviewFromFile = useCallback((photo) => {
+    setPendingPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return photo ? URL.createObjectURL(photo) : '';
+    });
+  }, []);
+
+  const refreshPropertyChoices = useCallback(async (client, user) => {
+    const local = readPropertyDrafts();
+    let merged = local;
+    try {
+      const cloud = await loadAccountPropertyDrafts(client, user);
+      merged = mergePropertyDraftRecords(cloud, local);
+      replaceLocalPropertyDrafts(merged);
+    } catch {}
+    const demo = readDemoProperty();
+    setPropertyChoices(demo ? [...merged, demo] : merged);
+    return merged;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -215,15 +310,17 @@ export default function PropertyJourneyExact() {
       setAuthReady(true);
       if (data.session?.user) {
         setDraftId((current) => current || newDraftId());
-        setMessage('Signed in. Choose the property photo you want the 3D preview to match.');
+        setMessage('Signed in. Choose a new photo or reuse a property you already saved.');
+        await refreshPropertyChoices(client, data.session.user);
       }
-      const auth = client.auth.onAuthStateChange((_event, next) => {
+      const auth = client.auth.onAuthStateChange(async (_event, next) => {
         if (!active) return;
         setSession(next || null);
         setAuthReady(true);
         if (next?.user) {
           setDraftId((current) => current || newDraftId());
-          setMessage('Signed in. Choose the property photo you want the 3D preview to match.');
+          setMessage('Signed in. Choose a new photo or reuse a property you already saved.');
+          await refreshPropertyChoices(client, next.user);
         } else setMessage('Sign in to start.');
       });
       subscription = auth.data.subscription;
@@ -234,7 +331,7 @@ export default function PropertyJourneyExact() {
       }
     });
     return () => { active = false; subscription?.unsubscribe?.(); };
-  }, []);
+  }, [refreshPropertyChoices]);
 
   function authHeaders(extra = {}) {
     return { Authorization: `Bearer ${session?.access_token || ''}`, ...extra };
@@ -259,6 +356,61 @@ export default function PropertyJourneyExact() {
     uploadInputRef.current?.click();
   }
 
+  function restoreMapFromProperty(property) {
+    const mappedBuilding = buildingFromDraft(property);
+    if (mappedBuilding) {
+      setBuilding(mappedBuilding);
+      setAtlasBuildings([mappedBuilding]);
+      setMappedAddress(clean(property?.label));
+      setAddress(clean(property?.label));
+    } else {
+      setBuilding(null);
+      setAtlasBuildings([]);
+      setMappedAddress('');
+      setAddress(clean(property?.label));
+    }
+  }
+
+  async function selectProperty(property) {
+    if (!property) return;
+    setBusy('reuse-photo');
+    setSelectedProperty(property);
+    setSourceMode('properties');
+    setSavedDraft(null);
+    setCreationUnlocked(false);
+    setPreviewReady(false);
+    setPreviewApproved(false);
+    setVoxelPoster('');
+    setLocalRecipe(null);
+    setFinal3d(empty3d());
+    const alreadyPaid = Boolean(property?.voxelpop?.paidCreation);
+    const existingDraftId = clean(property?.voxelpop?.creationDraftId);
+    setDraftId(existingDraftId || newDraftId());
+    setPaidSessionId(alreadyPaid ? 'saved-property' : '');
+    restoreMapFromProperty(property);
+    try {
+      const photo = await loadSavedPropertyPhoto(property);
+      if (photo) {
+        await saveDevicePhoto(propertyPhotoKey(property.id), photo).catch(() => {});
+        setPendingPhoto(photo);
+        setPreviewFromFile(photo);
+        setRightsConfirmed(false);
+        setMessage(alreadyPaid
+          ? 'Your saved property photo is ready to reuse. Confirm permission, then make the 3D preview—no second creation charge.'
+          : 'Your saved property photo is ready. Confirm permission, then continue to the 3D preview.');
+      } else {
+        setPendingPhoto(null);
+        setPreviewFromFile(null);
+        setRightsConfirmed(false);
+        setMessage(alreadyPaid
+          ? 'This paid property is selected. Its older temporary photo is no longer on this device, so add the property photo once; you will not pay the creation charge again.'
+          : 'This property is selected. Add its photo to create the 3D preview and voxel.');
+      }
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function selectPhoto(event) {
     const selected = event.target.files?.[0];
     event.target.value = '';
@@ -270,23 +422,19 @@ export default function PropertyJourneyExact() {
     try {
       const photo = await normalizeIphonePhoto(selected);
       if (photo.size > 8 * 1024 * 1024) throw new Error('This photo is still too large after preparation. Try a screenshot or smaller version.');
-      setPendingPreview((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return URL.createObjectURL(photo);
-      });
+      setPreviewFromFile(photo);
       setPendingPhoto(photo);
       setRightsConfirmed(false);
+      setCreationUnlocked(false);
       setPreviewReady(false);
       setPreviewApproved(false);
       setVoxelPoster('');
       setLocalRecipe(null);
       setFinal3d(empty3d());
-      setBuilding(null);
-      setAtlasBuildings([]);
-      setMappedAddress('');
       setSavedDraft(null);
+      restoreMapFromProperty(selectedProperty);
       setMessage(paidSessionId
-        ? 'Payment is already verified. This photo will become the new 3D preview—no second charge.'
+        ? 'Payment is already verified. Confirm permission, then make the 3D preview—no second charge.'
         : `Photo ready. Confirm permission, then pay ${CREATION_PRICE_LABEL}.`);
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
@@ -315,9 +463,20 @@ export default function PropertyJourneyExact() {
       const key = `cancel:${canceledDraftId}`;
       if (checkoutHandledRef.current === key) return undefined;
       checkoutHandledRef.current = key;
+      const context = readGenerationContext(canceledDraftId);
+      if (context?.selectedProperty) {
+        setSelectedProperty(context.selectedProperty);
+        restoreMapFromProperty(context.selectedProperty);
+      }
       setBusy('');
       setDraftId(canceledDraftId);
-      setMessage('Checkout canceled. Nothing was created or charged. Your photo is still on this device.');
+      loadDevicePhoto(canceledDraftId).then((photo) => {
+        if (photo) {
+          setPendingPhoto(photo);
+          setPreviewFromFile(photo);
+        }
+      }).catch(() => {});
+      setMessage('Checkout canceled. Nothing was created or charged. Your property photo is still on this device.');
       window.history.replaceState({}, '', '/property');
       return undefined;
     }
@@ -333,20 +492,25 @@ export default function PropertyJourneyExact() {
       try {
         const data = await verifyPaidSession(generationSessionId);
         if (!active) return;
+        const context = readGenerationContext(data.draftId);
+        if (context?.selectedProperty) {
+          setSelectedProperty(context.selectedProperty);
+          restoreMapFromProperty(context.selectedProperty);
+        }
         setPaidSessionId(generationSessionId);
+        setCreationUnlocked(true);
         setDraftId(data.draftId);
         const photo = await loadDevicePhoto(data.draftId).catch(() => null);
         if (!active) return;
         if (!photo) {
+          setCreationUnlocked(false);
           setBusy('');
           setMessage('Payment is verified. Choose the same property photo again. You will not be charged again.');
           return;
         }
+        if (context?.selectedProperty?.id) await saveDevicePhoto(propertyPhotoKey(context.selectedProperty.id), photo).catch(() => {});
         setPendingPhoto(photo);
-        setPendingPreview((current) => {
-          if (current) URL.revokeObjectURL(current);
-          return URL.createObjectURL(photo);
-        });
+        setPreviewFromFile(photo);
         setRightsConfirmed(true);
         setPreviewReady(false);
         setPreviewApproved(false);
@@ -362,7 +526,7 @@ export default function PropertyJourneyExact() {
     })();
 
     return () => { active = false; };
-  }, [session?.access_token]);
+  }, [session?.access_token, setPreviewFromFile]);
 
   async function payAndCreate() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
@@ -370,7 +534,10 @@ export default function PropertyJourneyExact() {
     setBusy('generation-checkout');
     try {
       await saveDevicePhoto(draftId, pendingPhoto);
+      if (selectedProperty?.id) await saveDevicePhoto(propertyPhotoKey(selectedProperty.id), pendingPhoto);
+      writeGenerationContext(draftId, selectedProperty);
       if (paidSessionId) {
+        setCreationUnlocked(true);
         setPreviewReady(false);
         setPreviewApproved(false);
         setMessage('Payment already verified. Loading the 3D photo preview—no second charge.');
@@ -469,19 +636,23 @@ export default function PropertyJourneyExact() {
   async function saveToMyWorld() {
     if (!building || !mappedAddress || !localReady) return;
     setBusy('save');
-    setMessage('Saving this finished voxel to My World…');
+    setMessage('Saving this finished voxel and reusable property photo to My World…');
     try {
-      const base = buildPropertyDraft({ building, fallbackLabel: mappedAddress, focusAuthority: clean(building?.source?.authority) });
+      const existing = isSavedPropertyDraft(selectedProperty) ? selectedProperty : null;
+      const base = existing || buildPropertyDraft({ building, fallbackLabel: mappedAddress, focusAuthority: clean(building?.source?.authority) });
       if (!base) throw new Error('This mapped property does not have enough location identity to save.');
       const draft = {
         ...base,
+        label: base.label || mappedAddress,
         state: 'saved',
         visual: { ...(base.visual || {}), modelUrl: final3d.modelUrl, modelTaskId: final3d.taskId, renderMode: 'voxelpop-local-3d' },
         voxelpop: {
+          ...(base.voxelpop || {}),
           paidCreation: true,
-          priceCents: CREATION_PRICE_CENTS,
+          priceCents: base?.voxelpop?.priceCents || CREATION_PRICE_CENTS,
           engine: 'voxelpop-local-webgl-v2',
           sourcePhotoStoredByVoxelVault: false,
+          sourcePhotoRetainedOnDevice: true,
           previewApproved: true,
           photoMatchedFront: true,
           mappedFootprintUsed: Boolean(building?.geometry),
@@ -490,9 +661,10 @@ export default function PropertyJourneyExact() {
           modelUrl: final3d.modelUrl,
         },
         world: { ...(base.world || {}), public: false, publishedAt: null, publicLabel: 'VoxelPop Property' },
-        blockchain: { ...(base.blockchain || {}), minted: false, optionalAfterCreation: true },
+        blockchain: { ...(base.blockchain || {}), minted: Boolean(base?.blockchain?.minted), optionalAfterCreation: true },
       };
       const localSaved = savePropertyDraft(draft);
+      await saveDevicePhoto(propertyPhotoKey(localSaved.id), pendingPhoto);
       let synced = false;
       try {
         const client = clientRef.current || await getSupabaseBrowserAsync();
@@ -500,10 +672,14 @@ export default function PropertyJourneyExact() {
         if (session?.user) {
           await savePropertyDraftToAccount(client, session.user, localSaved);
           synced = true;
+          await refreshPropertyChoices(client, session.user);
         }
       } catch {}
+      setSelectedProperty(localSaved);
       setSavedDraft(localSaved);
-      setMessage(synced ? 'Saved to My World and your Vault account.' : 'Saved to My World on this device. Account sync can retry later.');
+      setMessage(synced
+        ? 'Saved to My World and your Vault account. This property photo can now be reused on this device.'
+        : 'Saved to My World on this device. This property photo can be reused here; account sync can retry later.');
     } catch (error) {
       setMessage(String(error?.message || error || 'This voxel could not be saved to My World yet.'));
     } finally {
@@ -513,11 +689,15 @@ export default function PropertyJourneyExact() {
 
   function resetCreation() {
     const oldDraft = draftId;
+    const keepStablePropertyPhoto = Boolean(selectedProperty?.id);
     setDraftId(newDraftId());
+    setSourceMode('photo');
+    setSelectedProperty(null);
     setPendingPhoto(null);
-    setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
+    setPreviewFromFile(null);
     setRightsConfirmed(false);
     setPaidSessionId('');
+    setCreationUnlocked(false);
     setPreviewReady(false);
     setPreviewApproved(false);
     setVoxelPoster('');
@@ -529,8 +709,8 @@ export default function PropertyJourneyExact() {
     setAtlasBuildings([]);
     setSavedDraft(null);
     setBusy('');
-    setMessage('Choose one property photo.');
-    removeDevicePhoto(oldDraft);
+    setMessage('Choose a new photo or reuse one of your saved properties.');
+    if (!keepStablePropertyPhoto) removeDevicePhoto(oldDraft);
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/property');
   }
 
@@ -558,7 +738,7 @@ export default function PropertyJourneyExact() {
   }
 
   const mintHref = mintReady
-    ? `/property/mint?draftId=${encodeURIComponent(draftId)}&taskId=${encodeURIComponent(final3d.taskId)}&name=${encodeURIComponent(mappedAddress || 'VoxelPop Property')}`
+    ? `/property/mint?draftId=${encodeURIComponent(draftId)}&taskId=${encodeURIComponent(final3d.taskId)}&name=${encodeURIComponent(mappedAddress || selectedProperty?.label || 'VoxelPop Property')}`
     : '#';
 
   return <main className={styles.page}>
@@ -572,19 +752,36 @@ export default function PropertyJourneyExact() {
 
       {stage === 1 ? <>
         <p className={styles.bigPrompt}>Choose a clear house photo.</p>
-        <p className={styles.flowHint}>Photo → $4.99 → recognizable 3D preview → approve → voxel 3D → optional mint.</p>
-        <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
-        <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>
-        <p className={styles.truth}>The first 3D preview uses your actual photo so it stays recognizable. It is a front-view visual preview, not a claim that unseen sides are reconstructed exactly.</p>
+        <p className={styles.flowHint}>Use a new image or reuse the image from My Properties → 3D preview → approve → 3D voxel → optional mint.</p>
+        <div className={styles.choicePanel}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <button className={sourceMode === 'photo' ? styles.primaryPurple : styles.primaryTeal} style={{minHeight:50,boxShadow:'none',fontSize:14}} type="button" onClick={() => setSourceMode('photo')}>Upload / Photos</button>
+            <button className={sourceMode === 'properties' ? styles.primaryPurple : styles.primaryTeal} style={{minHeight:50,boxShadow:'none',fontSize:14}} type="button" onClick={() => setSourceMode('properties')}>My Properties</button>
+          </div>
+        </div>
+
+        {sourceMode === 'properties' ? <div className={styles.choicePanel}>
+          {propertyChoices.length ? propertyChoices.map((property) => <button key={property.id} className={styles.secondaryLink} style={{border:0,cursor:'pointer',minHeight:58,padding:'10px 14px',display:'grid',gridTemplateColumns:'1fr auto',textAlign:'left',gap:8}} type="button" onClick={() => selectProperty(property)} disabled={busy === 'reuse-photo'}>
+            <span><b style={{display:'block',fontSize:13}}>{property.label || 'Saved property'}</b><small style={{display:'block',marginTop:4,color:'#7d7168'}}>{property.demoOnly ? 'Demo property slice · not real-property ownership' : property?.voxelpop?.paidCreation ? 'Saved VoxelPop property · creation already paid' : 'Saved property · add or reuse a photo'}</small></span>
+            <b style={{fontSize:9,letterSpacing:'.08em'}}>{property.demoOnly ? 'DEMO' : 'USE'}</b>
+          </button>) : <div className={styles.autoPanel}><b>NO SAVED PROPERTIES YET</b><span>Upload a property photo to create your first one.</span></div>}
+          <button className={styles.primaryTeal} type="button" onClick={choosePhoto}>Add a property photo</button>
+        </div> : <>
+          {selectedProperty ? <div className={styles.autoPanel}><b>PROPERTY SELECTED</b><span>{selectedProperty.label || 'Saved property'} · add its photo below.</span></div> : null}
+          <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
+          <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : selectedProperty ? 'Add photo to this property' : 'Choose photo'}</button>
+        </>}
+        {selectedProperty && !pendingPhoto ? <button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Add photo to {selectedProperty.label || 'this property'}</button> : null}
+        <p className={styles.truth}>New saved property photos stay private and reusable on this device. Older properties may need the image added once because the previous flow removed its temporary copy. Demo property slices remain clearly labeled as demo-only.</p>
       </> : null}
 
       {stage === 2 ? <>
-        <p className={styles.bigPrompt}>Pay once. See the 3D first.</p>
-        <p className={styles.stepCopy}>The $4.99 creation unlocks the 3D preview and the voxel build. The voxel does not start until after you see and approve the preview.</p>
-        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>YOUR ACTUAL HOUSE PHOTO · DEVICE ONLY</span></div>
+        <p className={styles.bigPrompt}>{paidSessionId ? 'Use this photo. See the 3D first.' : 'Pay once. See the 3D first.'}</p>
+        <p className={styles.stepCopy}>The $4.99 creation unlocks the 3D preview and the voxel build. The voxel does not start until after you see and approve the preview. {paidSessionId ? 'This saved property creation is already paid, so there is no second creation charge.' : ''}</p>
+        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>{selectedProperty ? 'REUSABLE PROPERTY PHOTO · DEVICE ONLY' : 'YOUR ACTUAL HOUSE PHOTO · DEVICE ONLY'}</span></div>
         <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Preview`}</button>
+          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : paidSessionId ? 'Make 3D Preview · already paid' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Preview`}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another photo</button>
         </div>
         <p className={styles.truth}>The $4.99 payment buys the digital creation only. It does not buy the physical house, deed/title, rent, occupancy, investment rights, or guaranteed value.</p>
@@ -647,7 +844,7 @@ export default function PropertyJourneyExact() {
         <p className={styles.truth}>Minting creates a digital NFT for the finished voxel. It does not create or transfer deed/title, occupancy, rent, fractional investment, appreciation, or other rights in the physical property.</p>
       </> : null}
 
-      {stage > 1 ? <button className={styles.change} type="button" onClick={resetCreation}>Start over with another photo</button> : null}
+      {stage > 1 ? <button className={styles.change} type="button" onClick={resetCreation}>Start over with another property or photo</button> : null}
       <p className={styles.message} role="status">{message}</p>
     </section>
   </main>;
