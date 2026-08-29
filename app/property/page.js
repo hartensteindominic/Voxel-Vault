@@ -466,7 +466,7 @@ export default function PropertyJourneyPage() {
         <p className={styles.bigPrompt}>Building the first 3D.</p>
         <p className={styles.stepCopy}>Your source image stays visible while VoxelPop makes the first 3D interpretation. The interactive model only replaces the poster after the GLB really loads.</p>
         <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl} posterUrl={displaySource} onRecover={() => refresh3D(source3d.taskId, setSource3d)} label="First property 3D preview"/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
-        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>Image stays visible → first 3D → VoxelPop image → final movable 3D.</span></div>
+        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>No extra button. First 3D → VoxelPop look → final 3D voxel. The source image stays visible while every handoff finishes.</span></div>
       </> : null}
 
       {step === 3 ? <>
