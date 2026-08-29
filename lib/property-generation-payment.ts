@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { normalizePropertyDraftId } from './property-generation-ids';
+import { getSupabaseAdminCandidates } from './supabase-admin';
 
 export const PROPERTY_VOXEL_GENERATION_PRICE_CENTS = 499;
 export const PROPERTY_VOXEL_GENERATION_PRICE_LABEL = '$4.99';
@@ -18,6 +19,14 @@ function safeSegment(value: unknown, fallback = 'item') {
   return text || fallback;
 }
 
+function storageClients(auth: any) {
+  try {
+    const candidates = getSupabaseAdminCandidates();
+    if (candidates.length) return candidates;
+  } catch {}
+  return auth?.admin ? [auth.admin] : [];
+}
+
 function bucketMissing(error: any) {
   const status = Number(error?.statusCode ?? error?.status ?? 0);
   const message = String(error?.message || error || '');
@@ -25,24 +34,24 @@ function bucketMissing(error: any) {
 }
 
 async function ensureBucket(admin: any) {
-  const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
-  if (created.error && !/already exists/i.test(created.error.message || '')) {
-    throw new Error('Private VoxelPop storage is unavailable on this deployment.');
+  try {
+    const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
+    return !created.error || /already exists/i.test(created.error?.message || '');
+  } catch {
+    return false;
   }
 }
 
 async function uploadStagedPhoto(admin: any, storagePath: string, bytes: Buffer, contentType: string) {
   const options = { contentType, cacheControl: '0', upsert: true };
   let uploaded = await admin.storage.from(BUCKET).upload(storagePath, bytes, options);
-  if (!uploaded.error) return;
+  if (!uploaded.error) return true;
 
-  if (!bucketMissing(uploaded.error)) {
-    throw new Error('Your photo could not be staged securely for checkout.');
-  }
+  if (!bucketMissing(uploaded.error)) return false;
+  if (!(await ensureBucket(admin))) return false;
 
-  await ensureBucket(admin);
   uploaded = await admin.storage.from(BUCKET).upload(storagePath, bytes, options);
-  if (uploaded.error) throw new Error('Your photo could not be staged securely for checkout.');
+  return !uploaded.error;
 }
 
 export function propertyGenerationStagePath(userId: unknown, draftIdRaw: unknown) {
@@ -60,7 +69,19 @@ export async function stagePaidPropertyPhoto(auth: any, draftIdRaw: unknown, pho
   const bytes = Buffer.from(await photo.arrayBuffer());
   const digest = createHash('sha256').update(bytes).digest('hex');
   const storagePath = propertyGenerationStagePath(auth.user.id, draftId);
-  await uploadStagedPhoto(auth.admin, storagePath, bytes, contentType);
+
+  let staged = false;
+  for (const admin of storageClients(auth)) {
+    try {
+      if (await uploadStagedPhoto(admin, storagePath, bytes, contentType)) {
+        staged = true;
+        break;
+      }
+    } catch {}
+  }
+  if (!staged) {
+    throw new Error('Private VoxelPop checkout storage is temporarily unavailable. No payment was started.');
+  }
 
   return {
     draftId,
@@ -74,9 +95,12 @@ export async function stagePaidPropertyPhoto(auth: any, draftIdRaw: unknown, pho
 
 export async function deleteStagedPropertyPhoto(auth: any, draftIdRaw: unknown) {
   const storagePath = propertyGenerationStagePath(auth.user.id, draftIdRaw);
-  try {
-    await auth.admin.storage.from(BUCKET).remove([storagePath]);
-  } catch {}
+  for (const admin of storageClients(auth)) {
+    try {
+      const { error } = await admin.storage.from(BUCKET).remove([storagePath]);
+      if (!error) break;
+    } catch {}
+  }
   return storagePath;
 }
 
@@ -119,13 +143,20 @@ export async function paidPropertyGenerationReceipt(auth: any, stripe: any, sess
 }
 
 export async function loadPaidPropertyGenerationPhoto(auth: any, receipt: any) {
-  const { data, error } = await auth.admin.storage.from(BUCKET).download(receipt.storagePath);
-  if (error || !data) throw new Error('The paid source photo is no longer available.');
-  const bytes = Buffer.from(await data.arrayBuffer());
-  if (!bytes.length || bytes.length > MAX_BYTES) throw new Error('The paid source photo is invalid.');
-  const digest = createHash('sha256').update(bytes).digest('hex');
-  if (digest !== receipt.digest) throw new Error('The paid source photo changed after checkout started.');
-  return { ...receipt, bytes };
+  for (const admin of storageClients(auth)) {
+    try {
+      const { data, error } = await admin.storage.from(BUCKET).download(receipt.storagePath);
+      if (error || !data) continue;
+      const bytes = Buffer.from(await data.arrayBuffer());
+      if (!bytes.length || bytes.length > MAX_BYTES) throw new Error('The paid source photo is invalid.');
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      if (digest !== receipt.digest) throw new Error('The paid source photo changed after checkout started.');
+      return { ...receipt, bytes };
+    } catch (error) {
+      if (error instanceof Error && /invalid|changed after checkout/i.test(error.message)) throw error;
+    }
+  }
+  throw new Error('The paid source photo is no longer available.');
 }
 
 export async function paidPropertyGenerationInput(auth: any, stripe: any, sessionIdRaw: unknown) {
