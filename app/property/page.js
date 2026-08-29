@@ -1,7 +1,7 @@
 'use client';
 
-import PropertyJourneySimple from './PropertyJourneySimple';
+import PropertyJourneyPhotoVoxelMint from './PropertyJourneyPhotoVoxelMint';
 
 export default function PropertyJourneyPage() {
-  return <PropertyJourneySimple/>;
+  return <PropertyJourneyPhotoVoxelMint/>;
 }
