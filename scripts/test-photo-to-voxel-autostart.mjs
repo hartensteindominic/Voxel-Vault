@@ -8,7 +8,8 @@ const paidVerify = read('app/api/property-photo-upload/route.ts');
 const localVoxel = read('app/api/property-local-voxel/route.ts');
 const viewer = read('app/property/LocalVoxelModelViewer.js');
 const map = read('app/property/PropertyWorldMap.js');
-const mintPage = read('app/vault/property-drafts/[draftId]/mint/page.js');
+const immediateMintPage = read('app/property/mint/page.js');
+const savedMintPage = read('app/vault/property-drafts/[draftId]/mint/page.js');
 const mintPrepare = read('app/api/property-local-voxel/nft/prepare/route.ts');
 
 assert.match(property, /async function payAndCreate\(\)/, 'photo approval owns the paid creation handoff');
@@ -18,11 +19,15 @@ assert.match(property, /createVoxelPoster\(photo\)/, 'local paid build creates t
 assert.match(property, /3D picture ready\. Review it first\./i, 'paid creation stops at a visible 3D picture review');
 assert.match(property, /LocalVoxelModelViewer imageUrl=\{voxelPoster \|\| pendingPreview\} sourceImageUrl=\{pendingPreview \|\| voxelPoster\}/, 'the viewer shows the generated review picture while retaining the original photo for voxel matching');
 assert.match(property, /\/api\/property-local-voxel/, 'approved local voxel is registered for continuity');
-assert.match(property, /Your 3D voxel is ready\. Inspect it now, then enter the address/i, 'successful local voxel has an obvious map/save next step');
-assert.match(property, /async function mapBuilding\(event\)/, 'address step maps the selected real-world building');
-assert.match(property, /async function saveToMyWorld\(\)/, 'map step has a direct save continuation');
+assert.match(property, /Your 3D voxel is ready\. Inspect it now\. You can mint this exact voxel next/i, 'successful local voxel points directly to mint before optional map context');
+assert.match(property, /const mintReady = localReady/, 'mint readiness starts from the completed reviewed local voxel');
+assert.match(property, /\/property\/mint\?/, 'reviewed voxel links directly to its dedicated mint screen');
+assert.match(property, /Mint this 3D voxel · optional/, 'mint is available immediately after voxel review');
+assert.match(property, /MAP · OPTIONAL/, 'map is explicitly optional rather than a mint blocker');
+assert.match(property, /Property address · optional/, 'address input is visibly optional');
+assert.match(property, /async function mapBuilding\(event\)/, 'optional address step can still map the selected real-world building');
+assert.match(property, /async function saveToMyWorld\(\)/, 'optional map step still has a direct save continuation');
 assert.match(property, /Save voxel to My World/, 'the save action names the reviewed voxel');
-assert.match(property, /Mint this 3D voxel · optional/, 'mint is offered only after the voxel has been reviewed, mapped and saved');
 
 assert.match(viewer, /sampleRecipe/, 'interactive local voxel is derived from the original property photo');
 assert.match(viewer, /const previewUrl = imageUrl \|\| sourceImageUrl \|\| ''/, 'the generated 3D picture is the visible review surface');
@@ -49,20 +54,26 @@ assert.match(localVoxel, /saveLocalVoxelRecord/, 'local voxel uses the table-onl
 assert.match(localVoxel, /buildGltf\(recipe\)/, 'saved local recipes remain reconstructable as real glTF');
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'reopened glTF also omits background cells');
 
-assert.match(property, /setAtlasBuildings\(Array\.isArray\(atlas\?\.buildings\) \? atlas\.buildings : \[\]\)/, 'address resolution retains nearby source-backed buildings');
+assert.match(property, /setAtlasBuildings\(Array\.isArray\(atlas\?\.buildings\) \? atlas\.buildings : \[\]\)/, 'optional address resolution retains nearby source-backed buildings');
 assert.match(property, /PropertyWorldMap selectedBuilding=\{building\} buildings=\{atlasBuildings\}/, 'My World preview uses the focused property map');
 assert.match(map, /ExtrudeGeometry/, 'property map extrudes source-backed building footprints');
 assert.match(map, /touchAction = 'none'/, 'property map supports direct touch interaction');
 assert.match(map, /Zoom property map in/, 'property map exposes explicit mobile zoom controls');
 assert.match(map, /selected \? 0x7138f5/, 'selected building is visually distinct');
 
-assert.match(mintPage, /STEP 5 · OPTIONAL MINT/, 'wallet mint is the final optional step');
-assert.match(mintPage, /Mint the voxel[\s\S]*you already reviewed/i, 'mint page never skips the review-before-voxel requirement');
-assert.match(mintPage, /Nothing mints until you approve the wallet transaction/i, 'mint execution requires explicit wallet approval');
+assert.match(immediateMintPage, /STEP 5 · OPTIONAL MINT/, 'direct voxel mint has its own explicit final screen');
+assert.match(immediateMintPage, /See the voxel\.[\s\S]*Then mint it\./i, 'direct mint screen reinforces the requested sequence');
+assert.match(immediateMintPage, /MeshyModelViewer modelUrl=\{modelUrl\}/, 'direct mint screen shows the exact movable reviewed voxel again');
+assert.match(immediateMintPage, /Nothing mints until you approve the Base transaction/i, 'direct mint execution requires explicit wallet approval');
+assert.match(immediateMintPage, /connectVoxelFlipWallet/, 'wallet is requested only on the mint screen');
+assert.match(immediateMintPage, /mintVoxelFlip/, 'direct mint uses the reviewed VoxelFlip voucher flow');
+assert.match(savedMintPage, /Mint the voxel[\s\S]*you already reviewed/i, 'saved Vault mint path keeps the same review-before-mint rule');
+assert.match(mintPrepare, /propertyDraftItemId\(auth\.user\.id, draftId, 'voxel'\)/, 'immediate mint verifies the exact account-bound creation record');
 assert.match(mintPrepare, /readCatalog3DByTask/, 'mint preparation uses the exact persisted reviewed voxel');
-assert.match(mintPrepare, /property_draft_library/, 'mint preparation verifies the signed-in account owns the saved property draft');
+assert.match(mintPrepare, /voucherIdFor\(taskId\)/, 'one local voxel keeps one canonical voucher before or after mapping');
+assert.match(mintPrepare, /deployment\.mintSigner/, 'server verifies its voucher signer matches the reviewed production collection');
 
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal paid creation flow must not lead into another paid collectible funnel');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided property flow must not call metered provider generation routes');
 
-console.log('Property journey regression passed: authorized photo -> one paid unlock -> visible 3D picture review -> explicit recognizable local voxel build -> source-backed address/map -> save -> optional wallet-approved mint, with no Meshy credits or second creation paywall.');
+console.log('Property journey regression passed: authorized photo -> one paid unlock -> visible 3D picture review -> explicit recognizable local voxel build -> immediate optional wallet-approved mint, with map/save as optional context and no Meshy credits or second creation paywall.');
