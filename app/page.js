@@ -2,6 +2,7 @@ import Link from 'next/link';
 import ProductTopNav from './components/ProductTopNav';
 import HomeProductPreview from './components/HomeProductPreview';
 import styles from './home.module.css';
+import './home-review.css';
 
 export const metadata = { alternates: { canonical: '/' } };
 
@@ -26,18 +27,14 @@ export default function Home() {
             <Link className={styles.primaryAction} href="/property">Create mine · $4.99</Link>
             <Link className={styles.secondaryAction} href="/demo">Try the free 3D demo</Link>
           </div>
-          <div className={styles.trustRow} aria-label="VoxelPop creation facts">
-            <span>Preview before voxel</span><span>Photo kept on your device</span><span>Minting optional</span>
-          </div>
+          <div className={styles.trustRow} aria-label="VoxelPop creation facts"><span>Preview before voxel</span><span>Photo kept on your device</span><span>Minting optional</span></div>
         </div>
         <div className={styles.heroVisual}><HomeProductPreview/></div>
       </section>
 
       <section className={styles.flowCard} id="how-it-works" aria-labelledby="creation-title">
-        <div className={styles.flowIntro}><p>HOW IT WORKS</p><h2 id="creation-title">One clear creation flow.</h2><span>No surprise mint. No property-ownership claim. You approve the 3D preview before the voxel is built.</span></div>
-        <div className={styles.stepGrid}>
-          {STEPS.map(([number, title, copy]) => <div className={styles.step} key={number}><b>{number}</b><div><strong>{title}</strong><span>{copy}</span></div></div>)}
-        </div>
+        <div className={styles.flowIntro}><p>HOW IT WORKS</p><h2 id="creation-title">One clear creation flow.</h2><span className="vvFlowNote">No surprise mint. No property-ownership claim. You approve the 3D preview before the voxel is built.</span></div>
+        <div className="vvStepGrid">{STEPS.map(([number, title, copy]) => <div className="vvStep" key={number}><b>{number}</b><div><strong>{title}</strong><span>{copy}</span></div></div>)}</div>
         <Link className={styles.startButton} href="/property">Start with my photo →</Link>
       </section>
 
