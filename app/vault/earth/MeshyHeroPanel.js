@@ -85,7 +85,7 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
   const [session, setSession] = useState(null);
   const [ownerState, setOwnerState] = useState('checking');
   const [status, setStatus] = useState('Checking Meshy 7 cache…');
-  const [mesh, setMesh] = useState({ status: 'NOT_STARTED', progress: 0, displayModelUrl: null, taskId: null });
+  const [mesh, setMesh] = useState({ status: 'NOT_STARTED', progress: 0, displayModelUrl: null, taskId: null, thumbnailUrl: null });
   const [references, setReferences] = useState([blankReference(), blankReference()]);
   const [busy, setBusy] = useState('');
   const clientRef = useRef(null);
@@ -123,13 +123,13 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
       if (!atlasId) {
         setOwnerState('idle');
         setStatus('Select a mapped building first.');
-        setMesh({ status: 'NOT_STARTED', progress: 0, displayModelUrl: null, taskId: null });
+        setMesh({ status: 'NOT_STARTED', progress: 0, displayModelUrl: null, taskId: null, thumbnailUrl: null });
         return;
       }
       if (!session?.access_token) {
         setOwnerState('signed-out');
         setStatus('Owner sign-in unlocks private Meshy 7 reconstruction and cached hero models.');
-        setMesh({ status: 'NOT_STARTED', progress: 0, displayModelUrl: null, taskId: null });
+        setMesh({ status: 'NOT_STARTED', progress: 0, displayModelUrl: null, taskId: null, thumbnailUrl: null });
         return;
       }
       setOwnerState('checking');
@@ -149,7 +149,7 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
         if (!response.ok) throw new Error(data?.error || 'Owner Meshy status is unavailable.');
         setOwnerState('ready');
         setMesh(data);
-        if (data?.displayModelUrl) setStatus('Cached Meshy 7 property model loaded. No new credits were spent.');
+        if (data?.displayModelUrl) setStatus('Meshy preview ready. Loading the interactive 3D from the private cache…');
         else if (data?.taskId && !terminalStatus(data?.status)) setStatus(`Meshy 7 generation ${Math.round(Number(data?.progress || 0))}% complete…`);
         else setStatus('No Meshy 7 hero model is cached for this building yet.');
       } catch (error) {
@@ -177,7 +177,7 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
         if (!response.ok) throw new Error(data?.error || 'Could not read Meshy progress.');
         setMesh(data);
         if (data?.displayModelUrl) {
-          setStatus('Meshy 7 model complete, cached privately, and ready to inspect.');
+          setStatus('Meshy preview ready. Loading the interactive 3D…');
           return;
         }
         if (terminalStatus(data?.status)) {
@@ -193,6 +193,21 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
     timer = window.setTimeout(poll, 2000);
     return () => { active = false; if (timer) window.clearTimeout(timer); };
   }, [mesh?.taskId, mesh?.displayModelUrl, mesh?.status, session?.access_token]);
+
+  async function refreshModelAfterViewerError() {
+    if (!session?.access_token || !mesh?.taskId) return;
+    setStatus('The cached GLB did not open. Keeping the Meshy preview visible while Voxel Vault refreshes this same 3D task…');
+    const response = await fetch(`/api/world-atlas/mesh?taskId=${encodeURIComponent(mesh.taskId)}&repair=1&t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || 'The existing Meshy 3D could not be refreshed.');
+    setMesh(data);
+    setStatus(data?.displayModelUrl
+      ? 'Meshy preview kept visible. Refreshed the existing 3D model without starting a new paid generation.'
+      : 'The existing Meshy task was refreshed, but its 3D file is not available yet.');
+  }
 
   async function signIn() {
     setBusy('signin');
@@ -297,7 +312,7 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Meshy generation could not start.');
       setMesh(data);
-      if (data?.displayModelUrl) setStatus('Existing cached property model reused. No new Meshy credits were spent.');
+      if (data?.displayModelUrl) setStatus('Existing Meshy preview found. Loading the interactive 3D without spending new credits.');
       else setStatus(data?.reused ? 'Existing Meshy 7 job resumed.' : 'Meshy 7 reconstruction started. Normal Atlas browsing still spends zero Meshy credits.');
     } catch (error) {
       setStatus(text(error));
@@ -310,6 +325,8 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
     return <div className="meshPanel empty"><b>MESHY 7 PROPERTY MODEL</b><span>Select a source-backed building first. Browsing never triggers paid generation automatically.</span><style jsx>{styles}</style></div>;
   }
 
+  const previewImageUrl = mesh?.thumbnailUrl || listing?.imageUrl || '';
+
   return <section className="meshPanel">
     <div className="meshTop">
       <div><small>OPTIONAL HIGH-FIDELITY LAYER</small><h3>Meshy 7 property reconstruction</h3><p>{status}</p></div>
@@ -320,7 +337,7 @@ export default function MeshyHeroPanel({ building, listing = null, openReference
     {openStreetReferences.length >= 2 ? <button className="openFeed" type="button" onClick={useOpenStreetReferences}>USE {openStreetReferences.length} FREE OPEN KARTAVIEW VIEW{openStreetReferences.length === 1 ? '' : 'S'} · CC BY-SA</button> : null}
     {feedReferences.length ? <button className="licensedFeed" type="button" onClick={useLicensedFeedReferences}>USE {feedReferences.length} DERIVATIVE-LICENSED PROVIDER VIEW{feedReferences.length === 1 ? '' : 'S'}</button> : null}
 
-    {mesh?.displayModelUrl ? <MeshyModelViewer modelUrl={mesh.displayModelUrl} /> : null}
+    {mesh?.displayModelUrl ? <MeshyModelViewer modelUrl={mesh.displayModelUrl} previewImageUrl={previewImageUrl} previewAlt="Meshy-generated property 3D preview" onModelError={refreshModelAfterViewerError} /> : null}
 
     {!mesh?.displayModelUrl && ownerState === 'signed-out' ? <button className="ownerButton" type="button" onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'OPENING SIGN-IN…' : 'OWNER SIGN-IN FOR MESHY 7'}</button> : null}
     {!mesh?.displayModelUrl && ownerState === 'locked' ? <div className="locked">OWNER TOOLS LOCKED FOR THIS ACCOUNT</div> : null}
