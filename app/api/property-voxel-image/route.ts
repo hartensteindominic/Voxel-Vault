@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
-import { readCatalog3DByTask } from '../../../lib/catalog3dStore';
+import { readCatalog3DByTask, saveCatalog3D } from '../../../lib/catalog3dStore';
+import { property3DProviderTaskId, verifyProperty3DTaskHandle } from '../../../lib/property-3d-task-handle';
 import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
@@ -9,6 +10,7 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-image';
+const SOURCE_3D_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const ALLOWED_RIGHTS_BASES = new Set(['user-owned', 'open-licensed', 'licensed-derivative']);
 const BLOCKED_REFERENCE_HOSTS = /(^|\.)(google\.com|googleusercontent\.com|gstatic\.com|googleapis\.com|maps\.googleapis\.com|streetviewpixels-pa\.googleapis\.com|zillow\.com|zillowstatic\.com|redfin\.com|cdn-redfin\.com|apartments\.com)$/i;
 
@@ -54,17 +56,62 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-async function generated3DReference(userId: string, draftIdRaw: unknown, sourceTaskIdRaw: unknown) {
+async function generated3DReference(apiKey: string, userId: string, draftIdRaw: unknown, sourceTaskIdRaw: unknown) {
   const draftId = normalizePropertyDraftId(draftIdRaw);
-  const sourceTaskId = clean(sourceTaskIdRaw, 260);
+  const sourceTaskId = clean(sourceTaskIdRaw, 1600);
   if (!sourceTaskId) throw new Error('Finish the first 3D build before the voxel style pass.');
-  const saved = await readCatalog3DByTask(sourceTaskId);
   const expectedItemId = propertyDraftItemId(userId, draftId, 'source');
-  if (!saved || saved.item_id !== expectedItemId) throw new Error('That first 3D build does not belong to this signed-in creation.');
-  const sourceReady = Boolean(saved.model_storage_path || saved.model_url);
-  const thumbnailUrl = clean(saved.thumbnail_url, 2200);
-  if (!sourceReady) throw new Error('Finish the first 3D build before making the voxel.');
-  if (!isHttpUrl(thumbnailUrl)) throw new Error('The first 3D build finished without a usable preview render. Retry the 3D build before voxelizing it.');
+  const saved = await readCatalog3DByTask(sourceTaskId);
+
+  if (saved && saved.item_id !== expectedItemId) {
+    throw new Error('That first 3D build does not belong to this signed-in creation.');
+  }
+
+  const savedReady = Boolean(saved?.model_storage_path || saved?.model_url);
+  const savedThumbnail = clean(saved?.thumbnail_url, 2200);
+  if (savedReady && isHttpUrl(savedThumbnail)) {
+    return [{
+      url: savedThumbnail,
+      rightsBasis: 'licensed-derivative',
+      rightsReference: 'Voxel Vault generated this 3D preview from the signed-in user-authorized source photo for this creation.',
+      label: 'Generated 3D preview',
+    }];
+  }
+
+  // If persistence is still recovering, only a server-signed handle whose item
+  // matches this account/draft may stand in for the missing row. A naked Meshy
+  // task id is never accepted as proof of ownership.
+  const verified = verifyProperty3DTaskHandle(apiKey, userId, sourceTaskId);
+  if (!saved && (!verified || verified.itemId !== expectedItemId)) {
+    throw new Error('That first 3D build does not belong to this signed-in creation.');
+  }
+
+  const response = await fetch(`${SOURCE_3D_ENDPOINT}/${encodeURIComponent(property3DProviderTaskId(sourceTaskId))}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  });
+  const task = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(task?.task_error?.message || task?.message || task?.error || 'The first 3D build could not be verified.');
+
+  const status = clean(task?.status || 'PENDING', 80).toUpperCase();
+  const modelUrl = clean(task?.model_urls?.glb, 2200);
+  const thumbnailUrl = clean(task?.alpha_thumbnail_url || task?.thumbnail_url, 2200);
+  if (!modelUrl || !isHttpUrl(thumbnailUrl) || !['SUCCEEDED', 'SUCCESS', 'COMPLETED'].includes(status)) {
+    throw new Error('Finish the first 3D build before making the voxel.');
+  }
+
+  await saveCatalog3D(expectedItemId, {
+    task_id: sourceTaskId,
+    provider: saved?.provider || 'meshy-property-direct-photo-to-3d',
+    status,
+    progress: 100,
+    model_url: modelUrl,
+    model_storage_path: saved?.model_storage_path || null,
+    thumbnail_url: thumbnailUrl,
+    completed_at: saved?.completed_at || new Date().toISOString(),
+    error: null,
+  });
+
   return [{
     url: thumbnailUrl,
     rightsBasis: 'licensed-derivative',
@@ -86,7 +133,7 @@ export async function POST(request: Request) {
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
     const references = draftId
-      ? await generated3DReference(auth.user.id, draftId, body?.source3dTaskId)
+      ? await generated3DReference(apiKey, auth.user.id, draftId, body?.source3dTaskId)
       : validateReferences(body?.references);
     if (!draftId && (!address || !atlasId)) return privateJson({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
     if (!references.length) return privateJson({ ok: false, error: 'A rights-cleared visual reference is required before making the voxel.' }, { status: 400 });
