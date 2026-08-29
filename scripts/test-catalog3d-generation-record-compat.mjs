@@ -16,7 +16,12 @@ assert.match(store, /function legacyTablePayload/, 'store must provide a legacy-
 assert.match(store, /source_image_urls: _sourceImageUrls/, 'legacy retry must omit the 009 source-image list column');
 assert.match(store, /model_storage_path: _modelStoragePath/, 'legacy retry must omit the 009 private-model-path column');
 assert.match(store, /upsert\(legacyTablePayload\(payload\), \{ onConflict: 'item_id' \}\)/, 'failed full writes must retry against the valid 007/008 schema');
-assert.match(store, /for \(const admin of adminCandidates\(\)\)/, 'persistence must not stop at the first configured server credential');
+assert.match(store, /async function storageReadyFor/, 'storage fallback must probe each configured backend independently');
+assert.match(store, /Bucket listing can be temporarily unavailable/, 'storage fallback must recover when bucket listing fails transiently');
+assert.match(store, /createBucket\(SYSTEM_BUCKET, \{ public: false, fileSizeLimit: '75MB' \}\)/, 'storage fallback must use idempotent bucket creation as a recovery probe');
+assert.match(store, /if \(!ready\) storageReadyPromise = null/, 'transient storage readiness failures must not stay cached for a warm server lifetime');
+assert.match(store, /for \(const supabase of adminCandidates\(\)\)/, 'storage writes must try every configured server credential');
+assert.match(store, /storageReadyPromise = Promise\.resolve\(supabase\)/, 'a credential is cached only after a successful storage write');
 assert.match(store, /return writeStorageRow\(itemId, payload\)/, 'private storage remains a final fallback rather than a prerequisite for generation records');
 
-console.log('Catalog3D generation-record compatibility passed: VoxelPop can save Meshy task ownership/status on the original 007/008 table schema, while 009 private binary metadata remains optional.');
+console.log('Catalog3D generation-record compatibility passed: VoxelPop can save Meshy task ownership/status on the original 007/008 table schema, retry recoverable Storage failures, and keep 009 private binary metadata optional.');
