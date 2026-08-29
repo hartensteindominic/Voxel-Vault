@@ -13,6 +13,15 @@ const MAX_SIGNATURE_AGE_MS = 10 * 60 * 1000;
 
 type Context = { params: Promise<{ leaseId: string }> };
 
+type TenantVoxelEligibility = {
+  status: string;
+  leaseVerifiedAt?: string | null;
+  terminationVerifiedAt?: string | null;
+  tokenId: string;
+  accountMintConfirmed: boolean;
+  walletOwnershipVerified: boolean;
+};
+
 function clean(value: unknown, max = 180) {
   return String(value || '').trim().slice(0, max);
 }
@@ -124,14 +133,15 @@ export async function POST(request: Request, context: Context) {
       signature,
     });
 
-    const allowed = canAttachMintedVoxel({
-      status: lease.status,
+    const eligibility: TenantVoxelEligibility = {
+      status: String(lease.status || ''),
       leaseVerifiedAt: lease.lease_verified_at,
       terminationVerifiedAt: lease.termination_verified_at,
       tokenId,
       accountMintConfirmed,
       walletOwnershipVerified: true,
-    });
+    };
+    const allowed = canAttachMintedVoxel(eligibility as any);
     if (!allowed) return NextResponse.json({ ok: false, error: 'This minted voxel cannot be attached to the tenant layer.' }, { status: 409 });
 
     const voxelName = clean(record?.payload?.asset?.name || 'Minted voxel', 120);
