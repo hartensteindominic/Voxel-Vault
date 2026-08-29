@@ -41,28 +41,22 @@ function sampleRecipe(image) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
-  // Preserve a normal house-photo aspect ratio instead of forcing every image into
-  // the old square crop. This keeps wide facades, porches, garages and roof lines
-  // in frame more reliably before the conservative local silhouette pass.
+  // Preserve the entire source frame. Wide houses and porches should not be
+  // chopped into a square or forced through a center crop before voxelization.
   const naturalWidth = image.naturalWidth || 1;
   const naturalHeight = image.naturalHeight || 1;
-  const sourceRatio = naturalWidth / naturalHeight;
-  const targetRatio = GRID_WIDTH / GRID_HEIGHT;
-  let sx = 0;
-  let sy = 0;
-  let sw = naturalWidth;
-  let sh = naturalHeight;
-  if (sourceRatio > targetRatio) {
-    sw = sh * targetRatio;
-    sx = (naturalWidth - sw) / 2;
-  } else if (sourceRatio < targetRatio) {
-    sh = sw / targetRatio;
-    sy = (naturalHeight - sh) / 2;
-  }
+  const scale = Math.min(GRID_WIDTH / naturalWidth, GRID_HEIGHT / naturalHeight);
+  const drawWidth = Math.max(1, naturalWidth * scale);
+  const drawHeight = Math.max(1, naturalHeight * scale);
+  const dx = (GRID_WIDTH - drawWidth) / 2;
+  const dy = (GRID_HEIGHT - drawHeight) / 2;
+  context.clearRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
   context.filter = 'saturate(1.04) contrast(1.05)';
-  context.drawImage(image, sx, sy, sw, sh, 0, 0, GRID_WIDTH, GRID_HEIGHT);
+  context.drawImage(image, 0, 0, naturalWidth, naturalHeight, dx, dy, drawWidth, drawHeight);
+
   const data = context.getImageData(0, 0, GRID_WIDTH, GRID_HEIGHT).data;
   const rgb = [];
+  const alpha = [];
   const luminance = [];
   const colors = [];
 
@@ -72,34 +66,38 @@ function sampleRecipe(image) {
     const green = quantize(data[offset + 1]);
     const blue = quantize(data[offset + 2]);
     rgb.push([red, green, blue]);
+    alpha.push(data[offset + 3] / 255);
     colors.push(`${toHex(red)}${toHex(green)}${toHex(blue)}`);
     luminance.push((red * 0.2126 + green * 0.7152 + blue * 0.0722) / 255);
   }
 
   const skySamples = [];
   const groundSamples = [];
-  const topRows = Math.max(3, Math.round(GRID_HEIGHT * 0.16));
-  const groundStart = Math.max(0, GRID_HEIGHT - Math.max(3, Math.round(GRID_HEIGHT * 0.13)));
-  for (let row = 0; row < topRows; row += 1) {
+  for (let row = 0; row < GRID_HEIGHT; row += 1) {
     for (let column = 0; column < GRID_WIDTH; column += 1) {
-      if (column < 3 || column > GRID_WIDTH - 4 || row < 2) skySamples.push(rgb[row * GRID_WIDTH + column]);
-    }
-  }
-  for (let row = groundStart; row < GRID_HEIGHT; row += 1) {
-    for (let column = 0; column < GRID_WIDTH; column += 1) {
-      if (column < 6 || column > GRID_WIDTH - 7 || row > GRID_HEIGHT - 2) groundSamples.push(rgb[row * GRID_WIDTH + column]);
+      const index = row * GRID_WIDTH + column;
+      if (alpha[index] < 0.45) continue;
+      const photoX = clamp((column + 0.5 - dx) / Math.max(1, drawWidth));
+      const photoY = clamp((row + 0.5 - dy) / Math.max(1, drawHeight));
+      if (photoY < 0.17 && (photoX < 0.18 || photoX > 0.82 || photoY < 0.08)) skySamples.push(rgb[index]);
+      if (photoY > 0.86 && (photoX < 0.24 || photoX > 0.76 || photoY > 0.94)) groundSamples.push(rgb[index]);
     }
   }
   const sky = averageRgb(skySamples);
   const ground = averageRgb(groundSamples);
 
   const edgeStrength = luminance.map((value, index) => {
+    if (alpha[index] < 0.45) return 0;
     const row = Math.floor(index / GRID_WIDTH);
     const column = index % GRID_WIDTH;
-    const left = luminance[row * GRID_WIDTH + Math.max(0, column - 1)] ?? value;
-    const right = luminance[row * GRID_WIDTH + Math.min(GRID_WIDTH - 1, column + 1)] ?? value;
-    const up = luminance[Math.max(0, row - 1) * GRID_WIDTH + column] ?? value;
-    const down = luminance[Math.min(GRID_HEIGHT - 1, row + 1) * GRID_WIDTH + column] ?? value;
+    const leftIndex = row * GRID_WIDTH + Math.max(0, column - 1);
+    const rightIndex = row * GRID_WIDTH + Math.min(GRID_WIDTH - 1, column + 1);
+    const upIndex = Math.max(0, row - 1) * GRID_WIDTH + column;
+    const downIndex = Math.min(GRID_HEIGHT - 1, row + 1) * GRID_WIDTH + column;
+    const left = alpha[leftIndex] >= 0.45 ? luminance[leftIndex] : value;
+    const right = alpha[rightIndex] >= 0.45 ? luminance[rightIndex] : value;
+    const up = alpha[upIndex] >= 0.45 ? luminance[upIndex] : value;
+    const down = alpha[downIndex] >= 0.45 ? luminance[downIndex] : value;
     return clamp(Math.abs(left - right) * 1.8 + Math.abs(up - down) * 1.8);
   });
 
@@ -107,19 +105,20 @@ function sampleRecipe(image) {
   for (let row = 0; row < GRID_HEIGHT; row += 1) {
     for (let column = 0; column < GRID_WIDTH; column += 1) {
       const index = row * GRID_WIDTH + column;
-      const x = column / (GRID_WIDTH - 1);
-      const y = row / (GRID_HEIGHT - 1);
-      const center = 1 - Math.min(1, Math.abs(x - 0.5) / 0.5);
+      if (alpha[index] < 0.45) continue;
+      const photoX = clamp((column + 0.5 - dx) / Math.max(1, drawWidth));
+      const photoY = clamp((row + 0.5 - dy) / Math.max(1, drawHeight));
+      const center = 1 - Math.min(1, Math.abs(photoX - 0.5) / 0.5);
       const skyDistance = rgbDistance(rgb[index], sky);
       const groundDistance = rgbDistance(rgb[index], ground);
       const edge = edgeStrength[index];
 
-      const outsideSide = x < 0.035 || x > 0.965;
-      const obviousSky = y < 0.34 && skyDistance < (0.11 + edge * 0.15);
-      const obviousGround = y > 0.84 && groundDistance < (0.10 + edge * 0.13);
+      const outsideSide = photoX < 0.025 || photoX > 0.975;
+      const obviousSky = photoY < 0.34 && skySamples.length > 0 && skyDistance < (0.11 + edge * 0.15);
+      const obviousGround = photoY > 0.84 && groundSamples.length > 0 && groundDistance < (0.10 + edge * 0.13);
       const buildingEvidence = skyDistance * 0.48 + edge * 0.36 + center * 0.16;
-      const centralLowerBody = y > 0.34 && y < 0.84 && center > 0.18 && skyDistance > 0.075;
-      rawMask[index] = !outsideSide && !obviousSky && !obviousGround && y > 0.055 && y < 0.95 && (buildingEvidence > 0.235 || centralLowerBody);
+      const centralLowerBody = photoY > 0.34 && photoY < 0.84 && center > 0.16 && skyDistance > 0.07;
+      rawMask[index] = !outsideSide && !obviousSky && !obviousGround && photoY > 0.04 && photoY < 0.97 && (buildingEvidence > 0.225 || centralLowerBody);
     }
   }
 
@@ -146,22 +145,30 @@ function sampleRecipe(image) {
       right = Math.min(GRID_WIDTH - 3, nearest + 4);
     }
     for (let column = left; column <= right; column += 1) {
-      if (rawMask[row * GRID_WIDTH + column] || (column > left && column < right)) mask[row * GRID_WIDTH + column] = true;
+      if (alpha[row * GRID_WIDTH + column] >= 0.45 && (rawMask[row * GRID_WIDTH + column] || (column > left && column < right))) {
+        mask[row * GRID_WIDTH + column] = true;
+      }
     }
   }
 
   let activeCount = mask.filter(Boolean).length;
   if (activeCount < GRID_WIDTH * GRID_HEIGHT * 0.16) {
-    // Fallback stays house-shaped and keeps the wider 4:3 proportions instead of
-    // returning the old generic square slab.
+    // Fallback remains a house silhouette but stays inside the actual visible
+    // source-photo frame rather than recreating the old full-square slab.
     mask.fill(false);
-    for (let row = Math.round(GRID_HEIGHT * 0.20); row < Math.round(GRID_HEIGHT * 0.87); row += 1) {
-      const roof = row < GRID_HEIGHT * 0.43;
-      const progress = clamp((row - GRID_HEIGHT * 0.20) / (GRID_HEIGHT * 0.23));
-      const halfWidth = roof ? Math.round(3 + progress * GRID_WIDTH * 0.31) : Math.round(GRID_WIDTH * 0.36);
-      const center = Math.round((GRID_WIDTH - 1) / 2);
-      for (let column = Math.max(1, center - halfWidth); column <= Math.min(GRID_WIDTH - 2, center + halfWidth); column += 1) {
-        mask[row * GRID_WIDTH + column] = true;
+    const minColumn = Math.max(1, Math.floor(dx));
+    const maxColumn = Math.min(GRID_WIDTH - 2, Math.ceil(dx + drawWidth) - 1);
+    const minRow = Math.max(1, Math.floor(dy));
+    const maxRow = Math.min(GRID_HEIGHT - 2, Math.ceil(dy + drawHeight) - 1);
+    const center = Math.round((minColumn + maxColumn) / 2);
+    const availableHalf = Math.max(4, Math.floor((maxColumn - minColumn) * 0.38));
+    const roofEnd = minRow + Math.max(4, Math.round((maxRow - minRow) * 0.34));
+    for (let row = minRow + 1; row <= maxRow - 1; row += 1) {
+      const roof = row < roofEnd;
+      const progress = clamp((row - (minRow + 1)) / Math.max(1, roofEnd - minRow - 1));
+      const halfWidth = roof ? Math.round(3 + progress * (availableHalf - 3)) : availableHalf;
+      for (let column = Math.max(minColumn, center - halfWidth); column <= Math.min(maxColumn, center + halfWidth); column += 1) {
+        if (alpha[row * GRID_WIDTH + column] >= 0.45) mask[row * GRID_WIDTH + column] = true;
       }
     }
     activeCount = mask.filter(Boolean).length;
@@ -182,7 +189,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
   const callbackRef = useRef(onReady);
   const reportedRef = useRef('');
   const sampleUrl = sourceImageUrl || imageUrl || '';
-  const previewUrl = sourceImageUrl || imageUrl || '';
+  const previewUrl = imageUrl || sourceImageUrl || '';
   const [approvedUrl, setApprovedUrl] = useState('');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -435,7 +442,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
 
   return <div className="localViewerShell">
     {previewUrl ? <div className={`previewStage ${buildRequested || ready ? 'building' : ''}`}>
-      <div className="photoDepth"><img src={previewUrl} alt="Your property photo shown as the 3D picture review"/></div>
+      <div className="photoDepth"><img src={previewUrl} alt="Generated VoxelPop 3D picture review of your property"/></div>
       {!buildRequested ? <div className="reviewPanel">
         <b>3D PICTURE READY</b>
         <span>Check that this still looks like your house before VoxelPop turns it into blocks.</span>
