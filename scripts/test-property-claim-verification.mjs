@@ -143,10 +143,15 @@ assert.doesNotMatch(route, /mintVerifiedPassport\s*\(/, 'Claim API must not mint
 assert.doesNotMatch(route, /setVerified\s*\(/, 'Claim API must not verify the on-chain registry.');
 
 const page = fs.readFileSync(new URL('../app/vault/properties/claim/page.js', import.meta.url), 'utf8');
-assert.match(page, /One real parcel/i);
-assert.match(page, /Do not paste deeds, IDs, bank information or private documents here/i);
-assert.match(page, /still only moves the claim to human review/i);
-assert.match(page, /does not create rent rights/i);
+assert.match(page, /ONE PARCEL · ONE CANONICAL MINT/i, 'Consumer verification must keep the duplicate-mint rule obvious.');
+assert.match(page, /property-canonical-status/i, 'Consumer verification must query the server-authoritative canonical state before claim submission.');
+assert.match(page, /Already minted\. Duplicate canonical mint blocked/i, 'Already-minted parcels must visibly fail closed.');
+assert.match(page, /owner or authorized controller/i, 'Official identity requests must still require owner/control authority.');
+assert.match(page, /submitted for verification/i, 'Consumer submission must describe verification rather than self-approval.');
+assert.match(page, /not a deed/i, 'Consumer verification must preserve the deed boundary.');
+assert.match(page, /fractional economic rights require separate legal agreements/i, 'Fractional rights must stay legally separate from the Property Passport.');
+assert.match(page, /compliant fractional offering for this exact property actually exists/i, 'Own-a-piece UI must remain fail-closed until a real exact-property offering exists.');
+assert.doesNotMatch(page, /mintVerifiedPassport\s*\(|setVerified\s*\(|eth_requestAccounts|executePurchase/i, 'Consumer verification must not mint, self-verify, request a wallet or execute a property purchase.');
 
 const adminRoute = fs.readFileSync(new URL('../app/api/admin/property-claims/route.ts', import.meta.url), 'utf8');
 assert.match(adminRoute, /requireVoxelVaultAdmin/);

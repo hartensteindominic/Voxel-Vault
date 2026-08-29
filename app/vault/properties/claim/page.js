@@ -3,19 +3,34 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../../../lib/supabase-browser';
+import styles from './claim.module.css';
 
 const evidenceOptions = [
-  ['parcel-record', 'Parcel record identified', 'You have the assessor/parcel record that identifies the real property.'],
-  ['ownership-or-control', 'Ownership/control evidence ready', 'You can prove you own the property or are authorized to control its official digital twin.'],
-  ['model-capture-rights', '3D capture rights confirmed', 'You have permission to scan, photograph or submit the building model.'],
+  ['parcel-record', 'I have the parcel record.'],
+  ['ownership-or-control', 'I can prove ownership or authorization.'],
+  ['model-capture-rights', 'I have permission to use the property photo / 3D capture.'],
 ];
-
-function googleReturnUrl() {
-  return new URL('/vault/properties/claim?auth=google', window.location.origin).toString();
-}
 
 function userName(user) {
   return String(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'Google account');
+}
+
+function identityReady(form) {
+  const country = String(form.countryCode || '').trim().toUpperCase();
+  return country.length === 2
+    && (country !== 'US' || Boolean(String(form.subdivisionCode || '').trim()))
+    && Boolean(String(form.countyCode || '').trim())
+    && Boolean(String(form.parcelId || '').trim());
+}
+
+function statusCopy(status) {
+  if (!status) return 'Enter the parcel identity. Voxel Vault checks for an existing canonical mint before your claim can proceed.';
+  if (status.alreadyMinted) return '✓ Already minted. This parcel already has its one canonical Property Passport, so a second canonical mint is blocked.';
+  if (status.canMintNow) return '✓ Verified and mint-ready. This parcel is eligible for its one controlled canonical mint; another claim is not needed.';
+  if (status.verified) return '✓ Already verified. This parcel already has a canonical identity, so a second canonical property identity is blocked.';
+  if (status.state === 'claimed') return `Claim saved${status.ownClaimStatus ? ` · ${String(status.ownClaimStatus).replaceAll('-', ' ')}` : ''}. One canonical parcel identity is reserved.`;
+  if (status.state === 'reserved') return 'This parcel identity is already reserved but not verified. Claims can be reviewed, but only one can become canonical.';
+  return 'Available for verification. No canonical Property Passport has been minted for this parcel yet.';
 }
 
 export default function PropertyClaimPage() {
@@ -24,7 +39,7 @@ export default function PropertyClaimPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [claims, setClaims] = useState([]);
-  const [claimsState, setClaimsState] = useState('idle');
+  const [canonicalStatus, setCanonicalStatus] = useState(null);
   const clientRef = useRef(null);
   const [form, setForm] = useState({
     countryCode: 'US',
@@ -40,6 +55,7 @@ export default function PropertyClaimPage() {
 
   function patch(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
+    if (['countryCode', 'subdivisionCode', 'countyCode', 'parcelId'].includes(field)) setCanonicalStatus(null);
   }
 
   function toggleEvidence(type) {
@@ -54,7 +70,6 @@ export default function PropertyClaimPage() {
   async function refreshClaims(accessToken) {
     const token = String(accessToken || '').trim();
     if (!token) return;
-    setClaimsState('loading');
     try {
       const response = await fetch('/api/vault/property-claims', {
         cache: 'no-store',
@@ -63,18 +78,19 @@ export default function PropertyClaimPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Could not load property claims.');
       setClaims(Array.isArray(data.claims) ? data.claims : []);
-      setClaimsState('ready');
     } catch (error) {
       setClaims([]);
-      setClaimsState('error');
       setMessage(error instanceof Error ? error.message : 'Could not load property claims.');
     }
   }
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const label = String(params.get('label') || '').trim().slice(0, 120);
+    if (label) setForm((current) => ({ ...current, propertyLabel: label }));
+
     let active = true;
     let subscription = null;
-
     async function apply(next) {
       if (!active) return;
       setSession(next);
@@ -85,9 +101,6 @@ export default function PropertyClaimPage() {
       }
       setAuthState('signed-in');
       await refreshClaims(next.access_token || '');
-      if (new URLSearchParams(window.location.search).get('auth') === 'google') {
-        window.history.replaceState({}, '', '/vault/properties/claim');
-      }
     }
 
     getSupabaseBrowserAsync().then(async (client) => {
@@ -108,10 +121,7 @@ export default function PropertyClaimPage() {
       setMessage(error instanceof Error ? error.message : 'Google account setup is incomplete.');
     });
 
-    return () => {
-      active = false;
-      subscription?.unsubscribe?.();
-    };
+    return () => { active = false; subscription?.unsubscribe?.(); };
   }, []);
 
   async function signIn() {
@@ -121,7 +131,10 @@ export default function PropertyClaimPage() {
     try {
       const client = clientRef.current || await getSupabaseBrowserAsync();
       clientRef.current = client;
-      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: googleReturnUrl() } });
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href },
+      });
       if (error) throw error;
     } catch (error) {
       setBusy(false);
@@ -129,12 +142,55 @@ export default function PropertyClaimPage() {
     }
   }
 
+  async function checkCanonicalStatus() {
+    if (!session?.access_token || !identityReady(form)) return null;
+    const response = await fetch('/api/vault/property-canonical-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(form),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Could not check this parcel.');
+    setCanonicalStatus(data);
+    return data;
+  }
+
+  async function checkParcel() {
+    if (!identityReady(form)) return setMessage('Add the country, state/region when required, assessor jurisdiction, and parcel/APN first.');
+    if (!session?.access_token) return signIn();
+    setBusy(true);
+    setMessage('Checking this parcel…');
+    try {
+      const status = await checkCanonicalStatus();
+      setMessage(statusCopy(status));
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not check this parcel.'); }
+    finally { setBusy(false); }
+  }
+
   async function submitClaim(event) {
     event.preventDefault();
     if (!session?.access_token || busy) return;
+    if (!identityReady(form)) return setMessage('Add the parcel identity first.');
+    if (!form.ownerAuthorized) return setMessage('Confirm that you own the property or are authorized to request its official property identity.');
+
     setBusy(true);
-    setMessage('');
+    setMessage('Checking for an existing canonical property…');
     try {
+      const status = await checkCanonicalStatus();
+      if (status?.alreadyMinted) {
+        setMessage('Already minted. Duplicate canonical mint blocked. You can view the existing property; ownership shares only unlock when a compliant offering exists.');
+        return;
+      }
+      if (status?.verified) {
+        setMessage(status?.canMintNow
+          ? 'Your parcel is already verified for its one controlled canonical mint. A duplicate claim is not needed.'
+          : 'This parcel already has a verified canonical identity. A second canonical property identity cannot be created.');
+        return;
+      }
+
       const response = await fetch('/api/vault/property-claims', {
         method: 'POST',
         headers: {
@@ -145,8 +201,9 @@ export default function PropertyClaimPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Could not submit the property claim.');
-      setMessage(data?.nextStep || 'Claim submitted for review.');
+      setMessage(data?.nextStep || 'Property submitted for verification.');
       await refreshClaims(session.access_token);
+      await checkCanonicalStatus();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not submit the property claim.');
     } finally {
@@ -154,112 +211,81 @@ export default function PropertyClaimPage() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-[#050706] px-4 py-6 text-white md:px-8 md:py-10">
-      <section className="mx-auto max-w-6xl">
-        <nav className="flex flex-wrap items-center justify-between gap-4">
-          <Link href="/vault/properties" className="font-black text-white no-underline">← EARTH / Property Twins</Link>
-          <Link href="/vault" className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/65 no-underline">My Vault</Link>
-        </nav>
+  const propertyName = form.propertyLabel || 'This property';
+  const canSubmit = Boolean(session?.user && identityReady(form) && form.ownerAuthorized && !canonicalStatus?.alreadyMinted && !canonicalStatus?.verified);
 
-        <header className="max-w-4xl pb-10 pt-16 md:pt-24">
-          <div className="text-[10px] font-black tracking-[.24em] text-[#9ff5df]/55">CLAIM MY PROPERTY · VERIFICATION GATE</div>
-          <h1 className="mt-4 text-5xl font-black leading-[.86] tracking-[-.07em] md:text-7xl">One real parcel.<br /><span className="text-[#9ff5df]">One official twin.</span></h1>
-          <p className="mt-6 max-w-3xl text-base leading-7 text-white/50">The official Property Passport is keyed from the assessor jurisdiction and parcel identifier—not a street-address string. A claim can enter review, but it cannot verify itself or mint the canonical Passport.</p>
-        </header>
+  return <main className={styles.page}>
+    <section className={styles.shell}>
+      <nav className={styles.top}>
+        <Link href="/property">← Property</Link>
+        <Link href="/vault/property-drafts">Vault</Link>
+      </nav>
 
-        {message ? <div className="mb-5 rounded-2xl border border-white/10 bg-white/[.035] p-4 text-sm leading-6 text-white/65">{message}</div> : null}
+      <header className={styles.hero}>
+        <small>ONE PARCEL · ONE CANONICAL MINT</small>
+        <h1>Verify <span>property.</span></h1>
+        <p>Voxel Vault checks the real parcel identity before a canonical Property Passport can ever be minted.</p>
+      </header>
 
-        {authState === 'loading' ? <Panel title="Checking identity…" copy="Loading your Voxel Vault session." /> : null}
-        {authState === 'error' ? <Panel title="Identity unavailable" copy={message || 'Sign-in state could not be loaded.'} danger /> : null}
-        {authState === 'signed-out' ? (
-          <section className="rounded-[32px] border border-[#9ff5df]/15 bg-[#9ff5df]/[.035] p-8 md:p-10">
-            <div className="text-[10px] font-black tracking-[.16em] text-[#9ff5df]/55">CLAIMS ARE USER-BOUND</div>
-            <h2 className="mt-3 text-3xl font-black tracking-[-.05em] md:text-5xl">Sign in before claiming a real property.</h2>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-white/50">Creative house NFTs do not need this workflow. This gate exists only for the single official real-world Property Passport identity.</p>
-            <button onClick={signIn} disabled={busy} className="mt-6 rounded-full bg-white px-6 py-3 text-xs font-black text-black disabled:opacity-40">SIGN IN WITH GOOGLE</button>
-          </section>
-        ) : null}
+      {authState === 'loading' ? <p className={styles.message}>Checking your account…</p> : null}
+      {authState === 'error' ? <p className={styles.message}>{message || 'Sign-in is unavailable.'}</p> : null}
+      {authState === 'signed-out' ? <div className={styles.card}>
+        <div className={styles.propertyName}>{propertyName}</div>
+        <button className={styles.submit} type="button" onClick={signIn} disabled={busy}>{busy ? 'Opening Google…' : 'Sign in to verify'}</button>
+        <p className={styles.message}>Claims are account-bound so duplicate and competing parcel claims can be reviewed safely.</p>
+      </div> : null}
 
-        {session?.user ? (
-          <div className="grid gap-5 lg:grid-cols-[1.05fr_.95fr]">
-            <form onSubmit={submitClaim} className="rounded-[32px] border border-white/10 bg-white/[.025] p-6 md:p-8">
-              <div className="text-[10px] font-black tracking-[.16em] text-white/35">SIGNED IN · {userName(session.user)}</div>
-              <h2 className="mt-3 text-3xl font-black tracking-[-.05em]">Reserve the canonical parcel identity.</h2>
-              <p className="mt-3 text-xs leading-5 text-white/40">Do not paste deeds, IDs, bank information or private documents here. This milestone records only identity fields and evidence categories; actual document verification requires the secure review layer.</p>
+      {session?.user ? <form className={styles.card} onSubmit={submitClaim}>
+        <div className={styles.propertyName}>{propertyName}<br/><small>Signed in as {userName(session.user)}</small></div>
 
-              <div className="mt-7 grid gap-3 sm:grid-cols-2">
-                <Field label="COUNTRY CODE" value={form.countryCode} onChange={(v) => patch('countryCode', v)} placeholder="US" />
-                <Field label="STATE / SUBDIVISION" value={form.subdivisionCode} onChange={(v) => patch('subdivisionCode', v)} placeholder="NY" />
-                <Field label="ASSESSOR JURISDICTION / COUNTY" value={form.countyCode} onChange={(v) => patch('countyCode', v)} placeholder="ERIE" />
-                <Field label="PARCEL / APN" value={form.parcelId} onChange={(v) => patch('parcelId', v)} placeholder="Assessor parcel identifier" />
-                <Field label="PROPERTY LABEL" value={form.propertyLabel} onChange={(v) => patch('propertyLabel', v)} placeholder="My home" />
-                <Field label="LOCALITY" value={form.locality} onChange={(v) => patch('locality', v)} placeholder="Buffalo, NY" />
-              </div>
+        <div className={styles.grid}>
+          <Field className={styles.field} label="COUNTRY" value={form.countryCode} onChange={(value) => patch('countryCode', value)} placeholder="US" />
+          <Field className={styles.field} label="STATE / REGION" value={form.subdivisionCode} onChange={(value) => patch('subdivisionCode', value)} placeholder="NY" />
+          <Field className={`${styles.field} ${styles.full}`} label="ASSESSOR JURISDICTION / COUNTY" value={form.countyCode} onChange={(value) => patch('countyCode', value)} placeholder="ERIE" />
+          <Field className={`${styles.field} ${styles.full}`} label="PARCEL / APN" value={form.parcelId} onChange={(value) => patch('parcelId', value)} placeholder="Parcel identifier" />
+          <Field className={`${styles.field} ${styles.full}`} label="CITY / LOCALITY" value={form.locality} onChange={(value) => patch('locality', value)} placeholder="Buffalo, NY" required={false} />
+        </div>
 
-              <label className="mt-4 grid gap-2 text-xs text-white/45">
-                CLAIMANT ROLE
-                <select value={form.claimantRole} onChange={(e) => patch('claimantRole', e.target.value)} className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-white outline-none">
-                  <option value="owner">Property owner</option>
-                  <option value="authorized-controller">Authorized controller / agent</option>
-                </select>
-              </label>
+        <div className={styles.role}>
+          <button type="button" className={form.claimantRole === 'owner' ? styles.active : ''} onClick={() => patch('claimantRole', 'owner')}>I own it</button>
+          <button type="button" className={form.claimantRole === 'authorized-controller' ? styles.active : ''} onClick={() => patch('claimantRole', 'authorized-controller')}>I’m authorized</button>
+        </div>
 
-              <div className="mt-6 grid gap-2">
-                {evidenceOptions.map(([type, title, copy]) => (
-                  <label key={type} className="flex gap-3 rounded-2xl border border-white/8 bg-black/15 p-4 text-xs leading-5 text-white/50">
-                    <input type="checkbox" checked={form.evidenceTypes.includes(type)} onChange={() => toggleEvidence(type)} className="mt-1" />
-                    <span><b className="text-white/80">{title}</b><br />{copy}</span>
-                  </label>
-                ))}
-              </div>
+        <div className={styles.checks}>
+          {evidenceOptions.map(([type, label]) => <label className={styles.check} key={type}>
+            <input type="checkbox" checked={form.evidenceTypes.includes(type)} onChange={() => toggleEvidence(type)}/>
+            <span>{label}</span>
+          </label>)}
+          <label className={`${styles.check} ${styles.authorization}`}>
+            <input type="checkbox" checked={form.ownerAuthorized} onChange={(event) => patch('ownerAuthorized', event.target.checked)}/>
+            <span>I am the owner or authorized controller requesting this property’s official Voxel Vault identity.</span>
+          </label>
+        </div>
 
-              <label className="mt-4 flex gap-3 rounded-2xl border border-amber-200/12 bg-amber-200/[.03] p-4 text-xs leading-5 text-white/55">
-                <input type="checkbox" checked={form.ownerAuthorized} onChange={(e) => patch('ownerAuthorized', e.target.checked)} className="mt-1" />
-                <span>I am the owner or I have authorization from the owner/controller to request the official real-world Property Passport. I understand this claim is not a deed transfer and does not create rent rights.</span>
-              </label>
+        <div className={styles.status} data-state={canonicalStatus?.state || 'idle'}>{statusCopy(canonicalStatus)}</div>
+        <button className={styles.secondary} type="button" onClick={checkParcel} disabled={busy || !identityReady(form)}>Check parcel first</button>
+        <button className={styles.submit} type="submit" disabled={busy || !canSubmit}>{busy ? 'Checking…' : canonicalStatus?.state === 'available' ? 'Submit for verification' : 'Check + verify'}</button>
 
-              <button type="submit" disabled={busy || !form.ownerAuthorized} className="mt-6 rounded-full bg-[#9ff5df] px-6 py-3 text-xs font-black text-[#07100e] disabled:opacity-35">{busy ? 'SUBMITTING…' : 'SUBMIT FOR VERIFICATION'}</button>
-            </form>
+        {canonicalStatus?.alreadyMinted || canonicalStatus?.verified ? <div className={styles.piece}>
+          <b>Own a piece</b>
+          <span>This only turns on when a compliant fractional offering for this exact property actually exists. The Property Passport itself is not the economic share.</span>
+        </div> : null}
 
-            <aside className="grid content-start gap-4">
-              <section className="rounded-[30px] border border-white/10 bg-white/[.025] p-6">
-                <div className="text-[9px] font-black tracking-[.15em] text-white/35">WHY PARCEL ID?</div>
-                <h3 className="mt-2 text-2xl font-black tracking-[-.04em]">Addresses are display text. Parcels are identity.</h3>
-                <p className="mt-3 text-xs leading-5 text-white/45">Street names can be abbreviated, renamed or formatted differently. The normalized assessor jurisdiction + parcel/APN is hashed server-side into the canonical Voxel property fingerprint.</p>
-              </section>
+        <p className={styles.message} role="status">{message}</p>
+      </form> : null}
 
-              <section className="rounded-[30px] border border-white/10 bg-white/[.025] p-6">
-                <div className="text-[9px] font-black tracking-[.15em] text-white/35">MY CLAIMS</div>
-                {claimsState === 'loading' ? <p className="mt-3 text-sm text-white/45">Loading claims…</p> : null}
-                {claimsState === 'ready' && !claims.length ? <p className="mt-3 text-sm leading-6 text-white/45">No official property claims yet.</p> : null}
-                <div className="mt-4 grid gap-2">
-                  {claims.map((claim) => (
-                    <div key={claim.id} className="rounded-2xl border border-white/8 bg-black/15 p-4">
-                      <div className="text-[9px] font-black tracking-[.13em] text-[#9ff5df]/55">{String(claim.status || '').toUpperCase()}</div>
-                      <div className="mt-1 font-black">{claim.propertyLabel || 'Property claim'}</div>
-                      <div className="mt-1 text-[11px] text-white/38">{claim.locality || 'Locality not shown'} · fingerprint …{claim.propertyFingerprintSuffix || 'pending'}</div>
-                      <div className="mt-2 text-[11px] text-white/45">Passport mint: {claim.canonicalMintAllowed ? 'eligible after registry controls' : 'locked'}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+      {claims.length ? <section className={styles.claims} aria-label="Your property verification requests">
+        {claims.slice(0, 4).map((claim) => <div className={styles.claim} key={claim.id}>
+          <b>{claim.propertyLabel || 'Property'} · {String(claim.status || 'pending').replaceAll('-', ' ')}</b>
+          <span>{claim.canonicalMintAllowed ? 'Verified registry controls complete; canonical mint remains a separate controlled action.' : 'Canonical mint locked until verification and registry controls are complete.'}</span>
+        </div>)}
+      </section> : null}
 
-              <section className="rounded-[30px] border border-red-200/12 bg-red-200/[.025] p-6 text-xs leading-5 text-white/48">
-                <b className="text-red-100/75">Fail-closed:</b> submitting all three evidence categories still only moves the claim to human review. It does not verify title, mint a Passport, transfer ownership, authorize a property purchase or create rental income rights.
-              </section>
-            </aside>
-          </div>
-        ) : null}
-      </section>
-    </main>
-  );
+      <p className={styles.truth}>Address text is not the duplicate key. The normalized assessor jurisdiction + parcel/APN becomes the canonical fingerprint. One verified parcel may have one canonical Property Passport. The Passport is not a deed, and fractional economic rights require separate legal agreements and a compliant offering.</p>
+    </section>
+  </main>;
 }
 
-function Field({ label, value, onChange, placeholder }) {
-  return <label className="grid gap-2 text-xs text-white/45">{label}<input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-white outline-none placeholder:text-white/20" /></label>;
-}
-
-function Panel({ title, copy, danger = false }) {
-  return <section className={`rounded-[30px] border p-7 ${danger ? 'border-red-200/15 bg-red-200/[.03]' : 'border-white/10 bg-white/[.025]'}`}><h2 className="text-2xl font-black">{title}</h2><p className="mt-2 text-sm leading-6 text-white/45">{copy}</p></section>;
+function Field({ className, label, value, onChange, placeholder, required = true }) {
+  return <label className={className}>{label}<input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required}/></label>;
 }
