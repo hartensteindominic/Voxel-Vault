@@ -137,36 +137,24 @@ async function createVoxelPoster(file) {
       image.onload = resolve;
       image.onerror = () => reject(new Error('The photo could not be opened for the voxel pass.'));
     });
-    const sampleSize = 72;
+    const aspect = Math.max(0.5, Math.min(2, (image.naturalWidth || 1) / (image.naturalHeight || 1)));
+    const sampleWidth = aspect >= 1 ? 96 : Math.max(54, Math.round(96 * aspect));
+    const sampleHeight = aspect >= 1 ? Math.max(54, Math.round(96 / aspect)) : 96;
     const sample = document.createElement('canvas');
-    sample.width = sampleSize;
-    sample.height = sampleSize;
+    sample.width = sampleWidth;
+    sample.height = sampleHeight;
     const sampleContext = sample.getContext('2d');
     if (!sampleContext) throw new Error('Voxel image processing is unavailable.');
-    const sourceRatio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
-    let sx = 0;
-    let sy = 0;
-    let sw = image.naturalWidth || 1;
-    let sh = image.naturalHeight || 1;
-    if (sourceRatio > 1) { sw = sh; sx = ((image.naturalWidth || 1) - sw) / 2; }
-    else if (sourceRatio < 1) { sh = sw; sy = ((image.naturalHeight || 1) - sh) / 2; }
-    sampleContext.filter = 'saturate(1.06) contrast(1.05)';
-    sampleContext.drawImage(image, sx, sy, sw, sh, 0, 0, sampleSize, sampleSize);
+    sampleContext.filter = 'saturate(1.05) contrast(1.04)';
+    sampleContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+    const scale = 9;
     const output = document.createElement('canvas');
-    output.width = 864;
-    output.height = 864;
+    output.width = sampleWidth * scale;
+    output.height = sampleHeight * scale;
     const context = output.getContext('2d');
     if (!context) throw new Error('Voxel image processing is unavailable.');
     context.imageSmoothingEnabled = false;
-    context.fillStyle = '#ede7df';
-    context.fillRect(0, 0, output.width, output.height);
     context.drawImage(sample, 0, 0, output.width, output.height);
-    const shade = context.createLinearGradient(0, 0, output.width, output.height);
-    shade.addColorStop(0, 'rgba(255,255,255,.08)');
-    shade.addColorStop(0.62, 'rgba(255,255,255,0)');
-    shade.addColorStop(1, 'rgba(38,18,52,.12)');
-    context.fillStyle = shade;
-    context.fillRect(0, 0, output.width, output.height);
     return output.toDataURL('image/jpeg', 0.92);
   } finally {
     URL.revokeObjectURL(url);
@@ -275,7 +263,7 @@ export default function PropertyJourneyExact() {
         return URL.createObjectURL(photo);
       });
       setPendingPhoto(photo);
-      setRightsConfirmed(false);
+      setRightsConfirmed(Boolean(paidSessionId));
       setPreviewReady(false);
       setPreviewApproved(false);
       setVoxelPoster('');
@@ -300,9 +288,7 @@ export default function PropertyJourneyExact() {
     form.append('generationSessionId', generationSessionId);
     const response = await fetch('/api/property-photo-upload', { method: 'POST', headers: authHeaders(), body: form });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data?.ok || data?.paid !== true || !data?.draftId) {
-      throw new Error(data?.error || 'Your paid VoxelPop creation could not be verified.');
-    }
+    if (!response.ok || !data?.ok || data?.paid !== true || !data?.draftId) throw new Error(data?.error || 'Your paid VoxelPop creation could not be verified.');
     return data;
   }
 
@@ -317,18 +303,16 @@ export default function PropertyJourneyExact() {
       checkoutHandledRef.current = key;
       setBusy('');
       setDraftId(canceledDraftId);
-      setMessage('Checkout canceled. Nothing was created or charged. Your photo is still on this device.');
+      setMessage('Checkout canceled. Nothing was created or charged.');
       window.history.replaceState({}, '', '/property');
       return undefined;
     }
-
     const generationSessionId = clean(params.get('generation_session'));
     if (!generationSessionId || checkoutHandledRef.current === generationSessionId) return undefined;
     checkoutHandledRef.current = generationSessionId;
     let active = true;
     setBusy('payment-return');
-    setMessage('Payment received. Opening your private photo for the 3D preview…');
-
+    setMessage('Payment received. Opening your 3D preview…');
     (async () => {
       try {
         const data = await verifyPaidSession(generationSessionId);
@@ -339,7 +323,8 @@ export default function PropertyJourneyExact() {
         if (!active) return;
         if (!photo) {
           setBusy('');
-          setMessage('Payment is verified. Choose the same property photo again. You will not be charged again.');
+          setMessage('Payment is verified. Choose the same property photo again to open the 3D preview. You will not be charged again.');
+          window.history.replaceState({}, '', '/property');
           return;
         }
         setPendingPhoto(photo);
@@ -352,6 +337,7 @@ export default function PropertyJourneyExact() {
         setPreviewApproved(false);
         setMessage('Payment verified. Loading the recognizable 3D photo preview first.');
         setBusy('');
+        window.history.replaceState({}, '', '/property');
       } catch (error) {
         if (active) {
           checkoutHandledRef.current = '';
@@ -360,7 +346,6 @@ export default function PropertyJourneyExact() {
         }
       }
     })();
-
     return () => { active = false; };
   }, [session?.access_token]);
 
@@ -368,8 +353,14 @@ export default function PropertyJourneyExact() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
     setBusy('generation-checkout');
+    let cachedOnDevice = false;
     try {
-      await saveDevicePhoto(draftId, pendingPhoto);
+      try {
+        await saveDevicePhoto(draftId, pendingPhoto);
+        cachedOnDevice = true;
+      } catch {
+        cachedOnDevice = false;
+      }
       if (paidSessionId) {
         setPreviewReady(false);
         setPreviewApproved(false);
@@ -377,7 +368,9 @@ export default function PropertyJourneyExact() {
         setBusy('');
         return;
       }
-      setMessage(`Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D preview before any voxel is built.`);
+      setMessage(cachedOnDevice
+        ? `Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D preview before any voxel is built.`
+        : `Opening secure ${CREATION_PRICE_LABEL} checkout. Your browser could not keep the photo through checkout, so after payment you may need to choose the same photo once. You will not be charged again.`);
       const form = new FormData();
       form.append('draftId', draftId);
       form.append('rightsConfirmed', 'true');
@@ -401,7 +394,7 @@ export default function PropertyJourneyExact() {
       setVoxelPoster(poster);
       setFinal3d({ status: 'IN_PROGRESS', progress: 55, modelUrl: null, taskId: null });
       setBusy('voxel-3d');
-      setMessage('VOXEL · Building the movable block model from the same house photo.');
+      setMessage('VOXEL · Building the movable block model from the same house photo without square-cropping it.');
     } catch (error) {
       setPreviewApproved(false);
       setBusy('');
@@ -424,7 +417,7 @@ export default function PropertyJourneyExact() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.taskId || !data?.modelUrl) throw new Error(data?.error || 'The local voxel could not be linked to your account.');
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: data.modelUrl, taskId: data.taskId });
-      setMessage('Voxel 3D ready. You can mint this digital voxel now, or add its real address to My World.');
+      setMessage('Voxel 3D ready. Compare VOXEL with SOURCE, then mint the finished digital voxel when you are happy with it.');
     } catch (error) {
       setFinal3d({ status: 'LOCAL_ONLY', progress: 100, modelUrl: null, taskId: null });
       setMessage(`${String(error?.message || error || 'The voxel is visible on this device, but account registration failed.')} Retry registration before minting.`);
@@ -573,7 +566,7 @@ export default function PropertyJourneyExact() {
       {stage === 1 ? <>
         <p className={styles.bigPrompt}>Choose a clear house photo.</p>
         <p className={styles.flowHint}>Photo → $4.99 → recognizable 3D preview → approve → voxel 3D → optional mint.</p>
-        <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
+        <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') choosePhoto(); }}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
         <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>
         <p className={styles.truth}>The first 3D preview uses your actual photo so it stays recognizable. It is a front-view visual preview, not a claim that unseen sides are reconstructed exactly.</p>
       </> : null}
@@ -592,7 +585,7 @@ export default function PropertyJourneyExact() {
 
       {stage === 3 ? <>
         <p className={styles.bigPrompt}>This is the 3D picture first.</p>
-        <p className={styles.stepCopy}>It uses the real photo as the textured front surface, so windows, doors, siding, roofline, and visible details stay tied to what you actually uploaded. Drag gently to see the 3D relief.</p>
+        <p className={styles.stepCopy}>It uses the real photo as the textured front surface, so windows, doors, siding, roofline, and visible details stay tied to what you uploaded. Drag gently to see the 3D relief.</p>
         {!pendingPreview ? <section className={styles.donePanel}><b>PAYMENT VERIFIED</b><span>Choose the same photo again. You will not be charged again.</span><button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Choose photo again</button></section> : <>
           <div className={styles.heroCard}>
             <PhotoReliefModelViewer imageUrl={pendingPreview} onReady={() => setPreviewReady(true)}/>
@@ -610,7 +603,7 @@ export default function PropertyJourneyExact() {
 
       {stage === 4 ? <>
         <p className={styles.bigPrompt}>Now build the 3D voxel.</p>
-        <p className={styles.stepCopy}>This is a separate conversion step. The voxel renderer samples the same approved house photo instead of inventing a random generic building.</p>
+        <p className={styles.stepCopy}>This is a separate conversion step. The voxel uses the same approved photo at its original framing, and you can switch between VOXEL and SOURCE to check the match.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster} onReady={handleLocal3DReady}/>
           <span className={styles.badge}>{final3d.status === 'LOCAL_ONLY' ? 'VOXEL VISIBLE · REGISTRATION NEEDS RETRY' : 'BUILDING PHOTO-MATCHED 3D VOXEL'}</span>
@@ -621,7 +614,7 @@ export default function PropertyJourneyExact() {
 
       {stage === 5 ? <>
         <p className={styles.bigPrompt}>Voxel ready. Mint is next.</p>
-        <p className={styles.stepCopy}>You have already seen the photo-faithful 3D preview and then created the voxel version. Minting is now a separate wallet action for the finished digital voxel.</p>
+        <p className={styles.stepCopy}>You saw the source-faithful 3D preview first, approved it, and then created the separate voxel. Compare VOXEL / SOURCE one last time before minting.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster}/>
           <span className={styles.badge}>FINAL 3D VOXEL · READY TO MINT</span>
@@ -630,7 +623,6 @@ export default function PropertyJourneyExact() {
           <a className={styles.primaryLink} href={mintHref}>Mint this digital voxel →</a>
           <span style={{fontSize:11,color:'#7b7068',lineHeight:1.5}}>Your wallet opens only now. You approve the Base transaction yourself; Voxel Vault does not auto-sign or auto-spend.</span>
         </div>
-
         <form className={styles.searchForm} onSubmit={mapBuilding}>
           <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Optional: property address for My World" aria-label="Property address" autoComplete="street-address"/>
           <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Also match this voxel to the real map'}</button>
