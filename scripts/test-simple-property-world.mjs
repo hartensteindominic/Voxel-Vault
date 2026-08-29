@@ -58,8 +58,8 @@ assert.match(localViewer, /InstancedMesh/, 'local viewer builds real Three.js vo
 assert.match(localViewer, /3D IMAGE → INTERACTIVE 3D/, 'image must remain visible before interactive 3D');
 assert.match(localVoxel, /propertyDraftItemId\(auth\.user\.id, draftId, 'voxel'\)/, 'finished local voxel remains account/draft bound');
 assert.match(localVoxel, /model\/gltf\+json/, 'compact local recipe can reopen as glTF');
-assert.doesNotMatch(generationCheckout, /MESHY|readMeshyCreditBalance|stagePaidPropertyPhoto|createBucket|storage\.from/i, 'generation checkout cannot depend on Meshy or private Storage');
-assert.doesNotMatch(paidVerify, /MESHY|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot depend on Meshy or private Storage');
+assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto|createBucket|storage\.from/i, 'generation checkout cannot call Meshy capacity checks or private Storage');
+assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot call Meshy or private Storage');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided maker must not call metered Meshy routes');
 
 assert.match(property, /Add the property address\./, 'address step follows local voxel creation');

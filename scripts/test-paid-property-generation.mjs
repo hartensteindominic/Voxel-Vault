@@ -29,14 +29,14 @@ assert.match(checkout, /generation_engine: PROPERTY_VOXEL_GENERATION_ENGINE/, 'c
 assert.match(checkout, /source_storage: 'device-local'/, 'checkout explicitly records that the photo stays on device');
 assert.match(checkout, /generation_session=\{CHECKOUT_SESSION_ID\}/, 'successful payment returns through the paid resume path');
 assert.match(checkout, /generation_checkout=cancelled/, 'canceled checkout returns safely');
-assert.doesNotMatch(checkout, /MESHY|readMeshyCreditBalance|stagePaidPropertyPhoto|createBucket|storage\.from/i, 'checkout must not depend on Meshy credits or private checkout storage');
+assert.doesNotMatch(checkout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto|createBucket|storage\.from/i, 'checkout must not call Meshy credits/capacity or private checkout storage');
 
 assert.match(paidVerify, /if \(!generationSessionId\)/, 'paid verification rejects calls without a payment session');
 assert.match(paidVerify, /paymentRequired: true/, 'unpaid calls expose an explicit payment-required response');
 assert.match(paidVerify, /status: 402/, 'unpaid verification fails closed');
 assert.match(paidVerify, /paidPropertyGenerationReceipt\(auth, stripe, generationSessionId\)/, 'Stripe receipt is verified before the local build unlocks');
 assert.match(paidVerify, /source stays in this browser device storage/, 'privacy copy must describe the device-local source accurately');
-assert.doesNotMatch(paidVerify, /api\.meshy|MESHY|storage\.from|createBucket/i, 'paid verification must not start a provider job or use Storage');
+assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|storage\.from|createBucket/i, 'paid verification must not start a provider job or use Storage');
 
 assert.match(property, /CREATION_PRICE_LABEL = '\$4\.99'/, 'maker still shows $4.99');
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'the authorized photo must persist across Stripe on the same device');

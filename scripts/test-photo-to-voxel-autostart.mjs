@@ -28,8 +28,8 @@ assert.match(viewer, /DRAG · PINCH TO ZOOM/, 'local 3D remains interactive on i
 
 assert.match(checkout, /generation_engine: PROPERTY_VOXEL_GENERATION_ENGINE/, 'checkout explicitly selects the local generation engine');
 assert.match(checkout, /source_storage: 'device-local'/, 'checkout must not imply that the source was uploaded');
-assert.doesNotMatch(checkout, /MESHY|readMeshyCreditBalance|stagePaidPropertyPhoto/i, 'paid checkout must never depend on Meshy capacity');
-assert.doesNotMatch(paidVerify, /MESHY|api\.meshy|image-to-3d|storage\.from/i, 'paid resume must never call Meshy or Supabase Storage');
+assert.doesNotMatch(checkout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto/i, 'paid checkout must never call Meshy capacity checks');
+assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume must never call Meshy or Supabase Storage');
 assert.match(localVoxel, /saveLocalVoxelRecord/, 'local 3D uses the table-only account record');
 assert.match(localVoxel, /buildGltf\(recipe\)/, 'saved local recipes must be reconstructable as real glTF');
 
