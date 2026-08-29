@@ -1,14 +1,14 @@
+import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { requireVoxelVaultAdmin } from '../../../lib/admin-auth';
+import { requireVoxelVaultUser } from '../../../lib/user-auth';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-image';
 const ALLOWED_RIGHTS_BASES = new Set(['user-owned', 'open-licensed', 'licensed-derivative']);
 const BLOCKED_REFERENCE_HOSTS = /(^|\.)(google\.com|googleusercontent\.com|gstatic\.com|googleapis\.com|maps\.googleapis\.com|streetviewpixels-pa\.googleapis\.com|zillow\.com|zillowstatic\.com|redfin\.com|cdn-redfin\.com|apartments\.com)$/i;
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function clean(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max);
@@ -41,20 +41,31 @@ function validateReferences(input: unknown) {
   return [...new Map(accepted.map((item) => [item.url, item])).values()].slice(0, 3);
 }
 
+function taskToken(apiKey: string, userId: string, taskId: string) {
+  return createHmac('sha256', apiKey).update(`property-voxel-image-v1:${userId}:${taskId}`).digest('hex');
+}
+
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: { 'Cache-Control': 'private, no-store, max-age=0', ...(init.headers || {}) },
+  });
+}
+
 export async function POST(request: Request) {
-  const admin = await requireVoxelVaultAdmin(request);
-  if (admin.ok === false) return NextResponse.json({ ok: false, error: admin.error }, { status: admin.status });
+  const auth = await requireVoxelVaultUser(request);
+  if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
 
   const apiKey = process.env.MESHY_API_KEY?.trim();
-  if (!apiKey) return NextResponse.json({ ok: false, error: 'MESHY_API_KEY is not configured server-side.' }, { status: 503 });
+  if (!apiKey) return privateJson({ ok: false, error: 'Voxel image generation is not configured on this deployment.' }, { status: 503 });
 
   try {
     const body = await request.json().catch(() => ({}));
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
     const references = validateReferences(body?.references);
-    if (!address || !atlasId) return NextResponse.json({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
-    if (!references.length) return NextResponse.json({ ok: false, error: 'A rights-cleared property photo is required before creating the voxel image.' }, { status: 400 });
+    if (!address || !atlasId) return privateJson({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
+    if (!references.length) return privateJson({ ok: false, error: 'A rights-cleared property photo is required before making the voxel.' }, { status: 400 });
 
     const prompt = [
       `Create a faithful voxel architectural rendering of the exact property shown in the supplied reference photo${references.length > 1 ? 's' : ''}: ${address}.`,
@@ -79,39 +90,67 @@ export async function POST(request: Request) {
       cache: 'no-store',
     });
     const created = await create.json().catch(() => ({}));
-    if (!create.ok) return NextResponse.json({ ok: false, error: created?.message || created?.error || `Voxel image provider returned ${create.status}.` }, { status: create.status });
+    if (!create.ok) return privateJson({ ok: false, error: created?.message || created?.error || `Voxel image provider returned ${create.status}.` }, { status: create.status });
 
     const taskId = clean(created?.result || created?.id, 240);
     if (!taskId) throw new Error('The voxel image provider did not return a task ID.');
 
-    for (let attempt = 0; attempt < 110; attempt += 1) {
-      const statusResponse = await fetch(`${ENDPOINT}/${encodeURIComponent(taskId)}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        cache: 'no-store',
-      });
-      const task = await statusResponse.json().catch(() => ({}));
-      if (!statusResponse.ok) return NextResponse.json({ ok: false, error: task?.message || task?.error || `Could not read voxel image task (${statusResponse.status}).` }, { status: statusResponse.status });
-      const status = clean(task?.status, 80).toUpperCase();
-      if (status === 'SUCCEEDED') {
-        const imageUrl = Array.isArray(task?.image_urls) ? clean(task.image_urls[0], 2200) : '';
-        if (!isHttpUrl(imageUrl)) throw new Error('The voxel image completed without a usable image URL.');
-        return NextResponse.json({
-          ok: true,
-          taskId,
-          imageUrl,
-          referenceCount: references.length,
-          sourceLabels: references.map((item) => item.label),
-          note: 'Voxel image created from rights-cleared property imagery. It is a visual interpretation, not a deed or survey.',
-        });
-      }
-      if (['FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(status)) {
-        return NextResponse.json({ ok: false, error: task?.task_error?.message || task?.message || 'The property voxel image could not be created.' }, { status: 502 });
-      }
-      await wait(2000);
+    return privateJson({
+      ok: true,
+      status: 'PENDING',
+      taskId,
+      taskToken: taskToken(apiKey, auth.user.id, taskId),
+      referenceCount: references.length,
+      sourceLabels: references.map((item) => item.label),
+      note: 'Voxel creation started from rights-cleared property imagery.',
+    });
+  } catch (error) {
+    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property voxel image generation failed.' }, { status: 400 });
+  }
+}
+
+export async function GET(request: Request) {
+  const auth = await requireVoxelVaultUser(request);
+  if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
+
+  const apiKey = process.env.MESHY_API_KEY?.trim();
+  if (!apiKey) return privateJson({ ok: false, error: 'Voxel image generation is not configured on this deployment.' }, { status: 503 });
+
+  try {
+    const url = new URL(request.url);
+    const taskId = clean(url.searchParams.get('taskId'), 240);
+    const suppliedToken = clean(url.searchParams.get('taskToken'), 128);
+    if (!taskId || suppliedToken !== taskToken(apiKey, auth.user.id, taskId)) {
+      return privateJson({ ok: false, error: 'That voxel image job does not belong to this signed-in account.' }, { status: 403 });
     }
 
-    return NextResponse.json({ ok: false, error: 'The property voxel image took too long. Try again.' }, { status: 504 });
+    const statusResponse = await fetch(`${ENDPOINT}/${encodeURIComponent(taskId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store',
+    });
+    const task = await statusResponse.json().catch(() => ({}));
+    if (!statusResponse.ok) return privateJson({ ok: false, error: task?.message || task?.error || `Could not read voxel image task (${statusResponse.status}).` }, { status: statusResponse.status });
+
+    const status = clean(task?.status || 'PENDING', 80).toUpperCase();
+    const progress = Math.max(0, Math.min(100, Number(task?.progress || 0)));
+    if (status === 'SUCCEEDED') {
+      const imageUrl = Array.isArray(task?.image_urls) ? clean(task.image_urls[0], 2200) : '';
+      if (!isHttpUrl(imageUrl)) throw new Error('The voxel image completed without a usable image URL.');
+      return privateJson({
+        ok: true,
+        status,
+        progress: 100,
+        taskId,
+        imageUrl,
+        note: 'Voxel image created from rights-cleared property imagery. It is a visual interpretation, not a deed or survey.',
+      });
+    }
+    if (['FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(status)) {
+      return privateJson({ ok: false, status, error: task?.task_error?.message || task?.message || 'The property voxel image could not be created.' }, { status: 502 });
+    }
+
+    return privateJson({ ok: true, status, progress, taskId });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Property voxel image generation failed.' }, { status: 400 });
+    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property voxel image status failed.' }, { status: 400 });
   }
 }
