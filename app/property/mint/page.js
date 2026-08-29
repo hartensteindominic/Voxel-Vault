@@ -148,7 +148,7 @@ export default function PropertyVoxelMintPage() {
 
     {invalid ? <section className="notice"><b>Open Mint from a finished VoxelPop voxel.</b><Link href="/property">Create a voxel</Link></section> : <>
       <header>
-        <div className="paid">✓ 3D PICTURE APPROVED · 3D VOXEL READY</div>
+        <div className="paid">✓ 3D VOXEL PHOTO APPROVED · MOVABLE 3D VOXEL READY</div>
         <h1>{minted ? 'Mint complete.' : 'Mint your voxel.'}</h1>
         <p>{minted ? 'Your finished digital voxel is verified on Base.' : 'Your voxel is already saved in Vault. Minting is optional.'}</p>
       </header>

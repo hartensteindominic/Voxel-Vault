@@ -18,7 +18,7 @@ const mintMetadata = read('app/api/property-voxel-nft/metadata/route.ts');
 const mintPage = read('app/property/mint/page.js');
 const vault = read('app/vault/property-drafts/page.js');
 
-assert.match(route, /PropertyJourneyExact/, 'the /property route must use the strict picture -> voxel -> mint journey');
+assert.match(route, /PropertyJourneyExact/, 'the /property route must use the strict photo -> 3D voxel photo -> movable voxel -> mint journey');
 assert.match(payment, /PROPERTY_VOXEL_GENERATION_PRICE_CENTS = 499/, 'server-authoritative VoxelPop creation price must stay $4.99');
 assert.match(payment, /PROPERTY_VOXEL_GENERATION_KIND = 'property_voxel_generation_v1'/, 'paid creation keeps its dedicated Stripe rail');
 assert.match(payment, /PROPERTY_VOXEL_GENERATION_ENGINE = 'browser-local-v1'/, 'paid creation must identify the no-credit local engine');
@@ -43,29 +43,36 @@ assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'photo 
 assert.match(property, /let cachedOnDevice = false/, 'private photo caching is best-effort and cannot be a checkout prerequisite');
 assert.match(property, /browser could not keep the photo through checkout/, 'checkout has an explicit recovery path when private browser storage is unavailable');
 assert.match(property, /\/api\/property-generation\/checkout/, 'photo approval opens paid generation checkout');
-assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Picture/, 'paid CTA promises the 3D picture first, not an immediate generic voxel');
-assert.match(property, /After payment, you will see the 3D picture before any voxel is built/, 'checkout handoff preserves the strict stage order');
+assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Voxel Photo/, 'paid CTA promises the 3D voxel photo review before the movable model');
+assert.match(property, /You see and approve the 3D voxel photo before VoxelPop creates the separate movable 3D voxel/, 'checkout handoff preserves the strict review-before-model stage order');
 assert.match(property, /you will not be charged again/i, 'missing local photo recovery must never charge twice');
-assert.match(property, /PhotoReliefModelViewer imageUrl=\{pendingPreview\}/, 'paid flow shows a source-faithful photo-based 3D picture');
-assert.match(property, /Looks good → Create 3D Voxel/, 'the user explicitly approves the 3D picture before voxel conversion');
-assert.match(property, /approvePreviewAndBuildVoxel/, 'picture approval owns the voxel-build transition');
-assert.match(property, /createVoxelPoster\(pendingPhoto\)/, 'voxelization starts only after picture approval');
-assert.match(property, /LocalVoxelModelViewer/, 'the separate voxel stage uses local interactive voxel geometry');
+assert.match(property, /PhotoReliefModelViewer imageUrl=\{pendingPreview\}/, 'paid flow shows the real source-matched 3D voxel-photo renderer');
+assert.match(property, /Does this voxel photo look like the house in your photo\?/, 'review stage explicitly asks the user to judge house likeness');
+assert.match(property, /Looks good → Create Movable 3D Voxel/, 'the user explicitly approves the voxel photo before movable-voxel conversion');
+assert.match(property, /approvePreviewAndBuildVoxel/, 'voxel-photo approval owns the movable-voxel transition');
+assert.match(property, /createVoxelPoster\(pendingPhoto\)/, 'movable-voxel preparation starts only after voxel-photo approval');
+assert.match(property, /LocalVoxelModelViewer/, 'the separate movable stage uses local interactive voxel geometry');
 assert.match(property, /\/api\/property-local-voxel/, 'local voxel recipe is account-linked after rendering');
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel is saved before optional minting');
 assert.match(property, /Mint Now/, 'finished local voxel exposes a clear optional Mint Now path');
 assert.match(property, /Mint Later · Saved to Vault/, 'finished local voxel can be kept without minting');
 assert.match(property, /\/property\/mint\?draftId=/, 'finished local voxel exposes the dedicated digital mint path');
 assert.match(vault, /MINT · OPTIONAL/, 'a saved voxel keeps its optional mint action in Vault');
+assert.match(vault, /3D voxel photo → approve → movable 3D voxel → mint now or save here for later/, 'Vault empty state must keep the same voxel-photo-before-movable-voxel sequence');
 assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndSave|Collect voxel ·/, 'guided creation must not demand a second collectible checkout');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided paid property creation must not call metered Meshy endpoints');
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
-assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'recognizable picture keeps the real source photo as the visible texture');
-assert.match(photoPreview, /PlaneGeometry\(photoWidth, photoHeight, 1, 1\)/, 'visible source pixels remain on an undistorted Three.js surface');
-assert.match(photoPreview, /BoxGeometry\(photoWidth \+ 0\.18, photoHeight \+ 0\.18, depth/, 'the 3D picture gets physical depth from a backing body rather than pixel deformation');
-assert.doesNotMatch(photoPreview, /getImageData|luminance\(|positions\.setZ|setZ\(/, '3D picture cannot distort the source photo with brightness-derived relief');
-assert.match(photoPreview, /targetY = clamp/, '3D picture rotation is deliberately bounded so unseen sides are not invented');
+assert.match(photoPreview, /new THREE\.InstancedMesh\(cubeGeometry, cubeMaterial, columns \* rows\)/, '3D voxel photo must be real instanced cube geometry, not a tilted image');
+assert.match(photoPreview, /sampleContext\.getImageData\(0, 0, columns, rows\)/, 'voxel-photo colors must be sampled from the visible source image');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'each visible review cell must be a real cube voxel');
+assert.match(photoPreview, /const columns = compact \? 42 : 56/, 'review renderer must retain enough source detail for recognizable windows, roof lines, doors, and trim');
+assert.match(photoPreview, /const depth = 0\.11 \+ \(1 - luminance\) \* 0\.17 \+ chroma \* 0\.055/, 'voxel relief stays shallow instead of inventing a full unseen building');
+assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'the exact source can remain as a faint reference beneath voxel gaps');
+assert.match(photoPreview, /opacity: 0\.34/, 'source underlay must remain subordinate to the real cube geometry');
+assert.match(photoPreview, /targetY = clamp\(targetY \+ dx \* 0\.0044, -0\.32, 0\.32\)/, 'voxel-photo rotation is deliberately bounded so unseen sides are not invented');
+assert.match(photoPreview, /ORIGINAL PHOTO/, 'review stage keeps the original house photo visible for direct likeness comparison');
+assert.match(photoPreview, /prefers-reduced-motion: reduce/, 'voxel-photo viewer respects reduced-motion preferences');
 
 assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-detail 32-cell local voxel grid');
 assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
@@ -80,8 +87,12 @@ assert.match(localVoxel, /const MAX_SIDE = 32/, 'saved local recipe accepts the 
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF preserves the empty background');
 assert.match(localVoxel, /silhouette-aware voxel recipe/, 'saved record documents the silhouette-aware model');
 assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt from the compact recipe');
-assert.match(localStore, /Deliberately table-only/, 'local record persistence deliberately avoids Storage');
-assert.doesNotMatch(localStore, /createBucket|storage\.from/, 'local record persistence must not touch a Storage bucket');
+assert.match(localVoxel, /source_image_url: `\$\{RECIPE_PREFIX\}\$\{encodedRecipe\}`/, 'the durable catalog field contains only the compact derived voxel recipe, never the original photo');
+assert.match(localVoxel, /The original source photo was not uploaded for generation/, 'the local registration response preserves the source-photo privacy boundary');
+assert.match(localStore, /Prefer the compact catalog table when it is available/, 'local record persistence prefers the compact catalog table');
+assert.match(localStore, /source photo is never[\s\S]*uploaded as part of this save/, 'local persistence explicitly excludes the original property photo');
+assert.match(localStore, /metadata-object fallback in the private voxel-system bucket/, 'a private metadata fallback keeps the derived model durable when the catalog table is unavailable');
+assert.match(localStore, /saveCatalog3D\(itemId, payload\)/, 'fallback persistence reuses the shared private catalog path for derived voxel metadata');
 
 assert.match(mintPrepare, /requireVoxelVaultUser/, 'mint preparation requires the signed-in account');
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint preparation verifies the exact account-owned local model');
@@ -96,6 +107,7 @@ assert.match(mintPage, /connectVoxelFlipWallet/, 'wallet connection happens only
 assert.match(mintPage, /mintVoxelFlip/, 'final page performs the explicit user-approved VoxelFlip mint');
 assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel action');
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
+assert.match(mintPage, /3D VOXEL PHOTO APPROVED · MOVABLE 3D VOXEL READY/, 'mint screen must preserve the approved voxel-photo -> movable-voxel terminology');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> recognizable photo-faithful 3D picture -> explicit approval -> separate higher-detail local voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> recognizable real 3D voxel photo -> explicit approval -> separate higher-detail movable local voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');

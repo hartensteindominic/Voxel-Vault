@@ -106,7 +106,7 @@ export default function PropertyDraftsPage() {
           <div className="more"><button onClick={() => exportPropertyDraft(draft)}>EXPORT</button><button onClick={() => remove(draft.id)}>REMOVE</button></div>
         </div>
       </article>;
-    })}</section> : <section className="empty"><div className="cube"><i/><i/><i/></div><b>No property voxels yet.</b><span>Choose one photo: 3D picture → approve → 3D voxel → mint now or save here for later.</span><Link href="/property">+ CREATE FIRST VOXEL</Link></section>}
+    })}</section> : <section className="empty"><div className="cube"><i/><i/><i/></div><b>No property voxels yet.</b><span>Choose one photo: 3D voxel photo → approve → movable 3D voxel → mint now or save here for later.</span><Link href="/property">+ CREATE FIRST VOXEL</Link></section>}
 
     <p className="truth">Vault stores your saved and collected digital property voxels. Saving, sharing, or minting a voxel does not itself transfer deed/title, rent, fractional investment, occupancy, or other rights in the physical property.</p>
     <style jsx>{`

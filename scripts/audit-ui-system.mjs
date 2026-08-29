@@ -52,12 +52,12 @@ must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proo
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/WHAT'S INCLUDED \/ WHAT'S NOT/.test(home), 'Dense legal/purchase detail must stay in progressive disclosure.');
+must(/<section className=\{styles\.truthCard\}>[\s\S]*VoxelPop is a digital creation product/.test(home), 'Homepage must keep the physical-property rights boundary concise and visible.');
 must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual preview and voxel viewers.');
 
-must(/Create[\s\S]*World[\s\S]*Vault[\s\S]*More/.test(topNav), 'Desktop product nav must mirror the core product map.');
+must(/Create · \$4\.99/.test(topNav) && /label: 'Vault'/.test(topNav) && /label: 'World'/.test(topNav) && /href="\/demo"/.test(topNav), 'Desktop product nav must expose Create, Vault, World, and the free demo.');
 must(/isOrganizedUserRoute/.test(topNav) && /mobileDocked/.test(topNav), 'Shared top nav must know when the mobile bottom dock owns core navigation.');
-must(/\.mobileDocked \.links a:not\(\.demo\)\{display:none\}/.test(topCss), 'Core mobile routes must not duplicate the five-item bottom navigation.');
+must(/\.mobileDocked \.links\{display:none\}/.test(topCss), 'Core mobile routes must hide desktop links when the five-item bottom dock owns navigation.');
 must(/@media\(max-width:720px\)/.test(dockCss) && /\.nav\{display:none\}/.test(dockCss), 'Bottom dock must be mobile-only.');
 must(/FinancialOSNav\.module\.css/.test(dock), 'Bottom dock must use responsive stylesheet rather than always-on inline chrome.');
 
@@ -112,5 +112,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real 3D proof, one desktop/mobile navigation map, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real 3D proof, simplified desktop/mobile navigation, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }

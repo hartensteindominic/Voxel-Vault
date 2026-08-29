@@ -112,14 +112,14 @@ requireMarkers(distribution, 'distribution vault', [
 ]);
 
 requireMarkers(root, 'simple root homepage', [
-  'START → SIGN IN + UPLOAD PHOTO',
-  'One VoxelPop creation costs $4.99.',
-  'source photo stays on your device',
-  'without Meshy credits',
-  'Optional Collect later is a separate digital-item purchase',
-  'Voxel Vault is not a bank',
-  'VoxelPop item is not a deed',
-  'href="/more"',
+  'VOXELPOP · ONE HOUSE PHOTO · $4.99',
+  'One creation is $4.99.',
+  'Photo stays on your device',
+  'Review voxel photo first',
+  'No wallet to create',
+  'SAVE / OPTIONAL MINT',
+  'VoxelPop is a digital creation product.',
+  'does not create ownership or financial rights in a physical property',
 ]);
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
@@ -241,4 +241,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the clear $4.99 device-local non-Meshy consumer flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the clear $4.99 device-local voxel-photo consumer flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
