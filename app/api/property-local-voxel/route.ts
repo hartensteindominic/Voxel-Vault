@@ -44,6 +44,7 @@ function normalizeRecipe(input: any): LocalVoxelRecipe {
   if (colors.length !== count || depths.length !== count || colors.some((value) => !/^[a-f0-9]{6}$/.test(value))) {
     throw new Error('The local VoxelPop model recipe is incomplete.');
   }
+  if (!depths.some((value) => value > 0)) throw new Error('The local VoxelPop model does not contain visible building geometry.');
   return { version: 1, width, height, colors, depths };
 }
 
@@ -73,8 +74,8 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   const indices: number[] = [];
   const width = recipe.width;
   const height = recipe.height;
-  const cell = 0.34;
-  const half = cell * 0.46;
+  const cell = 0.285;
+  const half = cell * 0.45;
   const faceIndices = [
     0, 2, 1, 0, 3, 2,
     4, 5, 6, 4, 6, 7,
@@ -88,17 +89,16 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   for (let row = 0; row < height; row += 1) {
     for (let column = 0; column < width; column += 1) {
       const index = row * width + column;
+      if (recipe.depths[index] <= 0) continue;
       const [red, green, blue] = hexRgb(recipe.colors[index]);
-      const brightness = (red + green + blue) / 765;
       const depthUnit = recipe.depths[index] / 9;
-      // Keep even darker pixels as shallow voxels so silhouettes remain intact.
-      const depth = 0.12 + depthUnit * 0.68 + brightness * 0.08;
+      const depth = 0.58 + depthUnit * 0.78;
       const hx = half;
       const hy = half;
       const hz = depth / 2;
       const x = (column - (width - 1) / 2) * cell;
-      const y = ((height - 1) / 2 - row) * cell;
-      const z = hz - 0.34;
+      const y = ((height - 1) / 2 - row) * cell - 0.18;
+      const z = hz - 0.58;
       positions.push(
         x - hx, y - hy, z - hz,
         x + hx, y - hy, z - hz,
@@ -125,18 +125,35 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   const indexBuffer = Buffer.from(indexArray.buffer);
   const binary = Buffer.concat([positionBuffer, colorBuffer, padding, indexBuffer]);
 
-  const xExtent = Math.max(cell, width * cell) / 2;
-  const yExtent = Math.max(cell, height * cell) / 2;
+  const activeColumns: number[] = [];
+  const activeRows: number[] = [];
+  for (let row = 0; row < height; row += 1) {
+    for (let column = 0; column < width; column += 1) {
+      if (recipe.depths[row * width + column] > 0) {
+        activeColumns.push(column);
+        activeRows.push(row);
+      }
+    }
+  }
+  const minColumn = Math.min(...activeColumns);
+  const maxColumn = Math.max(...activeColumns);
+  const minRow = Math.min(...activeRows);
+  const maxRow = Math.max(...activeRows);
+  const xMin = (minColumn - (width - 1) / 2) * cell - half;
+  const xMax = (maxColumn - (width - 1) / 2) * cell + half;
+  const yMax = ((height - 1) / 2 - minRow) * cell - 0.18 + half;
+  const yMin = ((height - 1) / 2 - maxRow) * cell - 0.18 - half;
   const uri = `data:application/octet-stream;base64,${binary.toString('base64')}`;
+
   return {
-    asset: { version: '2.0', generator: 'VoxelPop Local WebGL v1' },
+    asset: { version: '2.0', generator: 'VoxelPop Local WebGL silhouette v1' },
     extensionsUsed: ['KHR_materials_unlit'],
     scene: 0,
     scenes: [{ nodes: [0] }],
-    nodes: [{ mesh: 0, name: 'VoxelPop local collectible' }],
+    nodes: [{ mesh: 0, name: 'VoxelPop local property building' }],
     meshes: [{ primitives: [{ attributes: { POSITION: 0, COLOR_0: 1 }, indices: 2, material: 0, mode: 4 }] }],
     materials: [{
-      name: 'Voxel colors',
+      name: 'Photo-matched voxel colors',
       pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 },
       extensions: { KHR_materials_unlit: {} },
       doubleSided: true,
@@ -154,8 +171,8 @@ function buildGltf(recipe: LocalVoxelRecipe) {
         componentType: 5126,
         count: positionArray.length / 3,
         type: 'VEC3',
-        min: [-xExtent, -yExtent, -0.34],
-        max: [xExtent, yExtent, 0.54],
+        min: [xMin, yMin, -0.58],
+        max: [xMax, yMax, 0.78],
       },
       { bufferView: 1, byteOffset: 0, componentType: 5121, normalized: true, count: colorArray.length / 3, type: 'VEC3' },
       { bufferView: 2, byteOffset: 0, componentType: 5123, count: indexArray.length, type: 'SCALAR' },
@@ -201,8 +218,8 @@ export async function POST(request: Request) {
       persisted: Boolean(saved?.task_id),
       collectionReady: Boolean(saved?.task_id && saved?.model_url),
       note: saved?.task_id
-        ? 'The compact voxel recipe is account-bound in the catalog. The original source photo was not uploaded for generation.'
-        : 'The local 3D preview is ready on this device, but durable catalog persistence is unavailable, so collection checkout remains disabled.',
+        ? 'The compact silhouette-aware voxel recipe is account-bound in the catalog. The original source photo was not uploaded for generation.'
+        : 'The local 3D preview is ready on this device, but durable catalog persistence is unavailable. The user can still continue to map and save locally.',
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Local VoxelPop model could not be registered.' }, { status: 400 });
