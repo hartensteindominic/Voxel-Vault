@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
@@ -11,9 +10,8 @@ import {
 import {
   PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
   PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-  deleteStagedPropertyPhoto,
-  loadPaidPropertyGenerationPhoto,
   paidPropertyGenerationReceipt,
+  verifyPaidPropertyPhoto,
 } from '../../../lib/property-generation-payment';
 import {
   MESHY_PROPERTY_CREDITS,
@@ -29,8 +27,6 @@ export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
 
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
-const MAX_BYTES = 8 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function clean(value: unknown, max = 260) {
   return String(value || '').trim().slice(0, max);
@@ -80,7 +76,7 @@ function generationResult(input: {
       progress: Number(input.progress || 0),
     },
     recoveryMode: input.recoveryMode === true,
-    privacy: 'After the paid provider handoff, Voxel Vault does not store the original source photo in its Storage bucket. Checkout temporarily stages the authorized photo privately, then removes that staged source when generation starts; the account keeps the SHA-256 fingerprint and account-bound generation record rather than the original photo.',
+    privacy: 'The authorized source photo stays on the user device during Stripe checkout. After payment verification, the browser sends the same fingerprint-verified photo directly for this optional enhanced 3D generation request. Voxel Vault does not stage the original source photo in a checkout Storage bucket.',
   };
 }
 
@@ -92,7 +88,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.MESHY_API_KEY?.trim();
   if (!apiKey) {
-    return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
+    return privateJson({ ok: false, error: 'VoxelPop enhanced 3D generation is not configured on this deployment.' }, { status: 503 });
   }
 
   try {
@@ -105,22 +101,20 @@ export async function POST(request: Request) {
         priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
         priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
         checkoutEndpoint: '/api/property-generation/checkout',
-        error: `Pay ${PROPERTY_VOXEL_GENERATION_PRICE_LABEL} before VoxelPop starts paid 3D generation.`,
+        error: `Pay ${PROPERTY_VOXEL_GENERATION_PRICE_LABEL} before VoxelPop starts optional enhanced 3D generation.`,
       }, { status: 402 });
     }
 
     const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
     const draftId = receipt.draftId;
     const digest = receipt.digest;
-    const rightsConfirmed = true;
     const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
     const sourceFingerprint = `inline-photo:${digest}`;
 
-    // A Stripe success page can be refreshed. Reuse the exact account/draft job
-    // instead of spending Meshy credits a second time for the same paid source.
+    // Stripe-return refreshes reuse the exact account/draft provider job and do
+    // not require the on-device source file again or spend another Meshy credit.
     const existing = await readCatalog3D(itemId);
     if (existing?.task_id && existing?.source_image_url === sourceFingerprint) {
-      await deleteStagedPropertyPhoto(auth, draftId);
       return privateJson(generationResult({
         draftId,
         digest,
@@ -132,39 +126,28 @@ export async function POST(request: Request) {
       }));
     }
 
-    const paidInput = await loadPaidPropertyGenerationPhoto(auth, receipt);
-    const photo = new File([paidInput.bytes], paidInput.fileName, { type: paidInput.contentType });
-
+    const photo = form.get('photo');
     if (!(photo instanceof File)) {
-      return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
+      return privateJson({
+        ok: false,
+        needsOriginalPhoto: true,
+        draftId,
+        error: 'Payment is verified. Choose the same property photo again to start the optional enhanced 3D build.',
+      }, { status: 409 });
     }
-    if (!rightsConfirmed) {
-      return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
-    }
-    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) {
-      return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
-    }
-    if (photo.size <= 0 || photo.size > MAX_BYTES) {
-      return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
-    }
+    const paidInput = await verifyPaidPropertyPhoto(receipt, photo);
 
-    // The automatic Property journey is three paid Meshy calls: 15 credits for
-    // this textured Smart Topology source 3D, 3 for nano-banana image-to-image,
-    // and 15 for the final textured Smart Topology 3D. Check again after Stripe
-    // so a paid user is never sent into a knowingly underfunded provider flow.
+    // Check provider capacity again after Stripe. The no-credit map-voxel path
+    // is separate and does not enter this route.
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
       return privateJson(
-        meshyCreditError('starting the complete paid property build', MESHY_PROPERTY_CREDITS.fullPipeline),
+        meshyCreditError('starting the complete optional enhanced property build', MESHY_PROPERTY_CREDITS.fullPipeline),
         { status: 503 },
       );
     }
 
-    const bytes = Buffer.from(await photo.arrayBuffer());
-    const verifiedDigest = createHash('sha256').update(bytes).digest('hex');
-    if (verifiedDigest !== digest) throw new Error('The paid source photo fingerprint no longer matches checkout.');
-    const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
-
+    const dataUri = `data:${paidInput.contentType};base64,${paidInput.bytes.toString('base64')}`;
     const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -187,7 +170,7 @@ export async function POST(request: Request) {
           response.status,
           data,
           `3D provider returned ${response.status}.`,
-          'starting the first paid property 3D build',
+          'starting the first optional enhanced property 3D build',
           MESHY_PROPERTY_CREDITS.source3d,
         ),
         { status: meshyClientStatus(response.status) },
@@ -213,12 +196,9 @@ export async function POST(request: Request) {
       error: null,
     });
 
-    // Do not orphan a provider job just because account catalog persistence is
-    // temporarily unavailable. The signed recovery ID remains account-bound.
     const taskId = saved?.task_id
       || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
 
-    await deleteStagedPropertyPhoto(auth, draftId);
     return privateJson(generationResult({
       draftId,
       digest,
