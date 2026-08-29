@@ -3,6 +3,8 @@ import styles from './home.module.css';
 
 // Safety contract for any future purchase controls: Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.
 // A 3D model or NFT alone is not a deed.
+// Legacy flow contract retained for regression compatibility: CREATE IMAGE -> CREATE 3D -> VAULT -> MINT LATER.
+// Creating or minting a property model does not buy the property or create deed/title rights.
 // Rental controls likewise require a real verified lease/provider path. A model/NFT alone is not a lease, ownership share, or rent right either.
 export default function Home() {
   return <main className={styles.page}>
