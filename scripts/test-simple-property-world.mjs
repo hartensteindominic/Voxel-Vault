@@ -25,13 +25,14 @@ const drafts = fs.readFileSync(new URL('../lib/property-drafts.js', import.meta.
 const dock = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
 const command = fs.readFileSync(new URL('../app/components/AppCommandCenter.js', import.meta.url), 'utf8');
 
-assert.match(home, /Add a property\./, 'home must lead with one property action');
-assert.match(home, /name="q"/, 'home must have one address input');
-assert.match(home, /action="\/property"/, 'home must route directly to the maker');
-for (const label of ['ADDRESS', 'PHOTO', 'VOXEL IMAGE', '3D', 'VAULT', 'MINT LATER']) {
+assert.match(home, /Sign in first\./i, 'home must make authentication the first property step');
+assert.match(home, /START PROPERTY → SIGN IN/, 'home must route into the account-gated property maker');
+assert.match(home, /href="\/property"/, 'home property CTA must enter the property maker');
+for (const label of ['SIGN IN', 'ADDRESS', 'PHOTO', 'MAKE VOXEL', '3D', 'VAULT']) {
   assert.match(home, new RegExp(label), `home flow must include ${label}`);
 }
-assert.match(home, /One easy step at a time\./, 'home must promise the guided flow');
+assert.match(home, /Nothing uploads, generates, buys, rents or saves before you sign in/i, 'home must explain the account-first boundary');
+assert.match(home, /voxel image must finish first/i, 'home must put voxel image completion ahead of 3D');
 assert.match(home, /does not buy, rent, or create deed\/title rights/i, 'home must preserve real-property rights truth');
 assert.doesNotMatch(home, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'unverified buying must stay out of the front door');
 
@@ -43,25 +44,34 @@ assert.match(propertyCss, /#c9ff54/i, 'guided maker must preserve VoxelPop lime 
 assert.match(propertyCss, /#f7ae2d|#f2a11b/i, 'voxel-image step should use warm orange');
 assert.match(propertyCss, /#45a7a0|#3c948e/i, '3D step should use teal');
 assert.match(propertyCss, /border-radius:38px/, 'property should keep one large rounded visual card');
+assert.match(propertyCss, /signinPanel/, 'property maker must style the account gate as a first-class VoxelPop step');
 
 assert.match(property, /<h1>Property<\/h1>/, 'property maker must keep the simple title');
+assert.match(property, /authReady/, 'property maker must wait for authentication state before exposing workflow controls');
+assert.match(property, /Sign in first\./, 'signed-out property maker must expose only the account-first step');
+assert.match(property, /Continue with Google/, 'account gate must have one clear sign-in action');
+assert.match(property, /Nothing is uploaded, generated or saved before sign-in/i, 'property maker must explain that no workflow action occurs while signed out');
+assert.match(property, /if \(!session\?\.access_token\) return setMessage\('Sign in before starting a property\.'\)/, 'property search itself must reject signed-out use');
+assert.match(property, /if \(!session\?\.access_token\) return setMessage\('Sign in before choosing a photo\.'\)/, 'property photo picker must reject signed-out use');
 assert.match(property, /STEP \{stage\} OF 6/, 'property maker must expose simple guided progress');
-assert.match(property, /Which property\?/, 'step one must be address');
-assert.match(property, /Pick the best photo\./, 'step two must explicitly ask for a photo');
+assert.match(property, /Which property\?/, 'step one after sign-in must be address');
+assert.match(property, /Pick the clearest photo\./, 'step two must explicitly ask for the best photo');
 assert.match(property, /Upload your photo/, 'photo step must expose upload before rights confirmation');
 assert.match(property, /Use this street photo/, 'photo step may offer a rights-cleared street-photo fallback');
 assert.match(property, /I took this photo or have permission to use it\./, 'user upload must require rights confirmation before server upload');
-assert.match(property, /Make it VoxelPop\./, 'image step must feel like VoxelPop');
-assert.match(property, /Create voxel image/, 'image step must be explicit');
-assert.match(property, /Create 3D/, '3D step must be explicit');
-assert.match(property, /Save to Vault/, 'Vault step must be explicit');
+assert.match(property, /Make the voxel first\./, 'image generation must be an explicit required stage before 3D');
+assert.match(property, /Make my voxel/, 'voxel-image action must be simple and explicit');
+assert.match(property, /taskToken/, 'property page must poll the asynchronous image task instead of waiting on one long request');
+assert.match(property, /Making your voxel/, 'property page must expose live image-processing state');
+assert.match(property, /Make it 3D/, '3D step must unlock only after the voxel image exists');
+assert.match(property, /Save to my Vault/, 'Vault step must stay explicit and account-bound');
 assert.match(property, /Verify &amp; mint once/, 'saved property must continue into canonical verification');
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone photo picker must allow HEIC/HEIF selection');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone HEIC/HEIF photos must have an automatic preparation path');
 assert.match(property, /\/api\/property-photo-upload/, 'uploaded property photos must use the private upload route');
 assert.match(property, /\/api\/world-atlas\/open-imagery/, 'maker must retain rights-cleared open imagery fallback');
-assert.match(property, /\/api\/property-voxel-image/, 'Create image must use the property voxel-image route');
-assert.match(property, /\/api\/property-voxel-3d/, 'Create 3D must use the generated-image 3D route');
+assert.match(property, /\/api\/property-voxel-image/, 'Make my voxel must use the property voxel-image route');
+assert.match(property, /\/api\/property-voxel-3d/, 'Make it 3D must use the generated-image 3D route');
 assert.match(property, /MeshyModelViewer/, 'completed 3D must open in the interactive viewer');
 assert.match(property, /references:\s*\[activeReference\]/, 'image generation must use the exact chosen/uploaded reference');
 assert.match(property, /No facade invented\./, 'missing photo evidence must fail closed visually');
@@ -78,15 +88,23 @@ assert.match(photoUploadRoute, /public:\s*false/, 'uploaded source photos must s
 assert.match(photoUploadRoute, /createSignedUrl/, 'generation must receive only a short-lived signed URL');
 assert.match(photoUploadRoute, /user-owned/, 'uploaded references must be classified as user-owned/authorized');
 
-assert.match(voxelImageRoute, /requireVoxelVaultAdmin/, 'paid image generation remains owner-gated while the paid public checkout/quota layer is unfinished');
+assert.match(voxelImageRoute, /requireVoxelVaultUser/, 'voxel image generation must require a verified signed-in account');
+assert.doesNotMatch(voxelImageRoute, /requireVoxelVaultAdmin/, 'normal signed-in property creators must not hit an admin-only image gate');
+assert.match(voxelImageRoute, /export async function POST/, 'voxel image route must start an asynchronous provider job');
+assert.match(voxelImageRoute, /export async function GET/, 'voxel image route must expose job polling');
+assert.match(voxelImageRoute, /createHmac/, 'image polling token must be server-signed');
+assert.match(voxelImageRoute, /property-voxel-image-v1:\$\{userId\}:\$\{taskId\}/, 'image task token must bind job to the signed-in user');
 assert.match(voxelImageRoute, /open-licensed/, 'voxel image route must require explicit reference rights');
 assert.match(voxelImageRoute, /BLOCKED_REFERENCE_HOSTS/, 'restricted source hosts must remain blocked');
 assert.match(voxelImageRoute, /zillow/, 'listing-image blocklist must retain Zillow');
 assert.match(voxelImageRoute, /Preserve the visible building identity/, 'image prompt must preserve photographed architecture');
 assert.match(voxelImageRoute, /substitute a generic house/, 'image prompt must block generic-house drift');
 
-assert.match(voxel3dRoute, /requireVoxelVaultAdmin/, 'paid 3D generation remains owner-gated while public paid generation is unfinished');
+assert.match(voxel3dRoute, /requireVoxelVaultUser/, '3D generation must require a verified signed-in account');
+assert.doesNotMatch(voxel3dRoute, /requireVoxelVaultAdmin/, 'normal signed-in property creators must not hit an admin-only 3D gate');
 assert.match(voxel3dRoute, /image-to-3d/, '3D must be created from the approved voxel image');
+assert.match(voxel3dRoute, /itemIdFor\(auth\.user\.id, atlasId\)/, 'unverified 3D drafts must be scoped to the signed-in user and property');
+assert.match(voxel3dRoute, /userItemPrefix\(auth\.user\.id\)/, '3D task polling must reject jobs from other users');
 assert.match(voxel3dRoute, /sameSourceImage/, 'cached 3D reuse must be tied to the exact source voxel image');
 assert.match(voxel3dRoute, /persistModelBinary/, 'completed GLBs must be persisted');
 
@@ -119,4 +137,4 @@ assert.match(globe, /community-property/, 'globe must recognize shared community
 assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'fixed app dock must stay out of the guided maker');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must stay hidden on simple routes');
 
-console.log('Guided VoxelPop property flow checks passed: address -> explicit photo choice/upload -> voxel image -> source-matched 3D -> Vault -> optional one-parcel mint, with private uploads and duplicate canonical mint protection.');
+console.log('Guided VoxelPop property checks passed: sign in -> address -> explicit photo -> asynchronous voxel image -> approved-image 3D -> account Vault -> optional one-parcel mint, with private/user-scoped jobs and no fake property rights.');
