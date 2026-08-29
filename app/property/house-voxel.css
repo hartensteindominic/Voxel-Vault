@@ -1,0 +1,23 @@
+#voxelpop-journey{background:#fff9ef}
+#voxelpop-journey>main{--purple:#7040ff;--lime:#c8ff54;--ink:#281c31;--muted:#786f7f;position:relative;isolation:isolate;overflow:hidden;min-height:100vh;background:radial-gradient(circle at 7% 4%,rgba(93,228,255,.25),transparent 24rem),radial-gradient(circle at 93% 10%,rgba(255,122,143,.2),transparent 23rem),radial-gradient(circle at 14% 88%,rgba(200,255,84,.22),transparent 25rem),linear-gradient(180deg,#fffdf8 0%,#fff7ef 56%,#faf7ff 100%)!important;padding-top:18px!important}
+#voxelpop-journey>main:before,#voxelpop-journey>main:after{content:"";position:absolute;z-index:0;width:82px;height:82px;border-radius:25px;pointer-events:none;opacity:.7}
+#voxelpop-journey>main:before{top:92px;left:max(-48px,calc(50% - 390px));background:linear-gradient(145deg,#5de4ff,#c0f7ff);transform:rotate(13deg)}
+#voxelpop-journey>main:after{top:185px;right:max(-48px,calc(50% - 390px));background:linear-gradient(145deg,#ff7a8f,#ffc3ce);transform:rotate(-11deg)}
+#voxelpop-journey>main>section{position:relative;z-index:1;width:min(620px,100%)!important}
+#voxelpop-journey>main>section>div:first-child{border-color:rgba(112,64,255,.16)!important;background:rgba(255,255,255,.84)!important;color:#7040ff!important;box-shadow:0 8px 24px rgba(91,57,128,.07)!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+#voxelpop-journey h1{max-width:570px;margin-left:auto!important;margin-right:auto!important;color:#281c31!important;font-size:clamp(38px,7vw,55px)!important;line-height:.92!important;letter-spacing:-.06em!important}
+#voxelpop-journey [aria-label^="Step "]{margin-bottom:17px!important}
+#voxelpop-journey [aria-label^="Step "]>div:nth-child(1)>span{background:#5de4ff!important}
+#voxelpop-journey [aria-label^="Step "]>div:nth-child(2)>span{background:#c8ff54!important}
+#voxelpop-journey [aria-label^="Step "]>div:nth-child(3)>span{background:#ffb54d!important}
+#voxelpop-journey [aria-label^="Step "]>div:nth-child(4)>span{background:#ff7a8f!important}
+#voxelpop-journey [aria-label^="Step "]>div:nth-child(5)>span{background:#7040ff!important}
+#voxelpop-journey [aria-label^="Step "]>div>span{box-shadow:inset 0 0 0 1px rgba(36,24,43,.06)}
+#voxelpop-journey input[aria-label="Property address"]{border-color:#ddd3e8!important;border-radius:15px!important;background:#fff!important;color:#281c31!important;font-size:16px!important}
+#voxelpop-journey input[aria-label="Property address"]:focus{border-color:#9b7bf2!important;box-shadow:0 0 0 4px rgba(112,64,255,.09)!important}
+#voxelpop-journey a[href^="/property/mint"]{background:linear-gradient(180deg,#7c4eff,#7040ff)!important;color:#fff!important;border:0!important;box-shadow:0 7px 0 #5425dc,0 13px 28px rgba(112,64,255,.18)!important}
+#voxelpop-journey a[href="/vault/property-drafts"]{background:linear-gradient(135deg,#f8ffe7,#efffd0)!important;color:#405821!important;border-color:#d9eab8!important}
+#voxelpop-journey img{image-rendering:auto}
+#voxelpop-journey button:focus-visible,#voxelpop-journey a:focus-visible,#voxelpop-journey input:focus-visible{outline:3px solid rgba(112,64,255,.25)!important;outline-offset:3px}
+@media(max-width:640px){#voxelpop-journey>main{padding-top:9px!important}#voxelpop-journey>main:before,#voxelpop-journey>main:after{display:none}#voxelpop-journey h1{font-size:38px!important}}
+@media(max-width:390px){#voxelpop-journey h1{font-size:34px!important}}
