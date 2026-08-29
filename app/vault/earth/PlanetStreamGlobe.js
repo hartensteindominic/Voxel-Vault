@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { feature as topoFeature } from 'topojson-client';
 import countries110m from 'world-atlas/countries-110m.json';
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, Number(value) || 0));
+}
+
 function toVector(THREE, latitude, longitude, radius) {
   const lat = Number(latitude) * Math.PI / 180;
   const lon = Number(longitude) * Math.PI / 180;
@@ -20,6 +24,25 @@ function vectorToLatLng(vector) {
     latitude: Math.asin(vector.y / radius) * 180 / Math.PI,
     longitude: Math.atan2(vector.x, vector.z) * 180 / Math.PI,
   };
+}
+
+function coordinatePointCount(value) {
+  if (!Array.isArray(value)) return 0;
+  if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') return 1;
+  return value.reduce((sum, child) => sum + coordinatePointCount(child), 0);
+}
+
+function listingHeightMeters(listing) {
+  const direct = Number(listing?.heightMeters);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const height = Number(
+    listing?.height?.referenceHeightMeters
+    ?? listing?.height?.heightMeters
+    ?? listing?.height?.estimatedHeightMeters
+    ?? listing?.tags?.height
+    ?? (Number(listing?.tags?.['building:levels'] || 0) * 3),
+  );
+  return Number.isFinite(height) && height > 0 ? height : 0;
 }
 
 function texturePoint(longitude, latitude, width, height) {
@@ -103,6 +126,12 @@ export default function PlanetStreamGlobe({
   dataRef.current = { listings, selectedId, atlasBuildings, selectedAtlasId };
   callbacksRef.current = { onSelect, onAtlasSelect, onLocation, onViewport };
 
+  const selectedListing = listings.find((listing) => listing?.id === selectedId) || null;
+  const selectedAtlas = atlasBuildings.find((building) => building?.atlasId === selectedAtlasId) || null;
+  const selectedProperty = selectedListing || selectedAtlas;
+  const selectedLabel = String(selectedProperty?.label || selectedProperty?.tags?.name || selectedProperty?.address || '').trim();
+  const selectedHeight = listingHeightMeters(selectedProperty);
+
   useEffect(() => {
     engineRef.current?.updateMarkers?.(dataRef.current);
   }, [listings, selectedId, atlasBuildings, selectedAtlasId]);
@@ -145,6 +174,9 @@ export default function PlanetStreamGlobe({
       root.rotation.x = 0.18;
       root.rotation.y = -0.42;
       scene.add(root);
+      let targetX = 0.18;
+      let targetY = -0.42;
+      let lastFocusedKey = '';
 
       scene.add(new THREE.HemisphereLight(0xe7fff6, 0x041012, 2.15));
       const key = new THREE.DirectionalLight(0xfff5e6, 3.65);
@@ -196,9 +228,16 @@ export default function PlanetStreamGlobe({
         const normal = position.clone().normalize();
         const up = new THREE.Vector3(0, 1, 0);
         const quaternion = new THREE.Quaternion().setFromUnitVectors(up, normal);
-        const scale = selected ? 1.45 : 1;
-        const bodyGeometry = new THREE.BoxGeometry(0.12 * scale, 0.15 * scale, 0.12 * scale);
-        const roofGeometry = new THREE.ConeGeometry(0.105 * scale, 0.09 * scale, 4);
+        const scale = selected ? 1.5 : 1;
+        const evidenceHeight = listingHeightMeters(listing);
+        const heightScale = evidenceHeight > 0 ? clamp(evidenceHeight / 10, 0.72, 2.35) : 1;
+        const footprintPoints = coordinatePointCount(listing?.geometry?.coordinates);
+        const footprintScale = clamp(0.92 + footprintPoints / 90, 0.92, 1.34);
+        const bodyHeight = 0.15 * scale * heightScale;
+        const bodyWidth = 0.12 * scale * footprintScale;
+        const roofHeight = 0.09 * scale;
+        const bodyGeometry = new THREE.BoxGeometry(bodyWidth, bodyHeight, bodyWidth);
+        const roofGeometry = new THREE.ConeGeometry(bodyWidth * 0.88, roofHeight, 4);
         const bodyMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xffffff : 0x79efbc, emissive: selected ? 0x6e5bff : 0x164f3d, emissiveIntensity: selected ? 1.5 : 0.7, roughness: 0.38 });
         const roofMaterial = new THREE.MeshStandardMaterial({ color: selected ? 0xd9d1ff : 0x25352f, emissive: selected ? 0x5844ce : 0x10231c, emissiveIntensity: 0.7, roughness: 0.48 });
         markerResources.push(bodyGeometry, roofGeometry, bodyMaterial, roofMaterial);
@@ -206,12 +245,49 @@ export default function PlanetStreamGlobe({
         const roof = new THREE.Mesh(roofGeometry, roofMaterial);
         body.quaternion.copy(quaternion);
         roof.quaternion.copy(quaternion);
-        body.position.copy(position);
-        roof.position.copy(position.clone().add(normal.clone().multiplyScalar(0.12 * scale)));
+        body.position.copy(position.clone().add(normal.clone().multiplyScalar(bodyHeight / 2)));
+        roof.position.copy(position.clone().add(normal.clone().multiplyScalar(bodyHeight + roofHeight / 2)));
         body.userData.listingId = listing.id;
         roof.userData.listingId = listing.id;
         markerGroup.add(body, roof);
         listingMarkers.push(body, roof);
+
+        if (selected) {
+          const ringGeometry = new THREE.TorusGeometry(0.19 * scale, 0.014, 6, 26);
+          const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xc9ff54, transparent: true, opacity: 0.92 });
+          markerResources.push(ringGeometry, ringMaterial);
+          const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+          ring.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal));
+          ring.position.copy(position.clone().add(normal.clone().multiplyScalar(0.014)));
+          ring.userData.listingId = listing.id;
+          markerGroup.add(ring);
+          listingMarkers.push(ring);
+        }
+      }
+
+      function selectedPoint(next = {}) {
+        const listing = (next.listings || []).find((item) => item?.id === next.selectedId);
+        if (listing && Number.isFinite(Number(listing.latitude)) && Number.isFinite(Number(listing.longitude))) {
+          return { key: `listing:${listing.id}`, latitude: Number(listing.latitude), longitude: Number(listing.longitude) };
+        }
+        const building = (next.atlasBuildings || []).find((item) => item?.atlasId === next.selectedAtlasId);
+        if (building && Number.isFinite(Number(building.latitude)) && Number.isFinite(Number(building.longitude))) {
+          return { key: `atlas:${building.atlasId}`, latitude: Number(building.latitude), longitude: Number(building.longitude) };
+        }
+        return null;
+      }
+
+      function focusSelected(next = dataRef.current, force = false) {
+        const point = selectedPoint(next);
+        if (!point) return false;
+        if (!force && point.key === lastFocusedKey) return true;
+        lastFocusedKey = point.key;
+        targetX = clamp(point.latitude * Math.PI / 180, -1.35, 1.35);
+        targetY = -point.longitude * Math.PI / 180;
+        cameraDistance = compact ? 9.75 : 9.25;
+        updateCamera();
+        scheduleViewport(700);
+        return true;
       }
 
       function updateMarkers(next = {}) {
@@ -245,6 +321,7 @@ export default function PlanetStreamGlobe({
           atlasGroup.add(mesh);
           atlasMarkers.push(mesh);
         });
+        focusSelected(next);
       }
 
       const raycaster = new THREE.Raycaster();
@@ -254,8 +331,6 @@ export default function PlanetStreamGlobe({
       let dragX = 0;
       let dragY = 0;
       let pinchDistance = 0;
-      let targetX = 0.18;
-      let targetY = -0.42;
       let inViewport = true;
       let pageVisible = !document.hidden;
       let viewportTimer = 0;
@@ -273,7 +348,7 @@ export default function PlanetStreamGlobe({
 
       function scheduleViewport(delay = 420) {
         window.clearTimeout(viewportTimer);
-        window.setTimeout(emitViewport, delay);
+        viewportTimer = window.setTimeout(emitViewport, delay);
       }
 
       const setPointer = (event) => {
@@ -302,7 +377,7 @@ export default function PlanetStreamGlobe({
           const pair = [...activePointers.values()].slice(0, 2);
           const nextDistance = pointerDistance(pair[0], pair[1]);
           if (pinchDistance) {
-            cameraDistance = Math.max(10.2, Math.min(17.2, cameraDistance - (nextDistance - pinchDistance) * 0.014));
+            cameraDistance = Math.max(8.8, Math.min(17.2, cameraDistance - (nextDistance - pinchDistance) * 0.014));
             updateCamera();
           }
           pinchDistance = nextDistance;
@@ -313,7 +388,8 @@ export default function PlanetStreamGlobe({
         const dy = event.clientY - dragY;
         if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
         targetY += dx * 0.006;
-        targetX = Math.max(-1.05, Math.min(1.05, targetX + dy * 0.004));
+        targetX = Math.max(-1.35, Math.min(1.35, targetX + dy * 0.004));
+        lastFocusedKey = '';
         dragX = event.clientX;
         dragY = event.clientY;
       };
@@ -342,7 +418,7 @@ export default function PlanetStreamGlobe({
 
       const wheel = (event) => {
         event.preventDefault();
-        cameraDistance = Math.max(10.2, Math.min(17.2, cameraDistance + Math.sign(event.deltaY) * 0.48));
+        cameraDistance = Math.max(8.8, Math.min(17.2, cameraDistance + Math.sign(event.deltaY) * 0.48));
         updateCamera();
         scheduleViewport(300);
       };
@@ -369,7 +445,7 @@ export default function PlanetStreamGlobe({
         lastRender = time;
         root.rotation.x += (targetX - root.rotation.x) * 0.075;
         root.rotation.y += (targetY - root.rotation.y) * 0.075;
-        if (!reducedMotion && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
+        if (!reducedMotion && !lastFocusedKey && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
         renderer.render(scene, camera);
       };
 
@@ -385,7 +461,9 @@ export default function PlanetStreamGlobe({
 
       const engine = {
         updateMarkers,
+        focusSelected() { return focusSelected(dataRef.current, true); },
         reset() {
+          lastFocusedKey = '';
           targetX = 0.18;
           targetY = -0.42;
           cameraDistance = compact ? 13.9 : 13.1;
@@ -393,7 +471,7 @@ export default function PlanetStreamGlobe({
           scheduleViewport(500);
         },
         zoom(delta) {
-          cameraDistance = Math.max(10.2, Math.min(17.2, cameraDistance + delta));
+          cameraDistance = Math.max(8.8, Math.min(17.2, cameraDistance + delta));
           updateCamera();
           scheduleViewport(280);
         },
@@ -435,13 +513,15 @@ export default function PlanetStreamGlobe({
 
   return <div className="planetRoot">
     <div ref={mountRef} className="planetMount" />
-    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? 'PUBLIC 3D PROPERTY WORLD' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
+    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? '3D PROPERTY WORLD · SOURCE-BACKED MAP' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
+    {selectedProperty ? <div className="planetSelection"><small>SELECTED PROPERTY</small><b>{selectedLabel || 'Mapped building'}</b><span>{selectedHeight > 0 ? `${Math.round(selectedHeight)}m mapped height · ` : ''}{selectedProperty?.geometry ? 'source-backed footprint' : 'mapped location'}</span></div> : null}
     <div className="planetControls" aria-label="Globe controls">
       <button type="button" onClick={() => engineRef.current?.zoom?.(-0.7)} aria-label="Zoom in">+</button>
       <button type="button" onClick={() => engineRef.current?.zoom?.(0.7)} aria-label="Zoom out">−</button>
+      {selectedProperty ? <button type="button" className="stream" onClick={() => engineRef.current?.focusSelected?.()}>FOCUS</button> : null}
       {!simpleMode ? <button type="button" className="stream" onClick={() => engineRef.current?.streamHere?.()}>LOAD HERE</button> : null}
       <button type="button" className="stream" onClick={() => engineRef.current?.reset?.()}>RESET</button>
     </div>
-    <style jsx>{`.planetRoot,.planetMount{position:absolute;inset:0}.planetStatus{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(4,10,12,.7);backdrop-filter:blur(12px);color:#b8c9c4;font-size:7px;font-weight:900;letter-spacing:.1em}.planetStatus i{width:7px;height:7px;border-radius:50%;background:#79efbc;box-shadow:0 0 12px rgba(121,239,188,.5)}.planetStatus i.busy{animation:planetPulse .9s ease-in-out infinite alternate}.planetControls{position:absolute;right:12px;top:12px;z-index:3;display:flex;gap:6px}.planetControls button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,10,12,.72);backdrop-filter:blur(12px);color:#edf7f3;font-size:18px;font-weight:800}.planetControls .stream{width:auto;padding:0 10px;font-size:7px;letter-spacing:.08em}@keyframes planetPulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}@media(max-width:640px){.planetStatus{left:9px;top:9px;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetControls{right:9px;top:48px;display:grid;grid-template-columns:34px 34px}.planetControls button{width:34px;height:34px}.planetControls .stream{grid-column:span 2;width:74px}}`}</style>
+    <style jsx>{`.planetRoot,.planetMount{position:absolute;inset:0}.planetStatus{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(4,10,12,.7);backdrop-filter:blur(12px);color:#b8c9c4;font-size:7px;font-weight:900;letter-spacing:.1em}.planetStatus i{width:7px;height:7px;border-radius:50%;background:#79efbc;box-shadow:0 0 12px rgba(121,239,188,.5)}.planetStatus i.busy{animation:planetPulse .9s ease-in-out infinite alternate}.planetSelection{position:absolute;left:12px;bottom:12px;z-index:3;max-width:min(330px,70%);display:grid;gap:3px;padding:11px 13px;border:1px solid rgba(201,255,84,.28);border-radius:16px;background:rgba(4,10,12,.78);backdrop-filter:blur(14px);color:#f1f7f4;text-align:left}.planetSelection small{font-size:7px;font-weight:1000;letter-spacing:.12em;color:#c9ff54}.planetSelection b{font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetSelection span{font-size:8px;color:#a9bbb5}.planetControls{position:absolute;right:12px;top:12px;z-index:3;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:210px}.planetControls button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,10,12,.72);backdrop-filter:blur(12px);color:#edf7f3;font-size:18px;font-weight:800}.planetControls .stream{width:auto;padding:0 10px;font-size:7px;letter-spacing:.08em}@keyframes planetPulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}@media(max-width:640px){.planetStatus{left:9px;top:9px;max-width:62%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetSelection{left:9px;right:9px;bottom:9px;max-width:none}.planetControls{right:9px;top:48px;display:grid;grid-template-columns:34px 34px;max-width:82px}.planetControls button{width:34px;height:34px}.planetControls .stream{grid-column:span 2;width:74px}}`}</style>
   </div>;
 }
