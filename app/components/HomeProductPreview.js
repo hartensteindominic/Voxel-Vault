@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
+import VoxelPopHouseRenderPreview from '../property/VoxelPopHouseRenderPreview';
 import styles from './HomeProductPreview.module.css';
 
 const SAMPLE = '/voxelpop/demo-house.svg';
@@ -16,7 +17,7 @@ export default function HomeProductPreview() {
     </div>
     <div className={styles.viewer} aria-label={stage === 'picture' ? 'Sample VoxelPop 3D house approval image' : 'Interactive movable 3D voxel sample'}>
       {stage === 'picture'
-        ? <img src={SAMPLE} alt="Sample VoxelPop 3D house render" style={{width:'100%',height:'100%',objectFit:'contain',padding:12}}/>
+        ? <VoxelPopHouseRenderPreview generatedImage={SAMPLE} sample/>
         : <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE} onReady={() => setVoxelReady(true)}/>}
     </div>
     <div className={styles.controls} role="group" aria-label="Choose VoxelPop sample stage">
