@@ -53,8 +53,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         const objectGroup = new THREE.Group();
         scene.add(objectGroup);
 
-        // Neutral lighting keeps source colors recognizable while still revealing the
-        // physical side faces of every cube when the user rotates the photo slightly.
         scene.add(new THREE.HemisphereLight(0xffffff, 0x26192e, 2.65));
         const key = new THREE.DirectionalLight(0xfffbf5, 1.05);
         key.position.set(4.5, 5.2, 7.4);
@@ -66,7 +64,18 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         rim.position.set(3.5, 3.8, -3.6);
         scene.add(rim);
 
-        const ratio = clamp((image.naturalWidth || 1) / (image.naturalHeight || 1), 0.45, 2.8);
+        // Force a raster intermediate. SVGs (and some remote images) can report
+        // naturalWidth 0 or produce empty getImageData when drawn at sample size only.
+        const sourceW = Math.max(2, image.naturalWidth || image.width || 960);
+        const sourceH = Math.max(2, image.naturalHeight || image.height || 640);
+        const raster = document.createElement('canvas');
+        raster.width = sourceW;
+        raster.height = sourceH;
+        const rasterContext = raster.getContext('2d', { willReadFrequently: true });
+        if (!rasterContext) throw new Error('Voxel photo processing is unavailable in this browser.');
+        rasterContext.drawImage(image, 0, 0, sourceW, sourceH);
+
+        const ratio = clamp(sourceW / sourceH, 0.45, 2.8);
         const maxWidth = compact ? 5.0 : 5.7;
         const maxHeight = compact ? 4.0 : 4.45;
         let photoWidth = maxWidth;
@@ -76,9 +85,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           photoWidth = photoHeight * ratio;
         }
 
-        // The old review used only 27-34 columns, which made roofs, windows, doors and
-        // trim too chunky. This denser grid stays practical on iPhone while preserving
-        // far more of the authorized photo's visible identity.
         const columns = compact ? 52 : 64;
         const rows = clamp(Math.round(columns / ratio), 26, compact ? 64 : 72);
         const sample = document.createElement('canvas');
@@ -88,7 +94,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         if (!sampleContext) throw new Error('Voxel photo processing is unavailable in this browser.');
         sampleContext.imageSmoothingEnabled = true;
         sampleContext.imageSmoothingQuality = 'high';
-        sampleContext.drawImage(image, 0, 0, columns, rows);
+        sampleContext.drawImage(raster, 0, 0, columns, rows);
         const pixels = sampleContext.getImageData(0, 0, columns, rows).data;
 
         const cellWidth = photoWidth / columns;
@@ -124,9 +130,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
             const down = luminance[Math.min(rows - 1, y + 1) * columns + x] ?? light;
             const edge = clamp(Math.abs(left - right) * 1.35 + Math.abs(up - down) * 1.35, 0, 1);
 
-            // Stage 3 is intentionally a shallow 3D voxel PHOTO, not the later full
-            // movable voxel. Small luminance + edge depth reveals real cube geometry
-            // without turning the house into a thick plaque or inventing hidden sides.
             const baseDepth = 0.10;
             const depth = baseDepth + (1 - light) * 0.05 + edge * 0.055;
             const xPos = -photoWidth / 2 + cellWidth * (x + 0.5);
@@ -151,9 +154,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         if (voxels.instanceColor) voxels.instanceColor.needsUpdate = true;
         objectGroup.add(voxels);
 
-        // Deliberately no backing image, picture slab or display plinth: the visible
-        // review itself is the real voxel geometry. The original stays separate below
-        // as a small comparison card only.
         const fitCamera = (width, height) => {
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
@@ -167,8 +167,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         };
         fitCamera(initialWidth, initialHeight);
 
-        // Near-front by default because this stage is for likeness approval. Rotation
-        // is bounded tightly so a single photograph never pretends to know hidden walls.
         let targetX = -0.012;
         let targetY = 0.045;
         let pointerId = null;
