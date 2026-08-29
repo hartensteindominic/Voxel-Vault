@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { rasterizeImageUrl } from './rasterizeImageUrl';
 
 const GRID = 32;
 const MIN_GRID = 16;
@@ -35,9 +36,9 @@ function averageRgb(pixels) {
   return total.map((value) => value / pixels.length);
 }
 
-function recipeDimensions(image) {
-  const width = Math.max(1, image.naturalWidth || 1);
-  const height = Math.max(1, image.naturalHeight || 1);
+function recipeDimensions(sourceW, sourceH) {
+  const width = Math.max(1, sourceW || 1);
+  const height = Math.max(1, sourceH || 1);
   const ratio = clamp(width / height, 0.5, 2.25);
   if (ratio >= 1) return { width: GRID, height: Math.max(MIN_GRID, Math.round(GRID / ratio)) };
   return { width: Math.max(MIN_GRID, Math.round(GRID * ratio)), height: GRID };
@@ -164,8 +165,8 @@ function fillSmallGaps(input, width, height) {
   return mask;
 }
 
-function sampleRecipe(image) {
-  const { width, height } = recipeDimensions(image);
+function sampleRecipeFromRaster(rasterCanvas, sourceW, sourceH) {
+  const { width, height } = recipeDimensions(sourceW, sourceH);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -173,7 +174,7 @@ function sampleRecipe(image) {
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
   context.filter = 'saturate(1.035) contrast(1.035)';
-  context.drawImage(image, 0, 0, image.naturalWidth || 1, image.naturalHeight || 1, 0, 0, width, height);
+  context.drawImage(rasterCanvas, 0, 0, sourceW, sourceH, 0, 0, width, height);
   const data = context.getImageData(0, 0, width, height).data;
   const rgb = [];
   const luminance = [];
@@ -308,30 +309,34 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
     setError('');
     reportedRef.current = '';
 
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = sampleUrl;
-
-    image.onload = () => {
+    (async () => {
       let recipe;
       try {
-        recipe = sampleRecipe(image);
+        const { canvas: rasterCanvas, width: rasterW, height: rasterH } = await rasterizeImageUrl(sampleUrl);
+        recipe = sampleRecipeFromRaster(rasterCanvas, rasterW, rasterH);
       } catch (sampleError) {
         if (!dead) setError(String(sampleError?.message || sampleError || 'Local voxel sampling failed.'));
         return;
       }
 
-      import('three').then((THREE) => {
-        if (dead || !mountRef.current) return;
-        const mount = mountRef.current;
-        let renderer;
-        try {
-          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-        } catch {
-          setError('Interactive 3D is unavailable here. Your approved house photo remains visible.');
-          return;
-        }
+      let THREE;
+      try {
+        THREE = await import('three');
+      } catch {
+        if (!dead) setError('Interactive voxel 3D could not start. Your approved house photo remains visible.');
+        return;
+      }
+      if (dead || !mountRef.current) return;
+      const mount = mountRef.current;
+      let renderer;
+      try {
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+      } catch {
+        if (!dead) setError('Interactive 3D is unavailable here. Your approved house photo remains visible.');
+        return;
+      }
 
+      try {
         const initialWidth = Math.max(280, mount.clientWidth || 360);
         const initialHeight = Math.max(280, mount.clientHeight || 360);
         const compact = initialWidth < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
@@ -574,18 +579,13 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           renderer.forceContextLoss?.();
           mount.innerHTML = '';
         };
-      }).catch(() => {
-        if (!dead) setError('Interactive voxel 3D could not start. Your approved house photo remains visible.');
-      });
-    };
-    image.onerror = () => {
-      if (!dead) setError('The approved property photo could not be opened for voxel conversion.');
-    };
+      } catch (sceneError) {
+        if (!dead) setError(String(sceneError?.message || sceneError || 'Interactive voxel 3D could not start. Your approved house photo remains visible.'));
+      }
+    })();
 
     return () => {
       dead = true;
-      image.onload = null;
-      image.onerror = null;
       cleanup();
     };
   }, [imageUrl, sourceImageUrl]);

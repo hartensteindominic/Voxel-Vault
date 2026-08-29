@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import styles from './PhotoReliefModelViewer.module.css';
+import { rasterizeImageUrl } from './rasterizeImageUrl';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -21,11 +22,9 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
     setError('');
     setStatus('loading');
 
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = imageUrl;
-    image.onload = async () => {
+    (async () => {
       try {
+        const { canvas: rasterCanvas, width: sourceW, height: sourceH } = await rasterizeImageUrl(imageUrl);
         const THREE = await import('three');
         if (dead || !mountRef.current) return;
 
@@ -64,17 +63,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         rim.position.set(3.5, 3.8, -3.6);
         scene.add(rim);
 
-        // Force a raster intermediate. SVGs (and some remote images) can report
-        // naturalWidth 0 or produce empty getImageData when drawn at sample size only.
-        const sourceW = Math.max(2, image.naturalWidth || image.width || 960);
-        const sourceH = Math.max(2, image.naturalHeight || image.height || 640);
-        const raster = document.createElement('canvas');
-        raster.width = sourceW;
-        raster.height = sourceH;
-        const rasterContext = raster.getContext('2d', { willReadFrequently: true });
-        if (!rasterContext) throw new Error('Voxel photo processing is unavailable in this browser.');
-        rasterContext.drawImage(image, 0, 0, sourceW, sourceH);
-
         const ratio = clamp(sourceW / sourceH, 0.45, 2.8);
         const maxWidth = compact ? 5.0 : 5.7;
         const maxHeight = compact ? 4.0 : 4.45;
@@ -94,7 +82,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         if (!sampleContext) throw new Error('Voxel photo processing is unavailable in this browser.');
         sampleContext.imageSmoothingEnabled = true;
         sampleContext.imageSmoothingQuality = 'high';
-        sampleContext.drawImage(raster, 0, 0, columns, rows);
+        sampleContext.drawImage(rasterCanvas, 0, 0, columns, rows);
         const pixels = sampleContext.getImageData(0, 0, columns, rows).data;
 
         const cellWidth = photoWidth / columns;
@@ -273,18 +261,10 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           setError(String(previewError?.message || previewError || 'The 3D voxel photo could not open.'));
         }
       }
-    };
-    image.onerror = () => {
-      if (!dead) {
-        setStatus('error');
-        setError('The selected photo could not be opened for the 3D voxel photo.');
-      }
-    };
+    })();
 
     return () => {
       dead = true;
-      image.onload = null;
-      image.onerror = null;
       cleanup();
     };
   }, [imageUrl]);
