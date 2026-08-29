@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const home = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
+const homeCss = fs.readFileSync(new URL('../app/home.module.css', import.meta.url), 'utf8');
 const property = fs.readFileSync(new URL('../app/property/page.js', import.meta.url), 'utf8');
+const propertyCss = fs.readFileSync(new URL('../app/property/property.module.css', import.meta.url), 'utf8');
+const vault = fs.readFileSync(new URL('../app/vault/property-drafts/page.js', import.meta.url), 'utf8');
 const world = fs.readFileSync(new URL('../app/world/page.js', import.meta.url), 'utf8');
 const worldApi = fs.readFileSync(new URL('../app/api/world-properties/route.ts', import.meta.url), 'utf8');
 const globe = fs.readFileSync(new URL('../app/vault/earth/PlanetStreamGlobe.js', import.meta.url), 'utf8');
@@ -17,7 +20,16 @@ assert.match(home, /action="\/property"/, 'home address input must open the simp
 assert.match(home, /BUY PIECE \/ WHOLE/, 'home must explain the condensed ownership choice');
 assert.match(home, /href="\/vault\/property-drafts"/, 'home must link directly to the property Vault');
 assert.match(home, /href="\/world"/, 'home must link directly to the shared 3D World');
+assert.match(home, /See it in voxels\./, 'home should use the friendly VoxelPop-like promise');
 assert.doesNotMatch(home, /FOUR CORE JOBS|HomeCapabilityStrip|Digital REITs/, 'advanced product taxonomy must not dominate the home screen');
+
+for (const source of [homeCss, propertyCss, vault, world]) {
+  assert.match(source, /#7138f5/i, 'simple property surfaces should keep the VoxelPop purple');
+  assert.match(source, /#c9ff54/i, 'simple property surfaces should keep the VoxelPop lime');
+  assert.match(source, /#fffaf0/i, 'simple property surfaces should keep the warm VoxelPop canvas');
+}
+assert.match(homeCss, /border-radius:34px/, 'home should retain one large rounded maker card');
+assert.match(propertyCss, /\.steps\{display:none\}/, 'the old five-step strip must stay visually hidden');
 
 assert.match(property, /1 · ADD PROPERTY/, 'simple property screen must start with adding one address');
 assert.match(property, /BUY A PIECE/, 'simple property screen must expose fractional intent');
@@ -38,6 +50,10 @@ assert.match(property, /setPropertyDraftWorldVisibility/, 'public World sharing 
 assert.match(property, /A 3D model or mint is digital provenance, not a deed/, 'simple UI must preserve deed/mint truth');
 assert.doesNotMatch(property, /mintVoxelFlip|eth_requestAccounts/, 'the simple property screen must not mint or request a wallet before verification');
 
+assert.match(vault, /Your properties\./, 'Vault should stay consumer-simple');
+assert.match(vault, /OPEN 3D/, 'Vault should make opening a property the primary action');
+assert.match(vault, /VERIFY \+ MINT/, 'Vault should preserve verification before minting');
+
 assert.match(drafts, /world:\s*\{\s*public:\s*false/, 'all new drafts must start private');
 assert.match(drafts, /setPropertyDraftWorldVisibility/, 'drafts need an explicit visibility transition');
 
@@ -48,6 +64,7 @@ assert.match(worldApi, /publicId/, 'public feed must not expose raw user and dra
 assert.doesNotMatch(worldApi, /draft\.label/, 'public feed must not expose the private saved address label by default');
 
 assert.match(world, /PUBLIC 3D WORLD/, 'World must be a first-class simple screen');
+assert.match(world, /One little world\./, 'World should use friendly consumer copy');
 assert.match(world, /PlanetStreamGlobe/, 'World must use the interactive globe');
 assert.match(world, /simpleMode/, 'World globe must use the condensed controls');
 assert.match(world, /GeoReferenceModel/, 'tapping a shared building must open a 3D model');
@@ -68,4 +85,4 @@ assert.match(productMap, /isSimplePropertyRoute/, 'simple consumer routes must b
 assert.match(dock, /simple \? SIMPLE_PROPERTY_DOCK : APP_DOCK/, 'consumer routes must render the four-item dock instead of the legacy five-product dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from Home/Add/Vault/World');
 
-console.log('Ultra-simple property flow checks passed: one address, exact-match gated piece/whole purchase, verify-before-mint, simple Vault, opt-in public World, privacy-rounded geography, voxel-house globe markers, and a four-button iPhone dock.');
+console.log('VoxelPop-simple property flow checks passed: one address, warm maker UI, exact-match gated piece/whole purchase, verify-before-mint, simple Vault, opt-in public World, privacy-rounded geography, voxel-house globe markers, and a four-button iPhone dock.');
