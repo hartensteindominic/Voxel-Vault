@@ -11,8 +11,6 @@ import {
 import {
   PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
   PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-  deleteStagedPropertyPhoto,
-  loadPaidPropertyGenerationPhoto,
   paidPropertyGenerationReceipt,
 } from '../../../lib/property-generation-payment';
 import {
@@ -80,7 +78,7 @@ function generationResult(input: {
       progress: Number(input.progress || 0),
     },
     recoveryMode: input.recoveryMode === true,
-    privacy: 'After the paid provider handoff, Voxel Vault does not store the original source photo in its Storage bucket. Checkout temporarily stages the authorized photo privately, then removes that staged source when generation starts; the account keeps the SHA-256 fingerprint and account-bound generation record rather than the original photo.',
+    privacy: 'The selected photo stayed on the customer device through Stripe checkout. After payment, Voxel Vault verifies its SHA-256 fingerprint and sends it directly to the 3D provider for this paid generation. Voxel Vault does not store the original source photo in its Storage bucket for this flow and does not require a private checkout Storage bucket.',
   };
 }
 
@@ -110,17 +108,18 @@ export async function POST(request: Request) {
     }
 
     const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
+    const rightsConfirmed = receipt.session?.metadata?.rights_confirmed === 'true';
+    if (!rightsConfirmed) {
+      return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+    }
+
     const draftId = receipt.draftId;
     const digest = receipt.digest;
-    const rightsConfirmed = true;
     const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
     const sourceFingerprint = `inline-photo:${digest}`;
 
-    // A Stripe success page can be refreshed. Reuse the exact account/draft job
-    // instead of spending Meshy credits a second time for the same paid source.
     const existing = await readCatalog3D(itemId);
     if (existing?.task_id && existing?.source_image_url === sourceFingerprint) {
-      await deleteStagedPropertyPhoto(auth, draftId);
       return privateJson(generationResult({
         draftId,
         digest,
@@ -132,26 +131,36 @@ export async function POST(request: Request) {
       }));
     }
 
-    const paidInput = await loadPaidPropertyGenerationPhoto(auth, receipt);
-    const photo = new File([paidInput.bytes], paidInput.fileName, { type: paidInput.contentType });
-
+    const photo = form.get('photo');
     if (!(photo instanceof File)) {
-      return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
+      return privateJson({
+        ok: false,
+        sourcePhotoRequired: true,
+        draftId,
+        error: 'Payment is verified, but this browser no longer has the selected photo. Re-select the exact same photo to continue; you will not be charged again.',
+      }, { status: 409 });
     }
-    if (!rightsConfirmed) {
-      return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+    const contentType = String(photo.type || '').toLowerCase();
+    if (!ALLOWED_TYPES.has(contentType) || contentType !== receipt.contentType) {
+      return privateJson({ ok: false, error: 'The selected photo format does not match the paid checkout.' }, { status: 415 });
     }
-    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) {
-      return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
-    }
-    if (photo.size <= 0 || photo.size > MAX_BYTES) {
-      return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
+    if (photo.size <= 0 || photo.size > MAX_BYTES || photo.size !== receipt.sizeBytes) {
+      return privateJson({ ok: false, error: 'The selected photo size does not match the paid checkout.' }, { status: 400 });
     }
 
-    // The automatic Property journey is three paid Meshy calls: 15 credits for
-    // this textured Smart Topology source 3D, 3 for nano-banana image-to-image,
-    // and 15 for the final textured Smart Topology 3D. Check again after Stripe
-    // so a paid user is never sent into a knowingly underfunded provider flow.
+    const bytes = Buffer.from(await photo.arrayBuffer());
+    const verifiedDigest = createHash('sha256').update(bytes).digest('hex');
+    if (verifiedDigest !== digest) {
+      return privateJson({
+        ok: false,
+        sourcePhotoRequired: true,
+        draftId,
+        error: 'That is not the same photo used for checkout. Re-select the exact paid photo; you will not be charged again.',
+      }, { status: 409 });
+    }
+
+    // Read-only balance check; no Meshy credits are spent until the provider
+    // generation POST below is reached after a verified $4.99 payment.
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
       return privateJson(
@@ -160,11 +169,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const bytes = Buffer.from(await photo.arrayBuffer());
-    const verifiedDigest = createHash('sha256').update(bytes).digest('hex');
-    if (verifiedDigest !== digest) throw new Error('The paid source photo fingerprint no longer matches checkout.');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
-
     const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -213,12 +218,9 @@ export async function POST(request: Request) {
       error: null,
     });
 
-    // Do not orphan a provider job just because account catalog persistence is
-    // temporarily unavailable. The signed recovery ID remains account-bound.
     const taskId = saved?.task_id
       || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
 
-    await deleteStagedPropertyPhoto(auth, draftId);
     return privateJson(generationResult({
       draftId,
       digest,
