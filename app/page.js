@@ -42,7 +42,7 @@ export default function Home() {
       </details>
 
       <details className={styles.inclusion}>
-        <summary><span><small>WHAT YOU'RE BUYING</small><b>One digital VoxelPop creation · $4.99</b></span><i>+</i></summary>
+        <summary><span><small>WHAT'S INCLUDED / WHAT'S NOT</small><b>One digital VoxelPop creation · $4.99</b></span><i>+</i></summary>
         <div>
           <p>Sign in, choose a house photo, and complete the $4.99 creation checkout. VoxelPop then uses that authorized photo as a temporary reference to generate the VoxelPop/NFT-house-style 3D image. You approve the generated house before the separate voxel is built.</p>
           <p>The source photo is kept locally for checkout continuity. When the 3D house image is generated, a prepared copy is sent transiently to the configured image-generation provider; Voxel Vault does not save the original photo in its generation storage. The approved generated image becomes the visual source for the local voxel build.</p>
