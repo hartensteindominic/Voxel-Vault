@@ -1,12 +1,12 @@
 import { createHash, createHmac } from 'node:crypto';
 import { Contract, JsonRpcProvider, Wallet, getBytes, id, keccak256, solidityPackedKeccak256, toUtf8Bytes } from 'ethers';
 import { NextResponse } from 'next/server';
-import { stripe } from '../../../../../lib/stripe-server';
-import { requireVoxelVaultUser } from '../../../../../lib/user-auth';
-import { paidPropertyGenerationReceipt } from '../../../../../lib/property-generation-payment';
-import { normalizePropertyDraftId, propertyDraftItemId } from '../../../../../lib/property-generation-ids';
-import { readCatalog3DByTask } from '../../../../../lib/catalog3dStore';
-import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
+import { stripe } from '../../../../lib/stripe-server';
+import { requireVoxelVaultUser } from '../../../../lib/user-auth';
+import { paidPropertyGenerationReceipt } from '../../../../lib/property-generation-payment';
+import { normalizePropertyDraftId, propertyDraftItemId } from '../../../../lib/property-generation-ids';
+import { readCatalog3DByTask } from '../../../../lib/catalog3dStore';
+import { getVoxelFlipDeployment } from '../../../../lib/voxelflip-deployment';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
