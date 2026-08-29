@@ -11,8 +11,8 @@ const propertyRoute = read('app/property/page.js');
 const property = read('app/property/HouseVoxelJourney.js');
 const propertyCss = read('app/property/property.module.css');
 const generationCheckout = read('app/api/property-generation/checkout/route.ts');
-const photoStart = read('app/api/property-photo-upload/route.ts');
-const voxelImage = read('app/api/property-voxel-image/route.ts');
+const paidVerify = read('app/api/property-photo-upload/route.ts');
+const voxelPhoto = read('app/api/property-voxel-photo/route.ts');
 const voxel3d = read('app/api/property-voxel-3d/route.ts');
 const mintPrepare = read('app/api/property-voxel-nft/prepare/route.ts');
 const mintPage = read('app/property/mint/page.js');
@@ -48,6 +48,7 @@ assert.match(property, /const labels = \['PHOTO', 'ADDRESS', 'VOXEL', '3D', 'DON
 assert.match(property, /Choose one house photo\./, 'first signed-in screen is photo-first');
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone photo preparation remains automatic');
+assert.match(property, /prepareReferenceDataUrl/, 'browser safely resizes the provider reference');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo requires rights confirmation');
 assert.match(property, /\/api\/property-identity/, 'creator verifies the property identity before purchase');
 assert.match(property, /Confirm address/, 'address confirmation is explicit');
@@ -55,14 +56,17 @@ assert.match(property, /Create voxel · \$\{PRICE\}/, 'paid action is compact an
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
 
 assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|storage\.from/i, 'generation checkout cannot spend provider credits or upload the private photo');
-assert.match(photoStart, /image-to-image/, 'provider work begins after paid receipt with the voxel-image pass');
-assert.match(photoStart, /reference_image_urls: \[dataUri\]/, 'the authorized photo directly drives the voxel image');
-assert.doesNotMatch(photoStart, /storage\.from|property-references/i, 'the original photo is not copied to server-side storage');
-assert.match(property, /\/api\/property-voxel-image\?/, 'creator waits for the real voxel-image result');
+assert.match(paidVerify, /paidPropertyGenerationReceipt/, 'paid return verifies checkout before provider work');
+assert.doesNotMatch(paidVerify, /image-to-image|image-to-3d|MESHY_PROPERTY_CREDITS/i, 'receipt verification itself does not run generation');
+assert.match(voxelPhoto, /reference_image_urls: \[reference\]/, 'the authorized prepared photo directly drives the voxel image');
+assert.match(voxelPhoto, /MESHY_PROPERTY_CREDITS\.afterSource/, 'image stage preflights capacity for image plus final 3D');
+assert.match(voxelPhoto, /voxelImageTaskToken: final3dTaskToken/, 'the voxel-image route creates the signed final-3D handoff');
+assert.match(property, /\/api\/property-voxel-photo\?/, 'creator waits for the real voxel-image result');
 assert.match(property, /\/api\/property-voxel-3d/, 'creator sends the voxel image into final 3D generation');
 assert.match(property, /phase: 'voxel'/, 'creator skips the redundant source-3D phase');
-assert.match(voxelImage, /property-voxel-image-v1/, 'voxel-image polling remains private to the signed-in creation');
-assert.match(voxel3d, /voxelImageTaskId/, 'final 3D generation verifies the completed voxel-image task');
+assert.doesNotMatch(property, /phase: 'source'/, 'creator never starts a generic first 3D pass');
+assert.match(voxel3d, /verifiedVoxelImageUrl/, 'final 3D generation verifies the completed voxel-image task');
+assert.match(voxel3d, /propertyDraftItemId\(auth\.user\.id, draftId, phase\)/, 'final GLB is saved account-scoped');
 assert.match(property, /MeshyModelViewer modelUrl=\{final3d\.modelUrl\}/, 'final result is the generated movable GLB');
 
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel auto-saves to Vault before minting');
@@ -85,4 +89,4 @@ assert.match(dock, /const DOCK = \[[\s\S]*id: 'home'[\s\S]*id: 'create'[\s\S]*id
 assert.doesNotMatch(dock, /id: 'world'|id: 'more'/, 'World and More stay out of the primary mobile dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Simple VoxelPop checks passed: photo -> confirmed address -> voxel image -> final 3D voxel -> automatic Vault save -> optional one-property mint.');
+console.log('Simple VoxelPop checks passed: photo -> confirmed address -> generated voxel image -> real final 3D voxel -> automatic Vault save -> optional one-property mint.');
