@@ -3,7 +3,11 @@ import { normalizePropertyDraftId } from './property-generation-ids';
 export const PROPERTY_VOXEL_GENERATION_PRICE_CENTS = 499;
 export const PROPERTY_VOXEL_GENERATION_PRICE_LABEL = '$4.99';
 export const PROPERTY_VOXEL_GENERATION_KIND = 'property_voxel_generation_v1';
-export const PROPERTY_VOXEL_GENERATION_ENGINE = 'browser-local-v1';
+export const PROPERTY_VOXEL_GENERATION_ENGINE = 'voxelpop-nft-house-v1';
+export const PROPERTY_VOXEL_SOURCE_HANDLING = 'provider-direct-private';
+
+const LEGACY_GENERATION_ENGINE = 'browser-local-v1';
+const LEGACY_SOURCE_HANDLING = 'device-local';
 
 function clean(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max);
@@ -27,14 +31,18 @@ export async function paidPropertyGenerationReceipt(auth: any, stripe: any, sess
   if (metadata.price_cents !== String(PROPERTY_VOXEL_GENERATION_PRICE_CENTS) || metadata.rights_confirmed !== 'true') {
     throw new Error('The VoxelPop creation authorization is incomplete.');
   }
-  if (metadata.generation_engine !== PROPERTY_VOXEL_GENERATION_ENGINE || metadata.source_storage !== 'device-local') {
-    throw new Error('This VoxelPop purchase uses an unsupported generation mode.');
-  }
+
+  const engine = clean(metadata.generation_engine, 80);
+  const sourceHandling = clean(metadata.source_storage, 80);
+  const currentMode = engine === PROPERTY_VOXEL_GENERATION_ENGINE && sourceHandling === PROPERTY_VOXEL_SOURCE_HANDLING;
+  const legacyMode = engine === LEGACY_GENERATION_ENGINE && sourceHandling === LEGACY_SOURCE_HANDLING;
+  if (!currentMode && !legacyMode) throw new Error('This VoxelPop purchase uses an unsupported generation mode.');
 
   return {
     session,
     draftId,
-    engine: PROPERTY_VOXEL_GENERATION_ENGINE,
-    sourceStorage: 'device-local',
+    engine,
+    sourceStorage: sourceHandling,
+    legacyMode,
   };
 }
