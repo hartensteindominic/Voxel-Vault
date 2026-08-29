@@ -19,7 +19,7 @@ export default function Home() {
             <Link className={styles.secondaryAction} href="/demo">Try the free demo</Link>
           </div>
           <div className={styles.trustRow} aria-label="VoxelPop creation facts">
-            <span>Photo stays on your device</span><span>Review before voxel</span><span>No wallet to create</span>
+            <span>Photo stays on your device</span><span>Review voxel photo first</span><span>No wallet to create</span>
           </div>
         </div>
         <div className={styles.heroVisual}><HomeProductPreview/></div>
@@ -42,7 +42,7 @@ export default function Home() {
         <summary><span><small>AFTER CREATION</small><b>Keep it simple—or explore more later</b></span><i>+</i></summary>
         <div className={styles.afterCreate}>
           <p><b>Vault</b> keeps your finished digital VoxelPop. <b>World</b> can add map context later. <b>Mint</b> is optional and represents only the finished digital voxel.</p>
-          <div className={styles.afterLinks}><Link href="/vault">Open Vault →</Link><Link href="/world">Open World →</Link><Link href="/more">More tools →</Link></div>
+          <div className={styles.afterLinks}><Link href="/vault">Open Vault →</Link><Link href="/world">Open World →</Link></div>
         </div>
       </details>
 

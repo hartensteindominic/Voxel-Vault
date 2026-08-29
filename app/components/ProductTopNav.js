@@ -6,10 +6,9 @@ import { isOrganizedUserRoute } from '../../lib/product-map';
 import styles from './ProductTopNav.module.css';
 
 const ITEMS = [
-  { href: '/property', label: 'Create' },
-  { href: '/world', label: 'World' },
+  { href: '/property', label: 'Create · $4.99' },
   { href: '/vault', label: 'Vault' },
-  { href: '/more', label: 'More' },
+  { href: '/world', label: 'World' },
 ];
 
 function activeFor(pathname, href) {
