@@ -5,7 +5,7 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), '
 
 const route = read('app/property/page.js');
 const property = read('app/property/PropertyJourneyExact.js');
-const photoPreview = read('app/property/PhotoReliefModelViewer.js');
+const houseGenerator = read('app/property/VoxelPopHouseImageGenerator.js');
 const pictureRenderer = read('app/api/property-3d-picture/route.ts');
 const checkout = read('app/api/property-generation/checkout/route.ts');
 const paidVerify = read('app/api/property-photo-upload/route.ts');
@@ -48,7 +48,7 @@ assert.match(property, /\/api\/property-generation\/checkout/, 'photo approval o
 assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Picture/, 'paid CTA promises the 3D picture first, not an immediate voxel');
 assert.match(property, /After payment, VoxelPop will generate the 3D house image before any voxel is built/, 'checkout handoff preserves the strict generated-house-before-voxel order');
 assert.match(property, /you will not be charged again/i, 'missing local photo recovery must never charge twice');
-assert.match(property, /PhotoReliefModelViewer imageUrl=\{pendingPreview\}/, 'paid flow enters the generated VoxelPop house picture stage');
+assert.match(property, /VoxelPopHouseImageGenerator imageUrl=\{pendingPreview\}/, 'paid flow enters the dedicated generated VoxelPop house picture stage');
 assert.match(property, /Looks good → Create 3D Voxel/, 'the user explicitly approves the generated house picture before voxel conversion');
 assert.match(property, /approvePreviewAndBuildVoxel/, 'picture approval owns the voxel-build transition');
 assert.match(property, /Creating the 3D voxel from the approved VoxelPop house render/, 'the generated house render is explicitly handed to the voxel stage');
@@ -63,12 +63,12 @@ assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndS
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided paid property creation does not call the old metered property routes');
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
-assert.match(photoPreview, /\/api\/property-3d-picture/, 'the first paid picture is generated through the dedicated VoxelPop reference-image renderer');
-assert.match(photoPreview, /prepareReference/, 'the authorized source is prepared specifically for image-conditioned generation');
-assert.match(photoPreview, /paidGenerationProof/, 'the client sends a paid entitlement proof to the image renderer');
-assert.match(photoPreview, /Regenerate 3D/, 'the generated picture can be retried before voxel approval');
-assert.match(photoPreview, /ORIGINAL REFERENCE/, 'the original house remains visible for comparison');
-assert.doesNotMatch(photoPreview, /new THREE\.Texture|PlaneGeometry|BoxGeometry|setZ\(/, 'the first picture must not regress to a WebGL photo slab or relief trick');
+assert.match(houseGenerator, /\/api\/property-3d-picture/, 'the first paid picture is generated through the dedicated VoxelPop reference-image renderer');
+assert.match(houseGenerator, /prepareReference/, 'the authorized source is prepared specifically for image-conditioned generation');
+assert.match(houseGenerator, /paidGenerationProof/, 'the client sends a paid entitlement proof to the image renderer');
+assert.match(houseGenerator, /Regenerate 3D/, 'the generated picture can be retried before voxel approval');
+assert.match(houseGenerator, /ORIGINAL REFERENCE/, 'the original house remains visible for comparison');
+assert.doesNotMatch(houseGenerator, /new THREE\.Texture|PlaneGeometry|BoxGeometry|setZ\(/, 'the first picture must not regress to a WebGL photo slab or relief trick');
 
 assert.match(pictureRenderer, /requireVoxelVaultUser/, 'the house image renderer requires the signed-in account');
 assert.match(pictureRenderer, /paidPropertyGenerationReceipt/, 'new house renders re-verify the exact paid Stripe creation');
