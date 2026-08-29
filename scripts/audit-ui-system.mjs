@@ -52,12 +52,13 @@ must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proo
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/WHAT'S INCLUDED \/ WHAT'S NOT/.test(home), 'Dense legal/purchase detail must stay in progressive disclosure.');
-must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual preview and voxel viewers.');
+must(/WHAT YOU GET/.test(home) && /Simple on purpose\./.test(home), 'Homepage must keep its current scannable value section and concise product-rights boundary.');
+must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
 
-must(/Create[\s\S]*World[\s\S]*Vault[\s\S]*More/.test(topNav), 'Desktop product nav must mirror the core product map.');
+must(/Create · \$4\.99[\s\S]*Vault[\s\S]*World[\s\S]*Demo/.test(topNav), 'Desktop product nav must keep the focused Create/Vault/World/Demo destinations.');
+must(!/label: 'More'/.test(topNav), 'Desktop product nav must not restore advanced More clutter to the focused VoxelPop chrome.');
 must(/isOrganizedUserRoute/.test(topNav) && /mobileDocked/.test(topNav), 'Shared top nav must know when the mobile bottom dock owns core navigation.');
-must(/\.mobileDocked \.links a:not\(\.demo\)\{display:none\}/.test(topCss), 'Core mobile routes must not duplicate the five-item bottom navigation.');
+must(/\.mobileDocked \.links\{display:none\}/.test(topCss), 'Core mobile routes must hide the duplicate desktop link group while the bottom dock owns navigation.');
 must(/@media\(max-width:720px\)/.test(dockCss) && /\.nav\{display:none\}/.test(dockCss), 'Bottom dock must be mobile-only.');
 must(/FinancialOSNav\.module\.css/.test(dock), 'Bottom dock must use responsive stylesheet rather than always-on inline chrome.');
 
@@ -112,5 +113,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real 3D proof, one desktop/mobile navigation map, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real 3D proof, focused desktop navigation, canonical mobile dock, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
