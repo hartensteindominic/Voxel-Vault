@@ -8,11 +8,13 @@ import { isOrganizedUserRoute } from '../../lib/product-map';
 const DOCK = [
   { id: 'home', href: '/', icon: '⌂', label: 'Home' },
   { id: 'create', href: '/property', icon: 'V', label: 'VoxelPop' },
+  { id: 'bank', href: '/bank', icon: '$', label: 'Trust' },
   { id: 'vault', href: '/vault', icon: '▣', label: 'Vault' },
 ];
 
 function activeDockItem(pathname) {
   if (pathname === '/property' || pathname.startsWith('/property/')) return 'create';
+  if (pathname === '/bank' || pathname.startsWith('/bank/') || pathname === '/galactic-trust' || pathname.startsWith('/galactic-trust/')) return 'bank';
   if (pathname === '/vault' || pathname.startsWith('/vault/') || pathname === '/world' || pathname.startsWith('/world/')) return 'vault';
   return 'home';
 }
@@ -36,14 +38,14 @@ export default function FinancialOSNav() {
 
   return <>
     <div className={styles.spacer} aria-hidden="true" />
-    <nav className={styles.nav} aria-label="VoxelPop primary navigation" style={{ gridTemplateColumns: `repeat(${DOCK.length}, minmax(0, 1fr))` }}>
+    <nav className={styles.nav} aria-label="Voxel Vault primary navigation" style={{ gridTemplateColumns: `repeat(${DOCK.length}, minmax(0, 1fr))` }}>
       {DOCK.map((item) => {
         const selected = item.id === active;
         const voxelPop = item.id === 'create';
         return <Link
           key={item.id}
           href={item.href}
-          aria-label={voxelPop ? 'Create a VoxelPop' : undefined}
+          aria-label={voxelPop ? 'Create a VoxelPop' : item.id === 'bank' ? 'Open Galactic Trust' : undefined}
           aria-current={selected ? 'page' : undefined}
           className={`${styles.item} ${voxelPop ? styles.voxelPopItem : ''} ${selected ? styles.itemActive : ''}`}
         >
