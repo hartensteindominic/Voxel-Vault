@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import styles from './home.module.css';
 
-// Safety contract: Collecting in the guided property flow buys the generated digital VoxelPop collectible only.
-// The $1.99 Property Slice is a sandbox comparison/goal tool unless a separately verified legal offering is available.
-// Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.
-// A 3D model, payment, map marker, Property Passport, or NFT is not a deed and does not create rent, occupancy, investment, or appreciation rights.
-// Creation flow contract: SIGN IN -> PHOTO -> AUTO 3D -> AUTO VOXEL -> MY WORLD PREVIEW -> COLLECT -> VAULT -> OPTIONAL VERIFIED MINT.
-// Canonical property minting remains a separate parcel-verification step and address text is never treated as deed/title proof.
+// Public product truth:
+// - VoxelPop Property creation is a $4.99 digital creation purchase.
+// - The source photo stays device-local; the voxel image/model is built locally without Meshy credits.
+// - Mapping and optional digital collectible checkout are separate from the creation payment.
+// - The $1.99 Property Demo is sandbox math only.
+// - Real-estate securities and real-property ownership remain separately provider/title gated.
 export default function Home() {
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -16,98 +16,77 @@ export default function Home() {
           <span>VOXEL VAULT</span>
         </Link>
         <div className={styles.topLinks}>
-          <Link className={styles.slicePill} href="/geo/slice">$1.99 Slice</Link>
           <Link href="/property">Create</Link>
+          <Link href="/world">World</Link>
           <Link href="/vault">Vault</Link>
         </div>
       </nav>
 
       <header className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>✦ PROPERTY · CASH · CRYPTO · NFT ✦</p>
-          <h1>Your property world.<br/><em>One simple Vault.</em></h1>
-          <p className={styles.lead}>Create a real-place 3D voxel, test a tiny $1.99 property slice, keep digital assets together, and follow clear paths between NFTs, crypto and settled USD.</p>
+          <p className={styles.kicker}>LIVE DIGITAL PROPERTY EXPERIENCE</p>
+          <h1>Turn a real place into<br/><em>a digital voxel.</em></h1>
+          <p className={styles.lead}>Choose an authorized photo, pay $4.99 for one VoxelPop creation, build the voxel locally on your device, map the address in source-backed 3D, and place it in your World.</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/geo/slice">TRY THE $1.99 SLICE</Link>
-            <Link className={styles.secondaryAction} href="/property">START → SIGN IN</Link>
+            <Link className={styles.primaryAction} href="/property">CREATE FOR $4.99</Link>
+            <Link className={styles.secondaryAction} href="/world">EXPLORE WORLD</Link>
           </div>
-          <p className={styles.heroFine}>The $1.99 slice is a sandbox comparison—not deed ownership, a security purchase, or a funds transfer.</p>
+          <p className={styles.heroFine}>The $4.99 purchase is for the digital creation. Collecting an eligible mapped digital voxel is optional and separate. Neither purchase buys the house, land, deed, rent, equity, or investment rights.</p>
         </div>
 
-        <div className={styles.heroVisual} aria-label="Unified Voxel Vault preview">
+        <div className={styles.heroVisual} aria-label="Voxel Vault digital property preview">
           <div className={styles.skySparkle}>✦</div>
           <div className={styles.voxelHouse} aria-hidden="true">
             <div className={styles.roof}/><div className={styles.houseBody}><i/><i/><b/></div>
             <div className={styles.lawn}/>
           </div>
-          <div className={styles.priceBubble}><small>TEST SLICE</small><strong>$1.99</strong><span>Sandbox</span></div>
-          <div className={`${styles.assetChip} ${styles.chipUsd}`}><span>$</span><b>USD</b></div>
-          <div className={`${styles.assetChip} ${styles.chipCrypto}`}><span>◆</span><b>CRYPTO</b></div>
-          <div className={`${styles.assetChip} ${styles.chipNft}`}><span>◇</span><b>NFT</b></div>
+          <div className={styles.priceBubble}><small>VOXELPOP CREATE</small><strong>$4.99</strong><span>Digital creation</span></div>
+          <div className={`${styles.assetChip} ${styles.chipUsd}`}><span>✓</span><b>LIVE DIGITAL</b></div>
+          <div className={`${styles.assetChip} ${styles.chipCrypto}`}><span>¢</span><b>$1.99 DEMO</b></div>
+          <div className={`${styles.assetChip} ${styles.chipNft}`}><span>→</span><b>PARTNER</b></div>
         </div>
       </header>
 
       <section className={styles.unifiedCard}>
         <div className={styles.sectionIntro}>
-          <p>ONE ACCOUNT VIEW</p>
-          <h2>Four things. One organized home.</h2>
-          <span>The interface can feel unified while custody, settlement and legal ownership stay correctly separated underneath.</span>
+          <p>KNOW THE STATUS</p>
+          <h2>One app. Four clear meanings.</h2>
+          <span>Nothing should look more legally or financially live than it really is.</span>
         </div>
         <div className={styles.assetGrid}>
-          <Link href="/geo/slice" className={`${styles.assetTile} ${styles.propertyTile}`}>
-            <div className={styles.tileIcon}>⌂</div><small>PROPERTY</small><strong>$1.99 test</strong><span>Compare tiny slices across property reference values.</span><b>Open Slice →</b>
+          <Link href="/property" className={`${styles.assetTile} ${styles.propertyTile}`}>
+            <div className={styles.tileIcon}>✓</div><small>LIVE DIGITAL</small><strong>VoxelPop · $4.99</strong><span>Paid digital creation with device-local source photo and local voxel generation. No Meshy credits.</span><b>Create →</b>
           </Link>
-          <Link href="/vault" className={`${styles.assetTile} ${styles.usdTile}`}>
-            <div className={styles.tileIcon}>$</div><small>USD</small><strong>Settled cash</strong><span>Only provider-settled USD is treated as spendable money.</span><b>Open Vault →</b>
+          <Link href="/geo/slice" className={`${styles.assetTile} ${styles.usdTile}`}>
+            <div className={styles.tileIcon}>¢</div><small>DEMO</small><strong>$1.99 Property Demo</strong><span>Fake demo USD and proportional property math. No real money or property rights.</span><b>Try demo →</b>
           </Link>
-          <Link href="/vault" className={`${styles.assetTile} ${styles.cryptoTile}`}>
-            <div className={styles.tileIcon}>◆</div><small>CRYPTO</small><strong>Wallet linked</strong><span>Connect a wallet without making wallet custody mandatory.</span><b>Connect in Vault →</b>
+          <Link href="/real-estate/reits" className={`${styles.assetTile} ${styles.cryptoTile}`}>
+            <div className={styles.tileIcon}>→</div><small>PARTNER REQUIRED</small><strong>Property investments</strong><span>Only live when an approved provider supports the exact asset, user, eligibility, and transaction.</span><b>View status →</b>
           </Link>
-          <Link href="/vault" className={`${styles.assetTile} ${styles.nftTile}`}>
-            <div className={styles.tileIcon}>◇</div><small>NFTs</small><strong>Useful assets</strong><span>Create, hold, optionally mint, sell through supported markets, then settle proceeds.</span><b>See collection →</b>
+          <Link href="/real-estate/acquire" className={`${styles.assetTile} ${styles.nftTile}`}>
+            <div className={styles.tileIcon}>⌂</div><small>TITLE REQUIRED</small><strong>Real ownership</strong><span>Real property changes hands through diligence, closing, and recorded title—not an NFT or map marker.</span><b>See ownership path →</b>
           </Link>
         </div>
-      </section>
-
-      <section className={styles.convertCard}>
-        <div className={styles.convertCopy}>
-          <p>MAKE NFTs USEFUL</p>
-          <h2>Asset → market → settled money → next goal.</h2>
-          <span>An NFT or crypto estimate is not cash. The Vault only upgrades value to spendable USD after a real provider-backed sale/off-ramp settles.</span>
-        </div>
-        <div className={styles.convertFlow} aria-label="NFT conversion path">
-          <FlowIcon icon="◇" label="NFT" note="asset" />
-          <i>→</i>
-          <FlowIcon icon="▦" label="Market" note="buyer" />
-          <i>→</i>
-          <FlowIcon icon="$" label="USD" note="settled" />
-          <i>→</i>
-          <FlowIcon icon="⌂" label="Property" note="goal" />
-        </div>
-        <Link className={styles.convertAction} href="/geo/slice">PREVIEW THE CONVERSION PATH</Link>
       </section>
 
       <section className={styles.creationCard}>
-        <div className={styles.step}><span>+</span><div><p>VOXELPOP PROPERTY CREATOR</p><h2>PHOTO → 3D → VOXEL → YOUR WORLD</h2><span>Start with an authorized photo. The app builds the first 3D, applies the VoxelPop look, creates the final movable voxel, then places it in your private World before collection.</span></div></div>
+        <div className={styles.step}><span>+</span><div><p>HOW VOXELPOP PROPERTY WORKS</p><h2>PHOTO → $4.99 → LOCAL 3D → MAP → WORLD</h2><span>Your source photo stays on the device. After payment is verified, Voxel Vault builds the voxel locally, then you add the address for source-backed 3D map context.</span></div></div>
         <Link className={styles.startButton} href="/property">START → SIGN IN</Link>
-        <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>3D</b><i>→</i><b>VOXEL</b><i>→</i><b>WORLD</b><i>→</i><b>COLLECT + VAULT</b></div>
-        <small>Nothing is uploaded, generated, or charged before sign-in. A wallet is optional until you choose the separate Verify &amp; Mint step later.</small>
+        <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>$4.99</b><i>→</i><b>VOXEL 3D</b><i>→</i><b>WORLD</b><i>→</i><b>OPTIONAL COLLECT</b></div>
+        <small>The creation fee is $4.99. No Meshy credits are used. A wallet is optional. If you later choose to collect an eligible mapped digital voxel, that is a separate digital-collectible checkout.</small>
       </section>
 
       <section className={styles.quickLinks}>
-        <Link href="/world"><span>◎</span><div><b>My World</b><small>Your private saved voxels plus anything you choose to share.</small></div><i>›</i></Link>
-        <Link href="/vault/property-drafts"><span>◇</span><div><b>My Collection</b><small>Saved and collected VoxelPop property assets.</small></div><i>›</i></Link>
-        <Link href="/more"><span>•••</span><div><b>Everything else</b><small>Investments, verification, rentals, AI and advanced tools.</small></div><i>›</i></Link>
+        <Link href="/property"><span>+</span><div><b>Create</b><small>Make a paid VoxelPop property creation and map it in 3D.</small></div><i>›</i></Link>
+        <Link href="/world"><span>◎</span><div><b>My World</b><small>See your private saved property voxels and shared map items.</small></div><i>›</i></Link>
+        <Link href="/vault"><span>◇</span><div><b>My Vault</b><small>Keep digital assets and separately verified positions organized.</small></div><i>›</i></Link>
+        <Link href="/more"><span>•••</span><div><b>More</b><small>Property demos, rentals, investments, verification, AI, and advanced tools.</small></div><i>›</i></Link>
       </section>
 
       <footer className={styles.footer}>
-        <span>Collecting or minting a voxel does not buy the physical property or create deed/title, rent, occupancy, or investment rights. Live banking, crypto exchange/custody, and real-property interests require separately approved providers and legal rails.</span>
-        <Link href="/more">Advanced</Link>
+        <span>Voxel Vault is a digital property and asset interface. It is not itself a bank, broker, exchange, custodian, escrow service, or deed registry. Features that require those regulated or legal roles stay provider- or title-gated until the exact required rails exist.</span>
+        <Link href="/more">Product status</Link>
       </footer>
     </div>
   </main>;
-}
-
-function FlowIcon({ icon, label, note }) {
-  return <div className={styles.flowIcon}><span>{icon}</span><b>{label}</b><small>{note}</small></div>;
 }
