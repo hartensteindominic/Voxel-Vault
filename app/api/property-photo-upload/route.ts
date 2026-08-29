@@ -1,168 +1,135 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
-import { getSupabaseAdminCandidates } from '../../../lib/supabase-admin';
-import { normalizePropertyDraftId } from '../../../lib/property-generation-ids';
+import { saveCatalog3D } from '../../../lib/catalog3dStore';
+import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
 
-const BUCKET = 'voxel-system';
+const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MAX_BYTES = 8 * 1024 * 1024;
-const ALLOWED_TYPES = new Map([
-  ['image/jpeg', 'jpg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-]);
-
-class PrivateStorageError extends Error {}
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function clean(value: unknown, max = 240) {
   return String(value || '').trim().slice(0, max);
 }
 
-function safeSegment(value: unknown, fallback = 'property') {
-  const text = clean(value, 180).replace(/[^a-zA-Z0-9_.:-]+/g, '-').replace(/^-+|-+$/g, '');
-  return text || fallback;
+function taskKey(raw: string) {
+  return raw.startsWith('property-voxel:task:') ? raw : `property-voxel:task:${raw}`;
 }
 
-function storageMessage(error: any) {
-  return String(error?.message || error?.error || error || '').slice(0, 500);
-}
-
-async function ensureBucket(admin: any) {
-  const { data, error } = await admin.storage.listBuckets();
-  if (error) {
-    console.error('Voxel Vault private storage bucket list failed', { message: storageMessage(error) });
-    throw new PrivateStorageError('Private photo storage is temporarily unavailable. Please try again in a moment.');
-  }
-  if (data?.some((bucket: any) => bucket.name === BUCKET)) return;
-
-  const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
-  if (created.error && !/already exists|duplicate/i.test(storageMessage(created.error))) {
-    console.error('Voxel Vault private storage bucket creation failed', { message: storageMessage(created.error) });
-    throw new PrivateStorageError('Private photo storage needs server setup before uploads can continue.');
-  }
-}
-
-async function uploadPrivatePhoto(admin: any, path: string, bytes: Buffer, contentType: string) {
-  let lastError: any = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await ensureBucket(admin);
-    const uploaded = await admin.storage.from(BUCKET).upload(path, bytes, {
-      contentType,
-      cacheControl: '0',
-      upsert: false,
-    });
-    if (!uploaded.error) return;
-    lastError = uploaded.error;
-    console.error('Voxel Vault private property photo upload failed', {
-      attempt: attempt + 1,
-      message: storageMessage(uploaded.error),
-    });
-    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 180));
-  }
-  throw new PrivateStorageError(`Private photo storage could not save this upload. ${storageMessage(lastError) ? 'The storage service rejected the write.' : 'Please try again.'}`);
-}
-
-async function storeWithConfiguredServerCredential(path: string, bytes: Buffer, contentType: string) {
-  const candidates = getSupabaseAdminCandidates();
-  let lastError: unknown = null;
-  for (let index = 0; index < candidates.length; index += 1) {
-    try {
-      await uploadPrivatePhoto(candidates[index], path, bytes, contentType);
-      return { admin: candidates[index], candidates };
-    } catch (error) {
-      lastError = error;
-      console.error('Voxel Vault storage credential attempt failed', {
-        credentialIndex: index,
-        message: storageMessage(error),
-      });
-    }
-  }
-  throw lastError instanceof Error ? lastError : new PrivateStorageError('Private photo storage is unavailable on this deployment.');
-}
-
-async function createTemporaryPhotoUrl(path: string, preferredAdmin: any, candidates: any[]) {
-  const ordered = [preferredAdmin, ...candidates.filter((candidate) => candidate !== preferredAdmin)];
-  for (const admin of ordered) {
-    const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 6 * 60 * 60);
-    if (!signed.error && signed.data?.signedUrl) return signed.data.signedUrl;
-    console.error('Voxel Vault property photo signed URL failed', { message: storageMessage(signed.error) });
-  }
-  throw new PrivateStorageError('Your photo was saved, but it could not be opened for generation yet. Please try again shortly.');
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: { 'Cache-Control': 'private, no-store, max-age=0', ...(init.headers || {}) },
+  });
 }
 
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) {
-    return NextResponse.json({ ok: false, error: auth.error, setupRequired: auth.setupRequired === true }, { status: auth.status });
+    return privateJson({ ok: false, error: auth.error, setupRequired: auth.setupRequired === true }, { status: auth.status });
+  }
+
+  const apiKey = process.env.MESHY_API_KEY?.trim();
+  if (!apiKey) {
+    return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
   }
 
   try {
     const form = await request.formData();
     const photo = form.get('photo');
-    const draftIdRaw = clean(form.get('draftId'), 100);
-    const draftId = draftIdRaw ? normalizePropertyDraftId(draftIdRaw) : '';
-    const atlasId = clean(form.get('atlasId'), 180);
-    const address = clean(form.get('address'), 220);
+    const draftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
 
     if (!(photo instanceof File)) {
-      return NextResponse.json({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
-    }
-    if (!draftId && (!atlasId || !address)) {
-      return NextResponse.json({ ok: false, error: 'Start a photo creation or resolve the property before uploading.' }, { status: 400 });
+      return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
     }
     if (!rightsConfirmed) {
-      return NextResponse.json({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+      return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
     }
-    const extension = ALLOWED_TYPES.get(String(photo.type || '').toLowerCase());
-    if (!extension) {
-      return NextResponse.json({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
+    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) {
+      return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
     }
     if (photo.size <= 0 || photo.size > MAX_BYTES) {
-      return NextResponse.json({ ok: false, error: 'Property photos must be smaller than 8 MB.' }, { status: 413 });
+      return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
     }
 
     const bytes = Buffer.from(await photo.arrayBuffer());
     const digest = createHash('sha256').update(bytes).digest('hex');
-    const userId = safeSegment(auth.user.id, 'user');
-    const subjectId = safeSegment(draftId || atlasId);
-    const objectId = `${digest.slice(0, 20)}-${randomUUID().slice(0, 12)}`;
-    const path = `property-references/${userId}/${subjectId}/${objectId}.${extension}`;
+    const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
+    const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
 
-    const stored = await storeWithConfiguredServerCredential(path, bytes, photo.type);
-    const signedUrl = await createTemporaryPhotoUrl(path, stored.admin, stored.candidates);
+    const response = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_url: dataUri,
+        model_type: 'smart-topology',
+        ai_model: 'meshy-t2',
+        target_polycount: 18000,
+        should_texture: true,
+        enable_pbr: true,
+        texture_resolution: '2k',
+        target_formats: ['glb'],
+      }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+    }
+
+    const providerTaskId = clean(data?.result || data?.id, 240);
+    if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
+    const taskId = taskKey(providerTaskId);
+    const sourceFingerprint = `inline-photo:${digest}`;
+    const saved = await saveCatalog3D(itemId, {
+      task_id: taskId,
+      source_image_url: sourceFingerprint,
+      source_image_urls: [sourceFingerprint],
+      provider: 'meshy-property-direct-photo-to-3d',
+      status: 'PENDING',
+      progress: 0,
+      model_url: null,
+      model_storage_path: null,
+      thumbnail_url: null,
+      exact_model_approved: false,
+      started_at: new Date().toISOString(),
+      completed_at: null,
+      error: null,
+    });
+    if (!saved?.task_id) {
+      throw new Error('VoxelPop started the 3D job, but the account generation record could not be saved. Please try again shortly.');
+    }
 
     const uploadedAt = new Date().toISOString();
-    return NextResponse.json({
+    return privateJson({
       ok: true,
-      draftId: draftId || null,
+      draftId,
       reference: {
-        url: signedUrl,
+        url: null,
         rightsBasis: 'user-owned',
-        rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital property creation.',
-        label: 'Uploaded property photo',
+        rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital creation.',
+        label: 'Selected property photo',
         sourcePhotoId: `upload:${digest.slice(0, 20)}`,
-        provider: 'user-upload',
-        storagePath: path,
+        provider: 'user-photo-direct-generation',
+        storagePath: `meshy-source:${taskId}`,
         uploadedAt,
       },
-      privacy: 'The original upload is stored privately. Generation receives short-lived signed access only.',
-    }, {
-      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+      source3d: {
+        taskId,
+        status: saved.status || 'PENDING',
+        progress: Number(saved.progress || 0),
+      },
+      privacy: 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.',
     });
   } catch (error) {
-    const setupRequired = error instanceof PrivateStorageError;
-    return NextResponse.json({
+    return privateJson({
       ok: false,
-      setupRequired,
-      error: error instanceof Error ? error.message : 'Property photo upload failed.',
-    }, {
-      status: setupRequired ? 503 : 400,
-      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
-    });
+      error: error instanceof Error ? error.message : 'Property photo generation handoff failed.',
+    }, { status: 400 });
   }
 }

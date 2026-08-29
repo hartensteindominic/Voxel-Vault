@@ -2,14 +2,24 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const property = fs.readFileSync(new URL('../app/property/page.js', import.meta.url), 'utf8');
+const photoHandoff = fs.readFileSync(new URL('../app/api/property-photo-upload/route.ts', import.meta.url), 'utf8');
+const voxel3d = fs.readFileSync(new URL('../app/api/property-voxel-3d/route.ts', import.meta.url), 'utf8');
 
 assert.match(property, /async function usePhotoAndBuild\(\)/, 'photo approval must own the automatic generation handoff');
 assert.match(property, /form\.append\('draftId', draftId\)/, 'approved photo must be tied to an account-scoped creation before generation');
-assert.match(property, /setSourceReference\(data\.reference\)/, 'private uploaded reference must become the source for the automatic pipeline');
-assert.match(property, /await runAutomaticBuild\(data\.reference, iteration\)/, 'approving the photo must immediately start the automatic build pipeline');
+assert.match(property, /setSourceReference\(data\.reference\)/, 'direct generation reference must become the source for the automatic pipeline');
+assert.match(property, /await runAutomaticBuild\(data\.reference, iteration\)/, 'approving the photo must immediately continue the automatic build pipeline');
 
-assert.match(property, /phase: 'source'/, 'automatic pipeline must build a first 3D from the authorized photo');
-assert.match(property, /sourceStoragePath: reference\.storagePath/, 'first 3D must use the private source-photo storage path rather than an arbitrary browser URL');
+assert.match(photoHandoff, /data:\$\{photo\.type\};base64/, 'source photo must be handed directly to the 3D provider as an inline data URI');
+assert.match(photoHandoff, /meshy-property-direct-photo-to-3d/, 'direct source generation must have an explicit provider marker');
+assert.match(photoHandoff, /inline-photo:\$\{digest\}/, 'Voxel Vault should retain only a source-photo fingerprint in the generation record');
+assert.match(photoHandoff, /storagePath: `meshy-source:\$\{taskId\}`/, 'the UI handoff should carry an opaque account-bound provider job reference');
+assert.doesNotMatch(photoHandoff, /storage\.from\(|createBucket\(|createSignedUrl\(/, 'normal VoxelPop photo creation must not require Supabase Storage');
+
+assert.match(property, /phase: 'source'/, 'automatic pipeline must continue through the first 3D source phase');
+assert.match(property, /sourceStoragePath: reference\.storagePath/, 'first 3D continuation must pass the opaque direct-job reference');
+assert.match(voxel3d, /sourceStoragePath\.startsWith\('meshy-source:'\)/, '3D route must recognize a pre-started direct photo job');
+assert.match(voxel3d, /directJob\.item_id !== itemId/, 'pre-started direct job must remain account and draft bound');
 assert.match(property, /source3dTaskId: sourceDone\.taskId/, 'voxel style pass must start from the completed first 3D preview');
 assert.match(property, /voxelImageTaskId: voxelDone\.taskId/, 'final 3D must use the verified completed voxel-image job');
 assert.match(property, /voxelImageTaskToken: voxelDone\.taskToken/, 'final 3D must carry the account-bound voxel image task token');
@@ -26,4 +36,4 @@ assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: approved private photo -> source 3D -> generated-3D voxel style -> final voxel 3D, with visible progress, clear automatic wording, and a safe retry path.');
+console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> generated-3D voxel style -> final voxel 3D, without requiring source-photo bucket storage.');

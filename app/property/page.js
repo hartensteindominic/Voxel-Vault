@@ -290,7 +290,7 @@ export default function PropertyJourneyPage() {
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
     const iteration = ++pipelineRef.current;
     setBusy('upload');
-    setMessage('Saving your photo privately…');
+    setMessage('Starting your private 3D build…');
     try {
       const form = new FormData();
       form.append('photo', pendingPhoto);
@@ -298,7 +298,7 @@ export default function PropertyJourneyPage() {
       form.append('rightsConfirmed', 'true');
       const response = await fetch('/api/property-photo-upload', { method: 'POST', headers: authHeaders(), body: form });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok || !data?.reference?.storagePath) throw new Error(data?.error || 'Photo upload failed.');
+      if (!response.ok || !data?.ok || !data?.reference?.storagePath) throw new Error(data?.error || '3D build could not start.');
       setSourceReference(data.reference);
       setPendingPhoto(null);
       setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
@@ -442,10 +442,10 @@ export default function PropertyJourneyPage() {
         {displaySource ? <div className={styles.heroCard}><img src={displaySource} alt="Selected property reference"/><span className={styles.badge}>YOUR PHOTO</span></div> : <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>iPhone photos supported</span></div>}
         {pendingPhoto ? <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={usePhotoAndBuild} disabled={!rightsConfirmed || busy === 'upload'}>{busy === 'upload' ? 'Saving photo…' : 'Use photo → start build'}</button>
+          <button className={styles.primaryPurple} type="button" onClick={usePhotoAndBuild} disabled={!rightsConfirmed || busy === 'upload'}>{busy === 'upload' ? 'Starting 3D…' : 'Use photo → start build'}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another</button>
         </div> : <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>}
-        <p className={styles.truth}>The photo guides visible appearance only. One photo cannot verify unseen sides, roof details, exact dimensions, or legal property facts.</p>
+        <p className={styles.truth}>The photo guides visible appearance only. One photo cannot verify unseen sides, roof details, exact dimensions, or legal property facts. Voxel Vault does not need to retain the original source photo in its Storage bucket for this build.</p>
       </> : null}
 
       {step === 2 ? <>
