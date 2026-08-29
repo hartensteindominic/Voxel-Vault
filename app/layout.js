@@ -10,11 +10,11 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Voxel Vault | Spatial Asset OS',
+    default: 'Voxel Vault | 3D Property + Digital Assets',
     template: '%s | Voxel Vault',
   },
-  description: 'Create 3D assets, explore source-backed real places, organize digital and provider-backed holdings, observe reported income and use clearly separated ownership workflows in one spatial app.',
-  keywords: ['spatial assets', '3D creation', 'real estate digital twin', 'tokenized real estate', 'digital assets', 'Voxel Vault'],
+  description: 'Create digital property voxels, explore source-backed places in 3D, organize digital assets, and use clearly labeled demo, provider-backed, and title-based property workflows.',
+  keywords: ['3D property', 'digital property', 'voxel assets', 'real estate digital twin', 'digital collectibles', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: {
@@ -22,8 +22,8 @@ export const metadata = {
     apple: '/voxelpop/voxelpop-logo.png',
   },
   openGraph: {
-    title: 'Voxel Vault | Spatial Asset OS',
-    description: 'One organized spatial home for 3D creation, real-world exploration, digital assets, provider-backed finance and ownership workflows.',
+    title: 'Voxel Vault | 3D Property + Digital Assets',
+    description: 'Create digital property voxels, explore real places in source-backed 3D, and keep digital, demo, provider-backed, and title-based workflows clearly separated.',
     type: 'website',
     url: SITE_URL,
     siteName: 'Voxel Vault',
@@ -31,8 +31,8 @@ export const metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'Voxel Vault | Spatial Asset OS',
-    description: 'Create, explore, organize and verify spatial assets from one app.',
+    title: 'Voxel Vault | 3D Property + Digital Assets',
+    description: 'Create, explore, collect, and organize digital property assets with clear product-status boundaries.',
     images: ['/voxelpop/voxelpop-logo.png'],
   },
 };
