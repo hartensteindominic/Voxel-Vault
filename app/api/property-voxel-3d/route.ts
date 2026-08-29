@@ -178,7 +178,7 @@ export async function POST(request: Request) {
         image_url: imageUrl,
         model_type: 'smart-topology',
         ai_model: 'meshy-t2',
-        target_polycount: 18000,
+        target_polycount: 15000,
         should_texture: true,
         enable_pbr: true,
         texture_resolution: '2k',
