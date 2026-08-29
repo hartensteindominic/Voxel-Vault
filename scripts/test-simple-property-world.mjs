@@ -141,8 +141,9 @@ assert.match(success, /You collected a digital VoxelPop item/, 'success copy mus
 assert.match(vault, /Your collection\./, 'Vault should read as the collection/inventory hub');
 assert.match(vault, /Create Another/, 'Vault has a direct repeat loop');
 assert.match(vault, /View My World/, 'Vault links directly to My World');
-assert.match(vault, /MINT TO WALLET · OPTIONAL/, 'paid cards keep optional mint secondary');
+assert.match(vault, /VERIFY \+ MINT · OPTIONAL/, 'paid cards keep optional verified mint secondary');
 assert.match(world, /MY WORLD \+ PUBLIC WORLD/, 'signed-in World combines private account items and public shared items');
+assert.match(world, /Your voxels\./, 'signed-in World should describe the digital items as voxels, not physical properties');
 assert.match(world, /\/api\/world-properties\/mine/, 'World must load the authenticated private feed');
 assert.match(myWorldApi, /requireVoxelVaultUser/, 'My World feed is account authenticated');
 assert.match(myWorldApi, /private: draft\?\.world\?\.public !== true/, 'private Vault items stay labeled private');
