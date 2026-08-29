@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
+import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { attributionFromMetadata, recordVoxelPopEvent } from '../../../../lib/voxelpop-analytics';
 
 export const runtime = 'nodejs';
@@ -29,11 +30,13 @@ async function generateWithMeshy(apiKey:string,prompt:string,reference:string){
 async function generateWithOpenAI(prompt:string){const key=process.env.OPENAI_API_KEY;if(!key)throw new Error('OpenAI fallback is not configured.');const response=await fetch('https://api.openai.com/v1/images/generations',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'gpt-image-2',prompt,n:1,size:'1024x1024',quality:'medium'})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(String(result?.error?.message||`OpenAI returned ${response.status}`));const item=result?.data?.[0];if(item?.b64_json)return `data:image/png;base64,${item.b64_json}`;if(item?.url)return imageUrlToDataUri(String(item.url));throw new Error('OpenAI returned an empty image.');}
 
 export async function POST(request:Request){
+ const auth=await requireVoxelVaultUser(request);if(auth.ok===false)return NextResponse.json({error:'Sign in with Google before generating this VoxelPop asset.'},{status:auth.status});
  try{
   const body=await request.json();const sessionId=typeof body?.sessionId==='string'?body.sessionId:'';const idea=typeof body?.idea==='string'?body.idea.trim().slice(0,600):'';const style=typeof body?.style==='string'?body.style:'polished';const reference=typeof body?.reference==='string'?body.reference:'';const improve=body?.improve===true;
   if(!sessionId||idea.length<3)return NextResponse.json({error:'A purchase and a description are required.'},{status:400});
   if(reference&&(!reference.startsWith('data:image/')||reference.length>4_000_000))return NextResponse.json({error:'The reference image is too large. Please choose a smaller image.'},{status:400});
   const session=await stripe.checkout.sessions.retrieve(sessionId);if(session.payment_status!=='paid'||session.metadata?.product!=='voxelpop-3d-asset')return NextResponse.json({error:'A completed VoxelPop 3D Asset purchase is required.'},{status:403});
+  if(session.metadata?.voxelpop_user_id!==auth.user.id)return NextResponse.json({error:'This VoxelPop purchase belongs to a different signed-in account.'},{status:403});
   const attribution=attributionFromMetadata(session.metadata);const flowId=session.metadata?.flow_id||null;
   await recordVoxelPopEvent({eventName:'purchase_completed',eventKey:`purchase_completed:${session.id}`,flowId,stripeSessionId:session.id,attribution,details:{amount_cents:Number(session.amount_total||0),currency:session.currency||'usd'}});
   const used=Math.max(0,Number(session.metadata?.generations||0));if(used>=MAX_GENERATIONS)return NextResponse.json({error:'You have used all 3 voxel versions included with this purchase.'},{status:409});
