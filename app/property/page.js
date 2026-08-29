@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import ProductTopNav from '../components/ProductTopNav';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import PropertyJourneyExact from './PropertyJourneyExact';
+import './simple-flow.css';
 
 const DEMO_PURCHASE_KEY = 'voxel-vault:property-slice-purchases';
 const DRAFT_PREFIX = 'voxel-vault:property-draft:';
