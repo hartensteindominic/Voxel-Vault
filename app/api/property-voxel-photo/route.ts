@@ -37,6 +37,14 @@ function taskToken(apiKey: string, userId: string, draftId: string, taskId: stri
     .digest('hex');
 }
 
+// The existing final-3D route already verifies this account-scoped token
+// before it accepts a completed voxel-image task as the GLB source.
+function final3dTaskToken(apiKey: string, userId: string, taskId: string) {
+  return createHmac('sha256', apiKey)
+    .update(`property-voxel-image-v1:${userId}:${taskId}`)
+    .digest('hex');
+}
+
 function parseReferenceDataUrl(input: unknown) {
   const reference = String(input || '').trim();
   const match = reference.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
@@ -95,10 +103,12 @@ export async function POST(request: Request) {
     const reference = parseReferenceDataUrl(body?.reference);
     const reservation = await verifyPaidDraft(auth.user.id, draftId);
 
+    // A paid creation is supposed to finish as a 3D voxel, not strand the user
+    // after the 2D pass. Preflight the full remaining image + GLB budget first.
     const balance = await readMeshyCreditBalance(apiKey);
-    if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.voxelImage)) {
+    if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.afterSource)) {
       return privateJson(
-        meshyCreditError('starting the VoxelPop house image', MESHY_PROPERTY_CREDITS.voxelImage),
+        meshyCreditError('starting the VoxelPop image and final 3D build', MESHY_PROPERTY_CREDITS.afterSource),
         { status: 503 },
       );
     }
@@ -136,10 +146,14 @@ export async function POST(request: Request) {
       ok: true,
       taskId,
       taskToken: taskToken(apiKey, auth.user.id, draftId, taskId),
+      voxelImageTaskToken: final3dTaskToken(apiKey, auth.user.id, taskId),
       draftId,
       atlasId: reservation.atlasId,
+      identityKey: reservation.identityKey,
       propertyAddress: reservation.address,
       provider: 'meshy-nano-banana-voxelpop',
+      onePropertyOnePurchase: true,
+      onePropertyOneMint: true,
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'VoxelPop image generation could not start.' }, { status: 400 });
