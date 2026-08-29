@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
+import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { attributionFromMetadata, recordVoxelPopEvent } from '../../../../lib/voxelpop-analytics';
 
 export const runtime = 'nodejs';
@@ -12,12 +13,14 @@ function providerMessage(data:Record<string,unknown>){const taskError=data?.task
 function isProviderConfigFailure(message:string){const value=String(message||'').toLowerCase();return value.includes('image_enhancement')&&value.includes('not supported')&&value.includes('smart-topology');}
 
 export async function POST(request:Request){
+ const auth=await requireVoxelVaultUser(request);if(auth.ok===false)return NextResponse.json({error:'Sign in with Google before building this VoxelPop asset in 3D.'},{status:auth.status});
  const apiKey=process.env.MESHY_API_KEY;if(!apiKey)return NextResponse.json({configured:false,error:'3D mesh generation is not configured on this deployment.'},{status:503});
  try{
   const body=await request.json();const sessionId=typeof body?.sessionId==='string'?body.sessionId:'';const index=Number(body?.index);const image=typeof body?.image==='string'?body.image:'';const idea=typeof body?.idea==='string'?body.idea.trim().slice(0,420):'';const forceRestart=body?.forceRestart===true;
   if(index!==0)return NextResponse.json({error:'This purchase includes one voxel asset.'},{status:400});
   if(!/^data:image\/(png|jpeg);base64,/.test(image)||image.length>4_000_000)return NextResponse.json({error:'The generated source image is missing or too large.'},{status:400});
   const session=await paidSession(sessionId);if(!session)return NextResponse.json({error:'A completed VoxelPop 3D Asset purchase is required.'},{status:403});
+  if(session.metadata?.voxelpop_user_id!==auth.user.id)return NextResponse.json({error:'This VoxelPop purchase belongs to a different signed-in account.'},{status:403});
   const attribution=attributionFromMetadata(session.metadata);const flowId=session.metadata?.flow_id||null;
   const existingTask=session.metadata?.[taskKey];const retryKey='mesh_retry_0';let retryCount=Number(session.metadata?.[retryKey]||0);
   if(existingTask){
@@ -27,8 +30,6 @@ export async function POST(request:Request){
    const existingError=providerMessage(existingData);const providerConfigFailure=isProviderConfigFailure(existingError);
    if(!providerConfigFailure){if(retryCount>=1)return NextResponse.json({error:'This mesh has already used its retry. Please contact support if it still cannot finish.'},{status:409});retryCount+=1;}
   }
-  // Meshy smart-topology rejects image_enhancement. Keep smart topology and GLB/PBR output,
-  // but omit that incompatible option so paid mesh retries can complete normally.
   const meshPayload={image_url:image,model_type:'smart-topology',ai_model:'meshy-t2',target_polycount:12000,should_texture:true,enable_pbr:true,texture_resolution:'2k',target_formats:['glb']};
   const response=await fetch(MESH_ENDPOINT,{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify(meshPayload),cache:'no-store'});const data=await response.json().catch(()=>({}));if(!response.ok)return NextResponse.json({error:providerMessage(data)},{status:response.status});const taskId=String(data?.result||data?.id||'');if(!taskId)return NextResponse.json({error:'The 3D provider did not return a task ID.'},{status:502});
   await stripe.checkout.sessions.update(sessionId,{metadata:{...(session.metadata||{}),[taskKey]:taskId,[retryKey]:String(retryCount),mesh_name_0:String(body?.name||'your-voxel').slice(0,80),mesh_idea_0:idea.slice(0,120)}});await recordVoxelPopEvent({eventName:'mesh_started',eventKey:`mesh_started:${sessionId}:${taskId}`,flowId,stripeSessionId:sessionId,attribution,details:{reused:false,retry:retryCount}});return NextResponse.json({configured:true,reused:false,taskId});
