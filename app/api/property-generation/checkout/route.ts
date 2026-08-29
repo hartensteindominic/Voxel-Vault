@@ -5,8 +5,7 @@ import {
   PROPERTY_VOXEL_GENERATION_KIND,
   PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
   PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-  deleteStagedPropertyPhoto,
-  stagePaidPropertyPhoto,
+  describePaidPropertyPhoto,
 } from '../../../../lib/property-generation-payment';
 import {
   MESHY_PROPERTY_CREDITS,
@@ -35,9 +34,8 @@ export async function POST(request: Request) {
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
 
   const apiKey = process.env.MESHY_API_KEY?.trim();
-  if (!apiKey) return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
+  if (!apiKey) return privateJson({ ok: false, error: 'VoxelPop enhanced 3D generation is not configured on this deployment.' }, { status: 503 });
 
-  let stagedDraftId = '';
   try {
     const form = await request.formData();
     const photo = form.get('photo');
@@ -46,15 +44,18 @@ export async function POST(request: Request) {
     if (!(photo instanceof File)) return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
     if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
 
-    // Do not charge a customer unless the backend currently has enough Meshy
-    // capacity for the complete automatic source-3D -> voxel-image -> final-3D flow.
+    // This route is optional enhanced AI 3D. The default map-voxel path never
+    // calls Meshy. For the paid enhancement, never charge unless the provider
+    // account can currently afford the complete three-stage generation.
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
-      return privateJson(meshyCreditError('opening VoxelPop checkout', MESHY_PROPERTY_CREDITS.fullPipeline), { status: 503 });
+      return privateJson(meshyCreditError('opening optional enhanced VoxelPop checkout', MESHY_PROPERTY_CREDITS.fullPipeline), { status: 503 });
     }
 
-    const staged = await stagePaidPropertyPhoto(auth, draftId, photo);
-    stagedDraftId = staged.draftId;
+    // Hash and validate the source in request memory only. The browser keeps its
+    // own copy across Stripe; Voxel Vault does not create or write a checkout
+    // Storage bucket, which removes the previous private-storage failure mode.
+    const source = await describePaidPropertyPhoto(draftId, photo);
     const origin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
     const email = typeof auth.user.email === 'string' && auth.user.email.includes('@') ? auth.user.email : undefined;
 
@@ -66,8 +67,8 @@ export async function POST(request: Request) {
           currency: 'usd',
           unit_amount: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
           product_data: {
-            name: 'VoxelPop 3D Voxel Creation',
-            description: 'One custom digital VoxelPop creation: source 3D, voxel-style render, and final interactive 3D GLB. Digital creation only; no rights in physical real estate.',
+            name: 'VoxelPop Enhanced 3D Creation',
+            description: 'Optional enhanced AI 3D: source 3D, voxel-style render, and final interactive GLB. Digital creation only; no rights in physical real estate.',
           },
         },
       }],
@@ -76,16 +77,17 @@ export async function POST(request: Request) {
       metadata: {
         kind: PROPERTY_VOXEL_GENERATION_KIND,
         voxelpop_user_id: auth.user.id,
-        draft_id: staged.draftId,
-        source_storage_path: staged.storagePath,
-        source_sha256: staged.digest,
-        source_content_type: staged.contentType,
-        source_name: staged.fileName,
+        draft_id: source.draftId,
+        source_sha256: source.digest,
+        source_content_type: source.contentType,
+        source_name: source.fileName,
+        source_size_bytes: String(source.sizeBytes),
+        source_storage: 'browser_only_until_payment',
         rights_confirmed: 'true',
         price_cents: String(PROPERTY_VOXEL_GENERATION_PRICE_CENTS),
       },
-      success_url: `${origin}/property?generation_session={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/property?generation_checkout=cancelled&draftId=${encodeURIComponent(staged.draftId)}`,
+      success_url: `${origin}/property?generation_session={CHECKOUT_SESSION_ID}&draftId=${encodeURIComponent(source.draftId)}`,
+      cancel_url: `${origin}/property?generation_checkout=cancelled&draftId=${encodeURIComponent(source.draftId)}`,
     });
 
     if (!checkout.url) throw new Error('Stripe did not return a checkout URL.');
@@ -94,11 +96,11 @@ export async function POST(request: Request) {
       url: checkout.url,
       priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
       priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-      draftId: staged.draftId,
-      staged: true,
+      draftId: source.draftId,
+      photoHeldOnDevice: true,
+      serverStaging: false,
     });
   } catch (error) {
-    if (stagedDraftId) await deleteStagedPropertyPhoto(auth, stagedDraftId);
     return privateJson({
       ok: false,
       error: error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.',
@@ -106,16 +108,10 @@ export async function POST(request: Request) {
   }
 }
 
+// Compatibility endpoint for older clients. There is no server checkout photo
+// staging anymore, so cancellation has nothing private to delete on the server.
 export async function DELETE(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
-  try {
-    const url = new URL(request.url);
-    const draftId = clean(url.searchParams.get('draftId'), 100);
-    if (!draftId) return privateJson({ ok: false, error: 'draftId is required.' }, { status: 400 });
-    await deleteStagedPropertyPhoto(auth, draftId);
-    return privateJson({ ok: true, deleted: true });
-  } catch (error) {
-    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Checkout staging cleanup failed.' }, { status: 400 });
-  }
+  return privateJson({ ok: true, deleted: false, serverStaging: false });
 }
