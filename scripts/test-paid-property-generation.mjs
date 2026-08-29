@@ -64,15 +64,19 @@ assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credit
 assert.match(photoPreview, /CanvasTexture/, 'recognizable picture keeps the real source photo as the visible texture');
 assert.match(photoPreview, /PlaneGeometry/, '3D picture is a real Three.js surface rather than a static label change');
 assert.match(photoPreview, /setZ\(/, '3D picture adds bounded relief before voxelization');
+assert.match(photoPreview, /clamp\(relief, -0\.012, 0\.05\)/, '3D picture cannot distort the source photo with deep relief spikes');
 assert.match(photoPreview, /targetY = clamp/, '3D picture rotation is deliberately bounded so unseen sides are not invented');
 
-assert.match(viewer, /const GRID = 24/, 'photo-matched building uses a higher-detail local voxel grid');
+assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-detail 32-cell local voxel grid');
+assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
+assert.match(viewer, /keepBestComponent/, 'voxel extraction keeps the strongest connected building region');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells become empty space');
 assert.match(viewer, /if \(recipe\.depths\[index\] <= 0\) continue/, 'interactive voxel viewer does not instantiate background voxels');
 assert.match(viewer, /sourceImageUrl/, 'voxel sampling uses the original property photo');
 assert.match(viewer, /InstancedMesh/, 'local voxel is real WebGL geometry');
 assert.doesNotMatch(viewer, /backingGeometry/, 'the old square backing slab must stay removed');
 
+assert.match(localVoxel, /const MAX_SIDE = 32/, 'saved local recipe accepts the higher-detail 32-cell model');
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF preserves the empty background');
 assert.match(localVoxel, /silhouette-aware voxel recipe/, 'saved record documents the silhouette-aware model');
 assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt from the compact recipe');
