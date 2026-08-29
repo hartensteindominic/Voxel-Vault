@@ -56,7 +56,7 @@ export default function Home() {
           <h2>See the house first. Voxel it second.</h2>
         </div>
         <div className={styles.microFlow}>
-          <b>PHOTO</b><i>→</i><b>$4.99</b><i>→</i><b>3D PICTURE</b><i>→</i><b>3D VOXEL</b><i>→</i><b>MINT</b>
+          <b>UPLOAD</b><i>→</i><b>$4.99</b><i>→</i><b>3D PICTURE</b><i>→</i><b>3D VOXEL</b><i>→</i><b>MINT</b>
         </div>
         <Link className={styles.startButton} href="/property">CREATE MY VOXELPOP →</Link>
         <small>You approve the 3D picture before voxel conversion. Minting is optional and happens only after the finished voxel; My World mapping is optional too.</small>
