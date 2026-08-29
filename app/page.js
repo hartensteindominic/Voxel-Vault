@@ -5,6 +5,8 @@ import styles from './home.module.css';
 // Digital creation uses an authorized photo for an on-device VoxelPop preview and a source-backed mapped 3D place.
 // Collecting buys a digital collectible only. It does not buy the physical property or create deed/title, rent, occupancy, investment, or appreciation rights.
 // The $1.99 Property Slice remains a sandbox comparison tool unless a separately verified legal offering is available.
+// Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.
+// A 3D model, payment, map marker, Property Passport, or NFT is not a deed and does not create real-property rights.
 // Real-property investing, money movement, custody, exchange and tokenized economic rights remain provider-gated and fail closed.
 // Consumer flow: SIGN IN -> PHOTO -> VOXEL PREVIEW -> 3D MAP -> WORLD -> COLLECT + VAULT -> OPTIONAL VERIFIED MINT.
 export default function Home() {
