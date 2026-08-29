@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { inspectWorldAtlas } from '../../../../lib/world-atlas.js';
-import { createModelSignedUrl, readCatalog3DByTask } from '../../../../lib/catalog3dStore';
-import { propertyDraftItemId } from '../../../../lib/property-generation-ids';
 import {
   propertyCollectiblePaymentErrorMessage,
   secureStripePropertyCollectiblePurchase,
+  verifyOwnedFinalVoxelModel,
 } from '../../../../lib/property-collectible-commerce';
 
 export const runtime = 'nodejs';
@@ -27,27 +26,35 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url);
-    const sessionId = clean(url.searchParams.get('sessionId'), 260);
+    const sessionId = clean(url.searchParams.get('session_id') || url.searchParams.get('sessionId'), 260);
     if (!sessionId) return NextResponse.json({ ok: false, error: 'Checkout session is required.' }, { status: 400 });
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const purchase = await secureStripePropertyCollectiblePurchase({ session, expectedBuyerId: auth.user.id });
+    const verifiedModel = await verifyOwnedFinalVoxelModel({
+      userId: auth.user.id,
+      draftId: purchase.draftId,
+      modelTaskId: purchase.modelTaskId,
+    });
 
-    const atlas = await inspectWorldAtlas({ address: purchase.address, radiusMeters: 180 });
-    if (!atlas?.ok) throw new Error(atlas?.error || 'The purchased property could not be restored on World.');
-    const building = findMappedBuilding(atlas, purchase.atlasId);
-    if (!building) throw new Error('The purchased mapped building identity could not be restored. Your payment remains recorded; support can recover the Vault item from the purchase record.');
-
-    const model = await readCatalog3DByTask(purchase.modelTaskId);
-    const expectedItemId = propertyDraftItemId(auth.user.id, purchase.draftId, 'voxel');
-    if (!model?.item_id || model.item_id !== expectedItemId) throw new Error('The purchased voxel model no longer matches this signed-in creation.');
-    const modelUrl = model.model_storage_path
-      ? await createModelSignedUrl(model.model_storage_path, 6 * 60 * 60)
-      : model.model_url;
-    if (!modelUrl) throw new Error('The purchased voxel model is stored but could not be opened right now.');
+    let building: any = {
+      atlasId: purchase.atlasId,
+      latitude: null,
+      longitude: null,
+      geometry: null,
+      tags: { name: purchase.address },
+      height: null,
+      source: null,
+    };
+    try {
+      const atlas = await inspectWorldAtlas({ address: purchase.address, radiusMeters: 180 });
+      const resolved = atlas?.ok ? findMappedBuilding(atlas, purchase.atlasId) : null;
+      if (resolved) building = resolved;
+    } catch {}
 
     return NextResponse.json({
       ok: true,
+      paid: true,
       purchase: {
         identityKey: purchase.identityKey,
         atlasId: purchase.atlasId,
@@ -59,14 +66,22 @@ export async function GET(request: Request) {
         priceLabel: purchase.priceLabel,
         paid: true,
         sessionId,
+        purchasedAt: purchase.processedAt,
       },
       building,
       model: {
         taskId: purchase.modelTaskId,
-        modelUrl,
-        thumbnailUrl: model.thumbnail_url || null,
+        itemId: verifiedModel.savedModel.item_id,
+        modelUrl: verifiedModel.modelUrl,
+        thumbnailUrl: verifiedModel.savedModel.thumbnail_url || null,
       },
-      disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. It does not transfer the real property or create deed/title, rent, occupancy, investment or appreciation rights. Optional minting remains downstream of property verification.',
+      next: {
+        vault: '/vault/property-drafts',
+        createAnother: '/property',
+        world: '/world',
+        verifyAndMint: '/vault/properties/claim',
+      },
+      disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     const friendly = propertyCollectiblePaymentErrorMessage(error);
