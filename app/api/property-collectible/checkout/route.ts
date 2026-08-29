@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { inspectWorldAtlas } from '../../../../lib/world-atlas.js';
 import { readCatalog3DByTask } from '../../../../lib/catalog3dStore';
+import { normalizePropertyDraftId, propertyDraftItemId } from '../../../../lib/property-generation-ids';
 import {
   acquirePropertyCollectibleReservation,
   propertyCollectibleIdentity,
@@ -17,10 +17,6 @@ export const dynamic = 'force-dynamic';
 
 function clean(value: unknown, max = 300) {
   return String(value || '').trim().slice(0, max);
-}
-
-function userScope(userId: string) {
-  return createHash('sha256').update(`voxel-vault-property-draft:${userId}`).digest('hex').slice(0, 24);
 }
 
 function findMappedBuilding(atlas: any, atlasId: string) {
@@ -38,19 +34,16 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
-    const draftId = clean(body?.draftId, 180);
+    const draftId = normalizePropertyDraftId(body?.draftId);
     const modelTaskId = clean(body?.modelTaskId, 260);
-    if (!address || !atlasId || !draftId || !modelTaskId) {
+    if (!address || !atlasId || !modelTaskId) {
       return NextResponse.json({ ok: false, error: 'Finish the voxel and place it on World before checkout.' }, { status: 400 });
     }
 
     const savedModel = await readCatalog3DByTask(modelTaskId);
-    const expectedPrefix = `property-voxel:${userScope(auth.user.id)}:`;
-    if (!savedModel?.item_id || !String(savedModel.item_id).startsWith(expectedPrefix)) {
-      return NextResponse.json({ ok: false, error: 'That final voxel model does not belong to this signed-in account.' }, { status: 403 });
-    }
-    if (!String(savedModel.item_id).endsWith(`:${draftId}`)) {
-      return NextResponse.json({ ok: false, error: 'The final voxel model does not match this creation.' }, { status: 409 });
+    const expectedItemId = propertyDraftItemId(auth.user.id, draftId, 'voxel');
+    if (!savedModel?.item_id || savedModel.item_id !== expectedItemId) {
+      return NextResponse.json({ ok: false, error: 'That final voxel model does not belong to this signed-in creation.' }, { status: 403 });
     }
     if (!savedModel.model_url && !savedModel.model_storage_path) {
       return NextResponse.json({ ok: false, error: 'The final voxel model is not finished yet.' }, { status: 409 });
@@ -65,7 +58,7 @@ export async function POST(request: Request) {
 
     identityKey = propertyCollectibleIdentity(atlasId);
     const quote = quotePropertyCollectible(building);
-    let hold = await acquirePropertyCollectibleReservation({
+    const hold = await acquirePropertyCollectibleReservation({
       identityKey,
       buyerId: auth.user.id,
       atlasId,
