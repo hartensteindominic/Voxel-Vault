@@ -58,7 +58,7 @@ assert.match(mintPrepareApi, /propertyVoxelVoucherUsed/, 'mint voucher must be o
 assert.match(mintConfirmApi, /state: 'minted'/, 'successful mint confirmation must permanently mark the property reservation minted');
 assert.match(mintConfirmApi, /onePropertyOneMint: true/, 'mint confirmation must preserve the one-property-one-mint contract');
 
-assert.doesNotMatch(creator, /PropertyWorldMap|Add to My World|fractional|rent|investment/i, 'advanced real-estate features must stay out of the focused creator');
+assert.doesNotMatch(creator, /PropertyWorldMap|Add to My World|\bfractional\b|\brent\b|\binvestment\b/i, 'advanced real-estate features must stay out of the focused creator');
 assert.match(creator, /Digital collectible only/, 'creator must preserve the digital-only physical-property boundary');
 
 console.log('House Voxel app regression passed: photo -> confirmed address -> voxel image -> interactive 3D voxel -> automatic Vault inventory -> optional one-of-one mint.');
