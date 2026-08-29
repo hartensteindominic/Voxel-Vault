@@ -43,7 +43,7 @@ export default function PropertySlicePage() {
   const [sliceResult, setSliceResult] = useState(null);
   const [purchase, setPurchase] = useState({ demoUsdCents: DEFAULT_DEMO_USD_CENTS, demoUnits: 0, lastPurchase: null });
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('Sandbox only · no real money moves and no property rights are created.');
+  const [message, setMessage] = useState('Demo mode · nothing is charged and no real property rights move.');
 
   const selected = Number(slice.selectedPrice || 0);
   const benchmark = Number(slice.benchmarkPrice || 0);
@@ -53,6 +53,7 @@ export default function PropertySlicePage() {
   const slicePercent = sliceResult?.hypotheticalPercent ?? (benchmark > 0 ? (amount / benchmark) * 100 : 0);
   const demoBalance = money(purchase.demoUsdCents);
   const unitLabel = useMemo(() => unitLabelFor(purchase.demoUnits), [purchase.demoUnits]);
+  const needsRefill = adjustedCents > purchase.demoUsdCents;
 
   useEffect(() => {
     try {
@@ -75,10 +76,18 @@ export default function PropertySlicePage() {
     setSliceResult(null);
   }
 
+  function refillDemoBalance() {
+    const refillCents = Math.max(DEFAULT_DEMO_USD_CENTS, adjustedCents * 3);
+    const nextPurchase = { ...purchase, demoUsdCents: refillCents };
+    setPurchase(nextPurchase);
+    try { window.localStorage.setItem(PURCHASE_KEY, JSON.stringify(nextPurchase)); } catch {}
+    setMessage(`${money(refillCents)} demo balance ready · this is test credit, not money.`);
+  }
+
   async function testBuy(event) {
     event?.preventDefault?.();
     setBusy(true);
-    setMessage('Running the sandbox purchase…');
+    setMessage('Adding the demo slice…');
     try {
       const response = await fetch('/api/geo/property-slice', {
         method: 'POST',
@@ -94,7 +103,7 @@ export default function PropertySlicePage() {
         }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok) throw new Error(data?.error || 'Could not complete the sandbox purchase.');
+      if (!response.ok || !data?.ok) throw new Error(data?.error || 'Could not complete the demo purchase.');
 
       const result = data.result;
       const nextPurchase = {
@@ -113,9 +122,9 @@ export default function PropertySlicePage() {
         window.localStorage.setItem(SLICE_KEY, JSON.stringify({ slice, result: result.slice, savedAt: new Date().toISOString() }));
         window.localStorage.setItem(PURCHASE_KEY, JSON.stringify(nextPurchase));
       } catch {}
-      setMessage(`${money(result.purchase.debitDemoUsdCents)} demo purchase complete · ${unitLabelFor(result.purchase.demoUnitsAfter)} · no real funds, deed, equity, security, rent rights, or NFT moved.`);
+      setMessage(`Added 1 demo slice for ${money(result.purchase.debitDemoUsdCents)} · ${unitLabelFor(result.purchase.demoUnitsAfter)} now shown below.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not complete the sandbox purchase.');
+      setMessage(error instanceof Error ? error.message : 'Could not complete the demo purchase.');
     } finally {
       setBusy(false);
     }
@@ -124,46 +133,34 @@ export default function PropertySlicePage() {
   return <main className={styles.page}><div className={styles.phone}>
     <header className={styles.topbar}>
       <Link href="/" className={styles.brand}><VoxelLock/><strong>Voxel Vault</strong></Link>
-      <Link href="/more" className={styles.avatarButton} aria-label="Advanced tools"><span className={styles.pixelAvatar}><b/></span></Link>
+      <Link href="/more" className={styles.avatarButton} aria-label="More Voxel Vault tools"><span className={styles.pixelAvatar}><b/></span></Link>
     </header>
 
     <section className={styles.heading}>
-      <span>PROPERTY SLICE · SANDBOX</span>
-      <h1>What would $1.99 represent?</h1>
-      <p>Compare a tiny test amount across property reference values. This is math and demo credits—not a real investment, property reservation, security purchase, or deed transfer.</p>
+      <span>$1.99 PROPERTY SLICE · DEMO</span>
+      <h1>Try a property slice</h1>
+      <p>Choose a property, see its demo price, then tap Test Buy. It appears here as a demo slice. No checkout, wallet, real money, or real-estate ownership is involved.</p>
     </section>
 
     <form onSubmit={testBuy} className={styles.sliceForm}>
       <section className={styles.heroCard}>
         <div className={styles.sceneSide}>
-          <div className={styles.demoPill}>DEMO BALANCE · NOT MONEY · {demoBalance}</div>
+          <div className={styles.demoPill}>DEMO CREDIT · {demoBalance}</div>
           <VoxelScene/>
           <div className={styles.sceneCaption}><b>{slice.selectedName || 'Selected property'}</b><span>{referenceMoney(slice.selectedPrice)} reference value</span></div>
         </div>
         <div className={styles.buySide}>
-          <small>DEMO SLICE PRICE</small>
+          <small>DEMO PRICE</small>
           <div className={styles.heroPrice}>{money(adjustedCents)}</div>
-          <button className={styles.buyButton} disabled={busy || adjustedCents > purchase.demoUsdCents}>
-            <span className={styles.bag}>+</span>{busy ? 'Testing…' : adjustedCents > purchase.demoUsdCents ? 'Demo balance too low' : 'Test Buy'}
-          </button>
-          <div className={styles.sandbox}>Simulation only · no checkout · no wallet · no ownership</div>
+          {needsRefill ? <button className={styles.buyButton} type="button" onClick={refillDemoBalance}>Refill demo credit</button> : <button className={styles.buyButton} disabled={busy}>
+            <span className={styles.bag}>+</span>{busy ? 'Adding…' : 'Test Buy'}
+          </button>}
+          <div className={styles.sandbox}>{needsRefill ? 'Free test credit · no payment' : 'Demo only · nothing is charged'}</div>
         </div>
       </section>
 
-      <section className={styles.compareGrid}>
-        <div><span className={styles.houseBadge}>⌂</span><small>SELECTED</small><strong>{slice.selectedName || 'Selected property'}</strong><b>{referenceMoney(slice.selectedPrice)} reference</b></div>
-        <div><span className={styles.anchorBadge}>★</span><small>ANCHOR</small><strong>{slice.benchmarkName || 'Anchor property'}</strong><b>{referenceMoney(slice.benchmarkPrice)} → {money(toCents(slice.amount))}</b></div>
-      </section>
-
-      <section className={styles.metrics}>
-        <div><span className={styles.pie}><i/></span><span><small>Hypothetical fraction</small><strong>{percent(slicePercent)}</strong></span></div>
-        <div><span className={styles.bars}><i/><i/><i/></span><span><small>Selected vs. anchor</small><strong>{indexLabel(relativeIndex)}</strong></span></div>
-      </section>
-
-      <div className={styles.formula}><b>{money(toCents(slice.amount))}</b><span>×</span><b>{referenceMoney(slice.selectedPrice)}</b><span>÷</span><b>{referenceMoney(slice.benchmarkPrice)}</b><span>=</span><strong>{money(adjustedCents)}</strong></div>
-
       <details className={styles.details}>
-        <summary>Change the comparison</summary>
+        <summary>Change property or see how the demo price works</summary>
         <div className={styles.fields}>
           <label>Selected property<input value={slice.selectedName} onChange={(event) => changeSlice('selectedName', event.target.value)}/></label>
           <label>Selected reference value<input inputMode="decimal" value={slice.selectedPrice} onChange={(event) => changeSlice('selectedPrice', event.target.value)}/></label>
@@ -171,18 +168,27 @@ export default function PropertySlicePage() {
           <label>Anchor reference value<input inputMode="decimal" value={slice.benchmarkPrice} onChange={(event) => changeSlice('benchmarkPrice', event.target.value)}/></label>
           <label className={styles.fullField}>Anchor demo price<input inputMode="decimal" value={slice.amount} onChange={(event) => changeSlice('amount', event.target.value)}/></label>
         </div>
+        <section className={styles.compareGrid}>
+          <div><span className={styles.houseBadge}>⌂</span><small>SELECTED</small><strong>{slice.selectedName || 'Selected property'}</strong><b>{referenceMoney(slice.selectedPrice)} reference</b></div>
+          <div><span className={styles.anchorBadge}>★</span><small>ANCHOR</small><strong>{slice.benchmarkName || 'Anchor property'}</strong><b>{referenceMoney(slice.benchmarkPrice)} → {money(toCents(slice.amount))}</b></div>
+        </section>
+        <section className={styles.metrics}>
+          <div><span className={styles.pie}><i/></span><span><small>Hypothetical fraction</small><strong>{percent(slicePercent)}</strong></span></div>
+          <div><span className={styles.bars}><i/><i/><i/></span><span><small>Value vs. anchor</small><strong>{indexLabel(relativeIndex)}</strong></span></div>
+        </section>
+        <div className={styles.formula}><b>{money(toCents(slice.amount))}</b><span>×</span><b>{referenceMoney(slice.selectedPrice)}</b><span>÷</span><b>{referenceMoney(slice.benchmarkPrice)}</b><span>=</span><strong>{money(adjustedCents)}</strong></div>
       </details>
     </form>
 
     {purchase.lastPurchase ? <section className={styles.activityCard}>
-      <div><span>RECENT DEMO</span><h2>{purchase.lastPurchase.selectedName}</h2><p>{money(purchase.lastPurchase.priceCents)} demo balance → 1 simulated slice</p></div>
-      <div className={styles.activityValue}><small>SANDBOX TOTAL</small><strong>{unitLabel}</strong><span>{demoBalance} demo balance left</span></div>
+      <div><span>YOUR DEMO SLICE</span><h2>{purchase.lastPurchase.selectedName}</h2><p>{money(purchase.lastPurchase.priceCents)} demo credit → 1 simulated slice</p></div>
+      <div className={styles.activityValue}><small>DEMO TOTAL</small><strong>{unitLabel}</strong><span>{demoBalance} credit left</span></div>
     </section> : null}
 
     <div className={styles.status}>{message}</div>
     <div className={styles.nextLinks}>
-      <Link href="/property">Create a digital property voxel →</Link>
-      <Link href="/more">See verified/provider-gated features →</Link>
+      <Link href="/property">Explore a 3D property →</Link>
+      <Link href="/more">See other Voxel Vault tools →</Link>
     </div>
   </div></main>;
 }
