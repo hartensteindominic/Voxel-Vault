@@ -18,16 +18,17 @@ const realEstate = fs.readFileSync(new URL('../app/real-estate/page.js', import.
 const truthDocs = fs.readFileSync(new URL('../docs/UNIFIED_PROPERTY_MONEY_VAULT.md', import.meta.url), 'utf8');
 const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
-for (const label of ['Home', 'Create', 'World', 'Vault', 'More']) {
-  assert.match(productMap, new RegExp(`label: '${label}'`), `canonical product dock should include ${label}`);
-}
+for (const label of ['Home', 'Create', 'World', 'Vault', 'More']) assert.match(productMap, new RegExp(`label: '${label}'`));
 assert.match(productMap, /SIMPLE_PROPERTY_DOCK/);
-assert.doesNotMatch(productMap.split('export const APP_DOCK')[0], /label: '\$1\.99'|label: 'Rented'|label: 'Add'/, 'demo/rental shortcuts must not clutter the primary dock');
-assert.match(productMap, /Authorized photo → \$4\.99 digital creation → local voxel/, 'product directory must expose the paid local creation path');
+assert.doesNotMatch(productMap.split('export const APP_DOCK')[0], /label: '\$1\.99'|label: 'Rented'|label: 'Add'/);
+assert.match(productMap, /Authorized photo → \$4\.99 digital creation → local voxel/);
 assert.match(productMap, /\$1\.99 Property Demo/);
 assert.match(productMap, /fake demo balances only/i);
 assert.match(productMap, /No real funds or property rights move/);
-for (const badge of ['\$4\.99 DIGITAL', 'DEMO', 'PARTNER', 'TITLE']) assert.match(productMap, new RegExp(`badge: '${badge}'`));
+assert.match(productMap, /badge: '\$4\.99 DIGITAL'/);
+assert.match(productMap, /badge: 'DEMO'/);
+assert.match(productMap, /badge: 'PARTNER'/);
+assert.match(productMap, /badge: 'TITLE'/);
 for (const route of ['/property', '/vault/earth', '/geo', '/studio', '/marketplace', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/admin/integrations']) assert.ok(productMap.includes(`'${route}'`));
 
 assert.match(nav, /APP_DOCK/);
@@ -48,13 +49,18 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/);
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/);
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/);
 
-assert.match(rootHome, /START → SIGN IN \+ UPLOAD PHOTO/, 'front door must preserve the account gate');
+assert.match(rootHome, /START → SIGN IN \+ UPLOAD PHOTO/);
 assert.match(rootHome, /Upload a picture\./);
 assert.match(rootHome, /\$4\.99 digital creation checkout/);
 assert.match(rootHome, /Creation is \$4\.99/);
 assert.match(rootHome, /VOXELPOP CREATE/);
 assert.match(rootHome, /<strong>\$4\.99<\/strong>/);
-for (const label of ['UPLOAD', '\$4\.99', 'CREATING', '3D', 'MAP', 'READY']) assert.match(rootHome, new RegExp(`<b>${label}<\\/b>`));
+assert.match(rootHome, /<b>UPLOAD<\/b>/);
+assert.match(rootHome, /<b>\$4\.99<\/b>/);
+assert.match(rootHome, /<b>CREATING<\/b>/);
+assert.match(rootHome, /<b>3D<\/b>/);
+assert.match(rootHome, /<b>MAP<\/b>/);
+assert.match(rootHome, /<b>READY<\/b>/);
 assert.match(rootHome, /source photo stays on-device/i);
 assert.match(rootHome, /No wallet is required to create/i);
 assert.match(rootHome, /No Meshy credits are used/i);
@@ -64,7 +70,6 @@ assert.match(rootHome, /deed\/title, rent, occupancy, or investment rights/);
 assert.match(rootHome, /not itself a bank, broker, exchange, custodian, escrow service, or deed registry/);
 assert.doesNotMatch(rootHome, /PROPERTY · CASH · CRYPTO · NFT|TRY THE \$1\.99 SLICE|BUY A PIECE|BUY THE WHOLE THING/);
 
-// The $1.99 comparison remains a pure sandbox, not a faux bank/wallet surface.
 assert.match(slice, /PROPERTY SLICE · SANDBOX/);
 assert.match(slice, /DEMO BALANCE · NOT MONEY/);
 assert.match(slice, /Simulation only · no checkout · no wallet · no ownership/);
@@ -81,7 +86,6 @@ assert.match(capabilitiesApi, /automaticGeneration:\s*false/);
 assert.match(more, /Everything, without the clutter/i);
 assert.match(more, /APP_SECTIONS/);
 assert.match(more, /PRODUCT TRUTH RULE/);
-
 assert.match(integrationsApi, /requireVoxelVaultAdmin/);
 assert.match(integrationsApi, /MESHY_API_KEY/);
 assert.match(integrationsApi, /STRIPE_SECRET_KEY/);
