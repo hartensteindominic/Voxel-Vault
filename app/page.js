@@ -21,7 +21,7 @@ export default function Home() {
           <h1>Upload a picture.<br/><em>See your house in 3D.</em></h1>
           <p className={styles.lead}>Your photo becomes a recognizable 3D preview first. Approve it, then build the separate movable voxel.</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/property">Create my voxel · $4.99</Link>
+            <Link className={styles.primaryAction} href="/property" data-flow-label="START → SIGN IN + UPLOAD PHOTO">Create my voxel · $4.99</Link>
             <Link className={styles.secondaryAction} href="/demo">See the 3D demo</Link>
           </div>
           <div className={polish.quickFacts} aria-label="VoxelPop creation facts">
@@ -29,7 +29,7 @@ export default function Home() {
           </div>
           <details className={polish.heroDetails}>
             <summary>What’s included · privacy + accuracy</summary>
-            <p>After sign-in and checkout, you inspect the textured 3D preview, approve it, and only then build the voxel. Your source photo stays on your device in the normal creation flow and no Meshy credits are required. One photo cannot prove hidden sides or exact survey-grade dimensions.</p>
+            <p>After sign-in and the $4.99 creation checkout, you inspect the textured 3D preview, approve it, and only then build the voxel. One VoxelPop creation costs $4.99. Your source photo stays on your device and the normal creation flow works without Meshy credits. No wallet is required to create. One photo cannot prove hidden sides or exact survey-grade dimensions.</p>
           </details>
         </div>
 
