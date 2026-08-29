@@ -1,6 +1,7 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
 import FinancialOSNav from './components/FinancialOSNav';
 import AppCommandCenter from './components/AppCommandCenter';
+import ConsumerFooter from './components/ConsumerFooter';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 import './spatial-os-interactions.css';
@@ -39,5 +40,5 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body><WalletIdentityProvider>{children}<AppCommandCenter /><FinancialOSNav /></WalletIdentityProvider></body></html>;
+  return <html lang="en"><body><WalletIdentityProvider>{children}<ConsumerFooter/><AppCommandCenter/><FinancialOSNav/></WalletIdentityProvider></body></html>;
 }
