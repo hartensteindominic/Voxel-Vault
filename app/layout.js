@@ -1,11 +1,13 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
 import FinancialOSNav from './components/FinancialOSNav';
 import AppCommandCenter from './components/AppCommandCenter';
+import ConsumerHeader from './components/ConsumerHeader';
 import ConsumerFooter from './components/ConsumerFooter';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 import './spatial-os-interactions.css';
 import './voxelpop-cute-system.css';
+import './consumer-system.css';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
@@ -39,5 +41,5 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body><WalletIdentityProvider>{children}<ConsumerFooter/><AppCommandCenter/><FinancialOSNav/></WalletIdentityProvider></body></html>;
+  return <html lang="en"><body><WalletIdentityProvider><ConsumerHeader/>{children}<ConsumerFooter/><AppCommandCenter/><FinancialOSNav/></WalletIdentityProvider></body></html>;
 }
