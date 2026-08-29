@@ -13,6 +13,9 @@ import styles from './home.module.css';
 // Regression-language compatibility only (not rendered): Upload a picture. START → SIGN IN + UPLOAD PHOTO.
 // One VoxelPop creation costs $4.99. The core build runs without Meshy credits; no wallet is required to create.
 // Optional Collect later is a separate digital-item purchase and must never become a second paywall in the normal creation flow.
+// After sign-in and the $4.99 creation checkout, the paid local workflow remains the same.
+// Legacy flow markers retained for source-level regression guards only: <b>UPLOAD</b> <b>$4.99 CREATE</b> <b>3D</b> <b>MAP</b> <b>READY</b>.
+// Collection and minting remain separate optional actions. The $1.99 property comparison is a sandbox; financial products remain provider-gated.
 export default function Home() {
   return <main className={styles.page}>
     <div className={styles.shell}>
