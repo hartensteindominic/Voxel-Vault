@@ -10,18 +10,18 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Voxel Vault | Your 3D Asset Vault', template: '%s | Voxel Vault' },
-  description: 'Create and collect 3D voxel assets, explore real places, organize NFTs and connected financial tools, and keep ownership status clear in one spatial app.',
-  keywords: ['3D assets', 'voxel creator', 'NFT vault', 'spatial wallet', 'real estate digital twin', 'digital assets', 'Voxel Vault'],
+  title: { default: 'Voxel Vault | 3D Property + Digital Assets', template: '%s | Voxel Vault' },
+  description: 'Create paid digital VoxelPop property assets, explore source-backed places in 3D, organize digital collectibles, and keep demo, provider-backed, and title-based property workflows clearly separated.',
+  keywords: ['3D property', 'voxel creator', 'digital property', 'NFT vault', 'real estate digital twin', 'digital assets', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
-    title: 'Voxel Vault | Your 3D Asset Vault',
-    description: 'A playful spatial home for 3D creation, NFTs, real-world exploration and connected financial tools.',
+    title: 'Voxel Vault | 3D Property + Digital Assets',
+    description: 'Create digital VoxelPop property assets, explore source-backed places in 3D, and keep digital assets, demos, provider positions, and real-property title clearly separated.',
     type: 'website', url: SITE_URL, siteName: 'Voxel Vault', images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
   },
-  twitter: { card: 'summary', title: 'Voxel Vault | Your 3D Asset Vault', description: 'Create, explore, collect and organize spatial assets from one app.', images: ['/voxelpop/voxelpop-logo.png'] },
+  twitter: { card: 'summary', title: 'Voxel Vault | 3D Property + Digital Assets', description: 'Create, map, collect, and organize digital property assets with clear ownership boundaries.', images: ['/voxelpop/voxelpop-logo.png'] },
 };
 
 export const viewport = {
