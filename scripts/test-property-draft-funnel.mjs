@@ -21,33 +21,35 @@ assert.match(drafts, /timestamp\(draft\.updatedAt\) >= timestamp\(previous\.upda
 assert.match(drafts, /replaceLocalPropertyDrafts/, 'synced account drafts must be materializable back to local storage');
 assert.match(drafts, /voxel-vault:property-draft-saved/, 'a successful local save must notify the Vault sync bridge');
 assert.match(drafts, /localStorage\.setItem\(propertyDraftStorageKey/, '3D drafts must remain savable without a wallet');
+assert.match(drafts, /world:\s*\{\s*public:\s*false/, 'new property drafts must be private on World by default');
+assert.match(drafts, /setPropertyDraftWorldVisibility/, 'World sharing must be an explicit user action');
 
 assert.match(account, /avatar_style: \{ \.\.\.currentStyle, property_draft_library: bounded \}/, 'account sync must reuse the existing profile JSON without a new auth system');
 assert.match(account, /syncLocalPropertyDraftsToAccount/, 'local and account property drafts must merge on sign-in');
 assert.match(account, /deletePropertyDraftFromAccount/, 'deleting a synced draft must remove it from the account library');
 assert.match(account, /mergePropertyDraftRecords\(cloud, local\)/, 'cloud and browser libraries must merge by stable draft id');
-assert.match(syncBridge, /voxel-vault:property-draft-saved/, 'Vault-wide sync must react immediately after Earth saves a draft');
+assert.match(syncBridge, /voxel-vault:property-draft-saved/, 'Vault-wide sync must react immediately after a Vault save');
 assert.match(syncBridge, /savePropertyDraftToAccount/, 'signed-in saves must mirror to account storage automatically');
 assert.match(vaultLayout, /PropertyDraftSyncBridge/, 'automatic property draft sync must be mounted across Vault routes');
 
-assert.match(truth, /PROPERTY → 3D VOXEL MAKER/, 'Earth evidence must expose the 3D-first maker funnel');
-assert.match(truth, /NO MINT REQUIRED/, 'the primary property flow must clearly work without minting');
-assert.match(truth, />3D DRAFT</, '3D draft must be the first funnel step');
-assert.match(truth, />IMPROVE</, 'high-fidelity improvement must be a separate step');
-assert.match(truth, />SAVE</, 'saving must happen before verification/minting');
+assert.match(truth, /PROPERTY → 3D VOXEL MAKER/, 'advanced Earth evidence must retain the 3D-first maker funnel');
+assert.match(truth, /NO MINT REQUIRED/, 'creating a property draft must clearly work without minting');
+assert.match(truth, />3D DRAFT</, '3D draft must be the first advanced funnel step');
 assert.match(truth, />VERIFY</, 'property-right verification must remain separate');
 assert.match(truth, />MINT</, 'minting may remain available as a later step');
 assert.match(truth, /MINTING IS A LATER CHOICE, NOT THE CREATION STEP/, 'minting must never be the event that creates the property draft');
-assert.match(truth, /savePropertyDraft\(draft\)/, 'Earth must save the selected property draft without a mint transaction');
 assert.doesNotMatch(truth, /mintVoxelFlip|eth_requestAccounts|MetaMask/, 'the 3D draft maker must not require wallet code');
 
-assert.match(vaultPage, /NO WALLET REQUIRED · NO MINT REQUIRED/, 'saved drafts page must remain explicitly offchain-capable');
-assert.match(vaultPage, /syncLocalPropertyDraftsToAccount/, 'saved drafts page must expose cross-device account sync');
-assert.match(vaultPage, /CONTINUE WITH GOOGLE/, 'users must be able to opt into account sync');
-assert.match(vaultPage, /OPEN EXACT 3D/, 'saved draft cards must reopen their exact saved model');
+assert.match(vaultPage, /YOUR VAULT/, 'the consumer Vault must use simple property language');
+assert.match(vaultPage, /syncLocalPropertyDraftsToAccount/, 'the simplified Vault must retain cross-device account sync');
+assert.match(vaultPage, /SYNC WITH GOOGLE/, 'account sync must remain available without dominating the page');
+assert.match(vaultPage, /OPEN 3D/, 'saved property cards must reopen their exact 3D model');
 assert.match(vaultPage, /\/vault\/property-drafts\/\$\{encodeURIComponent\(draft\.id\)\}/, 'saved cards must deep-link by stable draft id');
+assert.match(vaultPage, /setPropertyDraftWorldVisibility/, 'World publication must be explicit from the Vault');
 assert.match(vaultPage, /deletePropertyDraftFromAccount/, 'synced deletions must not reappear from cloud storage');
-assert.match(vaultPage, /Saving this model does not create deed\/title/, 'saved draft page must preserve the legal/title boundary');
+assert.match(vaultPage, /VERIFY \+ MINT/, 'mint must remain downstream of verification in the simple Vault');
+assert.match(vaultPage, /Real ownership, fractional rights and title remain separate/, 'simplification must preserve the legal/title boundary');
+assert.doesNotMatch(vaultPage, /MetaMask|eth_requestAccounts/, 'the basic property Vault must not require a wallet');
 
 assert.match(draftViewer, /readPropertyDraft\(draftId\)/, 'exact viewer must first load the saved local geometry snapshot');
 assert.match(draftViewer, /loadAccountPropertyDrafts/, 'exact viewer must restore a missing local snapshot from the signed-in account');
@@ -56,10 +58,10 @@ assert.match(draftViewer, /parcelGeometry: draft\.geometry/, 'parcel-only drafts
 assert.match(draftViewer, /PARCEL · NO BUILDING INVENTED/, 'land drafts must disclose that no structure was invented');
 assert.match(draftViewer, /GeoReferenceModel/, 'saved property geometry must reopen inside the real 3D renderer');
 assert.match(draftViewer, /live map updates do not silently replace it/, 'viewer must explain that the snapshot is stable until explicitly updated');
-assert.match(draftViewer, /CHECK CURRENT MAP EVIDENCE/, 'viewer must be able to compare the saved snapshot with current map evidence without overwriting it');
+assert.match(draftViewer, /CHECK CURRENT MAP EVIDENCE/, 'viewer must compare the saved snapshot with current map evidence without overwriting it');
 assert.match(draftViewer, /not a deed or guaranteed perfect replica/i, 'exact viewer must keep legal and fidelity claims conservative');
 
-assert.match(earthPage, /PropertyTruthStack/, 'the 3D-first funnel must remain mounted in the main Earth property experience');
-assert.match(earthPage, /automatic|MESHY|Meshy/i, 'Earth must keep its existing controlled high-fidelity reconstruction layer');
+assert.match(earthPage, /PropertyTruthStack/, 'the advanced Earth property experience must remain available behind the simple product');
+assert.match(earthPage, /automatic|MESHY|Meshy/i, 'Earth must keep its controlled high-fidelity reconstruction layer');
 
-console.log('3D property draft checks passed: exact snapshots reopen in 3D, vacant land stays parcel-only, browser saves stay wallet-free, signed-in drafts sync across devices, synced deletion is supported, live evidence comparison does not overwrite the snapshot, and minting stays optional.');
+console.log('Property draft guards passed: simple Vault UX, wallet-free drafts, opt-in World sharing, account sync, exact 3D reopen, land truth, separate rights verification, and optional minting remain enforced.');
