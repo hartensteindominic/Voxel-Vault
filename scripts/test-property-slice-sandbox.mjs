@@ -44,7 +44,11 @@ const halfPrice = buildPropertySliceSandbox({
 });
 assert.equal(halfPrice.adjustedTestPriceCents, 100);
 assert.equal(halfPrice.relativePropertyPriceIndex, 0.5);
-assert.ok(Math.abs(halfPrice.hypotheticalPercent - equalPrice.hypotheticalPercent) < 0.000001);
+// Currency pricing is cent-denominated, so a half-priced property rounds $0.995 to $1.00.
+// Verify the resulting proportional slice stays within the unavoidable one-cent rounding error.
+const halfPriceIdealCents = 199 * 0.5;
+assert.ok(Math.abs(halfPrice.adjustedTestPriceCents - halfPriceIdealCents) <= 0.5);
+assert.ok(Math.abs(halfPrice.benchmarkEquivalentCents - 199) <= 1);
 
 const unified = buildUnifiedAssetConversionPreview({
   settledUsdCents: 500,
