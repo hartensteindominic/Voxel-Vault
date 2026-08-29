@@ -1,9 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import { readCatalog3DByTask } from '../../../lib/catalog3dStore';
 import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
-import { verifyPropertyGenerationRecoveryTaskId } from '../../../lib/property-generation-task';
+import {
+  propertyGenerationProviderTaskId,
+  verifyPropertyGenerationRecoveryTaskId,
+} from '../../../lib/property-generation-task';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -11,6 +15,7 @@ export const dynamic = 'force-dynamic';
 
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-image';
 const THREE_D_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
+const MAX_REFERENCE_BYTES = 6 * 1024 * 1024;
 const ALLOWED_RIGHTS_BASES = new Set(['user-owned', 'open-licensed', 'licensed-derivative']);
 const BLOCKED_REFERENCE_HOSTS = /(^|\.)(google\.com|googleusercontent\.com|gstatic\.com|googleapis\.com|maps\.googleapis\.com|streetviewpixels-pa\.googleapis\.com|zillow\.com|zillowstatic\.com|redfin\.com|cdn-redfin\.com|apartments\.com)$/i;
 
@@ -56,10 +61,7 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-async function recoveredGenerated3DReference(apiKey: string, userId: string, sourceTaskId: string) {
-  const providerTaskId = verifyPropertyGenerationRecoveryTaskId(apiKey, userId, sourceTaskId);
-  if (!providerTaskId) return null;
-
+async function freshGenerated3DThumbnail(apiKey: string, providerTaskId: string) {
   const response = await fetch(`${THREE_D_ENDPOINT}/${encodeURIComponent(providerTaskId)}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
@@ -80,6 +82,34 @@ async function recoveredGenerated3DReference(apiKey: string, userId: string, sou
   return thumbnailUrl;
 }
 
+async function stableReferenceDataUri(referenceUrl: string) {
+  const response = await fetch(referenceUrl, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('The generated 3D preview expired before VoxelPop could read it. Retry the build so the preview can be refreshed automatically.');
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_REFERENCE_BYTES) {
+    throw new Error('The generated 3D preview image is unavailable or too large to voxelize safely.');
+  }
+
+  const rawType = clean(response.headers.get('content-type'), 100).split(';')[0].toLowerCase();
+  let contentType = rawType === 'image/jpeg' || rawType === 'image/png' ? rawType : '';
+  if (!contentType) {
+    const isPng = bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    contentType = isPng ? 'image/png' : isJpeg ? 'image/jpeg' : '';
+  }
+  if (!contentType) throw new Error('The generated 3D preview was not a supported PNG or JPEG image.');
+  return `data:${contentType};base64,${bytes.toString('base64')}`;
+}
+
+async function recoveredGenerated3DReference(apiKey: string, userId: string, sourceTaskId: string) {
+  const providerTaskId = verifyPropertyGenerationRecoveryTaskId(apiKey, userId, sourceTaskId);
+  if (!providerTaskId) return null;
+  return freshGenerated3DThumbnail(apiKey, providerTaskId);
+}
+
 async function generated3DReference(apiKey: string, userId: string, draftIdRaw: unknown, sourceTaskIdRaw: unknown) {
   const draftId = normalizePropertyDraftId(draftIdRaw);
   const sourceTaskId = clean(sourceTaskIdRaw, 420);
@@ -91,16 +121,27 @@ async function generated3DReference(apiKey: string, userId: string, draftIdRaw: 
   if (saved) {
     if (saved.item_id !== expectedItemId) throw new Error('That first 3D build does not belong to this signed-in creation.');
     const sourceReady = Boolean(saved.model_storage_path || saved.model_url);
-    thumbnailUrl = clean(saved.thumbnail_url, 2200);
     if (!sourceReady) throw new Error('Finish the first 3D build before making the voxel.');
+
+    const providerTaskId = propertyGenerationProviderTaskId(saved.task_id || sourceTaskId);
+    if (providerTaskId) {
+      try {
+        thumbnailUrl = await freshGenerated3DThumbnail(apiKey, providerTaskId);
+      } catch {
+        thumbnailUrl = clean(saved.thumbnail_url, 2200);
+      }
+    } else {
+      thumbnailUrl = clean(saved.thumbnail_url, 2200);
+    }
   } else {
     thumbnailUrl = await recoveredGenerated3DReference(apiKey, userId, sourceTaskId) || '';
     if (!thumbnailUrl) throw new Error('That first 3D build does not belong to this signed-in creation.');
   }
 
   if (!isHttpUrl(thumbnailUrl)) throw new Error('The first 3D build finished without a usable preview render. Retry the 3D build before voxelizing it.');
+  const stableReference = await stableReferenceDataUri(thumbnailUrl);
   return [{
-    url: thumbnailUrl,
+    url: stableReference,
     rightsBasis: 'licensed-derivative',
     rightsReference: 'Voxel Vault generated this 3D preview from the signed-in user-authorized source photo for this creation.',
     label: 'Generated 3D preview',
@@ -161,7 +202,7 @@ export async function POST(request: Request) {
       taskToken: taskToken(apiKey, auth.user.id, taskId),
       referenceCount: references.length,
       sourceLabels: references.map((item) => item.label),
-      note: draftId ? 'Voxel styling started from the signed-in user’s completed 3D preview.' : 'Voxel creation started from rights-cleared property imagery.',
+      note: draftId ? 'Voxel styling started from a fresh, account-verified 3D preview snapshot.' : 'Voxel creation started from rights-cleared property imagery.',
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property voxel image generation failed.' }, { status: 400 });
