@@ -16,27 +16,18 @@ const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function clean(value: unknown, max = 240) {
-  return String(value || '').trim().slice(0, max);
-}
-
+function clean(value: unknown, max = 240) { return String(value || '').trim().slice(0, max); }
+function providerNeedsFunds(value: unknown) { return /insufficient (funds|credits)|credit balance|not enough credits|insufficient balance/i.test(String(value || '')); }
 function privateJson(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: { 'Cache-Control': 'private, no-store, max-age=0', ...(init.headers || {}) },
-  });
+  return NextResponse.json(body, { ...init, headers: { 'Cache-Control': 'private, no-store, max-age=0', ...(init.headers || {}) } });
 }
 
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
-  if (auth.ok === false) {
-    return privateJson({ ok: false, error: auth.error, setupRequired: auth.setupRequired === true }, { status: auth.status });
-  }
+  if (auth.ok === false) return privateJson({ ok: false, error: auth.error, setupRequired: auth.setupRequired === true }, { status: auth.status });
 
   const apiKey = process.env.MESHY_API_KEY?.trim();
-  if (!apiKey) {
-    return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
-  }
+  if (!apiKey) return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
 
   try {
     const form = await request.formData();
@@ -44,18 +35,10 @@ export async function POST(request: Request) {
     const draftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
 
-    if (!(photo instanceof File)) {
-      return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
-    }
-    if (!rightsConfirmed) {
-      return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
-    }
-    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) {
-      return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
-    }
-    if (photo.size <= 0 || photo.size > MAX_BYTES) {
-      return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
-    }
+    if (!(photo instanceof File)) return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
+    if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
+    if (photo.size <= 0 || photo.size > MAX_BYTES) return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
 
     const bytes = Buffer.from(await photo.arrayBuffer());
     const digest = createHash('sha256').update(bytes).digest('hex');
@@ -79,7 +62,14 @@ export async function POST(request: Request) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+      const providerError = data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.`;
+      return privateJson({
+        ok: false,
+        creditRequired: providerNeedsFunds(providerError),
+        error: providerNeedsFunds(providerError)
+          ? 'Premium 3D creation is temporarily unavailable because the generation provider has no credits. Your photo was not charged or stored by Voxel Vault. You can keep using the $1.99 Property Slice and existing Vault features.'
+          : providerError,
+      }, { status: response.status });
     }
 
     const providerTaskId = clean(data?.result || data?.id, 240);
@@ -102,12 +92,7 @@ export async function POST(request: Request) {
       error: null,
     });
 
-    // Do not orphan a provider job just because the account catalog table or
-    // private metadata bucket is temporarily unavailable. A signed recovery ID
-    // is scoped to this account and can be verified statelessly by later routes.
-    const taskId = saved?.task_id
-      || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
-
+    const taskId = saved?.task_id || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
     const uploadedAt = new Date().toISOString();
     return privateJson({
       ok: true,
@@ -122,20 +107,13 @@ export async function POST(request: Request) {
         storagePath: `meshy-source:${taskId}`,
         uploadedAt,
       },
-      source3d: {
-        taskId,
-        status: saved?.status || 'PENDING',
-        progress: Number(saved?.progress || 0),
-      },
+      source3d: { taskId, status: saved?.status || 'PENDING', progress: Number(saved?.progress || 0) },
       recoveryMode: !saved?.task_id,
       privacy: saved?.task_id
         ? 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.'
         : 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider. Account job storage was temporarily unavailable, so Voxel Vault returned a signed account-bound recovery task reference and retained no copy of the original photo.',
     });
   } catch (error) {
-    return privateJson({
-      ok: false,
-      error: error instanceof Error ? error.message : 'Property photo generation handoff failed.',
-    }, { status: 400 });
+    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property photo generation handoff failed.' }, { status: 400 });
   }
 }
