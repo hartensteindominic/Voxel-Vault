@@ -10,31 +10,31 @@ export default function Home() {
     <ProductTopNav/>
     <div className={styles.shell}>
       <section className={styles.hero}>
-        <p className={styles.kicker}>ONE PHOTO → ONE VOXEL</p>
+        <p className={styles.kicker}>PHOTO → VOXEL · $4.99</p>
         <h1><em>VOXELPOP</em></h1>
-        <p className={styles.heroLine}>Upload a property photo. Approve the 3D voxel photo. Your movable voxel is built and saved.</p>
+        <p className={styles.heroLine}>Photo in. Voxel out. Approve the 3D match, then rotate your voxel.</p>
 
         <div className={styles.centerMachine}>
           <HomeProductPreview/>
-          <Link className={styles.primaryAction} href="/property">Create mine · $4.99</Link>
-          <p className={styles.microCopy}>Saved to Vault automatically · NFT optional · no wallet needed to create</p>
+          <Link className={styles.primaryAction} href="/property">Create · $4.99</Link>
+          <p className={styles.microCopy}>Saved to Vault · mint optional</p>
         </div>
 
-        <div className={styles.simpleSteps} aria-label="VoxelPop creation flow">
-          <div><i>1</i><span><b>Choose photo</b><small>Pick one clear house photo.</small></span></div>
+        <div className={styles.simpleSteps} aria-label="VoxelPop steps">
+          <div><i>1</i><span><b>Photo</b><small>One clear house shot.</small></span></div>
           <div><i>2</i><span><b>Approve</b><small>Check the 3D voxel photo.</small></span></div>
-          <div><i>3</i><span><b>Done</b><small>Rotate your voxel. It is saved.</small></span></div>
+          <div><i>3</i><span><b>Done</b><small>Rotate. Saved to Vault.</small></span></div>
         </div>
       </section>
 
       <section className={styles.truthCard}>
-        <div><b>Simple by design.</b><span>Photo → review → movable voxel → saved.</span></div>
-        <p>VoxelPop creates a digital asset only. It does not create or transfer ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property.</p>
+        <div><b>Digital only.</b><span>Photo → review → voxel → Vault.</span></div>
+        <p>No deed, title, or physical-property rights.</p>
       </section>
 
       <footer className={styles.footer}>
-        <span>VoxelPop by Voxel Vault · digital creations only.</span>
-        <span><Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/about">About</Link></span>
+        <span>VoxelPop</span>
+        <span><Link href="/demo">Demo</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link></span>
       </footer>
     </div>
   </main>;
