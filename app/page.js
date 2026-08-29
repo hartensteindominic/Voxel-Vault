@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import HomeCapabilityStrip from './components/HomeCapabilityStrip';
 import styles from './home.module.css';
 
 const CORE = [
@@ -32,6 +33,8 @@ export default function Home() {
           <Link href="/more">SEE EVERYTHING</Link>
         </div>
       </section>
+
+      <HomeCapabilityStrip />
 
       <section className={styles.core}>
         <div className={styles.sectionHead}>
