@@ -1,13 +1,15 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
 import FinancialOSNav from './components/FinancialOSNav';
+import AppCommandCenter from './components/AppCommandCenter';
 import './vault-fallback.css';
 import './voxelpop-cute-system.css';
 import './ui-system.css';
+import './spatial-os-interactions.css';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
-const TITLE = 'VoxelPop | Photo in. Voxel out.';
-const DESCRIPTION = 'Turn a house photo into a 3D VoxelPop for $4.99. Approve the voxel photo, then get a movable 3D voxel. Saved to Vault. Mint optional.';
+const TITLE = 'VoxelPop | Turn a House Photo into a 3D Voxel Photo';
+const DESCRIPTION = 'Turn a House Photo into a 3D Voxel Photo for $4.99. Approve the voxel photo, then get a movable 3D voxel. Source photo stays on your device; minting is optional. Saved to Vault.';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -36,5 +38,5 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body><WalletIdentityProvider>{children}<FinancialOSNav/></WalletIdentityProvider></body></html>;
+  return <html lang="en"><body><WalletIdentityProvider>{children}<FinancialOSNav/><AppCommandCenter/></WalletIdentityProvider></body></html>;
 }
