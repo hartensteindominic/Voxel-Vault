@@ -9,6 +9,10 @@ function requireText(source, text, label) {
   if (!source.includes(text)) throw new Error(`${label}: missing required safety marker: ${text}`);
 }
 
+function requireMarkers(source, label, required) {
+  for (const marker of required) requireText(source, marker, label);
+}
+
 const status = read('app/api/property-platform/status/route.ts');
 const launch = read('lib/real-estate/legal-launch.js');
 const launchPage = read('app/real-estate/launch/page.js');
@@ -17,6 +21,7 @@ const token = read('contracts/PropertyInterestToken.sol');
 const passport = read('contracts/PropertyPassport.sol');
 const distribution = read('contracts/PropertyDistributionVault.sol');
 const root = read('app/page.js');
+const productMap = read('lib/product-map.js');
 const home = read('app/real-estate/page.js');
 const vault = read('app/real-estate/property/[propertyId]/page.js');
 const invest = read('app/real-estate/invest/page.js');
@@ -33,110 +38,154 @@ function loadLaunchPolicyForTest(source) {
   return Function(`${executable}\nreturn { evaluateLegalLaunch, launchGateDefinitions, legalEvidenceRecordFields, legalEvidenceRequirements, officialRegulatoryReferences, legalReadinessWorkstreams, regulatedLaunchPacket, partnerDiligenceChecklist, reviewReadyWorkItems };`)();
 }
 
-requireText(launch, 'LIVE_INVESTMENT_IMPLEMENTATION_READY = false', 'legal launch engine');
-requireText(launch, 'LIVE_AUTO_REINVESTMENT_IMPLEMENTATION_READY = false', 'legal launch engine');
-requireText(launch, 'LEGAL_EVIDENCE_VERIFIER_IMPLEMENTATION_READY = false', 'legal launch engine');
-requireText(launch, 'REAL_ESTATE_REGISTERED_INTERMEDIARY_ACTIVE', 'legal launch engine');
-requireText(launch, 'REAL_ESTATE_OFFERING_AUTHORIZED', 'legal launch engine');
-requireText(launch, 'REAL_ESTATE_ESCROW_SETTLEMENT_CONFIGURED', 'legal launch engine');
-requireText(launch, 'REAL_ESTATE_PROVIDER_INTEGRATION_VERIFIED', 'legal launch engine');
-requireText(launch, 'REAL_ESTATE_PUBLIC_TERMS_DISCLOSURES_APPROVED', 'legal launch engine');
-requireText(launch, 'Regulation Crowdfunding through a registered intermediary', 'legal launch engine');
-requireText(launch, 'officialRegulatoryReferences', 'legal launch engine');
-requireText(launch, 'productionDecisionAuthorities', 'legal launch engine');
-requireText(launch, 'regulatedLaunchPacket', 'legal launch engine');
-requireText(launch, 'partnerDiligenceChecklist', 'legal launch engine');
-requireText(launch, 'reviewReadyWorkItems', 'legal launch engine');
-requireText(launch, 'Funding portals we regulate', 'legal launch engine');
-requireText(launch, 'founder-provider-review-needed', 'legal launch engine');
-requireText(launch, 'Accept investor funds directly into Voxel Vault-controlled accounts.', 'legal launch engine');
-requireText(launch, 'New York-facing virtual-currency activity', 'legal launch engine');
-requireText(launch, 'environmentVariablesAreNotAuthority: true', 'legal launch engine');
-requireText(launch, 'asserted-unverified', 'legal launch engine');
-requireText(launch, 'authority-evidence-not-verified', 'legal launch engine');
+requireMarkers(launch, 'legal launch engine', [
+  'LIVE_INVESTMENT_IMPLEMENTATION_READY = false',
+  'LIVE_AUTO_REINVESTMENT_IMPLEMENTATION_READY = false',
+  'LEGAL_EVIDENCE_VERIFIER_IMPLEMENTATION_READY = false',
+  'REAL_ESTATE_REGISTERED_INTERMEDIARY_ACTIVE',
+  'REAL_ESTATE_OFFERING_AUTHORIZED',
+  'REAL_ESTATE_ESCROW_SETTLEMENT_CONFIGURED',
+  'REAL_ESTATE_PROVIDER_INTEGRATION_VERIFIED',
+  'REAL_ESTATE_PUBLIC_TERMS_DISCLOSURES_APPROVED',
+  'Regulation Crowdfunding through a registered intermediary',
+  'officialRegulatoryReferences',
+  'productionDecisionAuthorities',
+  'regulatedLaunchPacket',
+  'partnerDiligenceChecklist',
+  'reviewReadyWorkItems',
+  'Funding portals we regulate',
+  'founder-provider-review-needed',
+  'Accept investor funds directly into Voxel Vault-controlled accounts.',
+  'New York-facing virtual-currency activity',
+  'environmentVariablesAreNotAuthority: true',
+  'asserted-unverified',
+  'authority-evidence-not-verified',
+]);
 
-// The owner-only regulated securities rail is allowed to become live only through its own
-// provider gates. The direct-property rail remains a separate fail-closed launch path.
-requireText(status, 'liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true', 'property status route');
-requireText(status, 'liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true', 'property status route');
-requireText(status, 'liveInvestmentCheckout: liveSecuritiesProviderActivated', 'property status route');
-requireText(status, 'liveDigitalReitTradingImplementationReady: liveSecuritiesImplementationReady', 'property status route');
-requireText(status, 'liveDigitalReitTrading: liveSecuritiesProviderActivated', 'property status route');
-requireText(status, 'directSpecificProperty', 'property status route');
-requireText(status, 'providerActivated: directPropertyInvestingActivated', 'property status route');
-requireText(status, 'automatedAcquisitionEnabled: false', 'property status route');
-requireText(status, 'pooledPublicInvestingEnabled: false', 'property status route');
-requireText(status, 'automatedLiveAcquisition: false', 'property status route');
-requireText(status, 'liveAutomaticReinvestment: false', 'property status route');
-requireText(status, 'pooledPublicRentInvesting: false', 'property status route');
-requireText(status, 'mainnetPropertyTokenDeployment: false', 'property status route');
-requireText(status, 'evaluateLegalLaunch(process.env)', 'property status route');
-requireText(status, 'legalReadiness', 'property status route');
-requireText(status, 'officialReferences', 'property status route');
-requireText(status, 'regulatedLaunchPacket', 'property status route');
-requireText(status, 'partnerDiligenceChecklist', 'property status route');
-requireText(status, 'reviewReadyWorkItems', 'property status route');
-requireText(status, 'gateAssertions', 'property status route');
-requireText(status, 'allExternalGatesAsserted', 'property status route');
-requireText(status, 'evidenceVerifierImplementationReady', 'property status route');
-requireText(status, 'evidenceRegister', 'property status route');
-requireText(status, 'authorityEvidenceVerification: false', 'property status route');
-requireText(deploy, 'network.chainId !== 84532n', 'property deploy script');
-requireText(deploy, 'Base Sepolia only', 'property deploy script');
-requireText(deploy, 'PROPERTY_PASSPORT_ADDRESS', 'property deploy script');
-requireText(deploy, 'Property Passport is NOT minted at deployment', 'property deploy script');
-requireText(token, 'mapping(address account => bool allowed) public isAllowed', 'interest token');
-requireText(token, 'RecipientNotAllowed', 'interest token');
-requireText(passport, 'NOT the deed and NOT the investment security', 'property passport');
-requireText(passport, 'PropertyNotVerified', 'property passport');
-requireText(passport, 'PassportNonTransferable', 'property passport');
-requireText(passport, 'propertyRegistry.getProperty(propertyId)', 'property passport');
-requireText(distribution, 'ClaimantNotAllowed', 'distribution vault');
-requireText(distribution, 'interestToken.isAllowed(msg.sender)', 'distribution vault');
-requireText(distribution, 'InvalidStatementHash', 'distribution vault');
-requireText(root, "href: '/real-estate/reits'", 'root homepage');
-requireText(root, 'provider-backed real-estate investment workflows', 'root homepage');
-requireText(home, 'Demo data only', 'property homepage');
-requireText(home, 'Live investing is locked', 'property homepage');
-requireText(home, '/real-estate/property/', 'property homepage');
-requireText(vault, 'PROPERTY_RIGHT_TYPES.REFERENCE_ONLY', 'property vault');
-requireText(vault, 'geometry not yet verified', 'property vault');
-requireText(vault, 'No deed transfer occurs on-chain', 'property vault');
-requireText(vault, 'Public hashes, private source documents', 'property vault');
-requireText(invest, '/real-estate/launch', 'investment wallet page');
-requireText(invest, 'registered intermediary', 'investment wallet page');
-requireText(wallet, 'LIVE INVEST · LOCKED', 'auto-compound wallet');
-requireText(wallet, 'LIVE AUTO-REINVEST · LOCKED', 'auto-compound wallet');
-requireText(wallet, 'Confirm each', 'auto-compound wallet');
-requireText(launchPage, 'Regulation Crowdfunding + registered partner', 'legal launch page');
-requireText(launchPage, 'REAL-MONEY EXECUTION · LOCKED', 'legal launch page');
-requireText(launchPage, 'One real property. One real closing. One reconciled rent distribution.', 'legal launch page');
-requireText(launchPage, 'FOUNDER + CODEX WORKROOM', 'legal launch page');
-requireText(launchPage, 'REGULATED LAUNCH PACKET', 'legal launch page');
-requireText(launchPage, 'REVIEW-READY GITHUB QUEUE', 'legal launch page');
-requireText(launchPage, 'AUTHORITY EVIDENCE REGISTER', 'legal launch page');
-requireText(launchPage, 'LEGAL STATUS · NOT CLEARED', 'legal launch page');
-requireText(launchPage, 'EVIDENCE VERIFIER · NOT CONNECTED', 'legal launch page');
-requireText(launchPage, 'MONEY MOVEMENT ·', 'legal launch page');
-requireText(launchPage, 'Build around primary sources.', 'legal launch page');
-requireText(legalPlan, 'Shared Founder + Codex workroom', 'legal launch plan');
-requireText(legalPlan, 'Regulated Launch Packet', 'legal launch plan');
-requireText(legalPlan, 'Legal Review Data Room', 'legal launch plan');
-requireText(legalPlan, 'Legal Approval Evidence Specification', 'legal launch plan');
-requireText(legalPlan, 'SEC Regulation Crowdfunding', 'legal launch plan');
-requireText(legalPlan, 'New York DFS Virtual Currency Business Activity', 'legal launch plan');
-requireText(launchPacket, 'Voxel Vault is not currently:', 'regulated launch packet');
-requireText(launchPacket, 'registered broker-dealer', 'regulated launch packet');
-requireText(launchPacket, 'First outreach note', 'regulated launch packet');
-requireText(launchPacket, 'Environment variables, admin toggles, screenshots or founder approval do not satisfy legal authority by themselves.', 'regulated launch packet');
-requireText(dataRoom, 'Do not commit private legal, identity, banking, tenant, title, wallet-key, tax or property documents', 'legal review data room');
-requireText(dataRoom, 'Launch gate mapping', 'legal review data room');
-requireText(dataRoom, 'Public-safe implementation pattern', 'legal review data room');
-requireText(dataRoom, 'publicTermsDisclosuresApproved', 'legal review data room');
-requireText(evidenceSpec, 'No repository commit, founder decision, admin toggle, screenshot or environment variable can make an offering legal.', 'legal approval evidence spec');
-requireText(evidenceSpec, 'asserted-unverified', 'legal approval evidence spec');
-requireText(evidenceSpec, 'Production activation boundary', 'legal approval evidence spec');
-requireText(evidenceSpec, 'The current repository deliberately cannot satisfy this formula.', 'legal approval evidence spec');
+// The owner-only securities rail and the direct-property rail are intentionally separate.
+// A simple consumer homepage is allowed, but it must fail closed and the advanced directory
+// must preserve access to provider-backed investment workflows and their legal status.
+requireMarkers(status, 'property status route', [
+  'liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true',
+  'liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true',
+  'liveInvestmentCheckout: liveSecuritiesProviderActivated',
+  'liveDigitalReitTradingImplementationReady: liveSecuritiesImplementationReady',
+  'liveDigitalReitTrading: liveSecuritiesProviderActivated',
+  'directSpecificProperty',
+  'providerActivated: directPropertyInvestingActivated',
+  'automatedAcquisitionEnabled: false',
+  'pooledPublicInvestingEnabled: false',
+  'automatedLiveAcquisition: false',
+  'liveAutomaticReinvestment: false',
+  'pooledPublicRentInvesting: false',
+  'mainnetPropertyTokenDeployment: false',
+  'evaluateLegalLaunch(process.env)',
+  'legalReadiness',
+  'officialReferences',
+  'regulatedLaunchPacket',
+  'partnerDiligenceChecklist',
+  'reviewReadyWorkItems',
+  'gateAssertions',
+  'allExternalGatesAsserted',
+  'evidenceVerifierImplementationReady',
+  'evidenceRegister',
+  'authorityEvidenceVerification: false',
+]);
+
+requireMarkers(deploy, 'property deploy script', [
+  'network.chainId !== 84532n',
+  'Base Sepolia only',
+  'PROPERTY_PASSPORT_ADDRESS',
+  'Property Passport is NOT minted at deployment',
+]);
+requireMarkers(token, 'interest token', [
+  'mapping(address account => bool allowed) public isAllowed',
+  'RecipientNotAllowed',
+]);
+requireMarkers(passport, 'property passport', [
+  'NOT the deed and NOT the investment security',
+  'PropertyNotVerified',
+  'PassportNonTransferable',
+  'propertyRegistry.getProperty(propertyId)',
+]);
+requireMarkers(distribution, 'distribution vault', [
+  'ClaimantNotAllowed',
+  'interestToken.isAllowed(msg.sender)',
+  'InvalidStatementHash',
+]);
+
+requireMarkers(root, 'simple root homepage', [
+  'Add a property.',
+  'Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.',
+  'A 3D model or NFT alone is not a deed.',
+  'href="/more"',
+]);
+requireMarkers(productMap, 'advanced product directory', [
+  "href: '/real-estate/reits'",
+  'Browse provider-backed real-estate securities and sandbox/live states.',
+  "href: '/real-estate/acquire'",
+  "href: '/vault/properties/claim'",
+]);
+
+requireMarkers(home, 'property homepage', [
+  'Demo data only',
+  'Live investing is locked',
+  '/real-estate/property/',
+]);
+requireMarkers(vault, 'property vault', [
+  'PROPERTY_RIGHT_TYPES.REFERENCE_ONLY',
+  'geometry not yet verified',
+  'No deed transfer occurs on-chain',
+  'Public hashes, private source documents',
+]);
+requireMarkers(invest, 'investment wallet page', [
+  '/real-estate/launch',
+  'registered intermediary',
+]);
+requireMarkers(wallet, 'auto-compound wallet', [
+  'LIVE INVEST · LOCKED',
+  'LIVE AUTO-REINVEST · LOCKED',
+  'Confirm each',
+]);
+requireMarkers(launchPage, 'legal launch page', [
+  'Regulation Crowdfunding + registered partner',
+  'REAL-MONEY EXECUTION · LOCKED',
+  'One real property. One real closing. One reconciled rent distribution.',
+  'FOUNDER + CODEX WORKROOM',
+  'REGULATED LAUNCH PACKET',
+  'REVIEW-READY GITHUB QUEUE',
+  'AUTHORITY EVIDENCE REGISTER',
+  'LEGAL STATUS · NOT CLEARED',
+  'EVIDENCE VERIFIER · NOT CONNECTED',
+  'MONEY MOVEMENT ·',
+  'Build around primary sources.',
+]);
+requireMarkers(legalPlan, 'legal launch plan', [
+  'Shared Founder + Codex workroom',
+  'Regulated Launch Packet',
+  'Legal Review Data Room',
+  'Legal Approval Evidence Specification',
+  'SEC Regulation Crowdfunding',
+  'New York DFS Virtual Currency Business Activity',
+]);
+requireMarkers(launchPacket, 'regulated launch packet', [
+  'Voxel Vault is not currently:',
+  'registered broker-dealer',
+  'First outreach note',
+  'Environment variables, admin toggles, screenshots or founder approval do not satisfy legal authority by themselves.',
+]);
+requireMarkers(dataRoom, 'legal review data room', [
+  'Do not commit private legal, identity, banking, tenant, title, wallet-key, tax or property documents',
+  'Launch gate mapping',
+  'Public-safe implementation pattern',
+  'publicTermsDisclosuresApproved',
+]);
+requireMarkers(evidenceSpec, 'legal approval evidence spec', [
+  'No repository commit, founder decision, admin toggle, screenshot or environment variable can make an offering legal.',
+  'asserted-unverified',
+  'Production activation boundary',
+  'The current repository deliberately cannot satisfy this formula.',
+]);
 
 const {
   evaluateLegalLaunch,
@@ -190,4 +239,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, the separate owner-only securities rail stays provider-gated, and property deployment is Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the simple home stays fail-closed without advertising regulated rails, advanced provider-backed investment routes remain discoverable, direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
