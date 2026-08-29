@@ -29,11 +29,12 @@ const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
-// Front door stays simple and legally separate from physical-property ownership.
-assert.match(home, /PHOTO → 3D → VOXEL → YOUR WORLD/, 'home must advertise the photo-first journey');
-assert.match(home, /START → SIGN IN/, 'home must enter the account-gated maker');
+// Front door stays simple, accurate and legally separate from physical-property ownership.
+assert.match(home, /Photo → voxel → mapped 3D\./, 'home must describe the actual zero-credit property journey');
+assert.match(home, /START → SIGN IN \+ CREATE/, 'home must enter the account-gated maker');
 assert.match(home, /wallet is optional|A wallet is optional/i, 'wallet must not block creation or checkout');
 assert.match(home, /does not buy the physical property/i, 'home must distinguish collecting the voxel from buying real property');
+assert.match(home, /0<\/strong><span>Meshy credits/, 'home should make normal zero-Meshy creation obvious');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed/i, 'unverified real-property purchase language must stay out of the simple home');
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
 assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple must remain');
@@ -142,7 +143,7 @@ assert.match(canonicalRegistry, /PropertyAlreadyRegistered/, 'canonical registry
 assert.match(propertyPassport, /PassportAlreadyMinted/, 'Property Passport rejects a second canonical mint');
 assert.match(interestToken, /off-chain legal/, 'economic rights remain defined separately by legal agreements');
 
-assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'fixed app dock stays out of guided maker');
+assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'consumer navigation must use the canonical condensed dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
 console.log('Guided VoxelPop property checks passed: sign in -> authorized on-device voxel preview -> source-backed Overture/OSM 3D neighborhood -> private My World preview -> optional server-priced digital collection -> Vault -> optional verified mint, with no Meshy or pre-generation Storage dependency.');
