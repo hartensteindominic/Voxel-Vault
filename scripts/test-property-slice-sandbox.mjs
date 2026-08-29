@@ -10,7 +10,6 @@ const equalPrice = buildPropertySliceSandbox({
   propertyReferencePriceCents: 10_000_000,
   benchmarkReferencePriceCents: 10_000_000,
 });
-
 assert.equal(equalPrice.amountCents, DEFAULT_PROPERTY_SLICE_CENTS);
 assert.equal(equalPrice.amountCents, 199);
 assert.equal(equalPrice.benchmarkAnchorAmountCents, 199);
@@ -30,7 +29,6 @@ const doublePrice = buildPropertySliceSandbox({
   propertyReferencePriceCents: 20_000_000,
   benchmarkReferencePriceCents: 10_000_000,
 });
-
 assert.equal(doublePrice.relativePropertyPriceIndex, 2);
 assert.equal(doublePrice.relativeSliceWeight, 0.5);
 assert.equal(doublePrice.adjustedTestPriceCents, 398);
@@ -45,8 +43,6 @@ const halfPrice = buildPropertySliceSandbox({
 });
 assert.equal(halfPrice.adjustedTestPriceCents, 100);
 assert.equal(halfPrice.relativePropertyPriceIndex, 0.5);
-// Currency pricing is cent-denominated, so a half-priced property rounds $0.995 to $1.00.
-// Verify the resulting proportional slice stays within the unavoidable one-cent rounding error.
 const halfPriceIdealCents = 199 * 0.5;
 assert.ok(Math.abs(halfPrice.adjustedTestPriceCents - halfPriceIdealCents) <= 0.5);
 assert.ok(Math.abs(halfPrice.benchmarkEquivalentCents - 199) <= 1);
@@ -64,6 +60,9 @@ assert.equal(purchase.purchase.selectedName, 'Test home');
 assert.equal(purchase.purchase.debitDemoUsdCents, 199);
 assert.equal(purchase.purchase.demoUnitsAdded, 1);
 assert.equal(purchase.purchase.demoUnitsAfter, 3);
+assert.equal(purchase.purchase.autoFundedSandbox, false);
+assert.equal(purchase.balances.demoUsdRequestedBeforeCents, 1_240);
+assert.equal(purchase.balances.demoUsdAutoTopUpCents, 0);
 assert.equal(purchase.balances.demoUsdBeforeCents, 1_240);
 assert.equal(purchase.balances.demoUsdAfterCents, 1_041);
 assert.equal(purchase.legalEffects.transfersRealFunds, false);
@@ -76,13 +75,23 @@ assert.equal(purchase.legalEffects.createsLlcInterest, false);
 assert.equal(purchase.legalEffects.mintsNft, false);
 assert.equal(purchase.legalEffects.mintsRealEstateSecurity, false);
 assert.equal(purchase.legalEffects.reservesProperty, false);
-assert.throws(() => buildSandboxPropertyPurchase({
+
+const autoFunded = buildSandboxPropertyPurchase({
+  selectedName: 'Low demo balance home',
   amountCents: 199,
   propertyReferencePriceCents: 10_000_000,
   benchmarkReferencePriceCents: 10_000_000,
-  demoUsdBalanceCents: 198,
+  demoUsdBalanceCents: 50,
   existingDemoUnits: 0,
-}), /Not enough demo USD/);
+});
+assert.equal(autoFunded.purchase.autoFundedSandbox, true);
+assert.equal(autoFunded.balances.demoUsdRequestedBeforeCents, 50);
+assert.equal(autoFunded.balances.demoUsdAutoTopUpCents, 149);
+assert.equal(autoFunded.balances.demoUsdBeforeCents, 199);
+assert.equal(autoFunded.balances.demoUsdAfterCents, 0);
+assert.equal(autoFunded.purchase.demoUnitsAfter, 1);
+assert.equal(autoFunded.legalEffects.transfersRealFunds, false);
+assert.match(autoFunded.note, /auto-refills/i);
 
 const unified = buildUnifiedAssetConversionPreview({
   settledUsdCents: 500,
@@ -90,7 +99,6 @@ const unified = buildUnifiedAssetConversionPreview({
   estimatedNftValueCents: 3_000,
   propertyGoalCents: 1_000,
 });
-
 assert.equal(unified.balances.estimatedTotalCents, 6_500);
 assert.equal(unified.spendableNowCents, 500);
 assert.equal(unified.legalEffects.executesTrade, false);
