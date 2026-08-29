@@ -27,8 +27,10 @@ assert.match(property, /VERIFY → MINT/, 'mint must stay downstream of rights v
 assert.match(property, /SHOW ON WORLD/, 'property must have one explicit public-share action');
 assert.match(property, /fractionRail\?\.liveExecutionReady === true/, 'fractional execution must be gated by a verified live rail');
 assert.match(property, /No verified fractional offering is connected to this exact property yet/, 'unavailable fractional purchases must fail closed in plain language');
-assert.match(property, /if \(exactSale\?\.sourceUrl\)/, 'full purchase must require an authorized sale source');
-assert.match(property, /not currently tied to an authorized sale listing/, 'unlisted full-property purchase must fail closed');
+assert.match(property, /listingMatchesResolvedAddress\(item, resolvedQuery\)/, 'whole-property handoff must require an exact resolved-address match, not just geographic proximity');
+assert.match(property, /Boolean\(item\?\.sourceUrl\)/, 'whole-property handoff must require an authorized source URL');
+assert.match(property, /if \(exactSale\?\.sourceUrl\)/, 'whole-property action must fail closed unless the exact authorized sale is resolved');
+assert.match(property, /not currently tied to an authorized matching sale listing/, 'unlisted or mismatched full-property purchase must fail closed');
 assert.match(property, /resolvedQuery/, 'saved property identity must stay tied to the address that actually resolved');
 assert.match(property, /NO BUILDING INVENTED/, 'land and location-only properties must not receive a fake building');
 assert.match(property, /savePropertyDraft/, '3D property saving must not depend on purchase execution');
@@ -66,4 +68,4 @@ assert.match(productMap, /isSimplePropertyRoute/, 'simple consumer routes must b
 assert.match(dock, /simple \? SIMPLE_PROPERTY_DOCK : APP_DOCK/, 'consumer routes must render the four-item dock instead of the legacy five-product dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from Home/Add/Vault/World');
 
-console.log('Ultra-simple property flow checks passed: one address, gated piece/whole purchase, verify-before-mint, simple Vault, opt-in public World, privacy-rounded geography, voxel-house globe markers, and a four-button iPhone dock.');
+console.log('Ultra-simple property flow checks passed: one address, exact-match gated piece/whole purchase, verify-before-mint, simple Vault, opt-in public World, privacy-rounded geography, voxel-house globe markers, and a four-button iPhone dock.');
