@@ -9,10 +9,10 @@ function loadErrorMessage(error) {
   return 'The interactive 3D model could not be loaded right now.';
 }
 
-async function fetchModelBlob(modelUrl, deadRef) {
+async function fetchModelBlob(modelUrl, isDead) {
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (deadRef.current) throw new Error('Viewer closed.');
+    if (isDead()) throw new Error('Viewer closed.');
     try {
       const response = await fetch(modelUrl, { cache: 'no-store' });
       if (!response.ok) {
@@ -25,7 +25,7 @@ async function fetchModelBlob(modelUrl, deadRef) {
       return URL.createObjectURL(bytes);
     } catch (error) {
       lastError = error;
-      if (attempt === 0 && !deadRef.current) await new Promise((resolve) => window.setTimeout(resolve, 650));
+      if (attempt === 0 && !isDead()) await new Promise((resolve) => window.setTimeout(resolve, 650));
     }
   }
   throw lastError || new Error('3D file request failed.');
@@ -33,7 +33,6 @@ async function fetchModelBlob(modelUrl, deadRef) {
 
 export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
   const mountRef = useRef(null);
-  const deadRef = useRef(false);
   const [error, setError] = useState('');
   const [phase, setPhase] = useState('loading');
   const [retryKey, setRetryKey] = useState(0);
@@ -52,7 +51,8 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
 
   useEffect(() => {
     if (!modelUrl || !mountRef.current) return undefined;
-    deadRef.current = false;
+    let dead = false;
+    let failed = false;
     let cleanup = () => {};
     let objectUrl = '';
     setError('');
@@ -61,9 +61,9 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
     Promise.all([
       import('three'),
       import('three/examples/jsm/loaders/GLTFLoader.js'),
-      fetchModelBlob(modelUrl, deadRef),
+      fetchModelBlob(modelUrl, () => dead),
     ]).then(([THREE, loaderModule, localModelUrl]) => {
-      if (deadRef.current || !mountRef.current) {
+      if (dead || !mountRef.current) {
         URL.revokeObjectURL(localModelUrl);
         return;
       }
@@ -73,6 +73,7 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
+        failed = true;
         setError('Interactive 3D is unavailable in this browser, so the property image is staying visible.');
         setPhase('error');
         URL.revokeObjectURL(objectUrl);
@@ -123,10 +124,9 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
       scene.add(floor);
 
       const loader = new loaderModule.GLTFLoader();
-      let model = null;
       loader.load(localModelUrl, (gltf) => {
-        if (deadRef.current) return;
-        model = gltf.scene;
+        if (dead) return;
+        const model = gltf.scene;
         model.traverse((object) => {
           if (!object?.isMesh) return;
           object.castShadow = !compact;
@@ -152,7 +152,8 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
         renderer.domElement.style.opacity = '1';
         setPhase('ready');
       }, undefined, (loadError) => {
-        if (!deadRef.current) {
+        if (!dead) {
+          failed = true;
           setError(loadErrorMessage(loadError));
           setPhase('error');
         }
@@ -229,7 +230,7 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
       let lastRender = 0;
       const animate = (time = 0) => {
         frame = requestAnimationFrame(animate);
-        if (!visible || !pageVisible || phase === 'error') return;
+        if (!visible || !pageVisible || failed) return;
         if (compact && time - lastRender < 33) return;
         lastRender = time;
         if (!reducedMotion && pointers.size === 0 && !moved) targetY += 0.00065;
@@ -272,7 +273,8 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
         if (objectUrl) URL.revokeObjectURL(objectUrl);
       };
     }).catch((loadError) => {
-      if (!deadRef.current) {
+      if (!dead) {
+        failed = true;
         setError(loadErrorMessage(loadError));
         setPhase('error');
       }
@@ -280,7 +282,7 @@ export default function MeshyModelViewer({ modelUrl, posterUrl = '' }) {
     });
 
     return () => {
-      deadRef.current = true;
+      dead = true;
       cleanup();
     };
   }, [modelUrl, retryKey]);
