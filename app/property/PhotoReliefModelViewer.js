@@ -31,71 +31,71 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
 
         const mount = mountRef.current;
         const initialWidth = Math.max(280, mount.clientWidth || 360);
-        const initialHeight = Math.max(280, mount.clientHeight || 360);
+        const initialHeight = Math.max(250, mount.clientHeight || 320);
         const compact = initialWidth < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.2 : 1.55));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.15 : 1.45));
         renderer.setSize(initialWidth, initialHeight);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.06;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMappingExposure = 0.98;
         renderer.setClearColor(0x000000, 0);
         renderer.domElement.style.touchAction = 'none';
         renderer.domElement.tabIndex = 0;
-        renderer.domElement.setAttribute('aria-label', 'Interactive 3D voxel photo. Drag or use the arrow keys to inspect the real voxel depth.');
+        renderer.domElement.setAttribute('aria-label', 'Interactive high-fidelity 3D voxel photo. The front view preserves the photographed house. Drag gently or use the arrow keys to inspect the shallow voxel depth.');
         mount.innerHTML = '';
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(31, initialWidth / initialHeight, 0.1, 80);
+        const camera = new THREE.PerspectiveCamera(28, initialWidth / initialHeight, 0.1, 60);
         const objectGroup = new THREE.Group();
         scene.add(objectGroup);
 
-        scene.add(new THREE.HemisphereLight(0xfffcf3, 0x201427, 2.3));
-        const key = new THREE.DirectionalLight(0xfff8ee, 3.45);
-        key.position.set(5.2, 6.4, 7.5);
-        key.castShadow = true;
-        key.shadow.mapSize.set(compact ? 512 : 1024, compact ? 512 : 1024);
+        // Neutral lighting keeps source colors recognizable while still revealing the
+        // physical side faces of every cube when the user rotates the photo slightly.
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x26192e, 2.65));
+        const key = new THREE.DirectionalLight(0xfffbf5, 1.05);
+        key.position.set(4.5, 5.2, 7.4);
         scene.add(key);
-        const fill = new THREE.DirectionalLight(0xd8ceff, 1.3);
-        fill.position.set(-4.7, 2.8, 4.2);
+        const fill = new THREE.DirectionalLight(0xe7e1ff, 0.42);
+        fill.position.set(-4.2, 2.2, 4.6);
         scene.add(fill);
-        const rim = new THREE.DirectionalLight(0xdfff9c, 0.92);
-        rim.position.set(3.8, 4.7, -4.2);
+        const rim = new THREE.DirectionalLight(0xf2ffd2, 0.28);
+        rim.position.set(3.5, 3.8, -3.6);
         scene.add(rim);
 
-        const ratio = clamp((image.naturalWidth || 1) / (image.naturalHeight || 1), 0.48, 2.6);
-        const columns = compact ? 27 : 34;
-        const rows = clamp(Math.round(columns / ratio), 15, compact ? 38 : 44);
-        const sample = document.createElement('canvas');
-        sample.width = columns;
-        sample.height = rows;
-        const sampleContext = sample.getContext('2d', { willReadFrequently: true });
-        if (!sampleContext) throw new Error('Voxel photo processing is unavailable in this browser.');
-        sampleContext.imageSmoothingEnabled = true;
-        sampleContext.filter = 'saturate(1.04) contrast(1.035)';
-        sampleContext.drawImage(image, 0, 0, columns, rows);
-        const pixels = sampleContext.getImageData(0, 0, columns, rows).data;
-
-        const maxWidth = compact ? 5.15 : 5.7;
-        const maxHeight = compact ? 4.25 : 4.7;
+        const ratio = clamp((image.naturalWidth || 1) / (image.naturalHeight || 1), 0.45, 2.8);
+        const maxWidth = compact ? 5.0 : 5.7;
+        const maxHeight = compact ? 4.0 : 4.45;
         let photoWidth = maxWidth;
         let photoHeight = photoWidth / ratio;
         if (photoHeight > maxHeight) {
           photoHeight = maxHeight;
           photoWidth = photoHeight * ratio;
         }
+
+        // The old review used only 27-34 columns, which made roofs, windows, doors and
+        // trim too chunky. This denser grid stays practical on iPhone while preserving
+        // far more of the authorized photo's visible identity.
+        const columns = compact ? 52 : 64;
+        const rows = clamp(Math.round(columns / ratio), 26, compact ? 64 : 72);
+        const sample = document.createElement('canvas');
+        sample.width = columns;
+        sample.height = rows;
+        const sampleContext = sample.getContext('2d', { willReadFrequently: true });
+        if (!sampleContext) throw new Error('Voxel photo processing is unavailable in this browser.');
+        sampleContext.imageSmoothingEnabled = true;
+        sampleContext.imageSmoothingQuality = 'high';
+        sampleContext.drawImage(image, 0, 0, columns, rows);
+        const pixels = sampleContext.getImageData(0, 0, columns, rows).data;
+
         const cellWidth = photoWidth / columns;
         const cellHeight = photoHeight / rows;
         const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const cubeMaterial = new THREE.MeshStandardMaterial({ roughness: 0.76, metalness: 0.012, vertexColors: true });
+        const cubeMaterial = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, vertexColors: true });
         const voxels = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, columns * rows);
-        voxels.castShadow = true;
-        voxels.receiveShadow = true;
         const dummy = new THREE.Object3D();
         const color = new THREE.Color();
 
@@ -122,20 +122,26 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
             const right = luminance[y * columns + Math.min(columns - 1, x + 1)] ?? light;
             const up = luminance[Math.max(0, y - 1) * columns + x] ?? light;
             const down = luminance[Math.min(rows - 1, y + 1) * columns + x] ?? light;
-            const edge = clamp(Math.abs(left - right) * 1.5 + Math.abs(up - down) * 1.5, 0, 1);
-            const depth = 0.42 + (1 - light) * 0.34 + edge * 0.34;
+            const edge = clamp(Math.abs(left - right) * 1.35 + Math.abs(up - down) * 1.35, 0, 1);
+
+            // Stage 3 is intentionally a shallow 3D voxel PHOTO, not the later full
+            // movable voxel. Small luminance + edge depth reveals real cube geometry
+            // without turning the house into a thick plaque or inventing hidden sides.
+            const baseDepth = 0.10;
+            const depth = baseDepth + (1 - light) * 0.05 + edge * 0.055;
             const xPos = -photoWidth / 2 + cellWidth * (x + 0.5);
             const yPos = photoHeight / 2 - cellHeight * (y + 0.5);
 
-            dummy.position.set(xPos, yPos, depth * 0.46);
-            dummy.scale.set(cellWidth * 0.9, cellHeight * 0.9, depth);
+            dummy.position.set(xPos, yPos, depth * 0.5);
+            dummy.scale.set(cellWidth * 0.985, cellHeight * 0.985, depth);
             dummy.rotation.set(0, 0, 0);
             dummy.updateMatrix();
             voxels.setMatrixAt(instance, dummy.matrix);
             color.setRGB(
-              red * alpha + 0.13 * (1 - alpha),
-              green * alpha + 0.10 * (1 - alpha),
-              blue * alpha + 0.16 * (1 - alpha),
+              red * alpha + 0.12 * (1 - alpha),
+              green * alpha + 0.09 * (1 - alpha),
+              blue * alpha + 0.14 * (1 - alpha),
+              THREE.SRGBColorSpace,
             );
             voxels.setColorAt(instance, color);
             instance += 1;
@@ -145,43 +151,26 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         if (voxels.instanceColor) voxels.instanceColor.needsUpdate = true;
         objectGroup.add(voxels);
 
-        const plinthGeometry = new THREE.BoxGeometry(photoWidth + 0.7, 0.16, 2.1);
-        const plinthMaterial = new THREE.MeshStandardMaterial({ color: 0xeee7dd, roughness: 0.95, metalness: 0 });
-        const plinth = new THREE.Mesh(plinthGeometry, plinthMaterial);
-        plinth.position.set(0, -photoHeight / 2 - 0.28, 0.08);
-        plinth.castShadow = true;
-        plinth.receiveShadow = true;
-        scene.add(plinth);
-
-        const edgeGeometry = new THREE.EdgesGeometry(plinthGeometry);
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xc9ff54, transparent: true, opacity: 0.7 });
-        const plinthEdge = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        plinthEdge.position.copy(plinth.position);
-        scene.add(plinthEdge);
-
-        const groundGeometry = new THREE.PlaneGeometry(Math.max(10, photoWidth * 2), 7);
-        const groundMaterial = new THREE.ShadowMaterial({ color: 0x000000, transparent: true, opacity: compact ? 0.16 : 0.21 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.set(0, -photoHeight / 2 - 0.38, -0.62);
-        ground.receiveShadow = true;
-        scene.add(ground);
-
+        // Deliberately no backing image, picture slab or display plinth: the visible
+        // review itself is the real voxel geometry. The original stays separate below
+        // as a small comparison card only.
         const fitCamera = (width, height) => {
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
           const verticalFov = THREE.MathUtils.degToRad(camera.fov);
           const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
-          const distanceForHeight = (photoHeight * 0.64) / Math.tan(verticalFov / 2);
-          const distanceForWidth = (photoWidth * 0.64) / Math.tan(Math.max(0.12, horizontalFov / 2));
-          const distance = Math.max(distanceForHeight, distanceForWidth, 5.6) + 1;
-          camera.position.set(0, 0.18, distance);
-          camera.lookAt(0, -0.08, 0.2);
+          const distanceForHeight = (photoHeight * 0.59) / Math.tan(verticalFov / 2);
+          const distanceForWidth = (photoWidth * 0.59) / Math.tan(Math.max(0.12, horizontalFov / 2));
+          const distance = Math.max(distanceForHeight, distanceForWidth, 5.25) + 0.72;
+          camera.position.set(0, 0.08, distance);
+          camera.lookAt(0, -0.01, 0.045);
         };
         fitCamera(initialWidth, initialHeight);
 
-        let targetX = -0.055;
-        let targetY = 0.16;
+        // Near-front by default because this stage is for likeness approval. Rotation
+        // is bounded tightly so a single photograph never pretends to know hidden walls.
+        let targetX = -0.012;
+        let targetY = 0.045;
         let pointerId = null;
         let lastX = 0;
         let lastY = 0;
@@ -206,8 +195,8 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           const dy = event.clientY - lastY;
           lastX = event.clientX;
           lastY = event.clientY;
-          targetY = clamp(targetY + dx * 0.0052, -0.55, 0.55);
-          targetX = clamp(targetX + dy * 0.0037, -0.22, 0.2);
+          targetY = clamp(targetY + dx * 0.0034, -0.28, 0.28);
+          targetX = clamp(targetX + dy * 0.0028, -0.11, 0.11);
           applyReducedMotionRotation();
         };
         const up = (event) => {
@@ -218,11 +207,14 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         };
         const keydown = (event) => {
           let handled = true;
-          if (event.key === 'ArrowLeft') targetY = clamp(targetY - 0.06, -0.55, 0.55);
-          else if (event.key === 'ArrowRight') targetY = clamp(targetY + 0.06, -0.55, 0.55);
-          else if (event.key === 'ArrowUp') targetX = clamp(targetX - 0.045, -0.22, 0.2);
-          else if (event.key === 'ArrowDown') targetX = clamp(targetX + 0.045, -0.22, 0.2);
-          else handled = false;
+          if (event.key === 'ArrowLeft') targetY = clamp(targetY - 0.04, -0.28, 0.28);
+          else if (event.key === 'ArrowRight') targetY = clamp(targetY + 0.04, -0.28, 0.28);
+          else if (event.key === 'ArrowUp') targetX = clamp(targetX - 0.03, -0.11, 0.11);
+          else if (event.key === 'ArrowDown') targetX = clamp(targetX + 0.03, -0.11, 0.11);
+          else if (event.key === 'Home') {
+            targetX = -0.012;
+            targetY = 0.045;
+          } else handled = false;
           if (handled) {
             event.preventDefault();
             applyReducedMotionRotation();
@@ -239,8 +231,8 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         else {
           const render = () => {
             if (dead) return;
-            objectGroup.rotation.x += (targetX - objectGroup.rotation.x) * 0.085;
-            objectGroup.rotation.y += (targetY - objectGroup.rotation.y) * 0.085;
+            objectGroup.rotation.x += (targetX - objectGroup.rotation.x) * 0.1;
+            objectGroup.rotation.y += (targetY - objectGroup.rotation.y) * 0.1;
             renderer.render(scene, camera);
             frameId = requestAnimationFrame(render);
           };
@@ -250,7 +242,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         const resize = () => {
           if (dead || !mountRef.current) return;
           const nextWidth = Math.max(280, mountRef.current.clientWidth || initialWidth);
-          const nextHeight = Math.max(280, mountRef.current.clientHeight || initialHeight);
+          const nextHeight = Math.max(250, mountRef.current.clientHeight || initialHeight);
           renderer.setSize(nextWidth, nextHeight);
           fitCamera(nextWidth, nextHeight);
           if (reducedMotion) renderOnce();
@@ -273,12 +265,6 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           renderer.domElement.removeEventListener('keydown', keydown);
           cubeGeometry.dispose();
           cubeMaterial.dispose();
-          plinthGeometry.dispose();
-          plinthMaterial.dispose();
-          edgeGeometry.dispose();
-          edgeMaterial.dispose();
-          groundGeometry.dispose();
-          groundMaterial.dispose();
           renderer.dispose();
           renderer.forceContextLoss?.();
           if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
@@ -307,10 +293,10 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
 
   return <div className={`viewerShell ${styles.shell}`}>
     <div ref={mountRef} className={styles.canvasMount}/>
-    {status === 'loading' ? <div className={styles.loading}><span>BUILDING REAL 3D VOXELS…</span></div> : null}
+    {status === 'loading' ? <div className={styles.loading}><span>BUILDING HIGH-FIDELITY 3D VOXEL PHOTO…</span></div> : null}
     {!error ? <>
-      <div className={styles.qualityBadge} aria-hidden="true"><span>3D VOXEL PHOTO</span><b>PHOTO-MATCHED BLOCKS</b></div>
-      <div className={styles.hint} aria-hidden="true">DRAG TO SEE THE VOXEL DEPTH</div>
+      <div className={styles.qualityBadge} aria-hidden="true"><span>3D VOXEL PHOTO</span><b>HIGH-FIDELITY PHOTO MATCH</b></div>
+      <div className={styles.hint} aria-hidden="true">FRONT = PHOTO MATCH · DRAG GENTLY</div>
       <div className={styles.sourceCard} aria-hidden="true"><img src={imageUrl} alt=""/><span>ORIGINAL PHOTO</span></div>
     </> : null}
     {error ? <div className={styles.error} role="status">

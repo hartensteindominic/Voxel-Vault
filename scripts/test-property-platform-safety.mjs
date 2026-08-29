@@ -111,19 +111,19 @@ requireMarkers(distribution, 'distribution vault', [
   'InvalidStatementHash',
 ]);
 
-// The public root is now intentionally focused on the shipping VoxelPop product.
+// The public root is intentionally focused on the shipping VoxelPop product.
 // Regulated property/investment disclosures belong on their advanced surfaces,
-// while the front door must still state the digital-only rights boundary.
+// while the front door must still preserve price clarity, optional minting and
+// the digital-only physical-property rights boundary.
 requireMarkers(root, 'simple root homepage', [
-  'VOXELPOP · ONE HOUSE PHOTO · $4.99',
-  'Create my VoxelPop · $4.99',
-  'Photo stays on your device',
-  'No wallet to create',
-  '3D voxel photo',
-  'SAVE / OPTIONAL MINT',
-  'Simple on purpose.',
+  'VOXELPOP · PHOTO → 3D → VOXEL → NFT',
+  'Start VoxelPop · $4.99',
+  '3D preview',
+  'Movable 3D voxel',
+  'NFT optional',
+  'No wallet until mint',
   'VoxelPop is a digital creation product.',
-  'does not create ownership or financial rights in a physical property',
+  'does not create ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property',
 ]);
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
@@ -245,4 +245,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the clear $4.99 device-local VoxelPop flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the clear $4.99 VoxelPop flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
