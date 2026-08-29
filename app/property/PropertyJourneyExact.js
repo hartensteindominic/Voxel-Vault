@@ -5,8 +5,14 @@ import LocalVoxelModelViewer from './LocalVoxelModelViewer';
 import PhotoReliefModelViewer from './PhotoReliefModelViewer';
 import PropertyWorldMap from './PropertyWorldMap';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
-import { buildPropertyDraft, savePropertyDraft } from '../../lib/property-drafts';
-import { savePropertyDraftToAccount } from '../../lib/property-drafts-account';
+import {
+  buildPropertyDraft,
+  mergePropertyDraftRecords,
+  readPropertyDraft,
+  replaceLocalPropertyDrafts,
+  savePropertyDraft,
+} from '../../lib/property-drafts';
+import { loadAccountPropertyDrafts, savePropertyDraftToAccount } from '../../lib/property-drafts-account';
 import styles from './property.module.css';
 
 const CREATION_PRICE_LABEL = '$4.99';
@@ -181,6 +187,9 @@ export default function PropertyJourneyExact() {
   const [pendingPreview, setPendingPreview] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [paidSessionId, setPaidSessionId] = useState('');
+  const [reuseDraft, setReuseDraft] = useState(null);
+  const [reuseEntitled, setReuseEntitled] = useState(false);
+  const [reusePreviewUnlocked, setReusePreviewUnlocked] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewApproved, setPreviewApproved] = useState(false);
   const [voxelPoster, setVoxelPoster] = useState('');
@@ -196,11 +205,13 @@ export default function PropertyJourneyExact() {
   const clientRef = useRef(null);
   const uploadInputRef = useRef(null);
   const checkoutHandledRef = useRef('');
+  const reuseHandledRef = useRef('');
   const registeringRef = useRef(false);
 
   const localReady = final3d?.status === 'SUCCEEDED' && Boolean(final3d?.taskId && final3d?.modelUrl);
   const mintReady = localReady && String(final3d.taskId || '').startsWith('local-v1:');
-  const stage = localReady ? 5 : previewApproved ? 4 : paidSessionId ? 3 : pendingPhoto ? 2 : 1;
+  const creationIncluded = Boolean(paidSessionId || reuseEntitled);
+  const stage = localReady ? 5 : previewApproved ? 4 : (paidSessionId || reusePreviewUnlocked) ? 3 : pendingPhoto ? 2 : 1;
   const labels = ['PHOTO', 'PAY', '3D PREVIEW', 'VOXEL', 'MINT'];
 
   useEffect(() => {
@@ -259,6 +270,28 @@ export default function PropertyJourneyExact() {
     uploadInputRef.current?.click();
   }
 
+  function usePreparedPhoto(photo, { rights = false, notice = '' } = {}) {
+    setPendingPreview((current) => {
+      if (current?.startsWith?.('blob:')) URL.revokeObjectURL(current);
+      return URL.createObjectURL(photo);
+    });
+    setPendingPhoto(photo);
+    setRightsConfirmed(rights);
+    setReusePreviewUnlocked(false);
+    setPreviewReady(false);
+    setPreviewApproved(false);
+    setVoxelPoster('');
+    setLocalRecipe(null);
+    setFinal3d(empty3d());
+    setBuilding(null);
+    setAtlasBuildings([]);
+    setMappedAddress('');
+    setSavedDraft(null);
+    setMessage(notice || (creationIncluded
+      ? 'This creation is already paid. Confirm the picture, then open the 3D preview—no second charge.'
+      : `Photo ready. Confirm permission, then pay ${CREATION_PRICE_LABEL}.`));
+  }
+
   async function selectPhoto(event) {
     const selected = event.target.files?.[0];
     event.target.value = '';
@@ -270,24 +303,7 @@ export default function PropertyJourneyExact() {
     try {
       const photo = await normalizeIphonePhoto(selected);
       if (photo.size > 8 * 1024 * 1024) throw new Error('This photo is still too large after preparation. Try a screenshot or smaller version.');
-      setPendingPreview((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return URL.createObjectURL(photo);
-      });
-      setPendingPhoto(photo);
-      setRightsConfirmed(false);
-      setPreviewReady(false);
-      setPreviewApproved(false);
-      setVoxelPoster('');
-      setLocalRecipe(null);
-      setFinal3d(empty3d());
-      setBuilding(null);
-      setAtlasBuildings([]);
-      setMappedAddress('');
-      setSavedDraft(null);
-      setMessage(paidSessionId
-        ? 'Payment is already verified. This photo will become the new 3D preview—no second charge.'
-        : `Photo ready. Confirm permission, then pay ${CREATION_PRICE_LABEL}.`);
+      usePreparedPhoto(photo, { rights: false });
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
     } finally {
@@ -364,16 +380,86 @@ export default function PropertyJourneyExact() {
     return () => { active = false; };
   }, [session?.access_token]);
 
+  useEffect(() => {
+    if (!session?.user || typeof window === 'undefined') return undefined;
+    const reuseId = clean(new URLSearchParams(window.location.search).get('reuse'));
+    if (!reuseId || reuseHandledRef.current === reuseId) return undefined;
+    reuseHandledRef.current = reuseId;
+    let active = true;
+
+    (async () => {
+      setBusy('reuse');
+      setMessage('Opening this property from your Vault…');
+      try {
+        let source = readPropertyDraft(reuseId);
+        if (!source) {
+          const client = clientRef.current || await getSupabaseBrowserAsync();
+          clientRef.current = client;
+          const cloud = await loadAccountPropertyDrafts(client, session.user);
+          const merged = mergePropertyDraftRecords(cloud);
+          replaceLocalPropertyDrafts(merged);
+          source = merged.find((item) => item.id === reuseId) || null;
+        }
+        if (!active) return;
+        if (!source) throw new Error('That property is not in this signed-in Vault.');
+
+        const entitled = source?.voxelpop?.paidCreation === true;
+        setReuseDraft(source);
+        setReuseEntitled(entitled);
+        setReusePreviewUnlocked(false);
+        setDraftId(newDraftId());
+        if (clean(source?.label)) setAddress(clean(source.label));
+
+        const deviceKey = clean(source?.voxelpop?.sourcePhotoDeviceKey || source?.voxelpop?.creationDraftId);
+        const photo = deviceKey ? await loadDevicePhoto(deviceKey).catch(() => null) : null;
+        if (!active) return;
+
+        if (photo) {
+          usePreparedPhoto(photo, {
+            rights: true,
+            notice: entitled
+              ? `Loaded the property photo you already used for ${source.label || 'this property'}. Your paid creation is still valid: preview the 3D picture, then approve the 3D voxel.`
+              : `Loaded the property photo you already used for ${source.label || 'this property'}. Confirm it, then create the 3D preview.`,
+          });
+        } else {
+          setPendingPhoto(null);
+          setPendingPreview('');
+          setRightsConfirmed(false);
+          setPreviewReady(false);
+          setPreviewApproved(false);
+          setVoxelPoster('');
+          setLocalRecipe(null);
+          setFinal3d(empty3d());
+          setBuilding(null);
+          setAtlasBuildings([]);
+          setMappedAddress('');
+          setSavedDraft(null);
+          setMessage(entitled
+            ? `Opened ${source.label || 'your saved property'}. The original private photo is no longer on this device, so add the picture again. Your existing $4.99 creation remains included.`
+            : `Opened ${source.label || 'your saved or bought property'}. Add the property picture you want to use, then VoxelPop will show the 3D preview before creating the voxel.`);
+        }
+      } catch (error) {
+        reuseHandledRef.current = '';
+        setMessage(String(error?.message || error || 'This property could not be reopened.'));
+      } finally {
+        if (active) setBusy('');
+      }
+    })();
+
+    return () => { active = false; };
+  }, [session?.user]);
+
   async function payAndCreate() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
     setBusy('generation-checkout');
     try {
       await saveDevicePhoto(draftId, pendingPhoto);
-      if (paidSessionId) {
+      if (paidSessionId || reuseEntitled) {
+        setReusePreviewUnlocked(true);
         setPreviewReady(false);
         setPreviewApproved(false);
-        setMessage('Payment already verified. Loading the 3D photo preview—no second charge.');
+        setMessage('Creation access verified. Loading the 3D photo preview first—no second charge.');
         setBusy('');
         return;
       }
@@ -476,16 +562,27 @@ export default function PropertyJourneyExact() {
       const draft = {
         ...base,
         state: 'saved',
-        visual: { ...(base.visual || {}), modelUrl: final3d.modelUrl, modelTaskId: final3d.taskId, renderMode: 'voxelpop-local-3d' },
+        visual: {
+          ...(base.visual || {}),
+          thumbnailUrl: voxelPoster || null,
+          modelUrl: final3d.modelUrl,
+          modelTaskId: final3d.taskId,
+          renderMode: 'voxelpop-local-3d',
+        },
         voxelpop: {
           paidCreation: true,
           priceCents: CREATION_PRICE_CENTS,
+          generationChargeCents: reuseEntitled && !paidSessionId ? 0 : CREATION_PRICE_CENTS,
+          creationAccess: reuseEntitled && !paidSessionId ? 'existing-paid-creation' : 'paid-voxelpop-creation',
           engine: 'voxelpop-local-webgl-v2',
           sourcePhotoStoredByVoxelVault: false,
+          sourcePhotoAvailableOnDevice: true,
+          sourcePhotoDeviceKey: draftId,
           previewApproved: true,
           photoMatchedFront: true,
           mappedFootprintUsed: Boolean(building?.geometry),
           creationDraftId: draftId,
+          reusedFromDraftId: reuseDraft?.id || null,
           modelTaskId: final3d.taskId,
           modelUrl: final3d.modelUrl,
         },
@@ -503,7 +600,9 @@ export default function PropertyJourneyExact() {
         }
       } catch {}
       setSavedDraft(localSaved);
-      setMessage(synced ? 'Saved to My World and your Vault account.' : 'Saved to My World on this device. Account sync can retry later.');
+      setMessage(synced
+        ? 'Saved to My World and your Vault account. The private source photo stays on this device so this property can reuse it later.'
+        : 'Saved to My World on this device. The private source photo stays available here; account sync can retry later.');
     } catch (error) {
       setMessage(String(error?.message || error || 'This voxel could not be saved to My World yet.'));
     } finally {
@@ -513,11 +612,15 @@ export default function PropertyJourneyExact() {
 
   function resetCreation() {
     const oldDraft = draftId;
+    const preservePhoto = Boolean(savedDraft);
     setDraftId(newDraftId());
     setPendingPhoto(null);
     setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
     setRightsConfirmed(false);
     setPaidSessionId('');
+    setReuseDraft(null);
+    setReuseEntitled(false);
+    setReusePreviewUnlocked(false);
     setPreviewReady(false);
     setPreviewApproved(false);
     setVoxelPoster('');
@@ -530,7 +633,7 @@ export default function PropertyJourneyExact() {
     setSavedDraft(null);
     setBusy('');
     setMessage('Choose one property photo.');
-    removeDevicePhoto(oldDraft);
+    if (!preservePhoto) removeDevicePhoto(oldDraft);
     if (typeof window !== 'undefined') window.history.replaceState({}, '', '/property');
   }
 
@@ -571,23 +674,30 @@ export default function PropertyJourneyExact() {
       <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
 
       {stage === 1 ? <>
-        <p className={styles.bigPrompt}>Choose a clear house photo.</p>
-        <p className={styles.flowHint}>Photo → $4.99 → recognizable 3D preview → approve → voxel 3D → optional mint.</p>
-        <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
-        <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>
+        <p className={styles.bigPrompt}>{reuseDraft ? 'Add the property picture.' : 'Choose a clear house photo.'}</p>
+        <p className={styles.flowHint}>{reuseDraft
+          ? `${reuseDraft.label || 'Saved property'} → picture → 3D preview → approve → voxel 3D → optional mint.`
+          : 'Photo → $4.99 → recognizable 3D preview → approve → voxel 3D → optional mint.'}</p>
+        {reuseDraft ? <section className={styles.donePanel}><b>{reuseDraft.label || 'Your saved/bought property'}</b><span>{reuseEntitled ? 'Your earlier $4.99 creation is recognized. Add the photo again if the private original is no longer on this device.' : 'This property is loaded from your Vault. Add the picture you want VoxelPop to use for the custom 3D creation.'}</span></section> : null}
+        <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>{reuseDraft ? 'Add property photo' : 'Choose a property photo'}</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
+        <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare' || busy === 'reuse'}>{busy === 'prepare' ? 'Preparing photo…' : reuseDraft ? 'Add property photo' : 'Choose photo'}</button>
         <p className={styles.truth}>The first 3D preview uses your actual photo so it stays recognizable. It is a front-view visual preview, not a claim that unseen sides are reconstructed exactly.</p>
       </> : null}
 
       {stage === 2 ? <>
-        <p className={styles.bigPrompt}>Pay once. See the 3D first.</p>
-        <p className={styles.stepCopy}>The $4.99 creation unlocks the 3D preview and the voxel build. The voxel does not start until after you see and approve the preview.</p>
-        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>YOUR ACTUAL HOUSE PHOTO · DEVICE ONLY</span></div>
+        <p className={styles.bigPrompt}>{creationIncluded ? 'Your creation is ready to preview.' : 'Pay once. See the 3D first.'}</p>
+        <p className={styles.stepCopy}>{creationIncluded
+          ? 'Your existing paid creation includes the recognizable 3D preview and voxel build. The voxel does not start until after you see and approve the preview.'
+          : 'The $4.99 creation unlocks the 3D preview and the voxel build. The voxel does not start until after you see and approve the preview.'}</p>
+        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>{reuseDraft ? 'YOUR PROPERTY PICTURE · READY FOR 3D' : 'YOUR ACTUAL HOUSE PHOTO · DEVICE ONLY'}</span></div>
         <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Preview`}</button>
+          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : creationIncluded ? 'Create 3D Preview · included' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Preview`}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another photo</button>
         </div>
-        <p className={styles.truth}>The $4.99 payment buys the digital creation only. It does not buy the physical house, deed/title, rent, occupancy, investment rights, or guaranteed value.</p>
+        <p className={styles.truth}>{reuseDraft && !reuseEntitled && reuseDraft?.commerce?.status === 'paid'
+          ? 'A previously collected digital voxel is a separate item. A new custom photo-to-3D creation uses the normal $4.99 creation checkout; it does not buy the physical property.'
+          : 'The $4.99 payment buys the digital creation only. It does not buy the physical house, deed/title, rent, occupancy, investment rights, or guaranteed value.'}</p>
       </> : null}
 
       {stage === 3 ? <>
