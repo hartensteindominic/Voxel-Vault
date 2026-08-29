@@ -63,7 +63,8 @@ must(/focusedFunnel/.test(topNav) && /mobileDocked/.test(topNav) && /isOrganized
 must(/\.mobileDocked \.links\{display:none\}/.test(topCss), 'Organized mobile routes must let the bottom dock own navigation instead of duplicating header links.');
 must(/\.focusedFunnel \.links a:nth-child\(2\)\{display:inline-flex\}/.test(topCss), 'Focused Home/Create mobile header must keep Vault reachable without restoring extra header choices.');
 must(/pathname === '\/' \|\| pathname === '\/property'/.test(dock), 'Home and the paid creator must suppress the duplicate bottom dock.');
-must(/SIMPLE_PROPERTY_DOCK\.filter\(\(item\) => item\.id !== 'more'\)/.test(dock), 'Simple secondary routes must keep the condensed dock without More.');
+must(/const DOCK = \[[\s\S]*id: 'home'[\s\S]*id: 'create'[\s\S]*id: 'vault'/.test(dock), 'Mobile dock must be condensed to Home, VoxelPop, and Vault.');
+must(!/id: 'world'/.test(dock) && !/id: 'more'/.test(dock), 'World and More must not compete in the primary mobile dock.');
 must(/@media\(max-width:720px\)/.test(dockCss) && /\.nav\{display:none\}/.test(dockCss), 'Bottom dock must be mobile-only.');
 must(/FinancialOSNav\.module\.css/.test(dock), 'Bottom dock must use responsive stylesheet rather than always-on inline chrome.');
 
@@ -123,5 +124,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real high-fidelity 3D voxel-photo proof, one-click-focused Home/Create UX, two-destination product header, readable trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real high-fidelity 3D voxel-photo proof, one-click-focused Home/Create UX, two-destination header, three-action mobile dock, readable trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
