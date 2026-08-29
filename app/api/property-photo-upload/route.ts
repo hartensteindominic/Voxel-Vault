@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
+import { getSupabaseAdminCandidates } from '../../../lib/supabase-admin';
 import { normalizePropertyDraftId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
@@ -65,6 +66,34 @@ async function uploadPrivatePhoto(admin: any, path: string, bytes: Buffer, conte
   throw new PrivateStorageError(`Private photo storage could not save this upload. ${storageMessage(lastError) ? 'The storage service rejected the write.' : 'Please try again.'}`);
 }
 
+async function storeWithConfiguredServerCredential(path: string, bytes: Buffer, contentType: string) {
+  const candidates = getSupabaseAdminCandidates();
+  let lastError: unknown = null;
+  for (let index = 0; index < candidates.length; index += 1) {
+    try {
+      await uploadPrivatePhoto(candidates[index], path, bytes, contentType);
+      return { admin: candidates[index], candidates };
+    } catch (error) {
+      lastError = error;
+      console.error('Voxel Vault storage credential attempt failed', {
+        credentialIndex: index,
+        message: storageMessage(error),
+      });
+    }
+  }
+  throw lastError instanceof Error ? lastError : new PrivateStorageError('Private photo storage is unavailable on this deployment.');
+}
+
+async function createTemporaryPhotoUrl(path: string, preferredAdmin: any, candidates: any[]) {
+  const ordered = [preferredAdmin, ...candidates.filter((candidate) => candidate !== preferredAdmin)];
+  for (const admin of ordered) {
+    const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 6 * 60 * 60);
+    if (!signed.error && signed.data?.signedUrl) return signed.data.signedUrl;
+    console.error('Voxel Vault property photo signed URL failed', { message: storageMessage(signed.error) });
+  }
+  throw new PrivateStorageError('Your photo was saved, but it could not be opened for generation yet. Please try again shortly.');
+}
+
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) {
@@ -104,20 +133,15 @@ export async function POST(request: Request) {
     const objectId = `${digest.slice(0, 20)}-${randomUUID().slice(0, 12)}`;
     const path = `property-references/${userId}/${subjectId}/${objectId}.${extension}`;
 
-    await uploadPrivatePhoto(auth.admin, path, bytes, photo.type);
-
-    const signed = await auth.admin.storage.from(BUCKET).createSignedUrl(path, 6 * 60 * 60);
-    if (signed.error || !signed.data?.signedUrl) {
-      console.error('Voxel Vault property photo signed URL failed', { message: storageMessage(signed.error) });
-      throw new PrivateStorageError('Your photo was saved, but it could not be opened for generation yet. Please try again shortly.');
-    }
+    const stored = await storeWithConfiguredServerCredential(path, bytes, photo.type);
+    const signedUrl = await createTemporaryPhotoUrl(path, stored.admin, stored.candidates);
 
     const uploadedAt = new Date().toISOString();
     return NextResponse.json({
       ok: true,
       draftId: draftId || null,
       reference: {
-        url: signed.data.signedUrl,
+        url: signedUrl,
         rightsBasis: 'user-owned',
         rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital property creation.',
         label: 'Uploaded property photo',
