@@ -3,26 +3,23 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
-import { deletePropertyDraft, exportPropertyDraft, readPropertyDrafts, setPropertyDraftWorldVisibility } from '../../../lib/property-drafts';
-import { deletePropertyDraftFromAccount, savePropertyDraftToAccount, syncLocalPropertyDraftsToAccount } from '../../../lib/property-drafts-account';
+import { deletePropertyDraft, readPropertyDrafts } from '../../../lib/property-drafts';
+import { deletePropertyDraftFromAccount, syncLocalPropertyDraftsToAccount } from '../../../lib/property-drafts-account';
 
-function dollars(cents) {
-  if (!Number(cents)) return '';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(cents) / 100);
-}
-
-function directMintHref(draft) {
-  const draftId = String(draft?.voxelpop?.creationDraftId || '').trim();
-  const taskId = String(draft?.visual?.modelTaskId || draft?.voxelpop?.modelTaskId || '').trim();
-  if (!draftId || !taskId.startsWith('local-v1:')) return '';
-  const name = String(draft?.label || 'VoxelPop Property').trim();
-  return `/property/mint?draftId=${encodeURIComponent(draftId)}&taskId=${encodeURIComponent(taskId)}&name=${encodeURIComponent(name)}`;
+function clean(value) { return String(value || '').trim(); }
+function mintHref(draft) {
+  const draftId = clean(draft?.voxelpop?.creationDraftId);
+  const taskId = clean(draft?.visual?.modelTaskId || draft?.voxelpop?.modelTaskId);
+  const modelUrl = clean(draft?.visual?.modelUrl || draft?.voxelpop?.modelUrl);
+  if (!draftId || !taskId || !modelUrl) return '';
+  const name = clean(draft?.label) || 'VoxelPop Property';
+  return `/property/mint?draftId=${encodeURIComponent(draftId)}&taskId=${encodeURIComponent(taskId)}&name=${encodeURIComponent(name)}&modelUrl=${encodeURIComponent(modelUrl)}`;
 }
 
 export default function PropertyDraftsPage() {
   const [drafts, setDrafts] = useState([]);
   const [session, setSession] = useState(null);
-  const [note, setNote] = useState('Your saved and collected digital property voxels. Minting stays optional.');
+  const [note, setNote] = useState('Your finished house voxels live here.');
   const [busy, setBusy] = useState('');
   const clientRef = useRef(null);
 
@@ -40,7 +37,7 @@ export default function PropertyDraftsPage() {
         const merged = await syncLocalPropertyDraftsToAccount(client, nextSession.user);
         if (active) setDrafts(merged);
       } catch (error) {
-        if (active) setNote(String(error?.message || error || 'Account sync is unavailable. Local Vault still works.'));
+        if (active) setNote(String(error?.message || error || 'Account sync is unavailable. Your local inventory still works.'));
       }
     }
     getSupabaseBrowserAsync().then(async (client) => {
@@ -62,55 +59,68 @@ export default function PropertyDraftsPage() {
     } catch (error) { setNote(String(error?.message || error || 'Could not sign in.')); }
   }
 
-  async function toggleWorld(draft) {
-    if (!session?.user) {
-      setNote('Sign in to share this voxel on Public World.');
-      await signIn();
-      return;
-    }
+  async function remove(draft) {
+    if (!draft?.id || busy) return;
     setBusy(draft.id);
-    try {
-      const next = setPropertyDraftWorldVisibility(draft.id, draft?.world?.public !== true);
-      const client = clientRef.current || await getSupabaseBrowserAsync();
-      clientRef.current = client;
-      await savePropertyDraftToAccount(client, session.user, next);
-      refresh();
-      setNote(next.world?.public ? 'This voxel is now visible on Public World.' : 'This voxel is private in My World.');
-    } catch (error) { setNote(String(error?.message || error)); }
-    finally { setBusy(''); }
-  }
-
-  async function remove(id) {
-    deletePropertyDraft(id);
+    deletePropertyDraft(draft.id);
     refresh();
-    if (!session?.user) return;
-    try {
-      const client = clientRef.current || await getSupabaseBrowserAsync();
-      await deletePropertyDraftFromAccount(client, session.user, id);
-    } catch (error) { setNote(`Removed here. Account cleanup needs attention: ${String(error?.message || error)}`); }
+    if (session?.user) {
+      try {
+        const client = clientRef.current || await getSupabaseBrowserAsync();
+        clientRef.current = client;
+        await deletePropertyDraftFromAccount(client, session.user, draft.id);
+      } catch (error) {
+        setNote(`Removed on this device. Account cleanup needs attention: ${String(error?.message || error)}`);
+      }
+    }
+    setBusy('');
   }
 
   return <main className="page">
-    <header><Link href="/">V</Link><nav><Link href="/property">Create</Link><Link href="/world">World</Link></nav></header>
-    <section className="hero"><small>✦ YOUR VOXEL VAULT ✦</small><h1>Your collection.</h1><p>{note}</p>{!session?.user ? <button onClick={signIn}>SYNC WITH GOOGLE</button> : null}<div className="hub"><Link className="create" href="/property">+ Create Another</Link><Link className="world" href="/world">View My World</Link></div></section>
+    <header><Link className="mark" href="/">V</Link><nav><Link href="/property">Create</Link></nav></header>
+
+    <section className="hero">
+      <small>VOXEL VAULT · INVENTORY</small>
+      <h1>Your voxels.</h1>
+      <p>{note}</p>
+      {!session?.user ? <button type="button" onClick={signIn}>Sync with Google</button> : null}
+      <Link className="create" href="/property">+ Create another house</Link>
+    </section>
 
     {drafts.length ? <section className="grid">{drafts.map((draft) => {
-      const collected = draft?.commerce?.kind === 'property_voxel_collectible' && draft?.commerce?.status === 'paid';
-      const preview = draft?.visual?.thumbnailUrl || null;
-      const mintHref = directMintHref(draft);
-      const directMintReady = Boolean(mintHref);
+      const preview = clean(draft?.visual?.thumbnailUrl);
+      const modelUrl = clean(draft?.visual?.modelUrl || draft?.voxelpop?.modelUrl);
+      const taskId = clean(draft?.visual?.modelTaskId || draft?.voxelpop?.modelTaskId);
+      const canOpen = Boolean(modelUrl && taskId);
+      const directMint = mintHref(draft);
+      const minted = Boolean(draft?.blockchain?.minted);
+      const address = clean(draft?.voxelpop?.propertyAddress || draft?.world?.address);
       return <article key={draft.id}>
-        <div className="visual">{preview ? <img src={preview} alt={draft.label || 'Voxel property preview'}/> : <><div className="ground"/><div className={String(draft.geometryKind || '').includes('building') ? 'house' : 'land'}>{String(draft.geometryKind || '').includes('building') ? <><i/><i/></> : null}</div></>}<span>{collected ? 'COLLECTED' : draft.world?.public ? 'WORLD' : draft.blockchain?.minted ? 'MINTED' : '3D'}</span></div>
-        <div className="body"><small>{collected ? 'COLLECTED DIGITAL VOXEL' : draft.blockchain?.minted ? 'MINTED DIGITAL MODEL' : directMintReady ? 'SAVED VOXEL · MINT OPTIONAL' : 'SAVED 3D MODEL'}</small><h2>{draft.label || 'Saved VoxelPop creation'}</h2>{collected ? <div className="paid"><b>{draft.commerce?.priceLabel || 'VoxelPop Digital Voxel'}</b><strong>{dollars(draft.commerce?.priceCents)}</strong></div> : null}
-          <div className="actions"><Link href={`/vault/property-drafts/${encodeURIComponent(draft.id)}`}>OPEN 3D</Link><button className={draft.world?.public ? 'active' : ''} onClick={() => toggleWorld(draft)} disabled={busy === draft.id}>{draft.world?.public ? 'PUBLIC WORLD' : 'SHARE TO WORLD'}</button><Link href={directMintReady ? mintHref : '/vault/properties/claim'}>{directMintReady ? 'MINT · OPTIONAL' : collected ? 'VERIFY + MINT · OPTIONAL' : 'VERIFY + MINT'}</Link></div>
-          <div className="more"><button onClick={() => exportPropertyDraft(draft)}>EXPORT</button><button onClick={() => remove(draft.id)}>REMOVE</button></div>
+        <div className="visual">
+          {preview ? <img src={preview} alt={draft.label || 'House voxel preview'}/> : <div className="cube" aria-hidden="true"><i/><i/><i/></div>}
+          <span>{minted ? 'MINTED' : '3D VOXEL'}</span>
+        </div>
+        <div className="body">
+          <small>{minted ? 'MINTED · SAVED' : directMint ? 'SAVED · MINT OPTIONAL' : 'SAVED'}</small>
+          <h2>{draft.label || 'VoxelPop House'}</h2>
+          {address ? <p>{address}</p> : null}
+          <div className="actions">
+            {canOpen ? <Link href={`/vault/property-drafts/${encodeURIComponent(draft.id)}`}>Open 3D</Link> : null}
+            {directMint && !minted ? <Link className="mint" href={directMint}>Mint voxel</Link> : null}
+            <button type="button" onClick={() => remove(draft)} disabled={busy === draft.id}>{busy === draft.id ? 'Removing…' : 'Remove'}</button>
+          </div>
         </div>
       </article>;
-    })}</section> : <section className="empty"><div className="cube"><i/><i/><i/></div><b>No property voxels yet.</b><span>Choose one photo: 3D picture → approve → 3D voxel → mint now or save here for later.</span><Link href="/property">+ CREATE FIRST VOXEL</Link></section>}
+    })}</section> : <section className="empty">
+      <div className="cube" aria-hidden="true"><i/><i/><i/></div>
+      <b>No house voxels yet.</b>
+      <span>Photo → confirm address → voxel image → 3D voxel → keep or mint.</span>
+      <Link href="/property">Create first voxel</Link>
+    </section>}
 
-    <p className="truth">Vault stores your saved and collected digital property voxels. Saving, sharing, or minting a voxel does not itself transfer deed/title, rent, fractional investment, occupancy, or other rights in the physical property.</p>
+    <p className="truth">These are digital collectibles. Saving or minting a voxel does not transfer deed, title, occupancy, rent, equity, or other rights in the physical property.</p>
     <style jsx>{`
-      :global(body){margin:0;background:#fffaf0;color:#171221;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:14px clamp(12px,3vw,30px) calc(90px + env(safe-area-inset-bottom));background:radial-gradient(circle at 4% 22%,#efffb6 0,transparent 25%),radial-gradient(circle at 95% 8%,#eee5ff 0,transparent 26%),#fffaf0}header{max-width:920px;height:52px;margin:auto;display:flex;align-items:center;justify-content:space-between}header>a{width:40px;height:40px;border-radius:13px;background:#7138f5;color:#fff;text-decoration:none;display:grid;place-items:center;font-weight:1000;box-shadow:0 6px 0 #4d1bc5}nav{display:flex;gap:7px}nav a{padding:10px 13px;color:#51495a;text-decoration:none;font-size:11px;font-weight:900;border:1px solid #e1dbe7;border-radius:999px;background:#ffffffc9}.hero{max-width:920px;margin:48px auto 24px;text-align:center}.hero small{color:#7041ed;font-size:12px;font-weight:950;letter-spacing:.14em}.hero h1{font-size:clamp(52px,9vw,82px);line-height:.9;letter-spacing:-.06em;margin:14px 0 8px}.hero p{color:#7a7280;font-size:14px;margin:0}.hero>button{margin-top:14px;border:1px solid #ddd6e5;border-radius:999px;background:#fff;color:#5d5565;padding:11px 15px;font-size:10px;font-weight:950}.hub{max-width:540px;margin:20px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:10px}.hub a{min-height:54px;border-radius:18px;display:grid;place-items:center;text-decoration:none;font-size:12px;font-weight:1000}.hub .create{background:#7138f5;color:#fff;box-shadow:0 7px 0 #4d1bc5}.hub .world{background:#c9ff54;color:#263d00;box-shadow:0 7px 0 #aee43c}.grid{max-width:920px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}.grid article{overflow:hidden;border:1px solid #e4dfea;border-radius:26px;background:#ffffffdb;box-shadow:0 16px 45px #6f51a10e}.visual{height:210px;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 35%,#c9ff5424,transparent 30%),#21162c}.visual>img{width:100%;height:100%;object-fit:cover;display:block}.ground{position:absolute;left:11%;right:11%;bottom:17%;height:32%;border:1px solid #8c79a0;transform:perspective(340px) rotateX(62deg);border-radius:14px}.house{position:absolute;left:30%;right:30%;bottom:30%;height:38%;background:#fff}.house:before{content:'';position:absolute;left:-10%;right:-10%;top:-13%;height:18%;background:#7138f5}.house i{position:absolute;bottom:18%;width:20%;height:34%;background:#c9ff54}.house i:first-child{left:18%}.house i:last-child{right:18%}.land{position:absolute;left:24%;right:24%;bottom:25%;height:28%;border:2px solid #c9ff54;transform:perspective(320px) rotateX(62deg);border-radius:12px;background:#c9ff5412}.visual span{position:absolute;top:13px;left:13px;padding:7px 10px;border-radius:999px;background:#c9ff54;color:#263d00;font-size:8px;font-weight:950;letter-spacing:.08em}.body{padding:18px}.body small{color:#7041ed;font-size:8px;font-weight:950;letter-spacing:.1em}.body h2{font-size:23px;letter-spacing:-.04em;margin:6px 0 12px}.paid{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 13px;padding:10px 11px;border-radius:13px;background:#f3ffe1;color:#50672d}.paid b{font-size:9px}.paid strong{font-size:15px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.actions a,.actions button{min-height:44px;border:1px solid #ddd6e5;border-radius:14px;background:#fff;color:#5e5666;text-decoration:none;display:grid;place-items:center;font:inherit;font-size:8px;font-weight:950;cursor:pointer;text-align:center;padding:5px}.actions a:first-child{background:#7138f5;color:#fff;border:0}.actions a:last-child{grid-column:1/-1;background:#171221;color:#fff;border:0}.actions .active{background:#c9ff54;color:#171221;border:0}.more{margin-top:9px;display:flex;gap:12px}.more button{border:0;background:none;color:#a098a3;font-size:8px;font-weight:900;padding:4px 0}.empty{max-width:700px;margin:30px auto;padding:42px 24px;border:1px solid #e4dfea;border-radius:30px;background:#ffffffd7;display:grid;justify-items:center;gap:10px;text-align:center}.empty b{font-size:24px}.empty span{color:#7a7280;font-size:14px}.empty a{margin-top:8px;background:#7138f5;color:#fff;text-decoration:none;border-radius:18px;padding:15px 18px;font-size:12px;font-weight:950;box-shadow:0 7px 0 #4d1bc5}.cube{position:relative;width:66px;height:66px;transform:rotate(30deg) skewY(-8deg);background:#c9ff54;border-radius:10px;box-shadow:0 8px 0 #aee43c}.cube i{position:absolute;background:#7138f5}.cube i:nth-child(1){width:15px;height:15px;left:9px;top:11px}.cube i:nth-child(2){width:15px;height:15px;right:9px;top:11px}.cube i:nth-child(3){width:15px;height:15px;left:25px;bottom:9px}.truth{max-width:920px;margin:16px auto;color:#99909d;font-size:9px;line-height:1.5}@media(max-width:620px){.page{padding:10px 10px calc(82px + env(safe-area-inset-bottom))}.hero{margin-top:34px}.hero h1{font-size:55px}.hub{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.visual{height:210px}.actions a,.actions button{min-height:47px}}
+      :global(body){margin:0;background:#fffaf2;color:#211810;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}.page{min-height:100vh;padding:10px clamp(10px,3vw,28px) calc(90px + env(safe-area-inset-bottom));background:radial-gradient(circle at 92% 7%,rgba(113,56,245,.12),transparent 28%),radial-gradient(circle at 7% 88%,rgba(201,255,84,.18),transparent 28%),#fffaf2}header{max-width:900px;height:54px;margin:auto;display:flex;align-items:center;justify-content:space-between}.mark{width:40px;height:40px;border-radius:13px;background:#7138f5;color:#fff;text-decoration:none;display:grid;place-items:center;font-weight:1000;box-shadow:0 5px 0 #5120d0}nav a{padding:10px 14px;border:1px solid #e1dbe7;border-radius:999px;background:#fff;color:#5d4a85;text-decoration:none;font-size:10px;font-weight:950}.hero{max-width:900px;margin:42px auto 22px;text-align:center}.hero small{color:#7138f5;font-size:9px;font-weight:1000;letter-spacing:.13em}.hero h1{margin:12px 0 8px;font-size:clamp(50px,9vw,78px);line-height:.92;letter-spacing:-.06em}.hero p{margin:0 auto 14px;color:#7b727c;font-size:12px}.hero>button{margin:0 0 10px;border:1px solid #ddd6e5;border-radius:999px;background:#fff;color:#65566e;padding:10px 14px;font:900 10px inherit}.create{width:min(420px,100%);min-height:55px;margin:8px auto 0;border-radius:17px;background:#7138f5;color:#fff;text-decoration:none;display:grid;place-items:center;font-size:13px;font-weight:1000;box-shadow:0 6px 0 #5120d0}.grid{max-width:900px;margin:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}.grid article{overflow:hidden;border:1px solid #e5dfe7;border-radius:24px;background:#fff;box-shadow:0 14px 38px rgba(70,48,88,.07)}.visual{height:230px;position:relative;display:grid;place-items:center;overflow:hidden;background:#21172c}.visual>img{width:100%;height:100%;object-fit:cover;display:block}.visual>span{position:absolute;left:12px;top:12px;padding:7px 9px;border-radius:999px;background:#c9ff54;color:#314b0b;font-size:7px;font-weight:1000;letter-spacing:.08em}.body{padding:16px}.body>small{color:#7138f5;font-size:7.5px;font-weight:1000;letter-spacing:.09em}.body h2{margin:6px 0 4px;font-size:22px;letter-spacing:-.04em}.body p{margin:0 0 12px;color:#817782;font-size:9px;line-height:1.4}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.actions a,.actions button{min-height:45px;border:1px solid #e2dbe6;border-radius:13px;background:#fff;color:#5f5566;text-decoration:none;display:grid;place-items:center;font:900 8px inherit;cursor:pointer}.actions a:first-child{background:#7138f5;color:#fff;border:0}.actions .mint{background:#21172c;color:#fff;border:0}.actions button{grid-column:1/-1;color:#9a8e97}.actions button:disabled{opacity:.5}.empty{max-width:680px;margin:28px auto;padding:38px 22px;border:1px solid #e5dfe7;border-radius:27px;background:#fff;display:grid;justify-items:center;gap:10px;text-align:center}.empty b{font-size:23px}.empty span{color:#7b727c;font-size:12px}.empty a{margin-top:7px;padding:14px 17px;border-radius:15px;background:#7138f5;color:#fff;text-decoration:none;font-size:11px;font-weight:1000;box-shadow:0 6px 0 #5120d0}.cube{position:relative;width:64px;height:64px;border-radius:13px;background:#c9ff54;box-shadow:0 7px 0 #aada35;transform:rotate(8deg)}.cube i{position:absolute;width:14px;height:14px;background:#7138f5}.cube i:nth-child(1){left:10px;top:10px}.cube i:nth-child(2){right:10px;top:10px}.cube i:nth-child(3){left:25px;bottom:10px}.truth{max-width:900px;margin:15px auto;color:#9b929b;font-size:8px;line-height:1.5;text-align:center}.page a:focus-visible,.page button:focus-visible{outline:3px solid rgba(113,56,245,.24);outline-offset:3px}@media(max-width:560px){.hero{margin-top:30px}.grid{grid-template-columns:1fr}.visual{height:220px}}
     `}</style>
   </main>;
 }
