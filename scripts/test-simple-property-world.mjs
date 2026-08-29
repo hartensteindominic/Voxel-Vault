@@ -55,7 +55,8 @@ assert.doesNotMatch(property, /mintVoxelFlip|eth_requestAccounts/, 'simple maker
 
 assert.match(voxelImageRoute, /requireVoxelVaultAdmin/, 'paid image generation must remain owner-gated during troubleshooting');
 assert.match(voxelImageRoute, /open-licensed/, 'voxel image route must require explicit reference rights');
-assert.match(voxelImageRoute, /zillow\.com/, 'restricted listing-image hosts must remain blocked from derivative generation');
+assert.match(voxelImageRoute, /BLOCKED_REFERENCE_HOSTS/, 'voxel image route must keep an explicit restricted-host blocklist');
+assert.match(voxelImageRoute, /zillow/, 'restricted listing-image hosts must remain represented in the derivative-generation blocklist');
 assert.match(voxelImageRoute, /Preserve the visible building identity/, 'image prompt must preserve the actual photographed architecture');
 assert.match(voxelImageRoute, /Do not redesign, beautify, modernize, add floors, remove floors, invent windows, move doors, change the roof type, or substitute a generic house\./, 'image prompt must explicitly block generic-house drift');
 
