@@ -113,11 +113,73 @@ function auditHighConfidenceSecrets(file, text) {
   const patterns = [
     [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, 'embedded private key'],
     [/\bsk_live_[A-Za-z0-9]{20,}\b/, 'live Stripe secret key'],
+    [/\brk_live_[A-Za-z0-9]{20,}\b/, 'live Stripe restricted key'],
+    [/\bwhsec_[A-Za-z0-9]{24,}\b/, 'Stripe webhook secret'],
     [/\bgh(?:p|o|u|s|r)_[A-Za-z0-9]{30,}\b/, 'GitHub access token'],
+    [/\bgithub_pat_[A-Za-z0-9_]{40,}\b/, 'GitHub fine-grained access token'],
     [/\bxox(?:b|p|a|r|s)-[A-Za-z0-9-]{20,}\b/, 'Slack access token'],
     [/\bAKIA[0-9A-Z]{16}\b/, 'AWS access key ID'],
   ];
   for (const [pattern, label] of patterns) if (pattern.test(text)) record('error', file, label);
+}
+
+function auditDeploymentSafety() {
+  const committedEnvFiles = tracked.filter((file) => {
+    const basename = path.basename(file);
+    if (!basename.startsWith('.env')) return false;
+    return !basename.endsWith('.example') && !basename.endsWith('.sample') && !basename.endsWith('.template');
+  });
+  for (const file of committedEnvFiles) record('error', file, 'real environment files must never be committed');
+
+  const envPath = path.join(root, '.env.example');
+  if (!fs.existsSync(envPath)) {
+    record('error', '.env.example', 'core deployment example is missing');
+  } else {
+    const envText = fs.readFileSync(envPath, 'utf8');
+    for (const name of [
+      'NEXT_PUBLIC_APP_URL',
+      'NEXT_PUBLIC_SITE_URL',
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'STRIPE_SECRET_KEY',
+      'STRIPE_WEBHOOK_SECRET',
+      'CRON_SECRET',
+      'VOXELFLIP_MINT_SIGNER_PRIVATE_KEY',
+      'PROPERTY_VOXEL_METADATA_SECRET',
+    ]) {
+      if (!new RegExp(`^${name}=`, 'm').test(envText)) record('error', '.env.example', `must document ${name}`);
+    }
+  }
+
+  const cronFile = 'app/api/cron/catalog-3d/route.js';
+  const cronPath = path.join(root, cronFile);
+  if (!fs.existsSync(cronPath)) {
+    record('error', cronFile, 'catalog maintenance route is missing');
+  } else {
+    const cronText = fs.readFileSync(cronPath, 'utf8');
+    if (!/CRON_SECRET/.test(cronText)) record('error', cronFile, 'must require CRON_SECRET');
+    if (!/authorization/i.test(cronText)) record('error', cronFile, 'must authenticate with the Authorization header');
+    if (/user-agent|vercel-cron/i.test(cronText)) record('error', cronFile, 'must not trust a spoofable User-Agent as authentication');
+    if (!/status:\s*503/.test(cronText)) record('error', cronFile, 'must fail closed when scheduled-job authentication is not configured');
+  }
+
+  const migrations = tracked.filter((file) => file.startsWith('supabase/migrations/') && file.endsWith('.sql'));
+  const byVersion = new Map();
+  for (const file of migrations) {
+    const version = path.basename(file).split('_')[0];
+    const files = byVersion.get(version) || [];
+    files.push(file);
+    byVersion.set(version, files);
+  }
+  const knownLegacyCollisions = new Set(['002', '003']);
+  for (const [version, files] of byVersion) {
+    if (files.length <= 1) continue;
+    if (knownLegacyCollisions.has(version)) {
+      record('warning', 'supabase/migrations', `reviewed legacy migration version ${version} is shared by ${files.map(path.basename).join(', ')}; do not rename already-applied migrations without reconciling production history`);
+    } else {
+      record('error', 'supabase/migrations', `new duplicate migration version ${version}: ${files.map(path.basename).join(', ')}`);
+    }
+  }
 }
 
 for (const file of tracked) {
@@ -179,6 +241,8 @@ for (const file of tracked) {
   }
 }
 
+auditDeploymentSafety();
+
 console.log(`Repository file audit read ${counts.files} tracked files (${counts.text} text, ${counts.binary} binary), ${counts.bytes.toLocaleString()} bytes total.`);
 console.log(`Validated ${counts.json} JSON files, ${counts.markdown} Markdown files, and relative imports in ${counts.source} source files.`);
 console.log(`Whole-repository content digest: ${manifest.digest('hex')}`);
@@ -194,5 +258,5 @@ if (errors.length) {
   for (const error of errors) console.error(`  ERROR ${error}`);
   process.exitCode = 1;
 } else {
-  console.log('\nFull tracked-file audit passed with no blocking file-integrity errors.');
+  console.log('\nFull tracked-file audit passed with no blocking file-integrity or deployment-safety errors.');
 }
