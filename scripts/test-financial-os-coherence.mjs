@@ -18,23 +18,30 @@ const home = fs.readFileSync(new URL('../app/real-estate/page.js', import.meta.u
 for (const label of ['Home', 'Earth', 'Create', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
+assert.match(productMap, /SIMPLE_PROPERTY_DOCK/, 'simple property product should have a dedicated consumer dock');
+for (const label of ['Home', 'Add', 'Vault', 'World']) {
+  assert.match(productMap, new RegExp(`label: '${label}'`), `simple property dock should include ${label}`);
+}
 assert.match(productMap, /APP_SECTIONS/);
 for (const route of ['/vault/earth', '/geo', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/asset', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
   assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
 }
 assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');
 assert.match(productMap, /isOrganizedUserRoute/);
+assert.match(productMap, /isSimplePropertyRoute/);
 assert.match(productMap, /dockItemForPath/);
 
 assert.match(nav, /APP_DOCK/);
+assert.match(nav, /SIMPLE_PROPERTY_DOCK/);
 assert.match(nav, /Voxel Vault primary navigation/);
 assert.match(nav, /isOrganizedUserRoute/);
+assert.match(nav, /isSimplePropertyRoute/);
 assert.match(nav, /safe-area-inset-bottom/);
 assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should no longer be restricted to a finance-only prefix list');
 assert.match(layout, /FinancialOSNav/);
 assert.match(layout, /AppCommandCenter/);
 assert.match(layout, /spatial-os-interactions\.css/);
-assert.match(layout, /Spatial Asset OS/);
+assert.match(layout, /Spatial Asset OS/, 'the app can retain its architecture identity in metadata without putting that jargon on the simple home');
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
 
 assert.match(interactions, /--vv-tap-min:\s*44px/, 'coarse-pointer controls should keep an iPhone-friendly minimum target');
@@ -48,22 +55,31 @@ assert.match(commandCenter, /APP_DOCK, APP_SECTIONS/, 'command center should ind
 assert.match(commandCenter, /metaKey \|\| event\.ctrlKey/, 'command center should support desktop keyboard invocation');
 assert.match(commandCenter, /event\.key === '\/'/, 'command center should support fast slash invocation outside text fields');
 assert.match(commandCenter, /safe-area-inset-bottom/, 'command center trigger must respect iPhone safe area');
+assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from the simple Home, Add, Vault and World routes');
 assert.match(commandCenter, /Search is navigation only\. It never executes trades, mints, Meshy generations or property actions\./, 'command center must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
-assert.match(rootHome, /SPATIAL ASSET OS/);
-assert.match(rootHome, /Everything you own/);
-assert.match(rootHome, /HomeCapabilityStrip/, 'root Home should show safe live capability state');
-for (const core of ['Create', 'Earth', 'Vault', 'Invest']) assert.match(rootHome, new RegExp(`title: '${core}'`));
-assert.match(rootHome, /Organized does not mean conflated/);
-assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must remain a neutral app front door instead of aliasing one subsystem');
+// Consumer Home is intentionally much smaller than the underlying Spatial Asset OS.
+// The advanced capabilities and product map remain available, but they must not be required
+// for someone whose only goal is Add property -> Buy piece/whole -> Mint -> Vault -> World.
+assert.match(rootHome, /Add a property\./, 'root Home should lead with the one property action');
+assert.match(rootHome, /action="\/property"/, 'root Home should route one address directly into the simple property screen');
+assert.match(rootHome, /BUY PIECE \/ WHOLE/, 'root Home should explain the condensed ownership choice');
+assert.match(rootHome, /href="\/vault\/property-drafts"/, 'root Home should expose the property Vault directly');
+assert.match(rootHome, /href="\/world"/, 'root Home should expose the public 3D World directly');
+assert.match(rootHome, /Real purchase buttons only activate when a verified provider\/listing and required legal settlement path exist\./, 'root Home must keep real-money purchase activation fail-closed');
+assert.match(rootHome, /A 3D model or NFT alone is not a deed\./, 'root Home must preserve model versus title truth');
+assert.match(rootHome, /href="\/more"/, 'advanced Spatial Asset OS tools must remain deliberately reachable');
+assert.doesNotMatch(rootHome, /HomeCapabilityStrip|FOUR CORE JOBS|title: 'Create'|title: 'Earth'|title: 'Invest'/, 'advanced capability and product taxonomy must not re-clutter the simple home');
+assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
 
-assert.match(homeCapabilities, /\/api\/world-atlas\/capabilities/, 'Home capability strip must use the safe public readiness endpoint');
+// The capability component and endpoint remain safe even though they moved out of the consumer front door.
+assert.match(homeCapabilities, /\/api\/world-atlas\/capabilities/, 'capability strip must use the safe public readiness endpoint wherever it is surfaced');
 for (const label of ['WORLD DATA', 'OPEN STREET', 'MESHY 7', 'MARKET FEEDS']) assert.match(homeCapabilities, new RegExp(label));
 assert.match(homeCapabilities, /READY · MANUAL/, 'Meshy readiness must remain explicitly manual');
-assert.match(homeCapabilities, /no auto-spend/, 'Home must explain that Meshy does not spend credits automatically');
-assert.match(homeCapabilities, /Readiness is configuration status, not a promise of market inventory, legal ownership, investment availability or AI-generation rights/, 'Home readiness must preserve truth boundaries');
-assert.match(homeCapabilities, /No API keys or secret values are exposed here/, 'Home must state the secret-value boundary');
+assert.match(homeCapabilities, /no auto-spend/, 'capabilities must explain that Meshy does not spend credits automatically');
+assert.match(homeCapabilities, /Readiness is configuration status, not a promise of market inventory, legal ownership, investment availability or AI-generation rights/, 'readiness must preserve truth boundaries');
+assert.match(homeCapabilities, /No API keys or secret values are exposed here/, 'capability display must state the secret-value boundary');
 assert.doesNotMatch(homeCapabilities, /process\.env|MESHY_API_KEY|BRIDGE_ACCESS_TOKEN|DOMAIN_CLIENT_SECRET/, 'client capability strip must never reference raw secret environment variables');
 assert.match(capabilitiesApi, /automaticGeneration:\s*false/, 'server capability contract must keep Meshy automatic generation disabled');
 assert.match(capabilitiesApi, /Boolean\(process\.env\.MESHY_API_KEY\?\.trim\(\)\)/, 'Meshy readiness may expose only a boolean');
@@ -89,6 +105,7 @@ assert.match(integrationsPage, /getSupabaseBrowserAsync/);
 assert.match(integrationsPage, /\/api\/admin\/integrations\/status/);
 assert.match(integrationsPage, /SIGN IN WITH GOOGLE/);
 
+// The older detailed real-estate area remains an advanced, fail-closed subsystem.
 assert.match(home, /Explore → invest → verify → observe → own/);
 assert.match(home, /Your money,/);
 assert.match(home, /provider-backed investment assets/i);
@@ -101,8 +118,7 @@ assert.match(home, /Direct property closes through normal title systems/);
 assert.match(home, /Every number should know where it came from/);
 assert.match(home, /Start with access\. Build toward ownership\./);
 assert.match(home, /Fail-closed for real money/);
-
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault app organization + command center + live capability + shared interaction + Financial OS coherence regression tests passed');
+console.log('Voxel Vault simple property front door + advanced Spatial Asset OS + command center + capability + shared interaction + Financial OS coherence regression tests passed');
