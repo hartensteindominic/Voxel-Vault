@@ -19,9 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - name: Read and audit every tracked file
         run: node scripts/audit-all-files.mjs
+      - name: Verify package-lock matches package.json
+        run: node scripts/test-lockfile-sync.mjs
