@@ -1,11 +1,11 @@
 import { getAddress } from 'ethers';
 import { NextResponse } from 'next/server';
-import { stripe } from '../../../../../../lib/stripe-server';
-import { requireVoxelVaultUser } from '../../../../../../lib/user-auth';
-import { readCatalog3DByTask } from '../../../../../../lib/catalog3dStore';
-import { propertyDraftItemId, normalizePropertyDraftId } from '../../../../../../lib/property-generation-ids';
-import { paidPropertyGenerationReceipt } from '../../../../../../lib/property-generation-payment';
-import { verifyPropertyVoxelMintOnBase } from '../../../../../../lib/property-voxel-mint';
+import { stripe } from '../../../../../lib/stripe-server';
+import { requireVoxelVaultUser } from '../../../../../lib/user-auth';
+import { readCatalog3DByTask } from '../../../../../lib/catalog3dStore';
+import { propertyDraftItemId, normalizePropertyDraftId } from '../../../../../lib/property-generation-ids';
+import { paidPropertyGenerationReceipt } from '../../../../../lib/property-generation-payment';
+import { verifyPropertyVoxelMintOnBase } from '../../../../../lib/property-voxel-mint';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
