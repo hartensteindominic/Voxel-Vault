@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import ConsumerTopNav from '../components/ConsumerTopNav';
 import styles from './more.module.css';
+import polish from './more-polish.module.css';
 
 export const metadata = {
   title: 'More · Voxel Vault',
@@ -26,16 +28,12 @@ const advancedTools = [
 
 export default function MorePage() {
   return <main className={styles.page}>
+    <ConsumerTopNav/>
     <div className={styles.shell}>
-      <nav className={styles.top}>
-        <Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link>
-        <div className={styles.navLinks}><Link href="/property">Create</Link><Link href="/world">World</Link><Link href="/vault">Vault</Link></div>
-      </nav>
-
-      <section className={styles.hero}>
+      <section className={`${styles.hero} ${polish.compactHero}`}>
         <small>MORE</small>
         <h1>More tools.<br/><em>Less confusion.</em></h1>
-        <p><b>Create → World → Vault is the main app.</b> Everything below is optional, secondary, experimental, provider-dependent, or advanced—and kept out of your way until you need it.</p>
+        <p><b>Create → World → Vault is the main app.</b> Use this page only when you need a secondary or advanced tool.</p>
       </section>
 
       <section className={styles.coreCard}>
@@ -55,7 +53,7 @@ export default function MorePage() {
       </section>
 
       <section className={styles.quickSection}>
-        <div className={styles.sectionHead}><small>PROPERTY EXTRAS</small><h2>Useful when you need them.</h2><p>These are separate from the normal creation journey.</p></div>
+        <div className={styles.sectionHead}><small>PROPERTY EXTRAS</small><h2>Useful when you need them.</h2><p>Separate tools, not required steps.</p></div>
         <div className={styles.quickGrid}>
           <Link className={styles.quickCard} href="/geo/slice"><div className={styles.icon}>¢</div><span className={styles.badge}>DEMO</span><h3>$1.99 Property Sandbox</h3><p>Try hypothetical property-slice math with demo credit only. No real property rights or customer funds move.</p><b>Try demo →</b></Link>
           <Link className={styles.quickCard} href="/vault#purchased-twins"><div className={styles.icon}>⌂</div><span className={styles.badge}>PURCHASED</span><h3>My purchased twins</h3><p>Open an account-secured digital purchase and create its included custom voxel when eligible.</p><b>Open purchases →</b></Link>
