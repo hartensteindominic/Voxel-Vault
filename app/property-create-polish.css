@@ -57,9 +57,9 @@ main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):before{c
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):before{content:"5"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(1):after{content:"PHOTO"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(2):after{content:"PAY"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"3D PIC"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"VOXEL"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"MINT"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"VOXEL PHOTO"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"3D VOXEL"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"SAVE / MINT"}
 
 main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(1),
 main:has([aria-label="Step 3 of 5"]) [aria-label="Step 3 of 5"]>span:nth-child(-n+2),
@@ -111,7 +111,7 @@ main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
   letter-spacing:.1em;
 }
 
-/* Stage 3 is a deliberate approval gate before voxelization. */
+/* Stage 3 is a deliberate approval gate before the separate movable voxel. */
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell){
   outline:2px solid rgba(113,56,245,.24);
   outline-offset:3px;
@@ -119,7 +119,7 @@ main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell){
 }
 
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
-  content:"REVIEW BEFORE VOXEL";
+  content:"REVIEW VOXEL PHOTO";
   position:absolute;
   z-index:10;
   top:13px;
@@ -154,6 +154,12 @@ main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img)>span{
   margin-top:6px;
   font-size:8px;
   letter-spacing:.08em;
+}
+
+/* Keep map/World setup out of the paid creation funnel. The finished item is
+   already saved to Vault; advanced placement remains available from Vault. */
+main:has([aria-label="Step 5 of 5"]) details{
+  display:none!important;
 }
 
 @media(max-width:640px){
