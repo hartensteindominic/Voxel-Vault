@@ -53,6 +53,10 @@ create table if not exists public.vault_tenant_voxel_attachments (
   tenant_user_id uuid not null references auth.users(id) on delete cascade,
   voxel_session_id text not null check (char_length(voxel_session_id) between 1 and 180),
   token_id text not null check (char_length(token_id) between 1 and 96),
+  token_contract text not null check (char_length(token_contract) between 1 and 80),
+  wallet_address text not null check (char_length(wallet_address) between 1 and 80),
+  ownership_proof_hash text not null check (char_length(ownership_proof_hash) = 64),
+  ownership_verified_at timestamptz not null,
   voxel_name text not null default '' check (char_length(voxel_name) <= 120),
   status text not null default 'active' check (status in ('active','archived')),
   placed_transform jsonb not null default '{"position":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]}'::jsonb,
@@ -78,7 +82,8 @@ for select to authenticated
 using (
   exists (
     select 1 from public.vault_property_leases lease
-    where lease.id = lease_id and lease.tenant_user_id = auth.uid()
+    where lease.id = public.vault_rental_payments.lease_id
+      and lease.tenant_user_id = auth.uid()
   )
 );
 
