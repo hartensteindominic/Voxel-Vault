@@ -39,16 +39,17 @@ const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
 assert.match(propertyRoute, /PropertyJourneyExact/, '/property must use the strict voxel-photo -> movable-voxel -> optional-mint journey');
-assert.match(home, /ONE HOUSE PHOTO · \$4\.99/, 'home clearly presents one photo and one creation price');
-assert.match(home, /3D voxel photo/, 'home names the 3D voxel-photo review stage');
-assert.match(home, /Create my VoxelPop · \$4\.99/, 'home has one clear paid creation CTA');
-assert.match(home, /Photo stays on your device/i, 'home explains the device-local source photo boundary');
-assert.match(home, /No wallet to create/i, 'wallet must not block core creation');
-assert.match(home, /SAVE \/ OPTIONAL MINT/, 'home keeps minting downstream and optional');
-assert.match(home, /does not create ownership or financial rights in a physical property/i, 'home separates the digital product from physical-property rights');
+assert.match(home, /VOXELPOP · PHOTO → 3D → VOXEL → NFT/, 'home clearly presents the centered VoxelPop creation order');
+assert.match(home, /Start VoxelPop · \$4\.99/, 'home has one clear paid creation CTA');
+assert.match(home, /Try 3D sample · no login/, 'home keeps a no-login proof path');
+assert.match(home, /3D Preview[\s\S]*3D Voxel[\s\S]*NFT/, 'home keeps 3D preview, voxel, and NFT visibly ordered');
+assert.match(home, /No wallet until mint/i, 'wallet must not block core creation');
+assert.match(home, /NFT optional/i, 'home keeps minting downstream and optional');
+assert.match(home, /does not create ownership, deed\/title, rent, occupancy, investment, appreciation, or other rights in a physical property/i, 'home separates the digital product from physical-property rights');
 assert.match(homePreview, /source:\s*\{[\s\S]*label: 'House photo'/, 'home preview includes the original source-photo stage');
-assert.match(homePreview, /preview:\s*\{[\s\S]*label: '3D voxel photo'/, 'home preview includes the 3D voxel-photo stage');
+assert.match(homePreview, /preview:\s*\{[\s\S]*label: '3D preview'/, 'home preview includes the middle 3D review stage');
 assert.match(homePreview, /voxel:\s*\{[\s\S]*label: 'Movable 3D voxel'/, 'home preview includes the separate movable-voxel stage');
+assert.match(homePreview, /nft:\s*\{[\s\S]*label: 'Optional NFT'/, 'home preview keeps NFT minting last and optional');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 assert.doesNotMatch(layout, /property-create-polish\.css/, 'legacy Create progress overrides stay unloaded');
 
@@ -72,10 +73,15 @@ assert.match(property, /You see and approve the 3D voxel photo before VoxelPop c
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
 assert.match(property, /PhotoReliefModelViewer/, '3D voxel photo is a first-class stage');
-assert.match(photoPreview, /className=\{styles\.housePhoto\} src=\{imageUrl\}/, '3D voxel-photo review preserves the exact selected house image');
-assert.match(photoPreview, /PHOTO-MATCHED/, '3D voxel-photo review makes likeness preservation explicit');
+assert.match(photoPreview, /getImageData\(0, 0, columns, rows\)/, '3D voxel-photo review samples the selected house image into voxel data');
+assert.match(photoPreview, /new THREE\.InstancedMesh/, '3D voxel-photo review uses actual Three.js instances');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, '3D voxel-photo review is made of real cube geometry');
+assert.match(photoPreview, /const depth = 0\.42/, '3D voxel-photo review has inspectable shallow depth');
+assert.match(photoPreview, /edge \* 0\.34/, 'visible image edges influence the block depth');
+assert.match(photoPreview, /PHOTO-MATCHED BLOCKS/, '3D voxel-photo review makes source matching explicit');
 assert.match(photoPreview, /ORIGINAL PHOTO/, '3D voxel-photo review keeps the source visible for comparison');
-assert.doesNotMatch(photoPreview, /InstancedMesh|getImageData|BoxGeometry/, 'single-photo review must not fabricate unseen cube geometry');
+assert.doesNotMatch(photoPreview, /backingGeometry/, '3D voxel-photo review must not regress to a rectangular picture backing');
+assert.match(photoPreview, /targetY = clamp/, 'review rotation stays bounded so hidden sides are not presented as known');
 assert.match(property, /Looks good → Create Movable 3D Voxel/, 'user explicitly approves the 3D voxel photo before movable-voxel creation');
 assert.match(property, /createVoxelPoster/, 'VoxelPop movable-voxel image is built only after preview approval');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive movable voxel is a separate later stage');
@@ -154,4 +160,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> photo-matched 3D voxel-photo review -> explicit approval -> separate movable 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> real photo-matched 3D voxel geometry -> explicit approval -> separate movable 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
