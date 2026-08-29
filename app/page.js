@@ -6,9 +6,9 @@ export const metadata = { alternates: { canonical: '/' } };
 const steps = [
   ['01', 'Take a photo', 'Use a clear front or angled exterior photo.'],
   ['02', 'Confirm address', 'Give the building a unique property identity.'],
-  ['03', 'Build the voxel', 'Preview the voxel look, then create the movable 3D collectible.'],
+  ['03', 'Build the voxel', 'Preview the voxel image, then create the movable 3D collectible.'],
   ['04', 'Mint if you want', 'Make the one-of-one collectible on-chain when you are ready.'],
-  ['05', 'Keep it in Vault', 'Every finished property stays in your personal Inventory.'],
+  ['05', 'Keep it in Vault', 'The finished voxel is saved to Inventory first.'],
 ];
 
 export default function Home() {
@@ -95,6 +95,8 @@ export default function Home() {
       <div><p className={styles.eyebrow}>READY WHEN YOU ARE</p><h2>Your next property can become a voxel.</h2></div>
       <Link className={styles.primary} href="/property">Start with a photo</Link>
     </section>
+
+    <p className={styles.truth}>This collectible is digital only. Saving or minting it does not create or transfer deed, title, equity, occupancy, rent, or other physical-property rights.</p>
 
     <footer className={styles.footer}>
       <span>Voxel Vault · digital property collectibles</span>
