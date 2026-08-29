@@ -96,7 +96,7 @@ export default function Home() {
       <Link className={styles.primary} href="/property">Start with a photo</Link>
     </section>
 
-    <p className={styles.truth}>This collectible is digital only. Saving or minting it does not create or transfer deed, title, equity, occupancy, rent, or other physical-property rights.</p>
+    <p style={{ width: 'min(1000px, 100%)', margin: '36px auto 0', color: '#8b8491', fontSize: '10px', lineHeight: 1.6, textAlign: 'center' }}>This collectible is digital only. Saving or minting it does not create or transfer deed, title, equity, occupancy, rent, or other physical-property rights.</p>
 
     <footer className={styles.footer}>
       <span>Voxel Vault · digital property collectibles</span>
