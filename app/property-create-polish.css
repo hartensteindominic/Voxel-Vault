@@ -1,53 +1,64 @@
-/* Presentation-only polish for the signed-in VoxelPop Create flow. */
+/* Clean presentation layer for the signed-in VoxelPop Create flow. */
+main:has([aria-label^="Step "]){
+  background:radial-gradient(circle at 12% 3%,rgba(201,255,84,.15),transparent 24%),radial-gradient(circle at 90% 5%,rgba(113,56,245,.10),transparent 28%),#fffaf2;
+}
+
 main:has([aria-label^="Step "]) [aria-label^="Step "]{
-  width:min(620px,100%);
-  margin:2px auto 12px;
-  padding:0;
+  width:min(560px,100%);
+  margin:0 auto 8px;
+  padding:4px;
   display:grid;
   grid-template-columns:repeat(5,minmax(0,1fr));
-  gap:7px;
+  gap:5px;
+  border:1px solid #e8e0e9;
+  border-radius:18px;
+  background:rgba(255,255,255,.72);
+  box-shadow:0 10px 28px rgba(67,47,79,.045);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span{
   position:relative;
   min-width:0;
-  height:58px;
-  border:1px solid #e4dce8;
-  border-radius:16px;
-  background:rgba(255,255,255,.86);
-  color:#8e838f;
-  box-shadow:0 7px 18px rgba(72,49,88,.045);
-  display:flex;
-  flex-direction:column;
+  height:42px;
+  border:0;
+  border-radius:13px;
+  background:transparent;
+  color:#8b818d;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
   align-items:center;
   justify-content:center;
   gap:5px;
+  padding:0 7px;
+  box-shadow:none;
   transform:none;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:before{
-  width:21px;
-  height:21px;
-  border-radius:999px;
+  width:20px;
+  height:20px;
+  border-radius:7px;
   display:grid;
   place-items:center;
-  background:#eee8ef;
+  background:#eee9ef;
   color:#756b78;
-  font-size:9px;
+  font-size:8px;
   line-height:1;
   font-weight:1000;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{
   display:block;
-  max-width:100%;
+  min-width:0;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  font-size:8px;
+  font-size:7px;
   line-height:1;
   font-weight:1000;
-  letter-spacing:.045em;
+  letter-spacing:.025em;
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(1):before{content:"1"}
@@ -57,17 +68,16 @@ main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):before{c
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):before{content:"5"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(1):after{content:"PHOTO"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(2):after{content:"PAY"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"3D PIC"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"VOXEL"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"MINT"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"VOXEL PHOTO"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"3D VOXEL"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"SAVE"}
 
 main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(1),
 main:has([aria-label="Step 3 of 5"]) [aria-label="Step 3 of 5"]>span:nth-child(-n+2),
 main:has([aria-label="Step 4 of 5"]) [aria-label="Step 4 of 5"]>span:nth-child(-n+3),
 main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(-n+4){
-  border-color:#d6e9af;
-  background:linear-gradient(180deg,#fbfff2,#f1ffda);
-  color:#58712d;
+  background:#f2fbdc;
+  color:#57702d;
 }
 
 main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(1):before,
@@ -76,7 +86,7 @@ main:has([aria-label="Step 4 of 5"]) [aria-label="Step 4 of 5"]>span:nth-child(-
 main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(-n+4):before{
   content:"✓";
   background:#c9ff54;
-  color:#3f5719;
+  color:#405719;
 }
 
 main:has([aria-label="Step 1 of 5"]) [aria-label="Step 1 of 5"]>span:nth-child(1),
@@ -84,10 +94,9 @@ main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(2
 main:has([aria-label="Step 3 of 5"]) [aria-label="Step 3 of 5"]>span:nth-child(3),
 main:has([aria-label="Step 4 of 5"]) [aria-label="Step 4 of 5"]>span:nth-child(4),
 main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(5){
-  border-color:#7540ef;
-  background:linear-gradient(180deg,#8250ff,#6a32ed);
+  background:linear-gradient(180deg,#7c46fa,#6931ec);
   color:#fff;
-  box-shadow:0 5px 0 #5120d0,0 13px 24px rgba(105,48,237,.17);
+  box-shadow:0 3px 0 #5120d0;
 }
 
 main:has([aria-label="Step 1 of 5"]) [aria-label="Step 1 of 5"]>span:nth-child(1):before,
@@ -100,102 +109,125 @@ main:has([aria-label="Step 5 of 5"]) [aria-label="Step 5 of 5"]>span:nth-child(5
 }
 
 main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
-  margin:0 auto 20px;
-  padding:7px 12px;
-  border:1px solid #e2d8f4;
+  width:max-content;
+  max-width:100%;
+  margin:0 auto 18px;
+  padding:6px 10px;
+  border:0;
   border-radius:999px;
-  background:#f4efff;
-  color:#6536ce;
-  font-size:10px;
+  background:#f2edfb;
+  color:#6b42c3;
+  font-size:8px;
   font-weight:1000;
-  letter-spacing:.1em;
+  letter-spacing:.08em;
 }
 
-/* Stage 3 is a deliberate approval gate before voxelization. */
+/* Keep house imagery wide enough to feel like a photo instead of a tall app card. */
+main:has([aria-label^="Step "]) div:has(> .viewerShell),
+main:has([aria-label="Step 2 of 5"]) div:has(>img[alt="Selected property reference"]){
+  aspect-ratio:4/3!important;
+  max-height:520px!important;
+  border-radius:25px!important;
+}
+
+/* Stage 3 is a deliberate approval gate before the final movable voxel. */
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell){
-  outline:2px solid rgba(113,56,245,.24);
+  outline:2px solid rgba(113,56,245,.20);
   outline-offset:3px;
-  box-shadow:0 24px 62px rgba(72,49,88,.17);
+  box-shadow:0 24px 62px rgba(72,49,88,.15)!important;
 }
 
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
-  content:"REVIEW BEFORE VOXEL";
+  content:"APPROVE THIS VOXEL PHOTO FIRST";
   position:absolute;
   z-index:10;
-  top:13px;
-  right:13px;
+  top:12px;
+  right:12px;
   width:max-content;
-  max-width:calc(100% - 26px);
-  padding:8px 10px;
-  border:1px solid rgba(255,255,255,.7);
+  max-width:calc(100% - 24px);
+  padding:7px 9px;
+  border:1px solid rgba(255,255,255,.72);
   border-radius:999px;
   background:rgba(245,239,255,.94);
   color:#6730ec;
-  font-size:8px;
+  font-size:7px;
   line-height:1;
   font-weight:1000;
-  letter-spacing:.09em;
+  letter-spacing:.075em;
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   pointer-events:none;
 }
 
-/* The viewer already contains the source image. Enlarge it for an actual phone-size comparison. */
+/* The viewer contains the original source image for a direct comparison. */
 main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){
-  right:14px;
-  bottom:14px;
-  width:126px;
-  padding:7px;
-  border-radius:17px;
+  right:12px;
+  bottom:12px;
+  width:118px;
+  padding:6px;
+  border-radius:16px;
   border-width:2px;
 }
 
 main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img)>span{
-  margin-top:6px;
-  font-size:8px;
-  letter-spacing:.08em;
+  margin-top:5px;
+  font-size:7px;
+  letter-spacing:.07em;
 }
 
 @media(max-width:640px){
   main:has([aria-label^="Step "]) [aria-label^="Step "]{
     width:100%;
-    gap:5px;
-    margin-bottom:10px;
+    gap:3px;
+    padding:3px;
+    border-radius:15px;
+    margin-bottom:7px;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span{
-    height:54px;
-    border-radius:13px;
-    gap:4px;
+    height:38px;
+    padding:0 3px;
+    border-radius:11px;
+    grid-template-columns:1fr;
+    gap:2px;
+    place-items:center;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span:before{
-    width:19px;
-    height:19px;
-    font-size:8px;
+    width:17px;
+    height:17px;
+    border-radius:6px;
+    font-size:7px;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{
-    font-size:7px;
-    letter-spacing:.025em;
+    max-width:100%;
+    font-size:5.8px;
+    letter-spacing:0;
+    text-align:center;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
-    margin-bottom:16px;
-    font-size:9px;
+    margin-bottom:14px;
+    font-size:7.5px;
+  }
+  main:has([aria-label^="Step "]) div:has(> .viewerShell),
+  main:has([aria-label="Step 2 of 5"]) div:has(>img[alt="Selected property reference"]){
+    aspect-ratio:5/4!important;
+    max-height:430px!important;
+    border-radius:22px!important;
   }
   main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
-    top:10px;
-    right:10px;
-    padding:7px 9px;
-    font-size:7px;
+    top:9px;
+    right:9px;
+    padding:6px 8px;
+    font-size:6px;
   }
   main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){
-    width:106px;
-    right:10px;
-    bottom:10px;
+    width:94px;
+    right:9px;
+    bottom:9px;
   }
 }
 
 @media(max-width:380px){
-  main:has([aria-label^="Step "]) [aria-label^="Step "]{gap:4px}
-  main:has([aria-label^="Step "]) [aria-label^="Step "]>span{height:51px;border-radius:12px}
-  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{font-size:6.5px}
-  main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){width:98px}
+  main:has([aria-label^="Step "]) [aria-label^="Step "]>span{height:36px}
+  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"VOXEL PIC"}
+  main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){width:86px}
 }
