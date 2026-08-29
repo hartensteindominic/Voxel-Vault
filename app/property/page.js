@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import ProductTopNav from '../components/ProductTopNav';
+import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import PropertyJourneyExact from './PropertyJourneyExact';
 
 const DEMO_PURCHASE_KEY = 'voxel-vault:property-slice-purchases';
@@ -20,6 +21,38 @@ function requestedPropertyLabel(propertyId) {
     } catch {}
   }
   return '';
+}
+
+function OAuthRecovery() {
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const oauthError = params.get('error_description') || params.get('error');
+
+    if (oauthError) {
+      window.history.replaceState({}, '', '/property');
+      return undefined;
+    }
+    if (!code) return undefined;
+
+    (async () => {
+      try {
+        const client = await getSupabaseBrowserAsync();
+        const { data: existing } = await client.auth.getSession();
+        if (!active) return;
+        if (!existing?.session) {
+          await client.auth.exchangeCodeForSession(window.location.href);
+        }
+        if (active) window.history.replaceState({}, '', '/property');
+      } catch {
+        if (active) window.history.replaceState({}, '', '/property');
+      }
+    })();
+
+    return () => { active = false; };
+  }, []);
+  return null;
 }
 
 function VaultPropertyHandoff() {
@@ -71,6 +104,7 @@ function VaultPropertyHandoff() {
 
 export default function PropertyJourneyPage() {
   return <>
+    <OAuthRecovery/>
     <ProductTopNav/>
     <div id="voxelpop-journey"><VaultPropertyHandoff/><PropertyJourneyExact/></div>
   </>;
