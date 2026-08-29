@@ -94,7 +94,7 @@ must(/const labels = \['PHOTO', 'ADDRESS', 'VOXEL', '3D', 'DONE'\]/.test(propert
 must(/Choose one house photo\./.test(property), 'Creator must start with one obvious photo action.');
 must(/Confirm address/.test(property) && /\/api\/property-identity/.test(property), 'Creator must visibly confirm the canonical address before generation.');
 must(/I took this photo or have permission to use it\./.test(property), 'Creator must preserve source-photo authorization.');
-must(/\/api\/property-voxel-image\?/.test(property), 'Creator must wait for the generated voxel image.');
+must(/\/api\/property-voxel-photo\?/.test(property), 'Creator must wait for the generated voxel image.');
 must(/\/api\/property-voxel-3d/.test(property) && /phase: 'voxel'/.test(property), 'Creator must turn that voxel image into the final 3D model.');
 must(/MeshyModelViewer modelUrl=\{final3d\.modelUrl\}/.test(property), 'Creator must show the final movable 3D voxel.');
 must(/Open inventory/.test(property), 'Completion must lead to the automatically saved result.');
