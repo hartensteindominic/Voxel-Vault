@@ -3,8 +3,13 @@ export default function robots() {
   return {
     rules: [{
       userAgent: '*',
-      allow: '/',
-      disallow: ['/admin/', '/api/admin/', '/api/', '/vault/', '/account/', '/checkout/', '/property/mint'],
+      allow: ['/', '/bank'],
+      disallow: [
+        '/admin/', '/api/admin/', '/api/', '/vault/', '/account/', '/checkout/',
+        '/property/', '/property', '/world/', '/world', '/demo/', '/demo',
+        '/more/', '/more', '/about/', '/about', '/studio/', '/studio',
+        '/voxelflip/', '/pack/'
+      ],
     }],
     sitemap: `${base}/sitemap.xml`,
     host: base,
