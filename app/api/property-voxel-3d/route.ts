@@ -136,13 +136,19 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const atlasIdRaw = url.searchParams.get('atlasId') || '';
   const taskId = clean(url.searchParams.get('taskId'), 260);
+  const resumeCached = url.searchParams.get('resume') === '1';
 
   try {
     if (atlasIdRaw && !taskId) {
       const atlasId = cleanAtlasId(atlasIdRaw);
+      // The guided creator starts from the user's chosen photo every time. Reusing an
+      // older model by property ID is explicit-only so stale 3D cannot skip the photo step.
+      if (!resumeCached) {
+        return NextResponse.json({ ok: true, exists: false, cachedResumeAvailable: true, status: 'NOT_STARTED', progress: 0, modelUrl: null });
+      }
       const saved = await readCatalog3D(itemIdFor(atlasId));
-      if (!saved) return NextResponse.json({ ok: true, exists: false, status: 'NOT_STARTED', progress: 0, modelUrl: null });
-      return NextResponse.json({ ok: true, exists: true, ...publicState(saved, await displayUrlFor(saved)) });
+      if (!saved) return NextResponse.json({ ok: true, exists: false, cachedResumeAvailable: false, status: 'NOT_STARTED', progress: 0, modelUrl: null });
+      return NextResponse.json({ ok: true, exists: true, cachedResumeAvailable: true, ...publicState(saved, await displayUrlFor(saved)) });
     }
 
     if (!taskId) return NextResponse.json({ ok: false, error: 'atlasId or taskId is required.' }, { status: 400 });

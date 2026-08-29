@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { requireVoxelVaultAdmin } from '../../../lib/admin-auth';
+import { requireVoxelVaultUser } from '../../../lib/user-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -35,7 +35,7 @@ async function ensureBucket(admin: any) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireVoxelVaultAdmin(request);
+  const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) {
     return NextResponse.json({ ok: false, error: auth.error, setupRequired: auth.setupRequired === true }, { status: auth.status });
   }
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     });
     if (uploaded.error) throw new Error('The property photo could not be stored privately.');
 
-    const signed = await auth.admin.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+    const signed = await auth.admin.storage.from(BUCKET).createSignedUrl(path, 6 * 60 * 60);
     if (signed.error || !signed.data?.signedUrl) throw new Error('The private property photo could not be opened for generation.');
 
     const uploadedAt = new Date().toISOString();
