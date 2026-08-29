@@ -2,7 +2,9 @@ import Link from 'next/link';
 import styles from './home.module.css';
 
 // Safety contract: the checkout in the guided property flow buys the generated digital VoxelPop collectible only.
-// A payment, 3D model, map marker, Property Passport, or NFT is not a deed and does not create rent, occupancy, investment, or appreciation rights.
+// Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.
+// A 3D model or NFT alone is not a deed.
+// A payment, 3D model, map marker, Property Passport, or NFT does not create rent, occupancy, investment, or appreciation rights.
 // Creation flow contract: SIGN IN -> PHOTO -> AUTO 3D -> AUTO VOXEL -> MY WORLD PREVIEW -> BUY & SAVE -> VAULT -> OPTIONAL VERIFIED MINT.
 // Canonical property minting remains a separate parcel-verification step and address text is never treated as deed/title proof.
 export default function Home() {
@@ -19,10 +21,10 @@ export default function Home() {
     </header>
 
     <section className={styles.card}>
-      <div className={styles.step}><span>1</span><div><h2>Start with the photo.</h2><p>We build the first 3D, turn that 3D into VoxelPop, make the final movable voxel, then let you preview it on My World before you pay.</p></div></div>
+      <div className={styles.step}><span>1</span><div><h2>Sign in first. Then start with the photo.</h2><p>We build the first 3D, turn that 3D into VoxelPop, make the final movable voxel, then let you preview it on My World before you pay.</p></div></div>
       <Link className={styles.startButton} href="/property">START PROPERTY → SIGN IN</Link>
       <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>3D</b><i>→</i><b>VOXEL</b><i>→</i><b>WORLD</b><i>→</i><b>BUY + VAULT</b></div>
-      <small>Wallet connection is optional. Buy the digital collectible first; verify and mint to a wallet later only if you want.</small>
+      <small>Nothing uploads, generates, buys, rents or saves before you sign in. Wallet connection is optional; verify and mint to a wallet later only if you want.</small>
     </section>
 
     <section className={styles.quickLinks}>
@@ -31,7 +33,7 @@ export default function Home() {
     </section>
 
     <footer className={styles.footer}>
-      <span>Property checkout buys the generated digital collectible only. It does not buy the real house or land or create deed/title, rent, occupancy, or investment rights.</span>
+      <span>Creating or minting a property model does not buy, rent, or create deed/title rights. Property checkout buys the generated digital collectible only.</span>
       <Link href="/more">Advanced</Link>
     </footer>
   </main>;
