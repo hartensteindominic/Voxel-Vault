@@ -7,7 +7,9 @@ import PhotoReliefModelViewer from '../property/PhotoReliefModelViewer';
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './demo.module.css';
 
-const SAMPLE = '/voxelpop/demo-house.svg';
+// Raster sample is required: canvas pixel sampling for the 3D voxel photo
+// does not work reliably with SVG (black / empty WebGL output).
+const SAMPLE = '/voxelpop/demo-house.png';
 
 export default function DemoPage() {
   const [stage, setStage] = useState('preview');
