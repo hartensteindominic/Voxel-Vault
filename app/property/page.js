@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import ProductTopNav from '../components/ProductTopNav';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
-import PropertyJourneySimple from './HouseVoxelJourney';
+import HouseVoxelJourney from './HouseVoxelJourney';
+import './house-voxel.css';
 
 function cleanOAuthParams() {
   const url = new URL(window.location.href);
@@ -45,7 +45,6 @@ function OAuthRecovery() {
 export default function PropertyJourneyPage() {
   return <>
     <OAuthRecovery/>
-    <ProductTopNav/>
-    <div id="voxelpop-journey"><PropertyJourneySimple/></div>
+    <div id="voxelpop-journey"><HouseVoxelJourney/></div>
   </>;
 }
