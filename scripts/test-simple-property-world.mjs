@@ -32,10 +32,14 @@ const command = read('app/components/AppCommandCenter.js');
 
 assert.match(home, /ONE PHOTO → YOUR VOXEL WORLD|Upload a picture\./, 'home describes the current one-photo guided journey');
 assert.match(home, /START → SIGN IN \+ UPLOAD PHOTO/, 'home truthfully exposes the account gate before the photo picker');
-assert.match(home, /No wallet required to create/i, 'wallet must not block creation or checkout');
-assert.match(home, /does not buy the physical property/i, 'home distinguishes the voxel from physical real estate');
-assert.match(home, /No Meshy credits/i, 'home makes the no-Meshy provider dependency explicit');
-assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed/i, 'unverified property-purchase language stays out of the simple home');
+assert.match(home, /One VoxelPop creation costs \$4\.99/, 'home clearly discloses the creation price');
+assert.match(home, /source photo stays on your device/i, 'home explains the device-local source photo boundary');
+assert.match(home, /without Meshy credits/i, 'home makes the no-Meshy dependency explicit');
+assert.match(home, /Optional Collect later is a separate digital-item purchase/i, 'home distinguishes creation payment from the later collectible checkout');
+assert.match(home, /no wallet is required to create/i, 'wallet must not block core creation');
+assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank status');
+assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
+assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
 assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple remains');
@@ -50,7 +54,7 @@ assert.match(property, /Choose one photo\./, 'first signed-in step stays photo-f
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone photo preparation remains automatic');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo still requires rights confirmation');
-assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} · Use photo → start build/, 'the same paid creation CTA remains explicit');
+assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} · Use photo → start build/, 'the paid creation CTA remains explicit');
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
 assert.match(property, /createVoxelPoster/, 'VoxelPop image is built locally');
@@ -107,7 +111,7 @@ assert.match(canonicalRegistry, /PropertyAlreadyRegistered/, 'canonical registry
 assert.match(propertyPassport, /PassportAlreadyMinted/, 'Property Passport rejects a second canonical mint');
 assert.match(interestToken, /off-chain legal/, 'economic rights remain defined separately by legal agreements');
 
-assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the same condensed consumer navigation instead of a separate mini-app dock');
+assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> authorized device-local photo -> explicit paid unlock -> VoxelPop image -> local interactive 3D -> improved source-backed property map -> digital collection/Vault, without Meshy credits or checkout Storage.');
+console.log('Guided VoxelPop property checks passed: sign in -> authorized device-local photo -> clear $4.99 local creation -> VoxelPop image -> interactive 3D -> source-backed property map -> optional digital collection/Vault, without Meshy credits or checkout Storage.');
