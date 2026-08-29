@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { inspectWorldAtlas } from '../../../../lib/world-atlas.js';
-import { readCatalog3DByTask } from '../../../../lib/catalog3dStore';
-import { normalizePropertyDraftId, propertyDraftItemId } from '../../../../lib/property-generation-ids';
 import {
   acquirePropertyCollectibleReservation,
   propertyCollectibleIdentity,
   quotePropertyCollectible,
   releasePropertyCollectibleReservation,
+  secureStripePropertyCollectiblePurchase,
   updatePropertyCollectibleReservation,
+  verifyOwnedFinalVoxelModel,
 } from '../../../../lib/property-collectible-commerce';
 
 export const runtime = 'nodejs';
@@ -34,21 +34,13 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
-    const draftId = normalizePropertyDraftId(body?.draftId);
+    const draftId = clean(body?.draftId, 100);
     const modelTaskId = clean(body?.modelTaskId, 260);
-    if (!address || !atlasId || !modelTaskId) {
-      return NextResponse.json({ ok: false, error: 'Finish the voxel and place it on World before checkout.' }, { status: 400 });
+    if (!address || !atlasId || !draftId || !modelTaskId) {
+      return NextResponse.json({ ok: false, error: 'Finish the voxel and place it on My World before checkout.' }, { status: 400 });
     }
 
-    const savedModel = await readCatalog3DByTask(modelTaskId);
-    const expectedItemId = propertyDraftItemId(auth.user.id, draftId, 'voxel');
-    if (!savedModel?.item_id || savedModel.item_id !== expectedItemId) {
-      return NextResponse.json({ ok: false, error: 'That final voxel model does not belong to this signed-in creation.' }, { status: 403 });
-    }
-    if (!savedModel.model_url && !savedModel.model_storage_path) {
-      return NextResponse.json({ ok: false, error: 'The final voxel model is not finished yet.' }, { status: 409 });
-    }
-
+    await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
     if (!atlas?.ok) throw new Error(atlas?.error || 'The property could not be re-checked before checkout.');
     const building = findMappedBuilding(atlas, atlasId);
@@ -72,6 +64,15 @@ export async function POST(request: Request) {
     });
 
     if (hold.sold) {
+      if (hold.reservation?.buyerId === auth.user.id && hold.reservation?.sourceId) {
+        try {
+          const paidSession = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
+          if (paidSession.payment_status === 'paid') {
+            await secureStripePropertyCollectiblePurchase({ session: paidSession, expectedBuyerId: auth.user.id });
+            return NextResponse.json({ ok: true, paid: true, sessionId: paidSession.id, successUrl: `/property/success?session_id=${encodeURIComponent(paidSession.id)}`, quote });
+          }
+        } catch {}
+      }
       return NextResponse.json({ ok: false, sold: true, error: 'This mapped Voxel World property collectible has already been purchased.' }, { status: 409 });
     }
     if (!hold.reservedByYou) {
@@ -82,13 +83,18 @@ export async function POST(request: Request) {
     if (hold.reservation?.state === 'checkout' && hold.reservation.sourceId) {
       try {
         const existing = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
+        if (existing.payment_status === 'paid') {
+          await secureStripePropertyCollectiblePurchase({ session: existing, expectedBuyerId: auth.user.id });
+          return NextResponse.json({ ok: true, paid: true, sessionId: existing.id, successUrl: `/property/success?session_id=${encodeURIComponent(existing.id)}`, quote });
+        }
         if (existing.status === 'open' && existing.url) {
           return NextResponse.json({ ok: true, reused: true, url: existing.url, sessionId: existing.id, quote });
         }
       } catch {}
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxel-vault.vercel.app';
+    const origin = new URL(request.url).origin;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: auth.user.email || undefined,
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
           unit_amount: quote.priceCents,
           product_data: {
             name: `VoxelPop Property · ${quote.label}`,
-            description: 'One digital 3D voxel collectible for this mapped Voxel World building identity. No real-property rights are included.',
+            description: 'One digital 3D voxel collectible for this mapped Voxel World building identity. No deed/title, rent, investment or occupancy rights are included.',
           },
         },
       }],
@@ -142,7 +148,7 @@ export async function POST(request: Request) {
       url: session.url,
       sessionId: session.id,
       quote,
-      disclosure: 'Checkout purchases the generated digital collectible only. Minting is optional later and does not create deed/title or other real-property rights.',
+      disclosure: 'Checkout purchases the generated digital collectible only. Minting is optional later and does not create deed/title or any other real-property rights.',
     });
   } catch (error) {
     if (reservationCreated && identityKey) {
