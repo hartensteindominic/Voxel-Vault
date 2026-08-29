@@ -1,0 +1,144 @@
+/* One-click VoxelPop creator presentation layer.
+   Underlying payment, consent, render, approval, save, World and mint logic is unchanged. */
+
+#voxelpop-journey [class*="accountPill"],
+#voxelpop-journey [class*="progress"],
+#voxelpop-journey [class*="stageLabel"] {
+  display: none !important;
+}
+
+#voxelpop-journey [class*="maker"] {
+  width: min(720px, 100%) !important;
+  padding-top: 28px !important;
+}
+
+#voxelpop-journey [class*="brand"] {
+  margin-bottom: 8px !important;
+}
+
+#voxelpop-journey [class*="maker"] > h1 {
+  margin-bottom: 22px !important;
+}
+
+/* New users get one obvious photo route. Vault handoff can still select
+   My Properties programmatically when a saved property is opened from Vault. */
+#voxelpop-journey [class*="flowHint"] + [class*="choicePanel"] {
+  display: none !important;
+}
+
+#voxelpop-journey [class*="photoDrop"] {
+  min-height: 210px !important;
+  cursor: pointer !important;
+  border-width: 2px !important;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease !important;
+}
+
+#voxelpop-journey [class*="photoDrop"]:hover,
+#voxelpop-journey [class*="photoDrop"]:focus-visible {
+  transform: translateY(-2px) !important;
+  border-color: #7a45f4 !important;
+  box-shadow: 0 18px 42px rgba(99, 55, 205, .14) !important;
+  outline: none !important;
+}
+
+#voxelpop-journey [class*="choicePanel"] {
+  gap: 10px !important;
+}
+
+#voxelpop-journey button[class*="primaryPurple"],
+#voxelpop-journey a[class*="primaryLink"],
+#voxelpop-journey a[class*="secondaryLink"] {
+  min-height: 56px !important;
+  border-radius: 16px !important;
+}
+
+/* The whole photo card already opens the picker. Keep the separate button as
+   a quiet keyboard-accessible fallback instead of presenting two primary CTAs. */
+#voxelpop-journey [class*="photoDrop"] ~ button[class*="primaryPurple"] {
+  min-height: 44px !important;
+  background: transparent !important;
+  color: #6b6170 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+}
+
+#voxelpop-journey [class*="textButton"],
+#voxelpop-journey [class*="change"] {
+  min-height: 44px !important;
+  opacity: .72 !important;
+}
+
+/* Completion defaults visually to the already-saved Vault result. Mint stays
+   available but no longer looks like a required final step. */
+#voxelpop-journey [class*="heroCard"] + [class*="choicePanel"] > a[class*="secondaryLink"] {
+  order: -1 !important;
+  border: 0 !important;
+  background: linear-gradient(180deg, #7d43ff, #6932ed) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 0 #5120d0, 0 15px 34px rgba(102, 55, 219, .18) !important;
+  font-weight: 1000 !important;
+}
+
+#voxelpop-journey [class*="heroCard"] + [class*="choicePanel"] > a[class*="primaryLink"] {
+  order: 1 !important;
+  border: 1px solid #ded6e2 !important;
+  background: #fff !important;
+  color: #62556d !important;
+  box-shadow: none !important;
+}
+
+#voxelpop-journey [class*="optionalDetails"] {
+  opacity: .78 !important;
+}
+
+#voxelpop-journey [class*="message"] {
+  margin-top: 14px !important;
+}
+
+@media (max-width: 720px) {
+  #voxelpop-journey [class*="maker"] {
+    width: 100% !important;
+    padding: 18px 12px calc(38px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #voxelpop-journey [class*="maker"] > h1 {
+    font-size: clamp(42px, 13vw, 62px) !important;
+    line-height: .92 !important;
+    margin-bottom: 18px !important;
+  }
+
+  #voxelpop-journey [class*="bigPrompt"] {
+    font-size: clamp(24px, 7.5vw, 34px) !important;
+    line-height: 1 !important;
+  }
+
+  #voxelpop-journey [class*="photoDrop"] {
+    min-height: 190px !important;
+  }
+
+  #voxelpop-journey button[class*="primaryPurple"],
+  #voxelpop-journey button[class*="primaryTeal"],
+  #voxelpop-journey a[class*="primaryLink"],
+  #voxelpop-journey a[class*="secondaryLink"] {
+    width: 100% !important;
+    min-height: 54px !important;
+    font-size: 14px !important;
+  }
+
+  #voxelpop-journey [class*="photoDrop"] ~ button[class*="primaryPurple"] {
+    min-height: 42px !important;
+    font-size: 11px !important;
+  }
+
+  #voxelpop-journey [class*="choicePanel"] {
+    padding: 12px !important;
+  }
+
+  #voxelpop-journey [class*="truth"] {
+    font-size: 10px !important;
+    line-height: 1.5 !important;
+  }
+}
