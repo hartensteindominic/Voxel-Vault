@@ -30,12 +30,15 @@ const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
-assert.match(home, /Photo → voxel → mapped 3D\./, 'home describes the actual local preview plus mapped 3D journey');
-assert.match(home, /START → SIGN IN \+ CREATE/, 'home enters the account-gated maker');
+assert.match(home, /PHOTO → CREATE 3D → MAP → WORLD → COLLECT/, 'home describes the current paid local-3D plus map journey');
+assert.match(home, /One VoxelPop creation costs \$4\.99/, 'home clearly discloses the creation price');
+assert.match(home, /source photo stays on your device/i, 'home explains the device-local source photo boundary');
+assert.match(home, /without Meshy credits/i, 'home makes the non-Meshy generation dependency explicit');
+assert.match(home, /Optional Collect later is a separate digital-item purchase/i, 'home distinguishes generation payment from collectible checkout');
 assert.match(home, /wallet is optional|A wallet is optional/i, 'wallet must not block creation or checkout');
-assert.match(home, /does not buy the physical property/i, 'home distinguishes the voxel from physical real estate');
-assert.match(home, /No Meshy credits are required/i, 'home makes the no-Meshy provider dependency explicit');
-assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed/i, 'unverified property-purchase language stays out of the simple home');
+assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank status');
+assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
+assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase and return language stays out of the simple home');
 
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
 assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple remains');
@@ -110,4 +113,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the same condensed consumer navigation instead of a separate mini-app dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> authorized device-local photo -> explicit paid unlock -> VoxelPop image -> local interactive 3D -> improved source-backed property map -> digital collection/Vault, without Meshy credits or checkout Storage.');
+console.log('Guided VoxelPop property checks passed: clear pricing -> sign in -> authorized device-local photo -> $4.99 paid unlock -> VoxelPop image -> local interactive 3D -> source-backed property map -> optional digital collection/Vault, without Meshy credits or checkout Storage.');
