@@ -28,10 +28,10 @@ const required = [
   'app/page.js',
   'app/demo/page.js',
   'app/property/page.js',
-  'app/property/PropertyJourneySimple.js',
+  'app/property/HouseVoxelJourney.js',
+  'app/property/property.module.css',
+  'app/vault/property-drafts/page.js',
   'app/world/page.js',
-  'app/vault/page.js',
-  'app/more/page.js',
   'app/privacy/page.js',
   'app/terms/page.js',
   'app/about/page.js',
@@ -47,18 +47,22 @@ const dockCss = read('app/components/FinancialOSNav.module.css');
 const footer = read('app/components/ConsumerFooter.js');
 const system = read('app/ui-system.css');
 const demo = read('app/demo/page.js');
-const property = read('app/property/PropertyJourneySimple.js');
+const propertyRoute = read('app/property/page.js');
+const property = read('app/property/HouseVoxelJourney.js');
 const propertyCss = read('app/property/property.module.css');
+const vault = read('app/vault/property-drafts/page.js');
+const mint = read('app/property/mint/page.js');
 
-must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proof.');
+must(/HomeProductPreview/.test(home), 'Homepage must use a real interactive voxel proof.');
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(!/secondaryAction/.test(home), 'Homepage must not present a competing secondary hero button.');
-must(/ONE PHOTO → ONE VOXEL/.test(home) && /3D voxel photo/i.test(home) && /Saved to Vault automatically/i.test(home), 'Homepage must explain the condensed creation path without dense product copy.');
-must(/NFT optional/.test(home) && /no wallet needed to create/i.test(home), 'Homepage must keep mint and wallet work out of core creation.');
-must(/digital asset only/i.test(home) && /does not create or transfer ownership[\s\S]*physical property/i.test(home), 'Homepage must keep the digital-only physical-property boundary visible.');
-must(/LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual movable-voxel viewer.');
-must(/3D voxel photo review/i.test(preview), 'Home proof must disclose that the real voxel-photo review comes before the movable result.');
+must(/HOUSE PHOTO → VOXEL → 3D · \$4\.99/.test(home), 'Homepage must state the focused house-photo product and price.');
+must(/Upload a house\. Confirm the address\. Get a voxel image, then a mintable 3D voxel\./.test(home), 'Homepage must explain the exact creation sequence.');
+must(/Saved to your Voxel Vault · mint when you want/.test(home), 'Homepage must make saving automatic and minting optional.');
+must(/One property\. One collectible\./.test(home), 'Homepage must state the one-property uniqueness rule.');
+must(/Digital collectible only\. No deed, title, or physical-property rights\./.test(home), 'Homepage must preserve the digital-only property-rights boundary.');
+must(/LocalVoxelModelViewer/.test(preview), 'Home product proof must remain interactive rather than decorative.');
 
 must(/Create · \$4\.99[\s\S]*Vault/.test(topNav), 'Primary product nav must stay focused on Create + Vault.');
 must(!/label: 'World'/.test(topNav) && !/className=\{styles\.demo\}/.test(topNav), 'World and Demo must not compete in the primary header.');
@@ -78,26 +82,33 @@ must(/prefers-reduced-motion:reduce/.test(system), 'UI system must respect reduc
 
 must(/ProductTopNav/.test(demo), 'Public demo must use shared product chrome.');
 must(/role="tablist"/.test(demo) && /aria-selected/.test(demo), 'Public demo stage switcher must expose tab semantics.');
-for (const file of ['app/privacy/page.js','app/terms/page.js','app/about/page.js']) {
+for (const file of ['app/privacy/page.js', 'app/terms/page.js', 'app/about/page.js']) {
   const source = read(file);
   must(/ProductTopNav/.test(source), `${file}: trust surface must use shared product chrome`);
   must(!/styles\.top/.test(source), `${file}: trust surface must not own a competing local top nav`);
   must(!/styles\.footer/.test(source), `${file}: trust surface must not own a duplicate footer`);
 }
 
-must(/const labels = \['PHOTO', 'REVIEW', 'BUILD', 'DONE'\]/.test(property), 'Creator must stay condensed to four user-facing stages.');
+must(/\.\/HouseVoxelJourney/.test(propertyRoute), 'Active /property route must use the focused house journey.');
+must(/const labels = \['PHOTO', 'ADDRESS', 'VOXEL', '3D', 'DONE'\]/.test(property), 'Creator must expose the exact five-step flow.');
 must(/Choose one house photo\./.test(property), 'Creator must start with one obvious photo action.');
-must(/Looks good · continue/.test(property), 'Voxel-photo review must have one obvious approval action.');
-must(/No more choices\. VoxelPop builds and saves it automatically\./.test(property), 'Build stage must remain automatic.');
-must(/Open Vault/.test(property), 'Completion must lead to the automatically saved result.');
-must(!/Mint is next/i.test(property), 'Completion must not imply minting is mandatory.');
-must(/Minting is optional/.test(property), 'Completion must state the optional mint boundary.');
+must(/Confirm address/.test(property) && /\/api\/property-identity/.test(property), 'Creator must visibly confirm the canonical address before generation.');
+must(/I took this photo or have permission to use it\./.test(property), 'Creator must preserve source-photo authorization.');
+must(/\/api\/property-voxel-image\?/.test(property), 'Creator must wait for the generated voxel image.');
+must(/\/api\/property-voxel-3d/.test(property) && /phase: 'voxel'/.test(property), 'Creator must turn that voxel image into the final 3D model.');
+must(/MeshyModelViewer modelUrl=\{final3d\.modelUrl\}/.test(property), 'Creator must show the final movable 3D voxel.');
+must(/Open inventory/.test(property), 'Completion must lead to the automatically saved result.');
+must(/Mint this voxel/.test(property), 'Minting must remain available after saving.');
+must(/Minting is optional/.test(property), 'Completion must explicitly state the optional-mint boundary.');
+must(!/Looks good · continue|approvePreviewAndBuildVoxel/.test(property), 'Creator must not reintroduce a redundant approval screen.');
 must(!/PropertyWorldMap|Add to My World/.test(property), 'World/map controls must stay out of the core creation funnel.');
-must(/\.accountPill,\.progress,\.stageLabel\{display:none\}/.test(propertyCss), 'Creator must hide account/progress chrome that makes the simple flow feel longer than it is.');
-must(/\.photoDrop \+ \.primaryPurple\{display:none\}/.test(propertyCss), 'Creator stylesheet must continue suppressing legacy duplicate photo controls.');
-must(/\.bigPrompt \+ \.flowHint \+ \.choicePanel\{display:none\}/.test(propertyCss), 'Creator stylesheet must continue suppressing the legacy duplicate source-mode selector.');
-must(/a\.secondaryLink\[href="\/vault\/property-drafts"\][^}]*order:1/.test(propertyCss), 'Legacy completion styling must continue prioritizing Vault over minting.');
-must(/a\.primaryLink\[href\^="\/property\/mint"\][^}]*order:2/.test(propertyCss), 'Legacy completion styling must continue keeping minting secondary.');
+must(/safe-area-inset-bottom/.test(propertyCss), 'Creator must respect iPhone safe areas.');
+must(/prefers-reduced-motion/.test(propertyCss), 'Creator must respect reduced-motion preferences.');
+
+must(/mintHref/.test(vault) && /Mint voxel/.test(vault), 'Inventory must support mint-later for a saved generated voxel.');
+must(/Open 3D/.test(vault), 'Inventory must let users reopen the saved 3D model.');
+must(/Keep in inventory/.test(mint), 'Mint page must let users leave the voxel unminted.');
+must(/one-of-one mint|one mint/i.test(mint), 'Mint page must keep the one-property mint limit visible.');
 
 let tinyDeclarations = 0;
 const tinyByFile = [];
@@ -118,8 +129,8 @@ for (const file of uiFiles) {
     tinyByFile.push([file, values.length, Math.min(...values)]);
   }
 }
-tinyByFile.sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-for (const [file,count,minimum] of tinyByFile.slice(0,25)) warnings.push(`${file}: ${count} sub-10px declarations (minimum ${minimum}px)`);
+tinyByFile.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+for (const [file, count, minimum] of tinyByFile.slice(0, 25)) warnings.push(`${file}: ${count} sub-10px declarations (minimum ${minimum}px)`);
 
 console.log(`UI system audit read ${uiFiles.length} tracked interface files.`);
 console.log(`Sub-10px typography declarations found: ${tinyDeclarations}. They remain visible migration hotspots, while core-system violations fail the build.`);
@@ -132,5 +143,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: Create + Vault header, Home/VoxelPop/Vault mobile dock, one homepage action, four-screen VoxelPop creation, real voxel geometry, automatic Vault save, optional minting, readable trust chrome, focus visibility, and reduced-motion support.');
+  console.log('\nUI system invariants passed: one house-photo CTA, confirmed address, generated voxel image, final 3D voxel, automatic inventory save, optional one-property mint, focused navigation, trust chrome, focus visibility, and reduced-motion support.');
 }
