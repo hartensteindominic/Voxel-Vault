@@ -7,6 +7,7 @@ import {
   secureStripePropertyCollectiblePurchase,
   verifyOwnedFinalVoxelModel,
 } from '../../../../lib/property-collectible-commerce';
+import { propertyCollectibleModelAccessPath } from '../../../../lib/property-collectible-model-access';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
       draftId: purchase.draftId,
       modelTaskId: purchase.modelTaskId,
     });
+    const durableModelUrl = propertyCollectibleModelAccessPath(purchase.identityKey, purchase.modelTaskId);
 
     let building: any = {
       atlasId: purchase.atlasId,
@@ -72,8 +74,9 @@ export async function GET(request: Request) {
       model: {
         taskId: purchase.modelTaskId,
         itemId: verifiedModel.savedModel.item_id,
-        modelUrl: verifiedModel.modelUrl,
+        modelUrl: durableModelUrl,
         thumbnailUrl: verifiedModel.savedModel.thumbnail_url || null,
+        storage: verifiedModel.savedModel.model_storage_path ? 'private-persisted-glb' : 'provider-fallback',
       },
       next: {
         vault: '/vault/property-drafts',
@@ -81,7 +84,7 @@ export async function GET(request: Request) {
         world: '/world',
         verifyAndMint: '/vault/properties/claim',
       },
-      disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
+      disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. Its Vault model link re-issues short-lived access to the private persisted GLB instead of storing an expiring URL. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     const friendly = propertyCollectiblePaymentErrorMessage(error);
