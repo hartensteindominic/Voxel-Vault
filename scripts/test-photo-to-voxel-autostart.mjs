@@ -11,9 +11,14 @@ const map = read('app/property/PropertyWorldMap.js');
 
 assert.match(property, /async function payAndCreate\(\)/, 'photo approval owns the paid creation handoff');
 assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'approved photo is retained on-device before checkout');
-assert.match(property, /await startLocalBuild\(pendingPhoto, draftId\)/, 'a verified paid session can start locally without another charge');
-assert.match(property, /createVoxelPoster\(photo\)/, 'local build creates the VoxelPop image first');
-assert.match(property, /LocalVoxelModelViewer imageUrl=\{voxelPoster \|\| pendingPreview\} sourceImageUrl=\{pendingPreview \|\| voxelPoster\}/, 'the local viewer receives the original photo reference for better building matching');
+assert.match(property, /propertyPhotoKey/, 'saved properties have a stable reusable on-device photo key');
+assert.match(property, /loadSavedPropertyPhoto/, 'saved property photos can be reopened instead of forcing a new upload');
+assert.match(property, /await startLocalBuild\(pendingPhoto, draftId\)/, 'a verified paid session can build the 3D picture without another charge');
+assert.match(property, /createVoxelPoster\(photo\)/, 'local build creates the recognizable 3D picture first');
+assert.match(property, /Create 3D Voxel/, 'the user explicitly approves voxel creation after seeing the picture');
+assert.match(property, /setVoxelRequested\(true\)/, 'voxel geometry starts only after explicit approval');
+assert.match(property, /LocalVoxelModelViewer imageUrl=\{voxelPoster \|\| pendingPreview\} sourceImageUrl=\{pendingPreview \|\| voxelPoster\}/, 'the voxel viewer receives the original photo reference for better building matching');
+assert.match(property, /sourcePhotoRetainedOnDevice: true/, 'saved property records remember that the reusable source photo remains private on-device');
 assert.match(property, /\/api\/property-local-voxel/, 'finished local 3D is registered for continuity');
 assert.match(property, /Enter the property address to match it to the real mapped building footprint/, 'successful local 3D has an obvious next step');
 assert.match(property, /async function mapBuilding\(event\)/, 'address step maps the selected real-world building');
@@ -50,4 +55,4 @@ assert.match(map, /selected \? 0x7138f5/, 'selected building is visually distinc
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal paid creation flow must not lead into another paid collectible funnel');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided property flow must not call metered provider generation routes');
 
-console.log('Property journey regression passed: authorized photo -> one paid unlock -> recognizable local building 3D -> source-backed address/map -> save/view My World, with no Meshy credits or second paywall.');
+console.log('Property journey regression passed: reusable property photo -> one paid unlock -> 3D picture approval -> movable local voxel -> source-backed address/map -> save/view My World, with no Meshy credits or second paywall.');
