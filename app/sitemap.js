@@ -3,7 +3,10 @@ export default function sitemap() {
   const now = new Date();
   const routes = [
     { path: '/', changeFrequency: 'daily', priority: 1 },
-    { path: '/studio', changeFrequency: 'daily', priority: 0.9 },
+    { path: '/property', changeFrequency: 'daily', priority: 0.95 },
+    { path: '/world', changeFrequency: 'daily', priority: 0.8 },
+    { path: '/vault', changeFrequency: 'weekly', priority: 0.7 },
+    { path: '/about', changeFrequency: 'monthly', priority: 0.4 },
     { path: '/privacy', changeFrequency: 'monthly', priority: 0.3 },
     { path: '/terms', changeFrequency: 'monthly', priority: 0.3 },
   ];
