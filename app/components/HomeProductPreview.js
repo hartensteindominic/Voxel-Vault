@@ -13,16 +13,16 @@ const STAGES = {
     copy: 'Start with one clear property photo or reuse a photo from a saved property.',
   },
   preview: {
-    label: '3D preview',
-    copy: 'VoxelPop builds a photo-based 3D preview first so you can inspect it before voxeling.',
+    label: '3D voxel photo',
+    copy: 'VoxelPop rebuilds the photographed view as real source-colored cubes so you can compare it with the original before approval.',
   },
   voxel: {
     label: 'Movable 3D voxel',
-    copy: 'Approve the 3D preview, then VoxelPop creates the separate movable voxel model.',
+    copy: 'Approve the 3D voxel photo first, then VoxelPop creates the separate movable voxel model.',
   },
   nft: {
     label: 'Optional NFT',
-    copy: 'After the 3D voxel is finished, you can keep it in Vault or mint that digital voxel as an NFT.',
+    copy: 'After the movable 3D voxel is finished, you can keep it in Vault or mint that digital voxel as an NFT.',
   },
 };
 
@@ -56,8 +56,8 @@ export default function HomeProductPreview() {
 
     <div className={styles.controls} role="group" aria-label="Choose VoxelPop sample stage">
       <button type="button" className={stage === 'source' ? styles.active : ''} aria-pressed={stage === 'source'} onClick={() => setStage('source')}><span>1</span>Photo</button>
-      <button type="button" className={stage === 'preview' ? styles.active : ''} aria-pressed={stage === 'preview'} onClick={() => setStage('preview')}><span>2</span>3D</button>
-      <button type="button" className={stage === 'voxel' ? styles.active : ''} aria-pressed={stage === 'voxel'} onClick={() => setStage('voxel')}><span>3</span>{stage === 'voxel' && !voxelReady ? 'Building…' : 'Voxel'}</button>
+      <button type="button" className={stage === 'preview' ? styles.active : ''} aria-pressed={stage === 'preview'} onClick={() => setStage('preview')}><span>2</span>Voxel photo</button>
+      <button type="button" className={stage === 'voxel' ? styles.active : ''} aria-pressed={stage === 'voxel'} onClick={() => setStage('voxel')}><span>3</span>{stage === 'voxel' && !voxelReady ? 'Building…' : 'Movable'}</button>
       <button type="button" className={stage === 'nft' ? styles.active : ''} aria-pressed={stage === 'nft'} onClick={() => setStage('nft')}><span>4</span>NFT</button>
     </div>
     <p>{current.copy}</p>
