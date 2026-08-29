@@ -29,8 +29,9 @@ assert.match(property, /async function approvePreviewAndBuildVoxel\(\)/, 'voxel 
 assert.match(property, /const poster = await createVoxelPoster\(pendingPhoto\)/, 'voxel image is not created until after preview approval');
 assert.match(property, /LocalVoxelModelViewer imageUrl=\{voxelPoster \|\| pendingPreview\} sourceImageUrl=\{pendingPreview \|\| voxelPoster\}/,
   'the voxel stage uses the approved original photo for building matching');
-assert.match(property, /\/api\/property-local-voxel/, 'finished local voxel is registered for continuity and minting');
-assert.match(property, /Voxel 3D ready\. You can mint this digital voxel now/, 'successful voxel creation exposes mint as the next digital action');
+assert.match(property, /\/api\/property-local-voxel/, 'finished local voxel is registered for continuity and optional minting');
+assert.match(property, /Voxel 3D ready\. Keep it in Vault, add its real address to My World, or optionally mint it\./, 'successful voxel creation exposes neutral optional destinations');
+assert.match(property, /Optional mint →/, 'mint stays clearly available without becoming the mandatory next action');
 assert.match(property, /\/property\/mint\?draftId=/, 'mint route is built from the finished local task');
 assert.match(property, /async function mapBuilding\(event\)/, 'address/map remains available after voxel creation');
 assert.match(property, /async function saveToMyWorld\(\)/, 'mapped voxel can still save to My World');
@@ -66,4 +67,4 @@ assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'mint 
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal paid creation flow does not lead into another paid collectible funnel');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided property flow does not call metered provider generation routes');
 
-console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> source-faithful 3D preview -> user approval -> local 3D voxel -> optional Base mint, with map/World still available and no Meshy credits or second paywall.');
+console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> source-faithful 3D preview -> user approval -> local 3D voxel -> neutral optional Vault/World/Base mint destinations, with no Meshy credits or second paywall.');
