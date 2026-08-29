@@ -42,6 +42,7 @@ assert.doesNotMatch(truth, /mintVoxelFlip|eth_requestAccounts|MetaMask/, 'the 3D
 
 assert.match(vaultPage, /YOUR VOXEL VAULT/, 'the consumer Vault must present the VoxelPop inventory clearly');
 assert.match(vaultPage, /Your collection\./, 'Vault should read as a collection hub rather than a technical draft list');
+assert.match(vaultPage, /saved and collected digital property voxels/i, 'Vault should describe its contents as digital voxels rather than physical property ownership');
 assert.match(vaultPage, /syncLocalPropertyDraftsToAccount/, 'the simplified Vault must retain cross-device account sync');
 assert.match(vaultPage, /SYNC WITH GOOGLE/, 'account sync must remain available without dominating the page');
 assert.match(vaultPage, /Create Another/, 'Vault must provide the repeat creation loop');
@@ -50,8 +51,8 @@ assert.match(vaultPage, /OPEN 3D/, 'saved property cards must reopen their exact
 assert.match(vaultPage, /\/vault\/property-drafts\/\$\{encodeURIComponent\(draft\.id\)\}/, 'saved cards must deep-link by stable draft id');
 assert.match(vaultPage, /setPropertyDraftWorldVisibility/, 'public World publication must remain explicit from the Vault');
 assert.match(vaultPage, /deletePropertyDraftFromAccount/, 'synced deletions must not reappear from cloud storage');
-assert.match(vaultPage, /MINT TO WALLET · OPTIONAL/, 'paid digital collectibles must keep mint optional');
-assert.match(vaultPage, /does not itself transfer deed\/title, rent, fractional investment, occupancy or other rights/, 'Vault must preserve digital-versus-real-property truth');
+assert.match(vaultPage, /VERIFY \+ MINT · OPTIONAL/, 'paid digital collectibles must keep verification and mint optional');
+assert.match(vaultPage, /does not itself transfer deed\/title, rent, fractional investment, occupancy, or other rights/, 'Vault must preserve digital-versus-real-property truth');
 assert.doesNotMatch(vaultPage, /MetaMask|eth_requestAccounts/, 'the basic property Vault must not require a wallet');
 
 assert.match(draftViewer, /readPropertyDraft\(draftId\)/, 'exact viewer must first load the saved local snapshot');

@@ -41,12 +41,12 @@ export async function POST(request: Request) {
     const draftId = clean(body?.draftId, 100);
     const modelTaskId = clean(body?.modelTaskId, 260);
     if (!address || !atlasId || !draftId || !modelTaskId) {
-      return NextResponse.json({ ok: false, error: 'Finish the voxel and place it on My World before checkout.' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'Finish the voxel and verify its My World location before collection.' }, { status: 400 });
     }
 
     await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
-    if (!atlas?.ok) throw new Error(atlas?.error || 'The property could not be re-checked before checkout.');
+    if (!atlas?.ok) throw new Error(atlas?.error || 'The mapped property reference could not be re-checked before collection.');
     const building = findMappedBuilding(atlas, atlasId);
     if (!building) {
       return NextResponse.json({ ok: false, error: 'The mapped building identity changed or could not be re-verified. No checkout was created.' }, { status: 409 });
@@ -78,10 +78,10 @@ export async function POST(request: Request) {
           }
         } catch {}
       }
-      return NextResponse.json({ ok: false, sold: true, error: 'This mapped Voxel World property collectible has already been purchased.' }, { status: 409 });
+      return NextResponse.json({ ok: false, sold: true, error: 'This mapped digital voxel has already been collected.' }, { status: 409 });
     }
     if (!hold.reservedByYou) {
-      return NextResponse.json({ ok: false, reserved: true, error: 'Another checkout currently holds this mapped Voxel World property. Try again later.' }, { status: 409 });
+      return NextResponse.json({ ok: false, reserved: true, error: 'Another checkout is temporarily holding this mapped digital voxel. Try again later.' }, { status: 409 });
     }
     reservationCreated = hold.acquired;
 
@@ -112,8 +112,8 @@ export async function POST(request: Request) {
           currency: 'usd',
           unit_amount: quote.priceCents,
           product_data: {
-            name: `VoxelPop Property · ${quote.label}`,
-            description: 'One digital 3D voxel collectible for this mapped Voxel World building identity. No deed/title, rent, investment or occupancy rights are included.',
+            name: `VoxelPop Digital Voxel · ${quote.label}`,
+            description: 'One generated digital 3D voxel tied to this mapped World reference. This checkout does not buy the physical property or create deed/title, rent, investment, occupancy, or appreciation rights.',
           },
         },
       }],
@@ -154,12 +154,12 @@ export async function POST(request: Request) {
       url: session.url,
       sessionId: session.id,
       quote,
-      disclosure: 'Checkout purchases the generated digital collectible only. Minting is optional later and does not create deed/title or any other real-property rights.',
+      disclosure: 'This checkout collects the generated digital voxel only. Verify & Mint is optional later and does not create deed/title or any other real-property rights.',
     });
   } catch (error) {
     if (reservationCreated && identityKey) {
       try { await releasePropertyCollectibleReservation(identityKey, auth.user.id); } catch {}
     }
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Property collectible checkout could not be created.' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Digital voxel checkout could not be created.' }, { status: 500 });
   }
 }

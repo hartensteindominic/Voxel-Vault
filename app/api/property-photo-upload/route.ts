@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
+import { getSupabaseAdminCandidates } from '../../../lib/supabase-admin';
 import { normalizePropertyDraftId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
@@ -15,6 +16,8 @@ const ALLOWED_TYPES = new Map([
   ['image/webp', 'webp'],
 ]);
 
+class PrivateStorageError extends Error {}
+
 function clean(value: unknown, max = 240) {
   return String(value || '').trim().slice(0, max);
 }
@@ -24,15 +27,71 @@ function safeSegment(value: unknown, fallback = 'property') {
   return text || fallback;
 }
 
+function storageMessage(error: any) {
+  return String(error?.message || error?.error || error || '').slice(0, 500);
+}
+
 async function ensureBucket(admin: any) {
   const { data, error } = await admin.storage.listBuckets();
-  if (error) throw new Error('Private property-photo storage is unavailable.');
-  if (!data?.some((bucket: any) => bucket.name === BUCKET)) {
-    const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
-    if (created.error && !/already exists/i.test(String(created.error.message || ''))) {
-      throw new Error('Private property-photo storage could not be prepared.');
+  if (error) {
+    console.error('Voxel Vault private storage bucket list failed', { message: storageMessage(error) });
+    throw new PrivateStorageError('Private photo storage is temporarily unavailable. Please try again in a moment.');
+  }
+  if (data?.some((bucket: any) => bucket.name === BUCKET)) return;
+
+  const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
+  if (created.error && !/already exists|duplicate/i.test(storageMessage(created.error))) {
+    console.error('Voxel Vault private storage bucket creation failed', { message: storageMessage(created.error) });
+    throw new PrivateStorageError('Private photo storage needs server setup before uploads can continue.');
+  }
+}
+
+async function uploadPrivatePhoto(admin: any, path: string, bytes: Buffer, contentType: string) {
+  let lastError: any = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await ensureBucket(admin);
+    const uploaded = await admin.storage.from(BUCKET).upload(path, bytes, {
+      contentType,
+      cacheControl: '0',
+      upsert: false,
+    });
+    if (!uploaded.error) return;
+    lastError = uploaded.error;
+    console.error('Voxel Vault private property photo upload failed', {
+      attempt: attempt + 1,
+      message: storageMessage(uploaded.error),
+    });
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 180));
+  }
+  throw new PrivateStorageError(`Private photo storage could not save this upload. ${storageMessage(lastError) ? 'The storage service rejected the write.' : 'Please try again.'}`);
+}
+
+async function storeWithConfiguredServerCredential(path: string, bytes: Buffer, contentType: string) {
+  const candidates = getSupabaseAdminCandidates();
+  let lastError: unknown = null;
+  for (let index = 0; index < candidates.length; index += 1) {
+    try {
+      await uploadPrivatePhoto(candidates[index], path, bytes, contentType);
+      return { admin: candidates[index], candidates };
+    } catch (error) {
+      lastError = error;
+      console.error('Voxel Vault storage credential attempt failed', {
+        credentialIndex: index,
+        message: storageMessage(error),
+      });
     }
   }
+  throw lastError instanceof Error ? lastError : new PrivateStorageError('Private photo storage is unavailable on this deployment.');
+}
+
+async function createTemporaryPhotoUrl(path: string, preferredAdmin: any, candidates: any[]) {
+  const ordered = [preferredAdmin, ...candidates.filter((candidate) => candidate !== preferredAdmin)];
+  for (const admin of ordered) {
+    const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 6 * 60 * 60);
+    if (!signed.error && signed.data?.signedUrl) return signed.data.signedUrl;
+    console.error('Voxel Vault property photo signed URL failed', { message: storageMessage(signed.error) });
+  }
+  throw new PrivateStorageError('Your photo was saved, but it could not be opened for generation yet. Please try again shortly.');
 }
 
 export async function POST(request: Request) {
@@ -67,29 +126,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Property photos must be smaller than 8 MB.' }, { status: 413 });
     }
 
-    const bytes = await photo.arrayBuffer();
-    const digest = createHash('sha256').update(Buffer.from(bytes)).digest('hex');
+    const bytes = Buffer.from(await photo.arrayBuffer());
+    const digest = createHash('sha256').update(bytes).digest('hex');
     const userId = safeSegment(auth.user.id, 'user');
     const subjectId = safeSegment(draftId || atlasId);
-    const path = `property-references/${userId}/${subjectId}/${digest}.${extension}`;
+    const objectId = `${digest.slice(0, 20)}-${randomUUID().slice(0, 12)}`;
+    const path = `property-references/${userId}/${subjectId}/${objectId}.${extension}`;
 
-    await ensureBucket(auth.admin);
-    const uploaded = await auth.admin.storage.from(BUCKET).upload(path, bytes, {
-      contentType: photo.type,
-      cacheControl: '0',
-      upsert: true,
-    });
-    if (uploaded.error) throw new Error('The property photo could not be stored privately.');
-
-    const signed = await auth.admin.storage.from(BUCKET).createSignedUrl(path, 6 * 60 * 60);
-    if (signed.error || !signed.data?.signedUrl) throw new Error('The private property photo could not be opened for generation.');
+    const stored = await storeWithConfiguredServerCredential(path, bytes, photo.type);
+    const signedUrl = await createTemporaryPhotoUrl(path, stored.admin, stored.candidates);
 
     const uploadedAt = new Date().toISOString();
     return NextResponse.json({
       ok: true,
       draftId: draftId || null,
       reference: {
-        url: signed.data.signedUrl,
+        url: signedUrl,
         rightsBasis: 'user-owned',
         rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital property creation.',
         label: 'Uploaded property photo',
@@ -98,14 +150,19 @@ export async function POST(request: Request) {
         storagePath: path,
         uploadedAt,
       },
-      privacy: 'The original upload is stored in a private bucket. Generation receives short-lived signed access only.',
+      privacy: 'The original upload is stored privately. Generation receives short-lived signed access only.',
     }, {
       headers: { 'Cache-Control': 'private, no-store, max-age=0' },
     });
   } catch (error) {
+    const setupRequired = error instanceof PrivateStorageError;
     return NextResponse.json({
       ok: false,
+      setupRequired,
       error: error instanceof Error ? error.message : 'Property photo upload failed.',
-    }, { status: 400, headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+    }, {
+      status: setupRequired ? 503 : 400,
+      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+    });
   }
 }

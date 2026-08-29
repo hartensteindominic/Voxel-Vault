@@ -11,7 +11,7 @@ export default function PropertyPurchaseSuccessPage() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
   const [result, setResult] = useState(null);
-  const [message, setMessage] = useState('Verifying your purchase…');
+  const [message, setMessage] = useState('Verifying your collection…');
   const [saved, setSaved] = useState(false);
   const clientRef = useRef(null);
   const deliveredRef = useRef('');
@@ -50,20 +50,20 @@ export default function PropertyPurchaseSuccessPage() {
     let active = true;
     (async () => {
       try {
-        setMessage('Payment found. Moving your voxel into the Vault…');
+        setMessage('Payment found. Saving your voxel to the Vault…');
         const response = await fetch(`/api/property-collectible/complete?sessionId=${encodeURIComponent(sessionId)}`, {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.ok || data?.purchase?.paid !== true || !data?.building || !data?.model?.modelUrl) {
-          throw new Error(data?.error || 'Purchase could not be verified yet.');
+          throw new Error(data?.error || 'Collection could not be verified yet.');
         }
         if (!active) return;
         setResult(data);
 
         const base = buildPropertyDraft({ building: data.building, openImagery: null, fallbackLabel: data.purchase.address });
-        if (!base) throw new Error('The paid collectible is verified, but its Vault card could not be rebuilt.');
+        if (!base) throw new Error('Payment is verified, but this voxel could not be rebuilt for your Vault yet.');
         const now = new Date().toISOString();
         const next = {
           ...base,
@@ -110,10 +110,10 @@ export default function PropertyPurchaseSuccessPage() {
         await savePropertyDraftToAccount(client, session.user, savedDraft);
         if (!active) return;
         setSaved(true);
-        setMessage('Purchased, saved, and synced to your Vault.');
+        setMessage('Collected and saved to your Vault.');
       } catch (error) {
         deliveredRef.current = '';
-        if (active) setMessage(String(error?.message || error || 'Purchase delivery failed.'));
+        if (active) setMessage(String(error?.message || error || 'Vault delivery failed.'));
       }
     })();
     return () => { active = false; };
@@ -129,7 +129,7 @@ export default function PropertyPurchaseSuccessPage() {
   }
 
   if (!authReady) return <main className="page"><section className="card"><div className="pop">V</div><h1>Finishing your voxel…</h1><p>{message}</p></section><style jsx>{styles}</style></main>;
-  if (!session?.user) return <main className="page"><section className="card"><div className="pop">V</div><small>YOUR PURCHASE IS SAFE</small><h1>Sign back in.</h1><p>Use the same Google account from checkout so Voxel Vault can verify the buyer and put the collectible into the correct Vault.</p><button onClick={signIn}>Continue with Google</button><p className="status">{message}</p></section><style jsx>{styles}</style></main>;
+  if (!session?.user) return <main className="page"><section className="card"><div className="pop">V</div><small>YOUR PAYMENT IS SAFE</small><h1>Sign back in.</h1><p>Use the same Google account from checkout so Voxel Vault can verify the payment and save the voxel to the correct Vault.</p><button onClick={signIn}>Continue with Google</button><p className="status">{message}</p></section><style jsx>{styles}</style></main>;
 
   return <main className="page">
     <section className="card">
@@ -137,10 +137,10 @@ export default function PropertyPurchaseSuccessPage() {
       <small>VOXELPOP · COLLECTED</small>
       <h1>{saved ? 'It’s in your Vault.' : 'Finishing your voxel…'}</h1>
       <p className="status">{message}</p>
-      {result?.model?.modelUrl ? <div className="viewer"><MeshyModelViewer modelUrl={result.model.modelUrl}/><span>OWNED DIGITAL VOXEL</span></div> : <div className="loading">Securing payment → rebuilding World identity → saving Vault item</div>}
-      {result?.purchase ? <div className="receipt"><div><small>DIGITAL BUILD</small><b>{result.purchase.priceLabel}</b></div><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(result.purchase.priceCents || 0)/100)}</strong></div> : null}
-      {saved ? <div className="actions"><Link className="primary" href="/property">+ Create Another</Link><Link className="world" href="/world">View My World</Link><Link className="mint" href="/vault/properties/claim">Mint to Wallet · optional</Link><Link className="vault" href="/vault/property-drafts">Open My Vault</Link></div> : null}
-      <p className="truth">Your purchase is the digital VoxelPop collectible only. The optional mint is a digital provenance step after property verification; it does not create deed/title, rent, occupancy, fractional investment or other physical-property rights.</p>
+      {result?.model?.modelUrl ? <div className="viewer"><MeshyModelViewer modelUrl={result.model.modelUrl}/><span>YOUR DIGITAL VOXEL</span></div> : <div className="loading">Verifying payment → restoring map identity → saving your Vault item</div>}
+      {result?.purchase ? <div className="receipt"><div><small>DIGITAL VOXEL</small><b>{result.purchase.priceLabel}</b></div><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(result.purchase.priceCents || 0)/100)}</strong></div> : null}
+      {saved ? <div className="actions"><Link className="primary" href="/property">+ Create Another</Link><Link className="world" href="/world">View My World</Link><Link className="mint" href="/vault/properties/claim">Verify &amp; Mint · optional</Link><Link className="vault" href="/vault/property-drafts">Open My Vault</Link></div> : null}
+      <p className="truth">You collected a digital VoxelPop item. The address, map, payment, or optional later mint does not create deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property.</p>
     </section>
     <style jsx>{styles}</style>
   </main>;

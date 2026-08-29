@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const draftId = clean(body?.draftId, 100);
     const modelTaskId = clean(body?.modelTaskId, 260);
     if (!address || !atlasId) {
-      return NextResponse.json({ ok: false, error: 'Place the finished voxel on My World before pricing the digital collectible.' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'Verify the address and preview the finished voxel on My World before collection.' }, { status: 400 });
     }
     if (draftId || modelTaskId) {
       if (!draftId || !modelTaskId) return NextResponse.json({ ok: false, error: 'Both creation ID and final model proof are required together.' }, { status: 400 });
@@ -46,12 +46,12 @@ export async function POST(request: Request) {
     }
 
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
-    if (!atlas?.ok) throw new Error(atlas?.error || 'The property could not be re-checked on World.');
+    if (!atlas?.ok) throw new Error(atlas?.error || 'The mapped property reference could not be re-checked on World.');
     const building = findMappedBuilding(atlas, atlasId);
     if (!building) {
       return NextResponse.json({
         ok: false,
-        error: 'That mapped building identity could not be re-verified. Your preview stays yours, but once-only checkout remains locked until World can verify the building.',
+        error: 'That mapped building identity could not be re-verified. Your preview stays available, but collection remains locked until World can verify the building identity.',
       }, { status: 409 });
     }
 
@@ -70,10 +70,10 @@ export async function POST(request: Request) {
       sold,
       reservedByYou,
       availability: sold ? 'SOLD' : active && !reservedByYou ? 'RESERVED' : 'AVAILABLE',
-      disclosure: 'This price buys the generated digital VoxelPop collectible only. It is based on digital build complexity, not the market value of the real property, and conveys no deed/title, rent, investment or occupancy rights.',
-      uniqueness: 'Once paid, this mapped Voxel World building identity cannot be sold again on this digital collectible rail. Optional minting later still requires separate canonical parcel verification.',
+      disclosure: 'This is the collection price for the generated digital VoxelPop item only. It is based on digital build complexity, not the market value of the physical property, and conveys no deed/title, rent, investment, occupancy, or appreciation rights.',
+      uniqueness: 'Once collected, this mapped digital voxel cannot be collected again on this one-of-one digital rail. Optional Verify & Mint later still requires separate canonical parcel verification.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Digital collectible quote failed.' }, { status: 400 });
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Digital voxel quote failed.' }, { status: 400 });
   }
 }
