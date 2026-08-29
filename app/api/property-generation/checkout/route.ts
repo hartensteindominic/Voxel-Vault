@@ -10,7 +10,6 @@ import {
 } from '../../../../lib/property-generation-payment';
 import {
   MESHY_PROPERTY_CREDITS,
-  meshyCreditError,
   meshyCreditsSufficient,
   readMeshyCreditBalance,
 } from '../../../../lib/meshy-credits';
@@ -30,30 +29,60 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+function creditFreeMapUrl(request: Request, draftId: string, reason: string) {
+  const origin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
+  const params = new URLSearchParams({ mode: 'credit-free', draftId, reason });
+  return `${origin}/property/map?${params.toString()}`;
+}
+
+function creditFreeFallback(request: Request, draftId: string, reason: string) {
+  return privateJson({
+    ok: true,
+    url: creditFreeMapUrl(request, draftId, reason),
+    checkoutSkipped: true,
+    creditFree: true,
+    charged: false,
+    draftId,
+    message: 'Opening the credit-free VoxelPop property map. No Meshy credits and no generation charge are used.',
+  });
+}
+
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
 
-  const apiKey = process.env.MESHY_API_KEY?.trim();
-  if (!apiKey) return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
-
   let stagedDraftId = '';
+  let draftId = '';
   try {
     const form = await request.formData();
     const photo = form.get('photo');
-    const draftId = clean(form.get('draftId'), 100);
+    draftId = clean(form.get('draftId'), 100);
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
     if (!(photo instanceof File)) return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
     if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
 
-    // Do not charge a customer unless the backend currently has enough Meshy
-    // capacity for the complete automatic source-3D -> voxel-image -> final-3D flow.
+    const apiKey = process.env.MESHY_API_KEY?.trim();
+    if (!apiKey) return creditFreeFallback(request, draftId, '3d-provider-unavailable');
+
+    // Paid generation remains available as an optional upgrade, but the core
+    // property experience must not strand a user when provider credits are low.
+    // The balance check is non-billable and happens before Stripe or Storage.
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
-      return privateJson(meshyCreditError('opening VoxelPop checkout', MESHY_PROPERTY_CREDITS.fullPipeline), { status: 503 });
+      return creditFreeFallback(request, draftId, '3d-credits-unavailable');
     }
 
-    const staged = await stagePaidPropertyPhoto(auth, draftId, photo);
+    let staged;
+    try {
+      staged = await stagePaidPropertyPhoto(auth, draftId, photo);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error || '');
+      if (/checkout storage|staged securely|storage/i.test(text)) {
+        return creditFreeFallback(request, draftId, 'private-storage-unavailable');
+      }
+      throw error;
+    }
+
     stagedDraftId = staged.draftId;
     const origin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
     const email = typeof auth.user.email === 'string' && auth.user.email.includes('@') ? auth.user.email : undefined;
@@ -96,13 +125,15 @@ export async function POST(request: Request) {
       priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
       draftId: staged.draftId,
       staged: true,
+      creditFree: false,
     });
   } catch (error) {
     if (stagedDraftId) await deleteStagedPropertyPhoto(auth, stagedDraftId);
-    return privateJson({
-      ok: false,
-      error: error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.',
-    }, { status: 500 });
+    const text = error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.';
+    if (/checkout storage|staged securely|storage/i.test(text) && draftId) {
+      return creditFreeFallback(request, draftId, 'private-storage-unavailable');
+    }
+    return privateJson({ ok: false, error: text }, { status: 500 });
   }
 }
 
