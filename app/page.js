@@ -18,7 +18,7 @@ export default function Home() {
         <div className={styles.topLinks}>
           <Link href="/property">Create</Link>
           <Link href="/world">World</Link>
-          <Link href="/vault">Vault</Link>
+          <Link href="/vault/property-drafts">Vault</Link>
         </div>
       </nav>
 
@@ -29,7 +29,7 @@ export default function Home() {
           <p className={styles.lead}>Turn an authorized property photo into a VoxelPop preview, match it to a real mapped place, explore the source-backed 3D neighborhood, and keep the digital asset in your Vault.</p>
           <div className={styles.heroActions}>
             <Link className={styles.primaryAction} href="/property">START → SIGN IN</Link>
-            <Link className={styles.secondaryAction} href="/vault">OPEN MY VAULT</Link>
+            <Link className={styles.secondaryAction} href="/vault/property-drafts">OPEN MY VAULT</Link>
           </div>
           <p className={styles.heroFine}>Creating or collecting a voxel does not buy the physical property. Real ownership and investing use separate verified legal/provider rails.</p>
         </div>
@@ -74,8 +74,8 @@ export default function Home() {
           <Link href="/world" className={`${styles.assetTile} ${styles.usdTile}`}>
             <div className={styles.tileIcon}>◎</div><small>EXPLORE</small><strong>My World</strong><span>See mapped places and your saved digital property voxels.</span><b>Open World →</b>
           </Link>
-          <Link href="/vault" className={`${styles.assetTile} ${styles.cryptoTile}`}>
-            <div className={styles.tileIcon}>◇</div><small>KEEP</small><strong>My Vault</strong><span>Saved creations, collected assets and optional wallet links.</span><b>Open Vault →</b>
+          <Link href="/vault/property-drafts" className={`${styles.assetTile} ${styles.cryptoTile}`}>
+            <div className={styles.tileIcon}>◇</div><small>KEEP</small><strong>My Vault</strong><span>Saved and collected digital property voxels, without financial clutter.</span><b>Open Vault →</b>
           </Link>
         </div>
       </section>
