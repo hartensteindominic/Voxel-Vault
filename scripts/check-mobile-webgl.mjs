@@ -59,6 +59,7 @@ assert.match(meshyViewer, /PHOTO → 3D/, 'Meshy viewer must visibly preserve th
 assert.match(meshyViewer, /RETRY 3D/, 'Meshy viewer must offer in-place GLB recovery without forcing regeneration');
 assert.match(meshyViewer, /\.displayOnly img/, 'Meshy viewer must reuse visible property evidence as its loading/error poster when available');
 assert.doesNotMatch(meshyViewer, /Regenerating is not automatic/, 'Meshy viewer must not strand the user on the old dead-end cached-GLB error');
+assert.match(meshyPanel, /posterUrl=\{mesh\.thumbnailUrl \|\| listing\?\.imageUrl \|\| openStreetReferences\[0\]\?\.url \|\| ''\}/, 'Meshy panel must prefer the generated thumbnail, then real property imagery, before revealing interactive 3D');
 assert.match(meshyPanel, /maxSide = 2048/, 'iPhone reference photos must normalize to bounded Meshy upload size');
 assert.match(meshyPanel, /image\/jpeg/, 'iPhone reference normalization must output Meshy-compatible JPEG');
 assert.match(meshyPanel, /FREE OPEN KARTAVIEW VIEW/, 'open-licensed street imagery must be loadable into Meshy from a phone');
