@@ -37,11 +37,14 @@ export async function POST(request: Request) {
     const atlasId = clean(body?.atlasId, 180);
     const draftId = clean(body?.draftId, 100);
     const modelTaskId = clean(body?.modelTaskId, 260);
-    if (!address || !atlasId || !draftId || !modelTaskId) {
-      return NextResponse.json({ ok: false, error: 'Finish the voxel and place it on My World before pricing the digital collectible.' }, { status: 400 });
+    if (!address || !atlasId) {
+      return NextResponse.json({ ok: false, error: 'Place the finished voxel on My World before pricing the digital collectible.' }, { status: 400 });
+    }
+    if (draftId || modelTaskId) {
+      if (!draftId || !modelTaskId) return NextResponse.json({ ok: false, error: 'Both creation ID and final model proof are required together.' }, { status: 400 });
+      await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
     }
 
-    await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
     if (!atlas?.ok) throw new Error(atlas?.error || 'The property could not be re-checked on World.');
     const building = findMappedBuilding(atlas, atlasId);
