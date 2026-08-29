@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ConsumerTopNav from '../components/ConsumerTopNav';
 import styles from '../legal-page.module.css';
 
 export const metadata = {
@@ -7,8 +8,9 @@ export const metadata = {
 };
 
 export default function TermsPage() {
-  return <main className={styles.page}><div className={styles.shell}>
-    <nav className={styles.top}><Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link><div><Link href="/demo">Public demo</Link><Link href="/property">Create</Link></div></nav>
+  return <main className={styles.page}>
+    <ConsumerTopNav/>
+    <div className={styles.shell}>
     <header className={styles.hero}><small>TERMS</small><h1>Digital creation.<br/>Clear boundaries.</h1><p>The current core Voxel Vault product turns an authorized property photo into a digital VoxelPop 3D preview and voxel. Other property, wallet, map, and provider features have separate meanings and requirements.</p></header>
     <section className={styles.card}>
       <div className={styles.notice}><strong>$4.99 DIGITAL:</strong> the creation payment buys one digital VoxelPop creation. It does not buy the physical house or land and does not create title, equity, rent, occupancy, investment, or appreciation rights.</div>
