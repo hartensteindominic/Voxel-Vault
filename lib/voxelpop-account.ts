@@ -12,6 +12,12 @@ export type VoxelPayload = {
     openSeaUrl?: string;
     explorerUrl?: string;
   } | null;
+  source?: {
+    kind?: string;
+    referenceId?: string;
+    href?: string;
+    purchaseSecured?: boolean;
+  } | null;
   generationsLeft?: number;
   updatedAt?: string;
 };
@@ -148,6 +154,7 @@ export function summarizeVoxel(record: AccountVoxel) {
     modelUrl: String(normalized.payload.mesh?.modelUrl || ''),
     meshStatus: String(normalized.payload.mesh?.status || 'idle'),
     mint: normalized.payload.mint || null,
+    source: normalized.payload.source || null,
   };
 }
 
