@@ -3,26 +3,15 @@ import ProductTopNav from '../components/ProductTopNav';
 import styles from './more.module.css';
 
 export const metadata = {
-  title: 'More · Voxel Vault',
-  description: 'Optional and advanced Voxel Vault tools, kept separate from the main Create, World, and Vault flow.',
+  title: 'Extras · Voxel Vault',
+  description: 'Optional Voxel Vault tools kept separate from the main VoxelPop creation flow.',
 };
 
 const digitalTools = [
-  { href: '/studio', icon: '+', title: 'Voxel Studio', copy: 'Create other 3D voxel assets that are not property-based.', badge: 'CREATE' },
-  { href: '/marketplace', icon: '▦', title: 'Marketplace', copy: 'Browse digital assets and explicit checkout flows.', badge: 'SHOP' },
-  { href: '/capture', icon: '◉', title: 'Capture', copy: 'Bring a real object or image into a digital-asset workflow.', badge: 'SCAN' },
-  { href: '/room', icon: '◇', title: 'My Room', copy: 'Arrange confirmed digital collectibles in a personal 3D space.', badge: 'COLLECT' },
+  { href: '/studio', icon: '+', title: 'Voxel Studio', copy: 'Create non-property voxel assets separately from VoxelPop Property.', badge: 'CREATE' },
+  { href: '/capture', icon: '◉', title: 'Capture', copy: 'Bring another real object or image into a separate digital-asset workflow.', badge: 'SCAN' },
+  { href: '/marketplace', icon: '▦', title: 'Marketplace', copy: 'Browse digital assets without mixing shopping into the house-voxel creator.', badge: 'SHOP' },
   { href: '/ai-licensing', icon: 'AI', title: 'AI Licensing', copy: 'Manage reviewed AI-use licensing for eligible digital assets.', badge: 'LICENSE' },
-  { href: '/discover', icon: '✦', title: 'Discover', copy: 'Browse public Voxel Vault experiences and digital creations.', badge: 'BROWSE' },
-];
-
-const advancedTools = [
-  { href: '/real-estate/reits', title: 'Real-estate investments', copy: 'Provider-backed securities only when an approved provider and eligible offering are actually active.' },
-  { href: '/real-estate/acquire', title: 'Direct property path', copy: 'Ordinary diligence, financing, closing, and title steps. A token is never the deed.' },
-  { href: '/vault/properties/claim', title: 'Property verification', copy: 'Verify evidence and optional Property Passport records without claiming title.' },
-  { href: '/vault/rentals', title: 'Lease records', copy: 'Verified lease and payment records only when supporting evidence exists.' },
-  { href: '/vault/income', title: 'Income records', copy: 'Provider-observed payment history without inventing returns or spendable balances.' },
-  { href: '/admin/integrations', title: 'Owner integrations', copy: 'Provider and infrastructure readiness controls for the site owner.' },
 ];
 
 export default function MorePage() {
@@ -30,39 +19,39 @@ export default function MorePage() {
     <ProductTopNav/>
     <div className={styles.shell}>
       <section className={styles.hero}>
-        <small>MORE</small>
-        <h1>More tools.<br/><em>Less confusion.</em></h1>
-        <p><b>Create → World → Vault is the main app.</b> Everything below is optional, secondary, experimental, provider-dependent, or advanced—and kept out of your way until you need it.</p>
+        <small>EXTRAS</small>
+        <h1>Keep VoxelPop simple.<br/><em>Open extras only when needed.</em></h1>
+        <p><b>The main product is Create → 3D voxel photo → movable voxel → Vault.</b> World, minting, and the tools below are optional.</p>
       </section>
 
       <section className={styles.coreCard}>
         <div className={styles.coreCopy}>
-          <small>CORE PROPERTY FLOW</small>
-          <h2>Bought or saved a property?</h2>
-          <p>Use a new property photo or reuse one you already saved, then continue through <b>3D preview → approve → 3D voxel → optional mint</b>.</p>
+          <small>CORE VOXELPOP FLOW</small>
+          <h2>Making a house voxel?</h2>
+          <p>Use a new house photo or reuse a property photo you already saved. You will review the <b>3D voxel photo</b> before the separate movable model is built.</p>
           <div className={styles.coreActions}>
-            <Link className={styles.primary} href="/property?source=properties">Create from My Properties →</Link>
-            <Link href="/property">Use a new photo →</Link>
-            <Link href="/vault">Open My Vault</Link>
+            <Link className={styles.primary} href="/property">Create VoxelPop · $4.99 →</Link>
+            <Link href="/demo">See free sample →</Link>
+            <Link href="/vault">Open Vault →</Link>
           </div>
         </div>
-        <div className={styles.flowVisual} aria-label="Property creation flow">
-          <span>PHOTO</span><i>→</i><span>3D</span><i>→</i><span>APPROVE</span><i>→</i><span>VOXEL</span><i>→</i><span>OPTIONAL MINT</span>
+        <div className={styles.flowVisual} aria-label="VoxelPop creation flow">
+          <span>PHOTO</span><i>→</i><span>VOXEL PHOTO</span><i>→</i><span>APPROVE</span><i>→</i><span>MOVABLE VOXEL</span>
         </div>
       </section>
 
       <section className={styles.quickSection}>
-        <div className={styles.sectionHead}><small>PROPERTY EXTRAS</small><h2>Useful when you need them.</h2><p>These are separate from the normal creation journey.</p></div>
+        <div className={styles.sectionHead}><small>USEFUL EXTRAS</small><h2>Three places that support the core product.</h2><p>None of these are required to create a VoxelPop.</p></div>
         <div className={styles.quickGrid}>
-          <Link className={styles.quickCard} href="/geo/slice"><div className={styles.icon}>¢</div><span className={styles.badge}>DEMO</span><h3>$1.99 Property Sandbox</h3><p>Try hypothetical property-slice math with demo credit only. No real property rights or customer funds move.</p><b>Try demo →</b></Link>
-          <Link className={styles.quickCard} href="/vault#purchased-twins"><div className={styles.icon}>⌂</div><span className={styles.badge}>PURCHASED</span><h3>My purchased twins</h3><p>Open an account-secured digital purchase and create its included custom voxel when eligible.</p><b>Open purchases →</b></Link>
-          <Link className={styles.quickCard} href="/geo"><div className={styles.icon}>⌖</div><span className={styles.badge}>MAP DATA</span><h3>Property details</h3><p>Inspect map, building, parcel, and evidence context without treating it as title or ownership.</p><b>Open details →</b></Link>
+          <Link className={styles.quickCard} href="/demo"><div className={styles.icon}>V</div><span className={styles.badge}>FREE</span><h3>VoxelPop demo</h3><p>See the 3D voxel photo and movable voxel before signing in or paying.</p><b>Open demo →</b></Link>
+          <Link className={styles.quickCard} href="/vault"><div className={styles.icon}>◇</div><span className={styles.badge}>SAVED</span><h3>My Vault</h3><p>Reopen finished VoxelPops and saved property sources in one place.</p><b>Open Vault →</b></Link>
+          <Link className={styles.quickCard} href="/world"><div className={styles.icon}>◎</div><span className={styles.badge}>OPTIONAL</span><h3>World</h3><p>Pair a finished voxel with map and building context after creation.</p><b>Open World →</b></Link>
         </div>
       </section>
 
       <details className={styles.advanced}>
-        <summary><span><small>DIGITAL EXTRAS</small><b>Studio, marketplace, capture + more</b></span><i>+</i></summary>
-        <p className={styles.advancedIntro}>These digital tools stay available without crowding the core property experience.</p>
+        <summary><span><small>OTHER DIGITAL TOOLS</small><b>Studio, capture, marketplace + licensing</b></span><i>+</i></summary>
+        <p className={styles.advancedIntro}>These are separate products and experiments. They stay collapsed so they do not compete with VoxelPop Property.</p>
         <div className={styles.grid}>{digitalTools.map((item) => <Link className={styles.card} href={item.href} key={item.href}>
           <div className={styles.cardTop}><span className={styles.icon}>{item.icon}</span><span className={styles.badge}>{item.badge}</span></div>
           <h3>{item.title}</h3><p>{item.copy}</p><b>Open →</b>
@@ -70,12 +59,15 @@ export default function MorePage() {
       </details>
 
       <details className={styles.advanced}>
-        <summary><span><small>ADVANCED + PROVIDER-GATED</small><b>Financial, legal, and owner tools</b></span><i>+</i></summary>
-        <p className={styles.advancedIntro}>A demo, NFT, investment security, lease record, and property deed are different things. Banking and other regulated products are separate provider-backed rails too. These screens intentionally stay outside the normal customer journey.</p>
-        <div className={styles.advancedGrid}>{advancedTools.map((item) => <Link href={item.href} key={item.href}><b>{item.title}</b><span>{item.copy}</span><i>OPEN →</i></Link>)}</div>
+        <summary><span><small>OWNER / PROVIDER TOOLS</small><b>Advanced property and infrastructure screens</b></span><i>+</i></summary>
+        <p className={styles.advancedIntro}>Provider-gated finance, title/claim verification, and owner infrastructure are not part of the $4.99 VoxelPop product. They remain separate and must never imply that a voxel or NFT creates physical-property or financial rights.</p>
+        <div className={styles.advancedGrid}>
+          <Link href="/vault/properties/claim"><b>Property verification</b><span>Evidence and Property Passport tools. Not a deed.</span><i>OPEN →</i></Link>
+          <Link href="/admin/integrations"><b>Owner integrations</b><span>Provider and infrastructure readiness controls.</span><i>OPEN →</i></Link>
+        </div>
       </details>
 
-      <footer className={styles.note}><b>SIMPLE RULE</b><span>A VoxelPop model or NFT can represent a digital creation. It does not automatically create deed/title, rent, occupancy, investment, or appreciation rights in a physical property.</span></footer>
+      <footer className={styles.note}><b>SIMPLE RULE</b><span>A VoxelPop model or NFT is a digital creation. It does not create deed/title, rent, occupancy, investment, banking, or appreciation rights in physical property.</span></footer>
     </div>
   </main>;
 }
