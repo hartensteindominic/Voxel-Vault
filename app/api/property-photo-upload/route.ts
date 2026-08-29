@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
-import { saveCatalog3D } from '../../../lib/catalog3dStore';
+import { readCatalog3D, saveCatalog3D } from '../../../lib/catalog3dStore';
 import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
 import {
   createPropertyGenerationRecoveryTaskId,
@@ -41,24 +41,29 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+function paidReceiptResponse(receipt: any, generationSessionId: string) {
+  return {
+    ok: true,
+    paid: true,
+    verifiedOnly: true,
+    priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
+    priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
+    paymentSessionId: generationSessionId,
+    draftId: receipt.draftId,
+    engine: receipt.engine,
+    legacyReceipt: receipt.legacyMode === true,
+  };
+}
+
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) {
     return privateJson({ ok: false, error: auth.error, setupRequired: auth.setupRequired === true }, { status: auth.status });
   }
 
-  const apiKey = process.env.MESHY_API_KEY?.trim();
-  if (!apiKey) {
-    return privateJson({ ok: false, error: 'VoxelPop 3D house generation is not configured on this deployment.' }, { status: 503 });
-  }
-
   try {
     const form = await request.formData();
     const generationSessionId = clean(form.get('generationSessionId'), 260);
-    const photo = form.get('photo');
-    const submittedDraftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
-    const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
-
     if (!generationSessionId) {
       return privateJson({
         ok: false,
@@ -71,11 +76,18 @@ export async function POST(request: Request) {
     }
 
     const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
+    const photo = form.get('photo');
+    if (!(photo instanceof File)) return privateJson(paidReceiptResponse(receipt, generationSessionId));
+
+    const apiKey = process.env.MESHY_API_KEY?.trim();
+    if (!apiKey) {
+      return privateJson({ ok: false, error: 'VoxelPop 3D house generation is not configured on this deployment.' }, { status: 503 });
+    }
+
+    const submittedDraftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
+    const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
     if (receipt.draftId !== submittedDraftId) {
       return privateJson({ ok: false, error: 'This paid VoxelPop session does not match the selected house creation.' }, { status: 403 });
-    }
-    if (!(photo instanceof File)) {
-      return privateJson({ ok: false, error: 'Choose the property photo used for this paid creation.' }, { status: 400 });
     }
     if (!rightsConfirmed) {
       return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
@@ -87,6 +99,41 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
     }
 
+    const bytes = Buffer.from(await photo.arrayBuffer());
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    const sourceFingerprint = `inline-photo:${digest}`;
+    const itemId = propertyDraftItemId(auth.user.id, submittedDraftId, 'source');
+    const existing = await readCatalog3D(itemId);
+    if (existing?.task_id && clean(existing.source_image_url, 180) === sourceFingerprint) {
+      return privateJson({
+        ...paidReceiptResponse(receipt, generationSessionId),
+        verifiedOnly: false,
+        reused: true,
+        source3d: {
+          taskId: existing.task_id,
+          status: existing.status || 'PENDING',
+          progress: Number(existing.progress || 0),
+          modelUrl: null,
+        },
+        reference: {
+          url: null,
+          draftId: submittedDraftId,
+          rightsBasis: 'user-owned',
+          label: 'Selected property photo',
+          sourcePhotoId: `upload:${digest.slice(0, 20)}`,
+          provider: 'user-photo-direct-generation',
+          storagePath: `meshy-source:${existing.task_id}`,
+        },
+      });
+    }
+    if (existing?.task_id && !['FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(existing.status || '').toUpperCase())) {
+      return privateJson({
+        ok: false,
+        generationAlreadyStarted: true,
+        error: 'This paid creation already has a generated 3D house job. Finish or approve that house before starting a different paid creation.',
+      }, { status: 409 });
+    }
+
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.source3d)) {
       return privateJson(
@@ -95,11 +142,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const bytes = Buffer.from(await photo.arrayBuffer());
-    const digest = createHash('sha256').update(bytes).digest('hex');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
-    const itemId = propertyDraftItemId(auth.user.id, submittedDraftId, 'source');
-
     const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -132,7 +175,6 @@ export async function POST(request: Request) {
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D house provider did not return a task ID.');
     const canonicalTaskId = propertyGenerationCanonicalTaskId(providerTaskId);
-    const sourceFingerprint = `inline-photo:${digest}`;
     const now = new Date().toISOString();
     const saved = await saveCatalog3D(itemId, {
       task_id: canonicalTaskId,
@@ -154,14 +196,9 @@ export async function POST(request: Request) {
       || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
 
     return privateJson({
-      ok: true,
-      paid: true,
-      priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
-      priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-      paymentSessionId: generationSessionId,
-      draftId: submittedDraftId,
-      engine: receipt.engine,
-      legacyReceipt: receipt.legacyMode === true,
+      ...paidReceiptResponse(receipt, generationSessionId),
+      verifiedOnly: false,
+      reused: false,
       reference: {
         url: null,
         draftId: submittedDraftId,
