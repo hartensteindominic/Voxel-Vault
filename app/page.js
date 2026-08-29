@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import styles from './home.module.css';
 
+// Safety contract for any future purchase controls: Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.
+// A 3D model or NFT alone is not a deed.
 export default function Home() {
   return <main className={styles.page}>
     <nav className={styles.top}>
