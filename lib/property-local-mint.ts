@@ -1,4 +1,4 @@
-import { createHash, createHmac, getBytes as nodeGetBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { Contract, getBytes, JsonRpcProvider, keccak256, solidityPackedKeccak256, toUtf8Bytes, Wallet } from 'ethers';
 import { getVoxelFlipDeployment } from './voxelflip-deployment';
 
