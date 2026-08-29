@@ -38,7 +38,9 @@ assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|a
 
 assert.match(property, /CREATION_PRICE_LABEL = '\$4\.99'/, 'maker shows the $4.99 creation price');
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'the authorized photo persists across Stripe on the same device');
-assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'photo is retained on-device before checkout');
+assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'photo is retained on-device before checkout when private storage works');
+assert.match(property, /let cachedOnDevice = false/, 'private photo caching is best-effort and cannot be a checkout prerequisite');
+assert.match(property, /browser could not keep the photo through checkout/, 'checkout has an explicit recovery path when private browser storage is unavailable');
 assert.match(property, /\/api\/property-generation\/checkout/, 'photo approval opens paid generation checkout');
 assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Preview/, 'paid CTA promises the preview first, not an immediate generic voxel');
 assert.match(property, /After payment, you will see the 3D preview before any voxel is built/, 'checkout handoff preserves the strict stage order');
