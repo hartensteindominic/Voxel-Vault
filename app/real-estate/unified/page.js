@@ -22,9 +22,9 @@ export default function UnifiedPropertyWalletPage() {
 
       <header className={styles.hero}>
         <p className={styles.kicker}>✦ TRY THE $1.99 PROPERTY DEMO ✦</p>
-        <h1>Buy a little<br/><em>digital property.</em></h1>
-        <p className={styles.lead}>Start with your property value. Pick one property. Tap Buy. That’s it.</p>
-        <a className={styles.heroStart} href="#start">START TEST BUY →</a>
+        <h1>Pick a property.<br/><em>Tap buy.</em></h1>
+        <p className={styles.lead}>Voxel Vault handles the property data and pricing. You just choose the property you want.</p>
+        <a className={styles.heroStart} href="#start">CHOOSE A PROPERTY →</a>
         <p className={styles.heroHint}>Uses demo money only.</p>
       </header>
 
@@ -41,7 +41,7 @@ export default function UnifiedPropertyWalletPage() {
         <section className={styles.previewCard}>
           <PropertyTwinCanvas style={{ width: '100%', height: '100%' }} />
           <span className={styles.previewBadge}>3D PROPERTY</span>
-          <div className={styles.previewPrice}><small>DEMO STARTING PRICE</small><b>$1.99</b></div>
+          <div className={styles.previewPrice}><small>DEMO REFERENCE PRICE</small><b>$1.99</b></div>
         </section>
       </section>
 
