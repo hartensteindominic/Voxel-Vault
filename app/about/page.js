@@ -1,0 +1,26 @@
+import Link from 'next/link';
+
+export const metadata = {
+  title: 'About + Support · Voxel Vault',
+  description: 'What Voxel Vault is, what the $4.99 VoxelPop property creation includes, and where to find public support and product-status information.',
+};
+
+export default function AboutPage() {
+  return <main className="page"><div className="shell">
+    <nav className="top"><Link href="/">← Voxel Vault</Link><div><Link href="/demo">Demo</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div></nav>
+    <header><small>ABOUT VOXEL VAULT</small><h1>One clear product.<br/><em>Careful boundaries.</em></h1><p>Voxel Vault’s main consumer product is VoxelPop Property: turn an authorized house photo into a digital 3D preview, approve it, create a movable voxel, place it in World, keep it in Vault, and optionally mint the finished digital voxel later.</p></header>
+
+    <section className="grid">
+      <article><small>CORE PRODUCT</small><h2>$4.99 VoxelPop creation</h2><p>Sign in, choose a photo you took or may use, pay once, see the 3D preview first, then create the separate movable voxel. Normal property creation is designed to keep the source photo on-device and not require Meshy credits.</p><Link href="/property">Create a property voxel →</Link></article>
+      <article><small>TRY FIRST</small><h2>Public sample</h2><p>You do not need an account to inspect the synthetic sample. It exists so visitors can understand the interaction before signing in or paying.</p><Link href="/demo">Open no-login demo →</Link></article>
+      <article><small>PRODUCT STATUS</small><h2>Digital is not legal title</h2><p>A VoxelPop model, NFT, payment, map marker, Property Passport, demo slice, or wallet record does not create deed/title, rent, occupancy, investment, or appreciation rights in physical property.</p><Link href="/more">See optional + advanced tools →</Link></article>
+      <article><small>PUBLIC SUPPORT</small><h2>Report a product bug</h2><p>The repository issue tracker is the public place for reproducible bugs and product feedback. Never post passwords, private keys, card details, identity documents, deeds, leases, account tokens, or other private information there.</p><a href="https://github.com/hartensteindominic/Voxel-Vault/issues">Open GitHub Issues →</a></article>
+    </section>
+
+    <section className="principles"><small>HOW WE KEEP IT LEGIT</small><h2>Separate the evidence layers.</h2><div><span><b>PHOTO / 3D</b> visual digital creation</span><i>≠</i><span><b>MAP</b> place and building data</span><i>≠</i><span><b>NFT / WALLET</b> digital asset records</span><i>≠</i><span><b>TITLE / INVESTMENT</b> separate legal/provider rails</span></div></section>
+
+    <footer><span>Voxel Vault is not itself a bank, broker, exchange, custodian, escrow service, or deed registry.</span><nav><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><a href="https://github.com/hartensteindominic/Voxel-Vault">GitHub</a></nav></footer>
+  </div><style jsx>{`
+    :global(body){margin:0;background:#fffaf0;color:#201722;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:18px 16px 70px;background:radial-gradient(circle at 8% 8%,#efffb7 0,transparent 24%),radial-gradient(circle at 92% 8%,#eee5ff 0,transparent 27%),#fffaf0}.shell{width:min(980px,100%);margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.top>a,.top div a{color:#6338d4;text-decoration:none;font-size:10px;font-weight:950}.top div{display:flex;gap:14px}header{text-align:center;padding:76px 0 34px}header small,.grid small,.principles small{font-size:9px;font-weight:1000;letter-spacing:.15em;color:#7138f5}header h1{margin:11px 0 17px;font-size:clamp(52px,8vw,82px);line-height:.9;letter-spacing:-.065em}header h1 em{font-style:normal;color:#7138f5}header p{max-width:760px;margin:auto;color:#766d78;font-size:15px;line-height:1.65}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid article{padding:22px;border:1px solid #e6dfe8;border-radius:25px;background:#ffffffd9;box-shadow:0 15px 40px #6c4f8610}.grid h2{margin:6px 0 9px;font-size:25px;letter-spacing:-.04em}.grid p{margin:0 0 17px;color:#776d79;font-size:11px;line-height:1.6}.grid a{color:#6338d4;text-decoration:none;font-size:10px;font-weight:1000}.principles{margin-top:14px;padding:24px;border-radius:26px;background:#21162e;color:#fff}.principles h2{margin:6px 0 16px;font-size:30px;letter-spacing:-.04em}.principles>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.principles span{padding:10px 12px;border:1px solid #ffffff17;border-radius:14px;background:#ffffff0b;color:#d9cfdf;font-size:9px}.principles span b{display:block;color:#c9ff54;font-size:8px;letter-spacing:.08em}.principles i{font-style:normal;color:#9b8aa8;font-weight:1000}footer{display:flex;justify-content:space-between;gap:20px;margin-top:22px;padding-top:20px;border-top:1px solid #e3dbd3;color:#897f8b;font-size:9px;line-height:1.5}footer nav{display:flex;gap:12px}footer a{color:#6338d4;text-decoration:none;font-weight:900}@media(max-width:700px){header{padding-top:50px}.grid{grid-template-columns:1fr}.principles>div{display:grid}.principles i{text-align:center}footer{flex-direction:column}}
+  `}</style></main>;
+}
