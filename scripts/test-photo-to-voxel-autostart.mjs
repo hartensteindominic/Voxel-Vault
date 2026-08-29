@@ -74,7 +74,8 @@ assert.match(property, /Building your final VoxelPop 3D/, 'user must see final v
 assert.match(property, /setPipelinePhase\('paused'\)/, 'provider failure must move the automatic chain to a recoverable paused state');
 assert.match(property, /async function retryBuild\(\)/, 'paused automatic chain must preserve a retry path');
 assert.match(property, /Rebuild from photo/, 'paused voxel stage must expose a fresh-photo rebuild action');
-assert.match(property, /Image first → first 3D → VoxelPop image → final movable 3D\./, 'visible copy must make the image-first handoff obvious');
+assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3D voxel\./, 'visible copy must preserve the automatic no-extra-button handoff');
+assert.match(property, /Your image stays visible until each 3D render is ready\./, 'visible copy must make the image-first fallback promise explicit');
 
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
