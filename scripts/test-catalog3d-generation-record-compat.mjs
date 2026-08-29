@@ -18,5 +18,8 @@ assert.match(store, /model_storage_path: _modelStoragePath/, 'legacy retry must 
 assert.match(store, /upsert\(legacyTablePayload\(payload\), \{ onConflict: 'item_id' \}\)/, 'failed full writes must retry against the valid 007/008 schema');
 assert.match(store, /for \(const admin of adminCandidates\(\)\)/, 'persistence must not stop at the first configured server credential');
 assert.match(store, /return writeStorageRow\(itemId, payload\)/, 'private storage remains a final fallback rather than a prerequisite for generation records');
+assert.match(store, /if \(!supabase\) storageReadyPromise = undefined/, 'a transient unavailable Storage backend must not remain cached for the life of the server process');
+assert.match(store, /\.catch\(\(\) => \{[\s\S]*storageReadyPromise = undefined;[\s\S]*return null;/, 'failed Storage initialization must be retryable on the next request');
+assert.match(store, /Buffer\.from\(JSON\.stringify\(payload\), 'utf8'\)/, 'metadata fallback uploads should use a Node-safe binary body');
 
-console.log('Catalog3D generation-record compatibility passed: VoxelPop can save Meshy task ownership/status on the original 007/008 table schema, while 009 private binary metadata remains optional.');
+console.log('Catalog3D generation-record compatibility passed: VoxelPop can save Meshy task ownership/status on the original 007/008 table schema, retry transient Storage initialization, and keep 009 private binary metadata optional.');
