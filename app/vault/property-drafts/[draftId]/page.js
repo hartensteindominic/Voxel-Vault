@@ -69,7 +69,10 @@ export default function SavedPropertyDraft3DPage() {
   const [busy, setBusy] = useState(false);
   const reference = useMemo(() => savedReference(draft), [draft]);
   const authoritativeTwin = useMemo(() => savedAuthoritativeTwin(draft), [draft]);
-  const generatedModelUrl = draft?.visual?.modelUrl || null;
+  const generatedModelUrl = draft?.visual?.modelUrl || draft?.voxelpop?.modelUrl || null;
+  const localTaskId = String(draft?.voxelpop?.modelTaskId || '');
+  const mintableLocalVoxel = Boolean(generatedModelUrl && localTaskId.startsWith('local-v1:'));
+  const mintHref = `/vault/property-drafts/${encodeURIComponent(draftId)}/mint`;
   const collected = draft?.commerce?.kind === 'property_voxel_collectible' && draft?.commerce?.status === 'paid';
 
   useEffect(() => {
@@ -81,7 +84,7 @@ export default function SavedPropertyDraft3DPage() {
       const local = readPropertyDraft(draftId);
       if (local) {
         setDraft(local);
-        setStatus(local?.visual?.modelUrl ? 'Loaded the exact saved VoxelPop model from your Vault.' : 'Loaded the exact geometry snapshot saved in your Vault.');
+        setStatus((local?.visual?.modelUrl || local?.voxelpop?.modelUrl) ? 'Loaded the exact reviewed VoxelPop model from your Vault.' : 'Loaded the exact geometry snapshot saved in your Vault.');
         return;
       }
       if (!nextSession?.user) {
@@ -95,7 +98,7 @@ export default function SavedPropertyDraft3DPage() {
         const restored = merged.find((item) => item.id === draftId) || null;
         if (!active) return;
         setDraft(restored);
-        setStatus(restored ? (restored?.visual?.modelUrl ? 'Restored this saved VoxelPop model from your account.' : 'Restored this exact saved 3D property snapshot from your account.') : 'This draft was not found in your synced account library.');
+        setStatus(restored ? ((restored?.visual?.modelUrl || restored?.voxelpop?.modelUrl) ? 'Restored this reviewed VoxelPop model from your account.' : 'Restored this exact saved 3D property snapshot from your account.') : 'This draft was not found in your synced account library.');
       } catch (error) {
         if (active) setStatus(String(error?.message || error || 'Could not restore this draft.'));
       }
@@ -154,16 +157,16 @@ export default function SavedPropertyDraft3DPage() {
   if (!draft) return <main className="page"><header><Link href="/vault/property-drafts">← VAULT</Link><span>VOXEL VAULT · SAVED 3D</span></header><section className="missing"><b>{status}</b>{!session ? <button onClick={signIn} disabled={busy}>{busy ? 'CONNECTING…' : 'CONTINUE WITH GOOGLE'}</button> : null}<Link href="/property">CREATE ANOTHER</Link></section><style jsx>{styles}</style></main>;
 
   return <main className="page">
-    <header><Link href="/vault/property-drafts">← MY VAULT</Link><span>{collected ? 'OWNED DIGITAL VOXEL' : 'EXACT SAVED 3D SNAPSHOT'}</span><Link href="/vault/properties/claim">{collected ? 'MINT · OPTIONAL ↗' : 'VERIFY ↗'}</Link></header>
-    <section className="hero"><small>{fidelityLabel(draft.fidelity)}</small><h1>{draft.label || 'Saved property draft'}</h1><p>{status} The generated collectible and source-backed map evidence stay separate; checking current map data never silently changes the saved voxel.</p></section>
+    <header><Link href="/vault/property-drafts">← MY VAULT</Link><span>{collected ? 'OWNED DIGITAL VOXEL' : 'EXACT SAVED 3D SNAPSHOT'}</span><Link href={mintableLocalVoxel ? mintHref : '/vault/properties/claim'}>{mintableLocalVoxel ? 'MINT · OPTIONAL ↗' : 'VERIFY ↗'}</Link></header>
+    <section className="hero"><small>{fidelityLabel(draft.fidelity)}</small><h1>{draft.label || 'Saved property draft'}</h1><p>{status} The reviewed voxel and source-backed map evidence stay separate; checking current map data never silently changes the saved voxel.</p></section>
     <section className="viewer">{generatedModelUrl ? <MeshyModelViewer modelUrl={generatedModelUrl}/> : <GeoReferenceModel reference={reference} authoritativeTwin={authoritativeTwin} viewMode="orbit" resetKey={0}/>}</section>
     <section className="panel">
-      <div><small>ITEM</small><b>{collected ? 'COLLECTED DIGITAL VOXEL' : 'SAVED 3D DRAFT'}</b></div>
+      <div><small>ITEM</small><b>{collected ? 'COLLECTED DIGITAL VOXEL' : mintableLocalVoxel ? 'REVIEWED 3D VOXEL' : 'SAVED 3D DRAFT'}</b></div>
       <div><small>MAP EVIDENCE</small><b>{draft.geometryKind === 'parcel-boundary' ? 'PARCEL · NO BUILDING INVENTED' : draft?.evidence?.exactParcelLinkedBuilding ? 'PARCEL-LINKED BUILDING' : draft?.evidence?.sourceBackedBuilding ? 'SOURCE-BACKED BUILDING' : 'REFERENCE'}</b></div>
-      <div><small>MINT</small><b>{draft?.blockchain?.minted ? 'MINTED' : 'OPTIONAL'}</b></div>
+      <div><small>MINT</small><b>{draft?.blockchain?.minted ? 'MINTED' : mintableLocalVoxel ? 'READY · OPTIONAL' : 'OPTIONAL'}</b></div>
       <div><small>REAL TITLE</small><b>{draft?.legal?.titleVerified ? 'VERIFIED' : 'SEPARATE'}</b></div>
     </section>
-    <div className="actions"><Link className="primary" href="/property">+ CREATE ANOTHER</Link><Link href="/world">VIEW MY WORLD</Link><Link href="/vault/properties/claim">{collected ? 'MINT TO WALLET · OPTIONAL' : 'VERIFY PROPERTY RIGHTS'}</Link></div>
+    <div className="actions"><Link className="primary" href="/property">+ CREATE ANOTHER</Link><Link href="/world">VIEW MY WORLD</Link><Link href={mintableLocalVoxel ? mintHref : '/vault/properties/claim'}>{mintableLocalVoxel ? 'MINT THIS 3D VOXEL · OPTIONAL' : 'VERIFY PROPERTY RIGHTS'}</Link></div>
     <button className="evidence" onClick={refreshLiveEvidence} disabled={busy}>{busy ? 'CHECKING CURRENT EVIDENCE…' : 'CHECK CURRENT MAP EVIDENCE'}</button>
     {liveStatus ? <div className="live" role="status">{liveStatus}</div> : null}
     <p className="truth">The VoxelPop model is a saved digital collectible/representation, not a deed or guaranteed perfect replica. A single source photo cannot verify unseen sides, roof details or exact dimensions. Parcel-only evidence stays parcel-only; no vacant land is turned into a fake building. Payment or optional minting does not create deed/title, rent, occupancy, fractional investment or appreciation rights.</p>
