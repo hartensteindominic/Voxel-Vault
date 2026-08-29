@@ -1,132 +1,95 @@
-# Unified Property + Money Vault
+# Voxel Vault Product Truth + Money Boundaries
 
 Reviewed: August 29, 2026
 
-## Product idea
+## One simple rule
 
-Voxel Vault can present one spatial account where a user sees:
+Voxel Vault may show property, digital assets, wallets, and provider-backed positions in one interface, but different legal records must never be presented as if they are equivalent.
 
-1. a source-backed 3D property twin;
-2. any separately verified legal/economic property position;
-3. optional NFTs / digital collectibles;
-4. a user-controlled crypto wallet connection;
-5. settled USD from an approved banking/payment provider;
-6. conversion and reinvestment actions that hand off to the provider legally responsible for the transaction.
+Use four public states:
 
-The product should feel unified while the legal records and custody rails remain distinct.
+- **$4.99 DIGITAL** — one paid VoxelPop digital creation; no real-property rights.
+- **DEMO** — sandbox only; no real money, security purchase, or property rights move.
+- **PARTNER** — live financial/investment execution only through the required approved provider, eligibility checks, settlement, and verification.
+- **TITLE** — real-property ownership changes only through normal closing and recorded title.
 
-## $1.99 Property Slice sandbox
-
-`/geo/slice` uses a default test amount of **$1.99**.
-
-The sandbox compares that amount to a selected property's reference price and to a benchmark property price. It can show:
-
-- the mathematical percentage represented by $1.99 relative to the selected reference price;
-- selected-property price divided by benchmark-property price;
-- the benchmark-dollar amount that represents the same mathematical fraction.
-
-The sandbox **does not** transfer funds, reserve property, create deed ownership, create an LLC interest, purchase a security, mint a real-estate security, or create rent rights.
-
-A live small-dollar property purchase may replace the sandbox only when the exact offering legitimately supports the amount and all provider, investor-eligibility, settlement, custody and independent ownership-verification gates are satisfied.
-
-## Unified asset conversion model
-
-The first product model distinguishes four values:
-
-- **Settled USD** — the only amount counted as immediately spendable by the preview.
-- **Estimated crypto value** — informational until an approved exchange/off-ramp trade settles.
-- **Estimated NFT value** — informational until a real marketplace buyer executes a sale and proceeds settle.
-- **Property goal / verified position** — a savings/goal balance or a separately verified property/security position; the UI must state which one it is.
-
-Supported product journeys can eventually include:
+## Current VoxelPop property product
 
 ```text
-NFT -> marketplace sale -> crypto or USD proceeds -> settlement -> Vault balance
-crypto -> approved exchange/off-ramp -> settled USD -> Vault balance
-settled USD -> verified property offering -> provider-confirmed position -> 3D property Vault
-verified property distributions -> settled proceeds -> USD/crypto -> optional user-authorized reinvestment
+sign in
+  -> authorized photo
+  -> $4.99 digital creation checkout
+  -> paid session verification
+  -> device-local source photo
+  -> local VoxelPop image + movable 3D model
+  -> source-backed address / 3D map context
+  -> My World
+  -> optional separate digital collectible checkout
+  -> Vault
+  -> optional separate Verify + Mint path
 ```
 
-No estimated NFT or crypto value should be silently counted as available cash.
+The **$4.99 payment is for one digital VoxelPop creation**. The local generation engine does not require Meshy credits, and the source photo stays device-local for the creation flow.
 
-## Live-provider boundaries
+A verified paid session may resume the same creation without a second creation charge. The optional mapped digital-collectible purchase is a separate transaction.
+
+The source photo, locally generated 3D model, and mapped property record are intentionally different evidence layers. One image cannot verify unseen sides, survey-grade dimensions, complete roof/facade geometry, title, ownership, or property value.
+
+Neither the $4.99 creation nor the optional digital collectible creates deed/title ownership, equity, rent rights, occupancy rights, a real-estate security, or guaranteed appreciation.
+
+## $1.99 Property Demo
+
+`/geo/slice` is a sandbox using a default **$1.99** anchor amount and fake demo balances. It does not transfer customer funds, reserve property, create deed ownership, create an LLC interest, purchase a security, mint a real-estate security, or create rent/occupancy rights.
+
+A real small-dollar property investment may replace the demo only when an exact verified offering legitimately supports the amount and all required investor-eligibility, settlement, custody, disclosure, and position-verification gates are satisfied.
+
+## Money and conversion rules
+
+Keep these values distinct:
+
+- **Settled USD** — cash only after the responsible provider reports settlement.
+- **Estimated crypto value** — informational until an approved exchange/off-ramp settles a trade.
+- **Estimated NFT value** — informational until a real marketplace sale settles.
+- **Verified property/security position** — only after the responsible provider and reconciliation layer substantiate it.
+- **Property goal/demo balance** — never presented as ownership or spendable customer cash.
+
+No estimate becomes spendable money merely because it appears in the same Vault screen.
+
+## Regulated-role boundaries
 
 ### USD
-
-Voxel Vault should not present itself as an FDIC-insured bank unless it actually becomes an insured depository institution. A practical fintech path is a disclosed partner-bank/payment-provider integration in which the UI names the actual institution/provider and accurately states whether and how any deposit-insurance eligibility applies.
+Voxel Vault should not present itself as an FDIC-insured bank unless that exact status becomes true. Customer USD should use an appropriately disclosed banking/payment provider, with accurate deposit-insurance language for the actual structure.
 
 Official reference: https://www.fdic.gov/resources/consumers/consumer-news/2023-07.html
 
 ### Crypto
-
-Prefer a user-controlled wallet for the initial live product. Custody, exchange, transmission, and customer crypto-to-fiat conversion can trigger licensing and compliance obligations, especially for New York users.
+Prefer user-controlled wallets unless an appropriately authorized custody/exchange/transmission provider is integrated. New York virtual-currency activity can require NYDFS licensing depending on the exact activity.
 
 Official reference: https://www.dfs.ny.gov/virtual_currency_businesses
 
 ### Tokenized property / securities
-
-Tokenization does not change the legal character of an underlying security. If a token represents a property-company share, REIT interest, note, or other security, the securities-law treatment follows the actual instrument and transaction structure.
+Tokenization does not erase securities-law treatment. If a token represents a property-company share, REIT interest, note, or other security, the legal treatment follows the actual instrument and transaction.
 
 Official references:
-
 - https://www.sec.gov/newsroom/speeches-statements/corp-fin-statement-tokenized-securities-012826-statement-tokenized-securities
 - https://www.sec.gov/resources-small-businesses/capital-raising-building-blocks/transactions-involving-crypto-assets
 - https://www.sec.gov/rules-regulations/2026/03/s7-2026-09
+- https://www.sec.gov/rules-regulations/2026/08/s7-2026-27
 
-The SEC also proposed Regulation Crypto Assets on August 18, 2026. It is a proposal, not a blanket authorization to launch tokenized real-estate securities without the applicable offering, broker, exchange, custody, transfer, and investor-protection analysis.
+The August 18, 2026 Regulation Crypto Assets item is a proposal, not blanket authorization for a tokenized real-estate product.
 
-Official reference: https://www.sec.gov/rules-regulations/2026/08/s7-2026-27
+## Public language
 
-## Product-language rule
+Preferred: `VoxelPop digital creation`, `digital property voxel`, `digital collectible`, `source-backed 3D map`, `$1.99 Property Demo`, `provider-backed investment`, `verified position`, and `recorded title`.
 
-Use user-facing language such as:
-
-- `Vault`
-- `USD balance`
-- `Crypto wallet`
-- `NFT collection`
-- `Property Slice (sandbox)`
-- `Verified property position`
-
-Do not call Voxel Vault itself a `bank`, `FDIC-insured`, `broker`, `exchange`, `custodian`, or `deed registry` unless that exact legal status later becomes true.
-
-## Target architecture
-
-```text
-                         VOXEL VAULT UI
-                              |
-        -------------------------------------------------
-        |                    |             |            |
-     3D GEO              PROPERTY         NFT        MONEY VIEW
-        |                 RIGHTS           |            |
- authoritative        provider/legal    wallet /      balances
- spatial data          entity records   collection      |
-        |                    |             |      -----------------
-        |                    |             |      |               |
-        |                    |             |     USD            CRYPTO
-        |                    |             |      |               |
-        |                    |             | partner bank/   user wallet or
-        |                    |             | payment rail    licensed provider
-        -------------------------------------------------
-                              |
-                       unified audit/ledger
-```
-
-The unified ledger may link all of these objects, but it must not overwrite the source of legal truth for any object.
+Do not imply Voxel Vault itself is a bank, FDIC-insured institution, broker, securities exchange, crypto exchange, custodian, escrow service, or deed registry.
 
 ## Production gates
 
-Keep live money movement disabled until the exact action has a verified implementation and provider/legal owner:
+Keep a real-money or regulated action disabled until the exact action has a verified owner and implementation, including as applicable: authentication/KYC, banking/payment provider, accurate disclosures, compliant crypto rails, approved NFT marketplace/off-ramp, verified offering, investor eligibility, legal property/entity mapping, independent position reconciliation, explicit user authorization, ledger/audit controls, fraud/transaction limits, and an emergency disable control.
 
-- customer authentication and KYC where required;
-- bank/payment-provider agreement for USD funds;
-- accurate deposit-insurance disclosures;
-- compliant crypto custody/exchange/transmission path;
-- approved marketplace/off-ramp for NFT conversion;
-- verified property offering and investor eligibility;
-- legal-property/entity mapping;
-- independent position reconciliation;
-- explicit user authorization for every trade/purchase or separately scoped auto-reinvestment authority;
-- ledger reconciliation, audit logging, limits, fraud controls and a kill switch.
+## Final rule
 
-The goal is one simple product experience backed by multiple truthful rails, not one database field pretending that every asset is the same thing.
+**3D is the interface. Evidence is the authority.**
+
+A photo, model, map marker, payment, NFT, wallet connection, Property Passport, or blockchain record never gains stronger legal meaning just because it is displayed beside another asset in Voxel Vault.
