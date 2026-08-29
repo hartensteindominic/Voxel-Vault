@@ -111,19 +111,16 @@ requireMarkers(distribution, 'distribution vault', [
   'InvalidStatementHash',
 ]);
 
-// The public root is intentionally focused on the shipping VoxelPop product.
-// Regulated property/investment disclosures belong on their advanced surfaces,
-// while the front door must still preserve price clarity, optional minting and
-// the digital-only physical-property rights boundary.
+// The public root is the simple digital VoxelPop product. Regulated property
+// and investment disclosures stay on their advanced surfaces while the root
+// preserves the price, one-property rule, optional mint, and no-deed boundary.
 requireMarkers(root, 'simple root homepage', [
-  'ONE PHOTO → ONE VOXEL',
-  'Create mine · $4.99',
-  '3D voxel photo',
-  'Your movable voxel is built and saved.',
-  'NFT optional',
-  'no wallet needed to create',
-  'VoxelPop creates a digital asset only.',
-  'does not create or transfer ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property',
+  'HOUSE PHOTO → VOXEL → 3D · $4.99',
+  'Create house voxel · $4.99',
+  'Upload a house. Confirm the address. Get a voxel image, then a mintable 3D voxel.',
+  'Saved to your Voxel Vault · mint when you want',
+  'One property. One collectible.',
+  'Digital collectible only. No deed, title, or physical-property rights.',
 ]);
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
@@ -245,4 +242,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the clear $4.99 high-fidelity 3D voxel-photo -> separate movable-voxel flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the $4.99 house-photo -> confirmed-address -> voxel-image -> final-3D collectible remains separate from regulated property rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
