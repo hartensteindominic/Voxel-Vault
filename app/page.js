@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import styles from './home.module.css';
 
-// Safety contract: Collecting in the guided property flow buys the generated digital VoxelPop collectible only.
-// The $1.99 Property Slice is a sandbox comparison/goal tool unless a separately verified legal offering is available.
-// Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.
-// A 3D model, payment, map marker, Property Passport, or NFT is not a deed and does not create rent, occupancy, investment, or appreciation rights.
-// Creation flow contract: SIGN IN -> PHOTO -> AUTO 3D -> AUTO VOXEL -> MY WORLD PREVIEW -> COLLECT -> VAULT -> OPTIONAL VERIFIED MINT.
-// Canonical property minting remains a separate parcel-verification step and address text is never treated as deed/title proof.
+// Safety contract: the consumer front door shows only the product states that are actually true today.
+// Digital creation uses an authorized photo for an on-device VoxelPop preview and a source-backed mapped 3D place.
+// Collecting buys a digital collectible only. It does not buy the physical property or create deed/title, rent, occupancy, investment, or appreciation rights.
+// The $1.99 Property Slice remains a sandbox comparison tool unless a separately verified legal offering is available.
+// Real-property investing, money movement, custody, exchange and tokenized economic rights remain provider-gated and fail closed.
+// Consumer flow: SIGN IN -> PHOTO -> VOXEL PREVIEW -> 3D MAP -> WORLD -> COLLECT + VAULT -> OPTIONAL VERIFIED MINT.
 export default function Home() {
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -16,92 +16,94 @@ export default function Home() {
           <span>VOXEL VAULT</span>
         </Link>
         <div className={styles.topLinks}>
-          <Link className={styles.slicePill} href="/geo/slice">$1.99 Slice</Link>
           <Link href="/property">Create</Link>
+          <Link href="/world">World</Link>
           <Link href="/vault">Vault</Link>
         </div>
       </nav>
 
       <header className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>✦ PROPERTY · CASH · CRYPTO · NFT ✦</p>
-          <h1>Your property world.<br/><em>One simple Vault.</em></h1>
-          <p className={styles.lead}>Create a real-place 3D voxel, test a tiny $1.99 property slice, keep digital assets together, and follow clear paths between NFTs, crypto and settled USD.</p>
+          <p className={styles.kicker}>✦ REAL PLACE · DIGITAL VOXEL · CLEAR RIGHTS ✦</p>
+          <h1>Build your property world.<br/><em>Keep it simple.</em></h1>
+          <p className={styles.lead}>Turn an authorized property photo into a VoxelPop preview, match it to a real mapped place, explore the source-backed 3D neighborhood, and keep the digital asset in your Vault.</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/geo/slice">TRY THE $1.99 SLICE</Link>
-            <Link className={styles.secondaryAction} href="/property">START → SIGN IN</Link>
+            <Link className={styles.primaryAction} href="/property">START → SIGN IN</Link>
+            <Link className={styles.secondaryAction} href="/vault">OPEN MY VAULT</Link>
           </div>
-          <p className={styles.heroFine}>The $1.99 slice is a sandbox comparison—not deed ownership, a security purchase, or a funds transfer.</p>
+          <p className={styles.heroFine}>Creating or collecting a voxel does not buy the physical property. Real ownership and investing use separate verified legal/provider rails.</p>
         </div>
 
-        <div className={styles.heroVisual} aria-label="Unified Voxel Vault preview">
+        <div className={styles.heroVisual} aria-label="Voxel Vault property workflow preview">
           <div className={styles.skySparkle}>✦</div>
           <div className={styles.voxelHouse} aria-hidden="true">
             <div className={styles.roof}/><div className={styles.houseBody}><i/><i/><b/></div>
             <div className={styles.lawn}/>
           </div>
-          <div className={styles.priceBubble}><small>TEST SLICE</small><strong>$1.99</strong><span>Sandbox</span></div>
-          <div className={`${styles.assetChip} ${styles.chipUsd}`}><span>$</span><b>USD</b></div>
-          <div className={`${styles.assetChip} ${styles.chipCrypto}`}><span>◆</span><b>CRYPTO</b></div>
-          <div className={`${styles.assetChip} ${styles.chipNft}`}><span>◇</span><b>NFT</b></div>
+          <div className={styles.priceBubble}><small>CREATE</small><strong>FREE</strong><span>No Meshy credits</span></div>
+          <div className={`${styles.assetChip} ${styles.chipUsd}`}><span>＋</span><b>PHOTO</b></div>
+          <div className={`${styles.assetChip} ${styles.chipCrypto}`}><span>◎</span><b>MAP</b></div>
+          <div className={`${styles.assetChip} ${styles.chipNft}`}><span>◇</span><b>VAULT</b></div>
         </div>
       </header>
 
+      <section className={styles.creationCard}>
+        <div className={styles.step}>
+          <span>+</span>
+          <div>
+            <p>VOXELPOP PROPERTY</p>
+            <h2>PHOTO → VOXEL PREVIEW → 3D MAP → WORLD</h2>
+            <span>Your photo stays on-device for the preview. The interactive 3D comes from mapped building and neighborhood data, not invented unseen photo details.</span>
+          </div>
+        </div>
+        <Link className={styles.startButton} href="/property">START → SIGN IN</Link>
+        <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>VOXEL</b><i>→</i><b>3D</b><i>→</i><b>WORLD</b><i>→</i><b>COLLECT + VAULT</b></div>
+        <small>Creation itself is free. Collection is optional. A wallet is optional until you choose a separate verified mint step.</small>
+      </section>
+
       <section className={styles.unifiedCard}>
         <div className={styles.sectionIntro}>
-          <p>ONE ACCOUNT VIEW</p>
-          <h2>Four things. One organized home.</h2>
-          <span>The interface can feel unified while custody, settlement and legal ownership stay correctly separated underneath.</span>
+          <p>THREE MAIN PLACES</p>
+          <h2>Create. Explore. Keep.</h2>
+          <span>Everything else stays out of the way until you actually need it.</span>
         </div>
         <div className={styles.assetGrid}>
-          <Link href="/geo/slice" className={`${styles.assetTile} ${styles.propertyTile}`}>
-            <div className={styles.tileIcon}>⌂</div><small>PROPERTY</small><strong>$1.99 test</strong><span>Compare tiny slices across property reference values.</span><b>Open Slice →</b>
+          <Link href="/property" className={`${styles.assetTile} ${styles.propertyTile}`}>
+            <div className={styles.tileIcon}>+</div><small>CREATE</small><strong>Property voxel</strong><span>Photo preview + source-backed 3D map.</span><b>Create →</b>
           </Link>
-          <Link href="/vault" className={`${styles.assetTile} ${styles.usdTile}`}>
-            <div className={styles.tileIcon}>$</div><small>USD</small><strong>Settled cash</strong><span>Only provider-settled USD is treated as spendable money.</span><b>Open Vault →</b>
+          <Link href="/world" className={`${styles.assetTile} ${styles.usdTile}`}>
+            <div className={styles.tileIcon}>◎</div><small>EXPLORE</small><strong>My World</strong><span>See mapped places and your saved digital property voxels.</span><b>Open World →</b>
           </Link>
           <Link href="/vault" className={`${styles.assetTile} ${styles.cryptoTile}`}>
-            <div className={styles.tileIcon}>◆</div><small>CRYPTO</small><strong>Wallet linked</strong><span>Connect a wallet without making wallet custody mandatory.</span><b>Connect in Vault →</b>
-          </Link>
-          <Link href="/vault" className={`${styles.assetTile} ${styles.nftTile}`}>
-            <div className={styles.tileIcon}>◇</div><small>NFTs</small><strong>Useful assets</strong><span>Create, hold, optionally mint, sell through supported markets, then settle proceeds.</span><b>See collection →</b>
+            <div className={styles.tileIcon}>◇</div><small>KEEP</small><strong>My Vault</strong><span>Saved creations, collected assets and optional wallet links.</span><b>Open Vault →</b>
           </Link>
         </div>
       </section>
 
       <section className={styles.convertCard}>
         <div className={styles.convertCopy}>
-          <p>MAKE NFTs USEFUL</p>
-          <h2>Asset → market → settled money → next goal.</h2>
-          <span>An NFT or crypto estimate is not cash. The Vault only upgrades value to spendable USD after a real provider-backed sale/off-ramp settles.</span>
+          <p>WHAT IS ACTUALLY LIVE?</p>
+          <h2>Digital first. Regulated features stay gated.</h2>
+          <span>Voxel Vault can organize many asset types without pretending they are legally the same thing.</span>
         </div>
-        <div className={styles.convertFlow} aria-label="NFT conversion path">
-          <FlowIcon icon="◇" label="NFT" note="asset" />
-          <i>→</i>
-          <FlowIcon icon="▦" label="Market" note="buyer" />
-          <i>→</i>
-          <FlowIcon icon="$" label="USD" note="settled" />
-          <i>→</i>
-          <FlowIcon icon="⌂" label="Property" note="goal" />
+        <div className={styles.convertFlow} aria-label="Voxel Vault product status">
+          <FlowIcon icon="◇" label="Digital voxel" note="available" />
+          <i>·</i>
+          <FlowIcon icon="¢" label="$1.99 Slice" note="sandbox" />
+          <i>·</i>
+          <FlowIcon icon="⌂" label="Real investing" note="provider-gated" />
         </div>
-        <Link className={styles.convertAction} href="/geo/slice">PREVIEW THE CONVERSION PATH</Link>
-      </section>
-
-      <section className={styles.creationCard}>
-        <div className={styles.step}><span>+</span><div><p>VOXELPOP PROPERTY CREATOR</p><h2>PHOTO → 3D → VOXEL → YOUR WORLD</h2><span>Start with an authorized photo. The app builds the first 3D, applies the VoxelPop look, creates the final movable voxel, then places it in your private World before collection.</span></div></div>
-        <Link className={styles.startButton} href="/property">START → SIGN IN</Link>
-        <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>3D</b><i>→</i><b>VOXEL</b><i>→</i><b>WORLD</b><i>→</i><b>COLLECT + VAULT</b></div>
-        <small>Nothing is uploaded, generated, or charged before sign-in. A wallet is optional until you choose the separate Verify &amp; Mint step later.</small>
+        <Link className={styles.convertAction} href="/more">SEE ADVANCED TOOLS + STATUS</Link>
       </section>
 
       <section className={styles.quickLinks}>
-        <Link href="/world"><span>◎</span><div><b>My World</b><small>Your private saved voxels plus anything you choose to share.</small></div><i>›</i></Link>
-        <Link href="/vault/property-drafts"><span>◇</span><div><b>My Collection</b><small>Saved and collected VoxelPop property assets.</small></div><i>›</i></Link>
-        <Link href="/more"><span>•••</span><div><b>Everything else</b><small>Investments, verification, rentals, AI and advanced tools.</small></div><i>›</i></Link>
+        <Link href="/geo/slice"><span>¢</span><div><b>$1.99 Slice</b><small>Sandbox comparison only. No money moves and no property rights are created.</small></div><i>›</i></Link>
+        <Link href="/vault/properties/claim"><span>✓</span><div><b>Verify a property</b><small>Evidence-first property identity and optional downstream minting.</small></div><i>›</i></Link>
+        <Link href="/more"><span>•••</span><div><b>Advanced</b><small>Investing, rentals, money tools, AI, marketplace and owner controls—with live/sandbox/provider status kept explicit.</small></div><i>›</i></Link>
       </section>
 
       <footer className={styles.footer}>
-        <span>Collecting or minting a voxel does not buy the physical property or create deed/title, rent, occupancy, or investment rights. Live banking, crypto exchange/custody, and real-property interests require separately approved providers and legal rails.</span>
+        <span>Digital voxels, map data, wallet assets and legal property rights are separate records. Collection or minting does not create deed/title, rent, occupancy, or investment rights. Banking, exchange, custody and real-property investments require separately approved providers and legal rails.</span>
         <Link href="/more">Advanced</Link>
       </footer>
     </div>
