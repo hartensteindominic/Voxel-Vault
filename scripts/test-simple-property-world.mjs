@@ -37,7 +37,7 @@ assert.match(propertyCss, /border-radius:38px/, 'property should keep one large 
 assert.match(property, /<h1>Property<\/h1>/, 'property maker must use the approved simple title');
 assert.match(property, /Create image/, 'property maker must expose Create image');
 assert.match(property, /Create 3D/, 'property maker must expose Create 3D');
-assert.match(property, />Vault<\//, 'property maker must expose Vault');
+assert.match(property, /'Vault'/, 'property maker must expose Vault');
 assert.match(property, /Mint later/, 'property maker must expose Mint later');
 assert.match(property, /\/api\/world-atlas\/open-imagery/, 'property maker must load rights-cleared street imagery');
 assert.match(property, /\/api\/property-voxel-image/, 'Create image must use the property voxel-image route');
