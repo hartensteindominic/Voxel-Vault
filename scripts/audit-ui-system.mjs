@@ -52,8 +52,8 @@ must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proo
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/WHAT YOU GET/.test(home), 'Homepage must explain the three useful VoxelPop outputs without restoring dense product clutter.');
-must(/Simple on purpose\./.test(home) && /does not create ownership or financial rights in a physical property/i.test(home), 'Homepage must keep the digital-only physical-property boundary visible.');
+must(/VOXELPOP OUTPUT/.test(home) && /3D preview/.test(home) && /Movable 3D voxel/.test(home) && /Optional NFT/.test(home), 'Homepage must explain the three useful VoxelPop outputs without restoring dense product clutter.');
+must(/VoxelPop is a digital creation product\./.test(home) && /does not create ownership[\s\S]*physical property/i.test(home), 'Homepage must keep the digital-only physical-property boundary visible.');
 must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
 
 must(/Create · \$4\.99[\s\S]*Vault[\s\S]*World/.test(topNav), 'Desktop product nav must keep Create, Vault, and World in the focused product order.');
