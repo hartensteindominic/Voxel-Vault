@@ -20,7 +20,7 @@ export default function Home() {
           <p className={styles.kicker}>✦ ONE PHOTO → YOUR VOXEL WORLD ✦</p>
           <h1>Upload a picture.<br/><em>VoxelPop does the rest.</em></h1>
           <p className={styles.lead}>Start with one property photo. After sign-in and your explicit creation checkout, VoxelPop keeps that photo visible while it builds the local voxel-style image and movable 3D. Then you add the address so it can place the result on a source-backed property map.</p>
-          <div className={styles.heroActions}><Link className={styles.primaryAction} href="/property">＋ UPLOAD A PROPERTY PHOTO</Link><Link className={styles.secondaryAction} href="/world">OPEN MY WORLD</Link></div>
+          <div className={styles.heroActions}><Link className={styles.primaryAction} href="/property">START → SIGN IN + UPLOAD PHOTO</Link><Link className={styles.secondaryAction} href="/world">OPEN MY WORLD</Link></div>
           <p className={styles.heroFine}>One starting action. No Meshy credits. No wallet required to create. Collection and minting stay optional.</p>
         </div>
 
@@ -36,7 +36,7 @@ export default function Home() {
 
       <section className={styles.creationCard}>
         <div className={styles.step}><span>+</span><div><p>THE EXPERIENCE</p><h2>You provide the photo. We guide everything after it.</h2><span>There should be no dashboard decision before creation. Pick the picture first; the same creation screen progresses from your photo to the VoxelPop image, movable 3D, address mapping, and finished World preview.</span></div></div>
-        <Link className={styles.startButton} href="/property">＋ CHOOSE MY PHOTO</Link>
+        <Link className={styles.startButton} href="/property">START → SIGN IN + CHOOSE PHOTO</Link>
         <div className={styles.microFlow}><b>UPLOAD</b><i>→</i><b>CREATING</b><i>→</i><b>3D</b><i>→</i><b>MAP</b><i>→</i><b>READY</b></div>
         <small>Your photo stays visible through creation. The address is requested only when the 3D is ready to be mapped. Payment, collection and minting remain explicit actions rather than hidden automatic charges.</small>
       </section>
