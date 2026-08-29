@@ -35,12 +35,20 @@ export default function PropertySlicePage(){
 
   useEffect(()=>{try{
     const saved=JSON.parse(window.localStorage.getItem(SLICE_KEY)||'null');if(saved?.slice)setSlice(saved.slice);if(saved?.result)setSliceResult(saved.result);
-    const purchaseSaved=JSON.parse(window.localStorage.getItem(PURCHASE_KEY)||'null');if(purchaseSaved?.demoUsdCents>=0)setPurchase({demoUsdCents:purchaseSaved.demoUsdCents,demoUnits:Number(purchaseSaved.demoUnits||0),lastPurchase:purchaseSaved.lastPurchase||null});
-    const moneySaved=JSON.parse(window.localStorage.getItem(MONEY_KEY)||'null');if(moneySaved?.inputs)setMoneyInputs(moneySaved.inputs);if(moneySaved?.result)setMoneyResult(moneySaved.result);
+    const purchaseSaved=JSON.parse(window.localStorage.getItem(PURCHASE_KEY)||'null');
+    const persistedDemoUsdCents=purchaseSaved?.demoUsdCents>=0?Number(purchaseSaved.demoUsdCents):null;
+    if(persistedDemoUsdCents!==null)setPurchase({demoUsdCents:persistedDemoUsdCents,demoUnits:Number(purchaseSaved.demoUnits||0),lastPurchase:purchaseSaved.lastPurchase||null});
+    const moneySaved=JSON.parse(window.localStorage.getItem(MONEY_KEY)||'null');
+    if(moneySaved?.inputs)setMoneyInputs({...moneySaved.inputs,...(persistedDemoUsdCents!==null?{usd:(persistedDemoUsdCents/100).toFixed(2)}:{})});
+    else if(persistedDemoUsdCents!==null)setMoneyInputs(c=>({...c,usd:(persistedDemoUsdCents/100).toFixed(2)}));
+    if(moneySaved?.result)setMoneyResult(moneySaved.result);
   }catch{}},[]);
 
   function changeSlice(key,value){setSlice(c=>({...c,[key]:value}));setSliceResult(null)}
-  function changeMoney(key,value){setMoneyInputs(c=>({...c,[key]:value}))}
+  function changeMoney(key,value){
+    setMoneyInputs(c=>({...c,[key]:value}));
+    if(key==='usd')setPurchase(c=>({...c,demoUsdCents:Math.max(0,toCents(value))}));
+  }
 
   async function testBuy(event){
     event?.preventDefault?.();setSliceBusy(true);
@@ -49,14 +57,22 @@ export default function PropertySlicePage(){
         mode:'purchase',amountCents:toCents(slice.amount),propertyReferencePriceCents:toCents(slice.selectedPrice),benchmarkReferencePriceCents:toCents(slice.benchmarkPrice),selectedName:slice.selectedName,demoUsdBalanceCents:purchase.demoUsdCents,existingDemoUnits:purchase.demoUnits,
       })});
       const d=await r.json().catch(()=>({}));if(!r.ok||!d?.ok)throw new Error(d?.error||'Could not complete the sandbox purchase.');
-      const result=d.result;const nextPurchase={demoUsdCents:result.balances.demoUsdAfterCents,demoUnits:result.purchase.demoUnitsAfter,lastPurchase:{selectedName:result.purchase.selectedName,priceCents:result.purchase.debitDemoUsdCents,percent:result.purchase.hypotheticalPercentPerUnit,boughtAt:new Date().toISOString()}};
-      setSliceResult(result.slice);setPurchase(nextPurchase);setMoneyInputs(c=>({...c,usd:(result.balances.demoUsdAfterCents/100).toFixed(2)}));setMoneyResult(null);
-      try{window.localStorage.setItem(SLICE_KEY,JSON.stringify({slice,result:result.slice,savedAt:new Date().toISOString()}));window.localStorage.setItem(PURCHASE_KEY,JSON.stringify(nextPurchase))}catch{}
+      const result=d.result;
+      const nextUsd=(result.balances.demoUsdAfterCents/100).toFixed(2);
+      const nextPurchase={demoUsdCents:result.balances.demoUsdAfterCents,demoUnits:result.purchase.demoUnitsAfter,lastPurchase:{selectedName:result.purchase.selectedName,priceCents:result.purchase.debitDemoUsdCents,percent:result.purchase.hypotheticalPercentPerUnit,boughtAt:new Date().toISOString()}};
+      const nextMoneyInputs={...moneyInputs,usd:nextUsd};
+      setSliceResult(result.slice);setPurchase(nextPurchase);setMoneyInputs(nextMoneyInputs);setMoneyResult(null);
+      try{
+        const savedAt=new Date().toISOString();
+        window.localStorage.setItem(SLICE_KEY,JSON.stringify({slice,result:result.slice,savedAt}));
+        window.localStorage.setItem(PURCHASE_KEY,JSON.stringify(nextPurchase));
+        window.localStorage.setItem(MONEY_KEY,JSON.stringify({inputs:nextMoneyInputs,result:null,savedAt}));
+      }catch{}
       setMessage(`${money(result.purchase.debitDemoUsdCents)} demo purchase complete · ${unitLabelFor(result.purchase.demoUnitsAfter)} in your sandbox Vault · no real funds, deed, equity, security, or NFT moved.`);
     }catch(e){setMessage(e instanceof Error?e.message:'Could not complete the sandbox purchase.')}finally{setSliceBusy(false)}
   }
 
-  async function previewMoney(event){event?.preventDefault?.();setMoneyBusy(true);try{const r=await fetch('/api/geo/property-slice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'conversion_preview',settledUsdCents:toCents(moneyInputs.usd),estimatedCryptoValueCents:toCents(moneyInputs.crypto),estimatedNftValueCents:toCents(moneyInputs.nft),propertyGoalCents:toCents(moneyInputs.property)})});const d=await r.json().catch(()=>({}));if(!r.ok||!d?.ok)throw new Error(d?.error||'Could not update Vault preview.');setMoneyResult(d.result);try{window.localStorage.setItem(MONEY_KEY,JSON.stringify({inputs:moneyInputs,result:d.result,savedAt:new Date().toISOString()}))}catch{}setMessage('Vault preview saved · only settled/provider-confirmed USD can become spendable in a live version; crypto/NFT numbers remain estimates until a provider settles them.')}catch(e){setMessage(e instanceof Error?e.message:'Could not update Vault preview.')}finally{setMoneyBusy(false)}}
+  async function previewMoney(event){event?.preventDefault?.();setMoneyBusy(true);try{const r=await fetch('/api/geo/property-slice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'conversion_preview',settledUsdCents:purchase.demoUsdCents,estimatedCryptoValueCents:toCents(moneyInputs.crypto),estimatedNftValueCents:toCents(moneyInputs.nft),propertyGoalCents:toCents(moneyInputs.property)})});const d=await r.json().catch(()=>({}));if(!r.ok||!d?.ok)throw new Error(d?.error||'Could not update Vault preview.');setMoneyResult(d.result);try{const savedAt=new Date().toISOString();window.localStorage.setItem(PURCHASE_KEY,JSON.stringify(purchase));window.localStorage.setItem(MONEY_KEY,JSON.stringify({inputs:{...moneyInputs,usd:(purchase.demoUsdCents/100).toFixed(2)},result:d.result,savedAt}))}catch{}setMessage('Vault preview saved · only settled/provider-confirmed USD can become spendable in a live version; crypto/NFT numbers remain estimates until a provider settles them.')}catch(e){setMessage(e instanceof Error?e.message:'Could not update Vault preview.')}finally{setMoneyBusy(false)}}
 
   return <main className={styles.page}><div className={styles.phone}>
     <header className={styles.topbar}>
