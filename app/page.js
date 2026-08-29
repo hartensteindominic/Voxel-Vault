@@ -2,7 +2,8 @@ import Link from 'next/link';
 import styles from './home.module.css';
 
 // Safety contract for any future purchase controls: Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.
-// Rental controls likewise require a real verified lease/provider path. A 3D model or NFT alone is not a deed, lease, ownership share or rent right.
+// A 3D model or NFT alone is not a deed.
+// Rental controls likewise require a real verified lease/provider path. A model/NFT alone is not a lease, ownership share, or rent right either.
 export default function Home() {
   return <main className={styles.page}>
     <nav className={styles.top}>
