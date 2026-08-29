@@ -14,6 +14,9 @@ function clean(value) { return String(value || '').trim(); }
 function terminal(value) {
   return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(value || '').toUpperCase());
 }
+function providerNeedsFunds(value) {
+  return /insufficient (funds|credits)|credit balance|not enough credits/i.test(String(value || ''));
+}
 function newDraftId() {
   const random = globalThis.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random().toString(16).slice(2)}`;
   return `vp-${random.slice(0, 28)}`;
@@ -230,6 +233,7 @@ export default function PropertyJourneyPage() {
 
   async function runAutomaticBuild(reference, iteration) {
     setBusy('pipeline');
+    let finalCheckpoint = null;
     try {
       setPipelinePhase('source3d');
       setMessage('Building a first 3D model from your photo…');
@@ -254,6 +258,7 @@ export default function PropertyJourneyPage() {
       if (!imageResponse.ok || !imageStart?.ok || !imageStart?.taskId || !imageStart?.taskToken) throw new Error(imageStart?.error || 'Voxel style pass could not start.');
       setVoxelJob(imageStart);
       const voxelDone = await pollVoxelImage(imageStart, iteration);
+      finalCheckpoint = voxelDone;
       setVoxelImage(voxelDone.imageUrl);
 
       setPipelinePhase('voxel-3d');
@@ -269,7 +274,12 @@ export default function PropertyJourneyPage() {
         }),
       });
       const finalStart = await finalResponse.json().catch(() => ({}));
-      if (!finalResponse.ok || !finalStart?.ok || !finalStart?.taskId) throw new Error(finalStart?.error || 'Final voxel 3D could not start.');
+      if (!finalResponse.ok || !finalStart?.ok || !finalStart?.taskId) {
+        const finalError = finalStart?.error || 'Final voxel 3D could not start.';
+        throw new Error(providerNeedsFunds(finalError)
+          ? 'Final 3D is waiting for Meshy credits. Your finished VoxelPop image is preserved on this page. Add Meshy credits, then tap Resume final 3D.'
+          : finalError);
+      }
       setFinal3d(finalStart);
       const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
       setFinal3d(finalDone);
@@ -278,7 +288,7 @@ export default function PropertyJourneyPage() {
     } catch (error) {
       if (iteration === pipelineRef.current) {
         setMessage(String(error?.message || error || 'The automatic build stopped.'));
-        setPipelinePhase('paused');
+        setPipelinePhase(finalCheckpoint?.taskId ? 'paused-final' : 'paused');
       }
     } finally {
       if (iteration === pipelineRef.current) setBusy('');
@@ -318,7 +328,50 @@ export default function PropertyJourneyPage() {
     }
   }
 
+  async function resumeFinal3D() {
+    if (!voxelImage || !voxelJob?.taskId || !voxelJob?.taskToken) return retryBuild();
+    const iteration = ++pipelineRef.current;
+    setBusy('pipeline');
+    setPipelinePhase('voxel-3d');
+    setMessage('Resuming only the final 3D voxel…');
+    try {
+      const finalResponse = await fetch('/api/property-voxel-3d', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          draftId,
+          phase: 'voxel',
+          voxelImageTaskId: voxelJob.taskId,
+          voxelImageTaskToken: voxelJob.taskToken,
+        }),
+      });
+      const finalStart = await finalResponse.json().catch(() => ({}));
+      if (!finalResponse.ok || !finalStart?.ok || !finalStart?.taskId) {
+        const finalError = finalStart?.error || 'Final voxel 3D could not start.';
+        throw new Error(providerNeedsFunds(finalError)
+          ? 'Meshy still needs credits for the final 3D step. Your completed VoxelPop image is still preserved here; add credits, then tap Resume final 3D again.'
+          : finalError);
+      }
+      setFinal3d(finalStart);
+      const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
+      setFinal3d(finalDone);
+      setPipelinePhase('world');
+      setMessage('Your voxel is ready. Add the property address to place the reference on My World.');
+    } catch (error) {
+      if (iteration === pipelineRef.current) {
+        const text = String(error?.message || error || 'Final voxel 3D could not resume.');
+        setMessage(providerNeedsFunds(text)
+          ? 'Meshy still needs credits for the final 3D step. Your completed VoxelPop image is still preserved here; add credits, then tap Resume final 3D again.'
+          : text);
+        setPipelinePhase('paused-final');
+      }
+    } finally {
+      if (iteration === pipelineRef.current) setBusy('');
+    }
+  }
+
   async function retryBuild() {
+    if (pipelinePhase === 'paused-final' && voxelImage && voxelJob?.taskId && voxelJob?.taskToken) return resumeFinal3D();
     if (!sourceReference) return;
     const iteration = ++pipelineRef.current;
     setSource3d(empty3d());
@@ -456,14 +509,14 @@ export default function PropertyJourneyPage() {
       </> : null}
 
       {step === 3 ? <>
-        <p className={styles.bigPrompt}>{pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
+        <p className={styles.bigPrompt}>{pipelinePhase === 'paused-final' ? 'Voxel image ready. Final 3D is paused.' : pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
         <p className={styles.stepCopy}>The VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.</p>
         <div className={styles.heroCard}>
           {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl}/> : voxelImage ? <img src={voxelImage} alt="VoxelPop property rendering"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : null}
           <span className={styles.badge}>{pipelinePhase === 'voxel-3d' ? `FINAL 3D VOXEL · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL LOOK · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
           {pipelineRunning ? <div className={styles.buildPulse}/> : null}
         </div>
-        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>Keep this page open while the current build finishes.</span></div>}
+        {pipelinePhase === 'paused-final' ? <div className={styles.choicePanel}><b>VoxelPop image complete.</b><span>The finished image stays here. Resume only the final 3D step after the 3D provider has credits available.</span><button className={styles.primaryOrange} type="button" onClick={resumeFinal3D}>Resume final 3D</button></div> : pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>Keep this page open while the current build finishes.</span></div>}
       </> : null}
 
       {step === 4 ? <>

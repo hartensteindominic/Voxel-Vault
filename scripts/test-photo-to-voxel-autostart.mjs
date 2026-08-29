@@ -68,12 +68,22 @@ assert.doesNotMatch(modelViewer, /Regenerating is not automatic/i, 'the viewer m
 assert.match(property, /Building a first 3D model from your photo/, 'user must see the first automatic 3D processing state');
 assert.match(property, /Turning the 3D into VoxelPop/, 'user must see the voxel processing state');
 assert.match(property, /Building your final VoxelPop 3D/, 'user must see final voxel 3D progress');
-assert.match(property, /setPipelinePhase\('paused'\)/, 'provider failure must move the automatic chain to a recoverable paused state');
+assert.match(property, /'paused-final' : 'paused'/, 'provider failures must distinguish a preserved final-stage checkpoint from earlier recoverable pauses');
 assert.match(property, /async function retryBuild\(\)/, 'paused automatic chain must preserve a retry path');
-assert.match(property, /Try build again/, 'paused voxel stage must expose a clear retry action');
+assert.match(property, /Try build again/, 'paused early stages must expose a clear retry action');
 assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3D voxel\./, 'visible copy must make the automatic handoff obvious');
+
+assert.match(property, /function providerNeedsFunds\(value\)/, 'the UI must recognize provider credit exhaustion separately from generation failure');
+assert.match(property, /finalCheckpoint = voxelDone/, 'the completed voxel image job must become a resumable final-3D checkpoint');
+assert.match(property, /setPipelinePhase\(finalCheckpoint\?\.taskId \? 'paused-final' : 'paused'\)/, 'a final-stage failure must preserve the completed voxel checkpoint');
+assert.match(property, /async function resumeFinal3D\(\)/, 'the completed voxel checkpoint must have a dedicated final-3D resume path');
+assert.match(property, /voxelImageTaskId: voxelJob\.taskId/, 'final-3D resume must reuse the completed voxel-image job instead of creating another image');
+assert.match(property, /voxelImageTaskToken: voxelJob\.taskToken/, 'final-3D resume must reuse the account-bound voxel image token');
+assert.match(property, /pipelinePhase === 'paused-final' && voxelImage && voxelJob\?\.taskId && voxelJob\?\.taskToken/, 'generic retry must route final-stage pauses to the checkpoint resume path');
+assert.match(property, /Resume final 3D/, 'the paused final stage must clearly offer a final-3D-only resume action');
+assert.match(property, /Your finished VoxelPop image is preserved on this page/, 'credit exhaustion must explain that the completed image is preserved instead of implying the entire build failed');
 
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> rendered 3D image -> same-origin self-repairing interactive GLB -> VoxelPop style -> final movable voxel 3D.');
+console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> rendered 3D image -> same-origin self-repairing interactive GLB -> VoxelPop style -> resumable final movable voxel 3D without re-spending completed stages.');
