@@ -49,7 +49,8 @@ assert.match(property, /you will not be charged again/i, 'missing local photo re
 assert.match(property, /PhotoReliefModelViewer imageUrl=\{pendingPreview\}/, 'paid flow shows a source-faithful photo-matched voxel-photo review');
 assert.match(property, /Looks good → Create Movable 3D Voxel/, 'the user explicitly approves the 3D voxel photo before voxel conversion');
 assert.match(property, /approvePreviewAndBuildVoxel/, 'voxel-photo approval owns the movable-voxel transition');
-assert.match(property, /createVoxelPoster\(pendingPhoto\)/, 'movable voxelization starts only after preview approval');
+assert.doesNotMatch(property, /createVoxelPoster|voxelPoster/, 'the approved flow must not create a 2D voxel picture between the real 3D review and movable voxel');
+assert.match(property, /LocalVoxelModelViewer imageUrl=\{pendingPreview\} sourceImageUrl=\{pendingPreview\}/, 'movable voxelization starts directly from the approved property photo');
 assert.match(property, /LocalVoxelModelViewer/, 'the separate voxel stage uses local interactive voxel geometry');
 assert.match(property, /\/api\/property-local-voxel/, 'local voxel recipe is account-linked after rendering');
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel is saved before optional minting');
@@ -103,4 +104,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> real photo-matched 3D voxel-photo review -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> real photo-matched 3D voxel-photo review -> explicit approval -> direct source-photo movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no 2D poster detour, Meshy credits, hidden second paywall, or physical-property claim.');
