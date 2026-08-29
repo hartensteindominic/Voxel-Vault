@@ -99,7 +99,7 @@ export default function MyDigitalEstatesPage() {
   return (
     <main className="page">
       <header>
-        <div><Link href="/vault/earth">← EARTH PROPERTIES</Link><span>MY DIGITAL TWINS</span></div>
+        <div><Link href="/vault/estates">← DIGITAL PROPERTY MARKET</Link><span>MY DIGITAL TWINS</span></div>
         <Link className="test" href="/vault/test-land">SAFE TESTNET LAND ↗</Link>
       </header>
       <section className="hero">
