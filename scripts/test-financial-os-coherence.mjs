@@ -15,7 +15,8 @@ const homePreview = read('app/components/HomeProductPreview.js');
 const propertyRoute = read('app/property/page.js');
 const property = read('app/property/HouseVoxelJourney.js');
 const checkout = read('app/api/property-generation/checkout/route.ts');
-const photoStart = read('app/api/property-photo-upload/route.ts');
+const paidVerify = read('app/api/property-photo-upload/route.ts');
+const voxelPhoto = read('app/api/property-voxel-photo/route.ts');
 const mintPrepare = read('app/api/property-voxel-nft/prepare/route.ts');
 const more = read('app/more/page.js');
 const slice = read('app/geo/slice/page.js');
@@ -25,8 +26,6 @@ const layout = read('app/layout.js');
 const vaultLayout = read('app/vault/layout.js');
 const advancedRealEstate = read('app/real-estate/page.js');
 
-// Keep the larger application organized while the shipping VoxelPop surface
-// stays deliberately small and non-financial.
 for (const label of ['Home', 'Create', 'World', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `canonical product directory should include ${label}`);
 }
@@ -65,7 +64,6 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced tool
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/, 'tool finder must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain navigation rather than a transaction executor');
 
-// The consumer home is intentionally just the house collectible product.
 assert.match(rootHome, /HOUSE PHOTO → VOXEL → 3D · \$4\.99/, 'root Home must state the focused product and price');
 assert.match(rootHome, /Create house voxel · \$4\.99/, 'root Home must have one clear paid creation CTA');
 assert.match(rootHome, /href="\/property"/, 'root Home must route creation into the maker');
@@ -82,41 +80,41 @@ assert.match(propertyRoute, /\.\/HouseVoxelJourney/, 'the active /property route
 assert.match(property, /const labels = \['PHOTO', 'ADDRESS', 'VOXEL', '3D', 'DONE'\]/, 'creator must mirror the requested five-step sequence');
 assert.match(property, /Choose one house photo\./, 'creator must begin with one obvious photo action');
 assert.match(property, /\/api\/property-identity/, 'creator must confirm the canonical property identity');
-assert.match(property, /\/api\/property-voxel-image\?/, 'creator must generate the voxel image');
+assert.match(property, /\/api\/property-voxel-photo\?/, 'creator must generate and poll the voxel image');
 assert.match(property, /\/api\/property-voxel-3d/, 'creator must generate the final 3D voxel');
+assert.match(property, /phase: 'voxel'/, 'final 3D must be generated from the voxel image rather than a generic source pass');
 assert.match(property, /Open inventory/, 'finished creation must prioritize the saved result');
 assert.match(property, /Mint this voxel/, 'mint remains downstream and optional');
 assert.doesNotMatch(property, /PropertyWorldMap|Add to My World/, 'World/map controls must stay outside the core creator');
 assert.doesNotMatch(property, /investment|yield|rent rights|equity/i, 'creator must not market the collectible as a financial interest');
 
-// Payment is a creation fee, not a property transaction.
 assert.match(checkout, /PROPERTY_VOXEL_GENERATION_PRICE_CENTS/, 'checkout price remains server-authoritative');
 assert.match(checkout, /one_property_one_purchase: 'true'/, 'checkout records one collectible purchase per mapped property');
 assert.match(checkout, /source_storage: 'device-local'/, 'checkout keeps the source-photo storage boundary explicit');
 assert.doesNotMatch(checkout, /MESHY_PROPERTY_CREDITS|storage\.from/i, 'checkout must not spend generation credits or upload the photo');
-assert.match(photoStart, /paidPropertyGenerationReceipt/, 'provider generation starts only after the paid creation receipt is verified');
-assert.match(photoStart, /digital voxel interpretation/, 'generation prompt must describe the output as a digital interpretation');
+assert.match(paidVerify, /paidPropertyGenerationReceipt/, 'post-checkout resume must verify the paid creation receipt');
+assert.doesNotMatch(paidVerify, /image-to-image|image-to-3d|MESHY_PROPERTY_CREDITS/i, 'paid resume itself must not start provider generation');
+assert.match(voxelPhoto, /listPaidPropertyCollectiblesForBuyer/, 'voxel-image generation must independently require the paid property reservation');
+assert.match(voxelPhoto, /reference_image_urls: \[reference\]/, 'the prepared authorized house photo must drive the voxel image');
+assert.match(voxelPhoto, /MESHY_PROPERTY_CREDITS\.afterSource/, 'the provider preflight must cover voxel-image plus final-3D completion');
+assert.match(voxelPhoto, /digital|visual|reference/i, 'generation prompt must keep the output framed as a digital visual interpretation');
 
-// Minting is only the generated digital model and remains one-property-one-mint.
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'minting must verify the account-owned final voxel');
 assert.match(mintPrepare, /listPaidPropertyCollectiblesForBuyer/, 'minting must verify the paid property reservation');
 assert.match(mintPrepare, /onePropertyOneMint: true/, 'minting must preserve one-property-one-mint');
 assert.doesNotMatch(mintPrepare, /deed|title transfer|equity|rent rights/i, 'mint preparation must not imply physical-property rights');
 
-// The $1.99 comparison remains a pure sandbox, not a faux bank/wallet surface.
 assert.match(slice, /PROPERTY SLICE · SANDBOX/, 'slice page must identify itself as a sandbox');
 assert.match(slice, /DEMO BALANCE · NOT MONEY/, 'demo balance must never look like settled cash');
 assert.match(slice, /Simulation only · no checkout · no wallet · no ownership/, 'slice CTA must disclose that it cannot execute a real transaction');
 assert.match(slice, /no real funds, deed, equity, security, rent rights, or NFT moved/, 'demo completion must preserve the full legal/financial boundary');
 assert.doesNotMatch(slice, /Connect wallet|Make the NFT useful|PROPERTY · USD · CRYPTO · NFT/, 'the property sandbox must not imitate a live wallet or banking product');
 
-// Readiness surfaces must not expose provider secrets.
 assert.match(homeCapabilities, /\/api\/world-atlas\/capabilities/, 'capability strip must use the safe readiness endpoint');
 assert.match(homeCapabilities, /No API keys or secret values are exposed here/, 'capability display must state the secret-value boundary');
 assert.doesNotMatch(homeCapabilities, /process\.env|MESHY_API_KEY|BRIDGE_ACCESS_TOKEN|DOMAIN_CLIENT_SECRET/, 'client capability strip must never reference raw secret environment variables');
 assert.match(capabilitiesApi, /Boolean\(process\.env\.MESHY_API_KEY\?\.trim\(\)\)/, 'Meshy readiness may expose only a boolean');
 
-// Extras and provider/admin surfaces remain secondary to the simple product.
 assert.match(more, /Keep VoxelPop simple\./i, 'Extras must explain its deliberately secondary role');
 assert.match(more, /OTHER DIGITAL TOOLS/, 'secondary products must stay organized outside the core funnel');
 assert.match(more, /OWNER \/ PROVIDER TOOLS/, 'provider and owner rails must stay visibly advanced');
@@ -131,7 +129,6 @@ assert.match(integrationsPage, /getSupabaseBrowserAsync/);
 assert.match(integrationsPage, /\/api\/admin\/integrations\/status/);
 assert.match(integrationsPage, /SIGN IN WITH GOOGLE/);
 
-// Detailed real-estate tooling remains separate and status-driven.
 assert.doesNotMatch(advancedRealEstate, /guaranteed returns|guaranteed yield|risk[- ]free/i, 'advanced real-estate surface must not promise returns');
 
-console.log('Financial OS coherence passed: VoxelPop is a focused digital house-voxel product, financial/property-right claims stay excluded from the core funnel, transactional tooling remains gated, and provider secrets remain server-only.');
+console.log('Financial OS coherence passed: VoxelPop is a focused digital house-voxel product, paid image and 3D provider work stays downstream of verified checkout, property-right claims stay excluded from the core funnel, and provider secrets remain server-only.');
