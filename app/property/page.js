@@ -5,6 +5,8 @@ import ProductTopNav from '../components/ProductTopNav';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import HouseVoxelApp from './HouseVoxelApp';
 
+// PropertyJourneySimple remains in the repository for legacy regression coverage;
+// HouseVoxelApp is the active focused photo -> address -> voxel -> mint experience.
 function cleanOAuthParams() {
   const url = new URL(window.location.href);
   for (const key of ['code', 'error', 'error_description']) url.searchParams.delete(key);
