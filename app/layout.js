@@ -17,7 +17,7 @@ export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: TITLE, template: '%s | Voxel Vault' },
   description: DESCRIPTION,
-  keywords: ['house photo to voxel', '3D voxel photo', 'voxel house creator', 'VoxelPop', '3D voxel creator', 'Voxel Vault'],
+  keywords: ['house photo to 3D voxel', '3D voxel photo', 'voxel house creator', 'VoxelPop', '3D voxel creator', 'Voxel Vault'],
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
