@@ -1,17 +1,9 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
-function read(path) {
-  return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-}
-
-function requireText(source, text, label) {
-  if (!source.includes(text)) throw new Error(`${label}: missing required safety marker: ${text}`);
-}
-
-function requireMarkers(source, label, required) {
-  for (const marker of required) requireText(source, marker, label);
-}
+function read(path) { return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'); }
+function requireText(source, text, label) { if (!source.includes(text)) throw new Error(`${label}: missing required safety marker: ${text}`); }
+function requireMarkers(source, label, required) { for (const marker of required) requireText(source, marker, label); }
 
 const status = read('app/api/property-platform/status/route.ts');
 const launch = read('lib/real-estate/legal-launch.js');
@@ -32,9 +24,7 @@ const dataRoom = read('docs/LEGAL_REVIEW_DATA_ROOM.md');
 const evidenceSpec = read('docs/LEGAL_APPROVAL_EVIDENCE_SPEC.md');
 
 function loadLaunchPolicyForTest(source) {
-  const executable = source
-    .replace(/export const /g, 'const ')
-    .replace(/export function /g, 'function ');
+  const executable = source.replace(/export const /g, 'const ').replace(/export function /g, 'function ');
   return Function(`${executable}\nreturn { evaluateLegalLaunch, launchGateDefinitions, legalEvidenceRecordFields, legalEvidenceRequirements, officialRegulatoryReferences, legalReadinessWorkstreams, regulatedLaunchPacket, partnerDiligenceChecklist, reviewReadyWorkItems };`)();
 }
 
@@ -62,9 +52,6 @@ requireMarkers(launch, 'legal launch engine', [
   'authority-evidence-not-verified',
 ]);
 
-// The owner-only securities rail and the direct-property rail are intentionally separate.
-// A simple consumer homepage is allowed, but it must fail closed and the advanced directory
-// must preserve access to provider-backed investment workflows and their legal status.
 requireMarkers(status, 'property status route', [
   'liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true',
   'liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true',
@@ -92,31 +79,15 @@ requireMarkers(status, 'property status route', [
   'authorityEvidenceVerification: false',
 ]);
 
-requireMarkers(deploy, 'property deploy script', [
-  'network.chainId !== 84532n',
-  'Base Sepolia only',
-  'PROPERTY_PASSPORT_ADDRESS',
-  'Property Passport is NOT minted at deployment',
-]);
-requireMarkers(token, 'interest token', [
-  'mapping(address account => bool allowed) public isAllowed',
-  'RecipientNotAllowed',
-]);
-requireMarkers(passport, 'property passport', [
-  'NOT the deed and NOT the investment security',
-  'PropertyNotVerified',
-  'PassportNonTransferable',
-  'propertyRegistry.getProperty(propertyId)',
-]);
-requireMarkers(distribution, 'distribution vault', [
-  'ClaimantNotAllowed',
-  'interestToken.isAllowed(msg.sender)',
-  'InvalidStatementHash',
-]);
+requireMarkers(deploy, 'property deploy script', ['network.chainId !== 84532n', 'Base Sepolia only', 'PROPERTY_PASSPORT_ADDRESS', 'Property Passport is NOT minted at deployment']);
+requireMarkers(token, 'interest token', ['mapping(address account => bool allowed) public isAllowed', 'RecipientNotAllowed']);
+requireMarkers(passport, 'property passport', ['NOT the deed and NOT the investment security', 'PropertyNotVerified', 'PassportNonTransferable', 'propertyRegistry.getProperty(propertyId)']);
+requireMarkers(distribution, 'distribution vault', ['ClaimantNotAllowed', 'interestToken.isAllowed(msg.sender)', 'InvalidStatementHash']);
 
 requireMarkers(root, 'simple root homepage', [
-  'START → SIGN IN',
+  'START → SIGN IN + UPLOAD PHOTO',
   'Nothing is uploaded, generated, or charged before sign-in.',
+  'After an authorized photo is chosen, $4.99 buys one digital VoxelPop creation',
   'Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.',
   'A 3D model, payment, map marker, Property Passport, or NFT is not a deed',
   'href="/more"',
@@ -124,120 +95,62 @@ requireMarkers(root, 'simple root homepage', [
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
   'Browse provider-backed real-estate securities and sandbox/live states.',
+  'Live execution stays provider- and eligibility-gated.',
   "href: '/real-estate/acquire'",
   "href: '/vault/properties/claim'",
 ]);
-
 requireMarkers(home, 'property homepage', [
-  'Demo data only',
-  'Live investing is locked',
-  '/real-estate/property/',
+  'LIVE DIGITAL', 'DEMO', 'PARTNER REQUIRED', 'TITLE REQUIRED',
+  'Map ≠ collectible ≠ investment ≠ deed',
+  'Voxel Vault is not itself a bank, broker, exchange, custodian, escrow service, or deed registry.',
+  '/real-estate/reits', '/real-estate/acquire',
 ]);
-requireMarkers(vault, 'property vault', [
-  'PROPERTY_RIGHT_TYPES.REFERENCE_ONLY',
-  'geometry not yet verified',
-  'No deed transfer occurs on-chain',
-  'Public hashes, private source documents',
-]);
-requireMarkers(invest, 'investment wallet page', [
-  '/real-estate/launch',
-  'registered intermediary',
-]);
-requireMarkers(wallet, 'auto-compound wallet', [
-  'LIVE INVEST · LOCKED',
-  'LIVE AUTO-REINVEST · LOCKED',
-  'Confirm each',
-]);
-requireMarkers(launchPage, 'legal launch page', [
-  'Regulation Crowdfunding + registered partner',
-  'REAL-MONEY EXECUTION · LOCKED',
-  'One real property. One real closing. One reconciled rent distribution.',
-  'FOUNDER + CODEX WORKROOM',
-  'REGULATED LAUNCH PACKET',
-  'REVIEW-READY GITHUB QUEUE',
-  'AUTHORITY EVIDENCE REGISTER',
-  'LEGAL STATUS · NOT CLEARED',
-  'EVIDENCE VERIFIER · NOT CONNECTED',
-  'MONEY MOVEMENT ·',
-  'Build around primary sources.',
-]);
-requireMarkers(legalPlan, 'legal launch plan', [
-  'Shared Founder + Codex workroom',
-  'Regulated Launch Packet',
-  'Legal Review Data Room',
-  'Legal Approval Evidence Specification',
-  'SEC Regulation Crowdfunding',
-  'New York DFS Virtual Currency Business Activity',
-]);
-requireMarkers(launchPacket, 'regulated launch packet', [
-  'Voxel Vault is not currently:',
-  'registered broker-dealer',
-  'First outreach note',
-  'Environment variables, admin toggles, screenshots or founder approval do not satisfy legal authority by themselves.',
-]);
-requireMarkers(dataRoom, 'legal review data room', [
-  'Do not commit private legal, identity, banking, tenant, title, wallet-key, tax or property documents',
-  'Launch gate mapping',
-  'Public-safe implementation pattern',
-  'publicTermsDisclosuresApproved',
-]);
-requireMarkers(evidenceSpec, 'legal approval evidence spec', [
-  'No repository commit, founder decision, admin toggle, screenshot or environment variable can make an offering legal.',
-  'asserted-unverified',
-  'Production activation boundary',
-  'The current repository deliberately cannot satisfy this formula.',
-]);
+requireMarkers(vault, 'property vault', ['PROPERTY_RIGHT_TYPES.REFERENCE_ONLY', 'geometry not yet verified', 'No deed transfer occurs on-chain', 'Public hashes, private source documents']);
+requireMarkers(invest, 'investment wallet page', ['/real-estate/launch', 'registered intermediary']);
+requireMarkers(wallet, 'auto-compound wallet', ['LIVE INVEST · LOCKED', 'LIVE AUTO-REINVEST · LOCKED', 'Confirm each']);
+requireMarkers(launchPage, 'legal launch page', ['Regulation Crowdfunding + registered partner', 'REAL-MONEY EXECUTION · LOCKED', 'One real property. One real closing. One reconciled rent distribution.', 'FOUNDER + CODEX WORKROOM', 'REGULATED LAUNCH PACKET', 'REVIEW-READY GITHUB QUEUE', 'AUTHORITY EVIDENCE REGISTER', 'LEGAL STATUS · NOT CLEARED', 'EVIDENCE VERIFIER · NOT CONNECTED', 'MONEY MOVEMENT ·', 'Build around primary sources.']);
+requireMarkers(legalPlan, 'legal launch plan', ['Shared Founder + Codex workroom', 'Regulated Launch Packet', 'Legal Review Data Room', 'Legal Approval Evidence Specification', 'SEC Regulation Crowdfunding', 'New York DFS Virtual Currency Business Activity']);
+requireMarkers(launchPacket, 'regulated launch packet', ['Voxel Vault is not currently:', 'registered broker-dealer', 'First outreach note', 'Environment variables, admin toggles, screenshots or founder approval do not satisfy legal authority by themselves.']);
+requireMarkers(dataRoom, 'legal review data room', ['Do not commit private legal, identity, banking, tenant, title, wallet-key, tax or property documents', 'Launch gate mapping', 'Public-safe implementation pattern', 'publicTermsDisclosuresApproved']);
+requireMarkers(evidenceSpec, 'legal approval evidence spec', ['No repository commit, founder decision, admin toggle, screenshot or environment variable can make an offering legal.', 'asserted-unverified', 'Production activation boundary', 'The current repository deliberately cannot satisfy this formula.']);
 
-const {
-  evaluateLegalLaunch,
-  launchGateDefinitions,
-  legalEvidenceRecordFields,
-  legalEvidenceRequirements,
-  officialRegulatoryReferences,
-  legalReadinessWorkstreams,
-  regulatedLaunchPacket,
-  partnerDiligenceChecklist,
-  reviewReadyWorkItems,
-} = loadLaunchPolicyForTest(launch);
-
-const allExternalGatesTrueEnv = Object.fromEntries(
-  launchGateDefinitions.map(([, envKey]) => [envKey, 'true'])
-);
+const { evaluateLegalLaunch, launchGateDefinitions, legalEvidenceRecordFields, legalEvidenceRequirements, officialRegulatoryReferences, legalReadinessWorkstreams, regulatedLaunchPacket, partnerDiligenceChecklist, reviewReadyWorkItems } = loadLaunchPolicyForTest(launch);
+const allExternalGatesTrueEnv = Object.fromEntries(launchGateDefinitions.map(([, envKey]) => [envKey, 'true']));
 allExternalGatesTrueEnv.REAL_ESTATE_LIVE_INVESTING_ENABLED = 'true';
 allExternalGatesTrueEnv.REAL_ESTATE_LIVE_AUTO_REINVESTMENT_ENABLED = 'true';
-
 const evaluatedLaunch = evaluateLegalLaunch(allExternalGatesTrueEnv);
-assert.equal(evaluatedLaunch.allExternalGatesAsserted, true, 'test env should assert every external gate');
-assert.equal(evaluatedLaunch.allExternalGatesSatisfied, false, 'environment assertions must not satisfy authority evidence gates');
-assert.equal(evaluatedLaunch.liveInvestingEnabled, false, 'implementation constant must keep direct-property live investing fail-closed');
-assert.equal(evaluatedLaunch.liveAutomaticReinvestmentEnabled, false, 'implementation constant must keep auto-reinvestment fail-closed');
-assert.equal(evaluatedLaunch.environmentVariablesAreNotAuthority, true, 'env vars are evidence inputs, not legal authority');
-assert.equal(evaluatedLaunch.legalEvidenceVerifierImplementationReady, false, 'authority evidence verifier must remain code-locked');
-assert.equal(evaluatedLaunch.unverifiedAssertions.length, launchGateDefinitions.length, 'every true env flag should remain an unverified assertion');
-assert.ok(Object.values(evaluatedLaunch.gates).every((passed) => passed === false), 'no environment assertion may satisfy a launch gate');
-assert.ok(evaluatedLaunch.legalEvidenceRegister.every((record) => record.launchSatisfied === false), 'evidence register must remain unsatisfied without a verifier');
-assert.ok(evaluatedLaunch.legalEvidenceRegister.every((record) => record.authorityEvidenceStatus === 'not-connected'), 'authority evidence must report the disconnected verifier');
-assert.ok(evaluatedLaunch.activationBlockers.includes('legal-evidence-verifier-not-implemented'), 'activation blockers should expose missing evidence verifier');
-assert.ok(evaluatedLaunch.activationBlockers.includes('authority-evidence-not-verified'), 'activation blockers should expose unverified authority evidence');
-assert.equal(evaluatedLaunch.readinessSummary.legalClearanceClaimed, false, 'status must never claim legal clearance');
-assert.equal(evaluatedLaunch.readinessSummary.verifiedGateCount, 0, 'no authority gates should be reported verified');
-assert.equal(evaluatedLaunch.readinessSummary.canAcceptInvestorFunds, false, 'direct-property investor funds must remain blocked');
-assert.equal(evaluatedLaunch.readinessSummary.canIssueEconomicInterests, false, 'direct-property economic-interest issuance must remain blocked');
-assert.equal(evaluatedLaunch.legalEvidenceRecordFields, legalEvidenceRecordFields, 'policy should return shared evidence record fields');
-assert.equal(evaluatedLaunch.legalEvidenceRequirements, legalEvidenceRequirements, 'policy should return shared evidence requirements');
-assert.equal(evaluatedLaunch.officialRegulatoryReferences, officialRegulatoryReferences, 'policy should return the shared official references');
-assert.equal(evaluatedLaunch.legalReadinessWorkstreams, legalReadinessWorkstreams, 'policy should return the shared workstreams');
-assert.equal(evaluatedLaunch.regulatedLaunchPacket, regulatedLaunchPacket, 'policy should return the regulated launch packet');
-assert.equal(evaluatedLaunch.partnerDiligenceChecklist, partnerDiligenceChecklist, 'policy should return the partner diligence checklist');
-assert.equal(evaluatedLaunch.reviewReadyWorkItems, reviewReadyWorkItems, 'policy should return the GitHub work queue');
-assert.ok(officialRegulatoryReferences.length >= 6, 'official regulatory references should stay visible');
-assert.ok(legalReadinessWorkstreams.length >= 6, 'shared workstreams should stay visible');
-assert.ok(partnerDiligenceChecklist.length >= 6, 'partner diligence checklist should stay visible');
-assert.ok(reviewReadyWorkItems.length >= 6, 'GitHub work queue should stay visible');
-assert.ok(legalEvidenceRecordFields.includes('documentSha256'), 'evidence records should require a public-safe document digest');
-assert.ok(legalEvidenceRequirements.length >= 16, 'every regulated workstream should have an authority evidence gate');
-assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-property money movement must remain blocked');
-assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
-assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the sign-in-first simple home stays fail-closed without advertising regulated rails, advanced provider-backed investment routes remain discoverable, direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
+assert.equal(evaluatedLaunch.allExternalGatesAsserted, true);
+assert.equal(evaluatedLaunch.allExternalGatesSatisfied, false);
+assert.equal(evaluatedLaunch.liveInvestingEnabled, false);
+assert.equal(evaluatedLaunch.liveAutomaticReinvestmentEnabled, false);
+assert.equal(evaluatedLaunch.environmentVariablesAreNotAuthority, true);
+assert.equal(evaluatedLaunch.legalEvidenceVerifierImplementationReady, false);
+assert.equal(evaluatedLaunch.unverifiedAssertions.length, launchGateDefinitions.length);
+assert.ok(Object.values(evaluatedLaunch.gates).every((passed) => passed === false));
+assert.ok(evaluatedLaunch.legalEvidenceRegister.every((record) => record.launchSatisfied === false));
+assert.ok(evaluatedLaunch.legalEvidenceRegister.every((record) => record.authorityEvidenceStatus === 'not-connected'));
+assert.ok(evaluatedLaunch.activationBlockers.includes('legal-evidence-verifier-not-implemented'));
+assert.ok(evaluatedLaunch.activationBlockers.includes('authority-evidence-not-verified'));
+assert.equal(evaluatedLaunch.readinessSummary.legalClearanceClaimed, false);
+assert.equal(evaluatedLaunch.readinessSummary.verifiedGateCount, 0);
+assert.equal(evaluatedLaunch.readinessSummary.canAcceptInvestorFunds, false);
+assert.equal(evaluatedLaunch.readinessSummary.canIssueEconomicInterests, false);
+assert.equal(evaluatedLaunch.legalEvidenceRecordFields, legalEvidenceRecordFields);
+assert.equal(evaluatedLaunch.legalEvidenceRequirements, legalEvidenceRequirements);
+assert.equal(evaluatedLaunch.officialRegulatoryReferences, officialRegulatoryReferences);
+assert.equal(evaluatedLaunch.legalReadinessWorkstreams, legalReadinessWorkstreams);
+assert.equal(evaluatedLaunch.regulatedLaunchPacket, regulatedLaunchPacket);
+assert.equal(evaluatedLaunch.partnerDiligenceChecklist, partnerDiligenceChecklist);
+assert.equal(evaluatedLaunch.reviewReadyWorkItems, reviewReadyWorkItems);
+assert.ok(officialRegulatoryReferences.length >= 6);
+assert.ok(legalReadinessWorkstreams.length >= 6);
+assert.ok(partnerDiligenceChecklist.length >= 6);
+assert.ok(reviewReadyWorkItems.length >= 6);
+assert.ok(legalEvidenceRecordFields.includes('documentSha256'));
+assert.ok(legalEvidenceRequirements.length >= 16);
+assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked');
+assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked');
+assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'));
+
+console.log('Property-platform safety checks passed: the sign-in-first paid digital home stays fail-closed, provider-backed investment routes remain discoverable, authority evidence cannot be faked by env flags, direct-property investing and auto-reinvestment remain locked, and property deployment remains Base Sepolia-only.');
