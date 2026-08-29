@@ -46,7 +46,12 @@ function cleanSpecifier(specifier) {
   return specifier.split('?')[0].split('#')[0];
 }
 
+function expectedGeneratedImport(fromFile, specifier) {
+  return fromFile === 'next-env.d.ts' && cleanSpecifier(specifier).startsWith('./.next/types/');
+}
+
 function relativeTargetExists(fromFile, specifier) {
+  if (expectedGeneratedImport(fromFile, specifier)) return true;
   const cleaned = cleanSpecifier(specifier);
   const base = path.resolve(root, path.dirname(fromFile), cleaned);
   for (const ext of resolvableExtensions) {
@@ -96,7 +101,15 @@ function auditMarkdownLinks(file, text) {
 }
 
 function auditHighConfidenceSecrets(file, text) {
-  if (file === '.env.example' || file.startsWith('docs/') || file.startsWith('scripts/') || file.startsWith('test/') || file.startsWith('tests/')) return;
+  const basename = path.basename(file);
+  if (
+    file === '.env.example'
+    || file === 'scripts/audit-all-files.mjs'
+    || file.startsWith('docs/')
+    || file.startsWith('test/')
+    || file.startsWith('tests/')
+    || (file.startsWith('scripts/') && /^(?:test-|check-|smoke-test)/.test(basename))
+  ) return;
   const patterns = [
     [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, 'embedded private key'],
     [/\bsk_live_[A-Za-z0-9]{20,}\b/, 'live Stripe secret key'],
@@ -158,10 +171,10 @@ for (const file of tracked) {
     auditRelativeImports(file, text);
   }
 
-  if (buffer.length > 180_000 && !['package-lock.json'].includes(file)) {
+  if (buffer.length > 180_000 && file !== 'package-lock.json') {
     record('warning', file, `large tracked text file (${Math.round(buffer.length / 1024)} KiB); consider splitting for maintainability`);
   }
-  if (/\b(?:TODO|FIXME|HACK)\b/i.test(text) && !file.startsWith('docs/')) {
+  if (file !== 'scripts/audit-all-files.mjs' && /\b(?:TODO|FIXME|HACK)\b/i.test(text) && !file.startsWith('docs/')) {
     record('warning', file, 'contains TODO/FIXME/HACK marker');
   }
 }
