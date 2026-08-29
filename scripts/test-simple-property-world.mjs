@@ -8,6 +8,7 @@ const homeCss = read('app/home.module.css');
 const propertyRoute = read('app/property/page.js');
 const property = read('app/property/PropertyJourneySimple.js');
 const propertyCss = read('app/property/property.module.css');
+const propertyV2Css = read('app/property/propertyJourneyV2.module.css');
 const localViewer = read('app/property/LocalVoxelModelViewer.js');
 const propertyMap = read('app/property/PropertyWorldMap.js');
 const paidVerify = read('app/api/property-photo-upload/route.ts');
@@ -43,25 +44,31 @@ assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank statu
 assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 
-for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
-assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple remains');
-assert.match(propertyCss, /#c9ff54/i, 'VoxelPop lime remains');
+for (const source of [homeCss, propertyCss, propertyV2Css, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
+assert.match(propertyV2Css, /#7138f5/i, 'VoxelPop purple remains');
+assert.match(propertyV2Css, /#c9ff54/i, 'VoxelPop lime remains');
 assert.match(propertyCss, /#f7ae2d|#ee950f/i, 'optional collectible styling can remain available elsewhere');
-assert.match(propertyCss, /grid-template-columns:repeat\(5,1fr\)/, 'maker keeps five guided steps');
+assert.match(propertyV2Css, /grid-template-columns:repeat\(6,1fr\)/, 'maker now exposes six explicit guided stages');
 
 assert.match(property, /Sign in first\./, 'maker exposes the account gate');
 assert.match(property, /Continue with Google/, 'account gate has one clear sign-in action');
-assert.match(property, /const labels = \['PHOTO', 'PAY', '3D', 'MAP', 'MY WORLD'\]/, 'labels explain the actual creation journey');
-assert.match(property, /Choose the building photo\./, 'first signed-in step is photo-first');
+assert.match(property, /const journeyLabels = \['PHOTO', 'PAY', '3D PIC', '3D VOXEL', 'MAP', 'MY WORLD'\]/, 'labels explain the actual creation journey');
+assert.match(property, /Use your property photo\./, 'first signed-in step accepts a new or reusable property photo');
+assert.match(property, /My Properties/, 'saved properties are a first-class source option');
+assert.match(property, /loadSavedPropertyPhoto/, 'saved property photos can be reopened from private device storage');
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone photo preparation remains automatic');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo requires rights confirmation');
 assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Create 3D/, 'the paid CTA says what happens next');
-assert.match(property, /The \$4\.99 purchase includes this VoxelPop 3D creation and saving it to My World/, 'the creation purchase includes the useful creation journey');
-assert.match(property, /There is no second collection payment required just to continue/, 'a second payment cannot block the normal creation journey');
+assert.match(property, /The \$4\.99 purchase includes the 3D picture, the movable voxel, and saving the result to My World/, 'one creation purchase includes the useful creation journey');
+assert.match(property, /There is no second creation charge/, 'a previously paid saved property does not get charged again just to continue');
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
-assert.match(property, /createVoxelPoster/, 'VoxelPop image is built locally');
+assert.match(property, /propertyPhotoKey/, 'saved properties use a stable photo key for reuse');
+assert.match(property, /sourcePhotoRetainedOnDevice: true/, 'saving no longer deletes the reusable property photo');
+assert.match(property, /createVoxelPoster/, 'recognizable 3D picture is built locally');
+assert.match(property, /Create 3D Voxel/, 'the user sees and approves the 3D picture before voxelization');
+assert.match(property, /setVoxelRequested\(true\)/, 'voxel creation starts only after the explicit approval tap');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive 3D replaces provider generation');
 assert.match(localViewer, /const GRID = 24/, 'building 3D uses the higher-detail local grid');
 assert.match(localViewer, /rawMask/, 'building/background separation is part of the local viewer');
@@ -75,7 +82,7 @@ assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditB
 assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot call Meshy or private Storage');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided maker must not call metered Meshy routes');
 
-assert.match(property, /Enter the property address to match it to the real mapped building footprint/, 'address follows successful local 3D');
+assert.match(property, /Enter the property address to match it to the real mapped building footprint/, 'address follows successful local 3D when the selected item has no existing map identity');
 assert.match(property, /Match 3D to this building/, 'address action is understandable');
 assert.match(property, /setAtlasBuildings/, 'address lookup retains nearby source-backed buildings');
 assert.match(property, /PropertyWorldMap/, 'guided map uses the focused property map');
@@ -120,4 +127,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable local 3D -> source-backed map -> save/view My World, while the separate optional collectible product remains distinct and non-blocking.');
+console.log('Guided VoxelPop property checks passed: sign in -> reusable photo/property -> one $4.99 payment -> 3D picture approval -> local voxel -> source-backed map -> save/view My World, while optional mint/collect stays separate and non-blocking.');
