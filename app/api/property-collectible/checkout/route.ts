@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Finish the voxel and verify its My World location before collection.' }, { status: 400 });
     }
 
-    await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
+    const verifiedModel = await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
     if (!atlas?.ok) throw new Error(atlas?.error || 'The mapped property reference could not be re-checked before collection.');
     const building = findMappedBuilding(atlas, atlasId);
@@ -101,6 +101,7 @@ export async function POST(request: Request) {
 
     const origin = new URL(request.url).origin;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
+    const localPreview = verifiedModel.localPreview === true;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: auth.user.email || undefined,
@@ -113,7 +114,9 @@ export async function POST(request: Request) {
           unit_amount: quote.priceCents,
           product_data: {
             name: `VoxelPop Digital Voxel · ${quote.label}`,
-            description: 'One generated digital 3D voxel tied to this mapped World reference. This checkout does not buy the physical property or create deed/title, rent, investment, occupancy, or appreciation rights.',
+            description: localPreview
+              ? 'One source-backed digital map voxel tied to this mapped World building. It is rendered locally from map geometry and does not use Meshy or claim photorealistic reconstruction. This checkout does not buy the physical property.'
+              : 'One generated digital 3D voxel tied to this mapped World reference. This checkout does not buy the physical property or create deed/title, rent, investment, occupancy, or appreciation rights.',
           },
         },
       }],
@@ -124,6 +127,7 @@ export async function POST(request: Request) {
         atlas_id: atlasId,
         draft_id: draftId,
         model_task_id: modelTaskId,
+        representation: localPreview ? 'source_backed_local_map_voxel' : 'generated_3d_glb',
         price_cents: String(quote.priceCents),
         rights: 'digital_only_no_real_property_rights',
         minting: 'optional_after_purchase_and_property_verification',
@@ -154,7 +158,10 @@ export async function POST(request: Request) {
       url: session.url,
       sessionId: session.id,
       quote,
-      disclosure: 'This checkout collects the generated digital voxel only. Verify & Mint is optional later and does not create deed/title or any other real-property rights.',
+      representation: localPreview ? 'source-backed-local-map-voxel' : 'generated-3d-glb',
+      disclosure: localPreview
+        ? 'This checkout collects the source-backed digital map voxel only. It is locally rendered from map geometry, not a Meshy reconstruction. Verify & Mint is optional later and does not create deed/title or any other real-property rights.'
+        : 'This checkout collects the generated digital voxel only. Verify & Mint is optional later and does not create deed/title or any other real-property rights.',
     });
   } catch (error) {
     if (reservationCreated && identityKey) {
