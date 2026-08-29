@@ -9,6 +9,7 @@ const voxelModel = fs.readFileSync(new URL('../app/api/property-voxel-model/rout
 const modelViewer = fs.readFileSync(new URL('../app/vault/earth/MeshyModelViewer.js', import.meta.url), 'utf8');
 const taskRecovery = fs.readFileSync(new URL('../lib/property-generation-task.ts', import.meta.url), 'utf8');
 const modelDelivery = fs.readFileSync(new URL('../lib/property-generation-model.ts', import.meta.url), 'utf8');
+const meshyCredits = fs.readFileSync(new URL('../lib/meshy-credits.ts', import.meta.url), 'utf8');
 
 assert.match(property, /async function usePhotoAndBuild\(\)/, 'photo approval must own the automatic generation handoff');
 assert.match(property, /form\.append\('draftId', draftId\)/, 'approved photo must be tied to an account-scoped creation before generation');
@@ -65,6 +66,20 @@ assert.match(modelViewer, /readyRef\.current/, 'interactive controls must unlock
 assert.doesNotMatch(modelViewer, /cached Meshy GLB could not be loaded/i, 'the old non-recovering cached-GLB error must be removed');
 assert.doesNotMatch(modelViewer, /Regenerating is not automatic/i, 'the viewer must not tell users a temporary GLB failure is permanently stuck');
 
+assert.match(meshyCredits, /fullPipeline: 33/, 'the automatic property budget must reserve all three paid Meshy stages before starting');
+assert.match(meshyCredits, /afterSource: 18/, 'the voxel style stage must reserve enough credits for itself plus the final 3D');
+assert.match(meshyCredits, /final3d: 15/, 'the final textured Smart Topology 3D budget must match current Meshy pricing');
+assert.match(meshyCredits, /openapi\/v1\/balance/, 'provider credit preflight must use Meshy’s balance API');
+assert.match(meshyCredits, /status === 402/, 'Meshy 402 responses must be recognized as provider-credit exhaustion');
+assert.match(meshyCredits, /not your wallet, bank account, card, or crypto balance/, 'credit exhaustion copy must not imply the signed-in user lacks funds');
+assert.match(meshyCredits, /return status === 402 \? 503 : status/, 'provider 402 must surface as service availability rather than a user payment request');
+assert.match(photoHandoff, /MESHY_PROPERTY_CREDITS\.fullPipeline/, 'photo upload must preflight the complete 33-credit automatic pipeline');
+assert.match(voxelImage, /MESHY_PROPERTY_CREDITS\.afterSource/, 'voxel image creation must preflight the remaining 18-credit automatic pipeline');
+assert.match(voxel3d, /MESHY_PROPERTY_CREDITS\.final3d/, 'every new textured property 3D task must preflight its 15-credit cost');
+assert.match(photoHandoff, /meshyProviderFailure/, 'source 3D must translate provider credit errors to VoxelPop service errors');
+assert.match(voxelImage, /meshyProviderFailure/, 'voxel styling must translate provider credit errors to VoxelPop service errors');
+assert.match(voxel3d, /meshyProviderFailure/, 'final 3D must translate provider credit errors to VoxelPop service errors');
+
 assert.match(property, /Building a first 3D model from your photo/, 'user must see the first automatic 3D processing state');
 assert.match(property, /Turning the 3D into VoxelPop/, 'user must see the voxel processing state');
 assert.match(property, /Building your final VoxelPop 3D/, 'user must see final voxel 3D progress');
@@ -86,4 +101,4 @@ assert.match(property, /Your finished VoxelPop image is preserved on this page/,
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> rendered 3D image -> same-origin self-repairing interactive GLB -> VoxelPop style -> resumable final movable voxel 3D without re-spending completed stages.');
+console.log('Property automatic journey regression passed: authorized photo -> full Meshy credit preflight -> direct provider source 3D -> rendered 3D image -> same-origin self-repairing interactive GLB -> VoxelPop style -> resumable final movable voxel 3D without re-spending completed stages, with provider-credit failures separated from user funds.');

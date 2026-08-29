@@ -8,6 +8,14 @@ import {
   propertyGenerationProviderTaskId,
   verifyPropertyGenerationRecoveryTaskId,
 } from '../../../lib/property-generation-task';
+import {
+  MESHY_PROPERTY_CREDITS,
+  meshyClientStatus,
+  meshyCreditError,
+  meshyCreditsSufficient,
+  meshyProviderFailure,
+  readMeshyCreditBalance,
+} from '../../../lib/meshy-credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -160,6 +168,18 @@ export async function POST(request: Request) {
     const draftId = clean(body?.draftId, 100);
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
+    const requiredCredits = draftId ? MESHY_PROPERTY_CREDITS.afterSource : MESHY_PROPERTY_CREDITS.voxelImage;
+    const balance = await readMeshyCreditBalance(apiKey);
+    if (!meshyCreditsSufficient(balance, requiredCredits)) {
+      return privateJson(
+        meshyCreditError(
+          draftId ? 'starting the VoxelPop style pass and final 3D' : 'starting the VoxelPop image pass',
+          requiredCredits,
+        ),
+        { status: 503 },
+      );
+    }
+
     const references = draftId
       ? await generated3DReference(apiKey, auth.user.id, draftId, body?.source3dTaskId)
       : validateReferences(body?.references);
@@ -190,7 +210,18 @@ export async function POST(request: Request) {
       cache: 'no-store',
     });
     const created = await create.json().catch(() => ({}));
-    if (!create.ok) return privateJson({ ok: false, error: created?.message || created?.error || `Voxel image provider returned ${create.status}.` }, { status: create.status });
+    if (!create.ok) {
+      return privateJson(
+        meshyProviderFailure(
+          create.status,
+          created,
+          `Voxel image provider returned ${create.status}.`,
+          'starting the VoxelPop image pass',
+          MESHY_PROPERTY_CREDITS.voxelImage,
+        ),
+        { status: meshyClientStatus(create.status) },
+      );
+    }
 
     const taskId = clean(created?.result || created?.id, 240);
     if (!taskId) throw new Error('The voxel image provider did not return a task ID.');
@@ -229,7 +260,12 @@ export async function GET(request: Request) {
       cache: 'no-store',
     });
     const task = await statusResponse.json().catch(() => ({}));
-    if (!statusResponse.ok) return privateJson({ ok: false, error: task?.message || task?.error || `Could not read voxel image task (${statusResponse.status}).` }, { status: statusResponse.status });
+    if (!statusResponse.ok) {
+      return privateJson(
+        meshyProviderFailure(statusResponse.status, task, `Could not read voxel image task (${statusResponse.status}).`, 'reading the VoxelPop image task'),
+        { status: meshyClientStatus(statusResponse.status) },
+      );
+    }
 
     const status = clean(task?.status || 'PENDING', 80).toUpperCase();
     const progress = Math.max(0, Math.min(100, Number(task?.progress || 0)));

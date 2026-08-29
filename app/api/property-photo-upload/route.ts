@@ -7,6 +7,14 @@ import {
   createPropertyGenerationRecoveryTaskId,
   propertyGenerationCanonicalTaskId,
 } from '../../../lib/property-generation-task';
+import {
+  MESHY_PROPERTY_CREDITS,
+  meshyClientStatus,
+  meshyCreditError,
+  meshyCreditsSufficient,
+  meshyProviderFailure,
+  readMeshyCreditBalance,
+} from '../../../lib/meshy-credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -57,6 +65,18 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
     }
 
+    // The automatic Property journey is three paid Meshy calls: 15 credits for
+    // this textured Smart Topology source 3D, 3 for nano-banana image-to-image,
+    // and 15 for the final textured Smart Topology 3D. Do not burn the first 15
+    // unless the provider account can afford the complete automatic journey.
+    const balance = await readMeshyCreditBalance(apiKey);
+    if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
+      return privateJson(
+        meshyCreditError('starting the complete property build', MESHY_PROPERTY_CREDITS.fullPipeline),
+        { status: 503 },
+      );
+    }
+
     const bytes = Buffer.from(await photo.arrayBuffer());
     const digest = createHash('sha256').update(bytes).digest('hex');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
@@ -79,7 +99,16 @@ export async function POST(request: Request) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+      return privateJson(
+        meshyProviderFailure(
+          response.status,
+          data,
+          `3D provider returned ${response.status}.`,
+          'starting the first property 3D build',
+          MESHY_PROPERTY_CREDITS.source3d,
+        ),
+        { status: meshyClientStatus(response.status) },
+      );
     }
 
     const providerTaskId = clean(data?.result || data?.id, 240);
