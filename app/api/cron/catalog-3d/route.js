@@ -8,9 +8,9 @@ export const maxDuration = 60;
 const STALE_AFTER_MS = 25 * 60 * 1000;
 
 function authorized(request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) return request.headers.get('authorization') === `Bearer ${secret}`;
-  return /vercel-cron/i.test(request.headers.get('user-agent') || '');
+  const secret = String(process.env.CRON_SECRET || '').trim();
+  if (!secret) return false;
+  return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
 function terminalFailure(row) {
