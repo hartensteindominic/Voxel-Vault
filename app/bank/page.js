@@ -1,5 +1,6 @@
 import BankClient from './BankClient';
 import './bank.css';
+import './galactic.css';
 
 export const metadata = {
   title: 'Galactic Trust — Digital banking',
