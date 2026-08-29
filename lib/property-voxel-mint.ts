@@ -30,8 +30,10 @@ function cleanName(value: unknown) {
   return String(value || 'VoxelPop Property').trim().slice(0, 72).replace(/[^a-z0-9 .,_-]+/gi, '').replace(/\s+/g, ' ') || 'VoxelPop Property';
 }
 
-export function propertyVoxelVoucherId(userId: string, draftId: string, taskId: string) {
-  return `0x${createHash('sha256').update(`voxelpop-property-nft-v1:${String(userId).trim()}:${String(draftId).trim()}:${String(taskId).trim()}`).digest('hex')}`;
+export function propertyVoxelVoucherId(propertyIdentity: string) {
+  const identity = String(propertyIdentity || '').trim();
+  if (!identity.startsWith('property:')) throw new Error('A canonical property identity is required before minting.');
+  return `0x${createHash('sha256').update(`voxelpop-property-nft-v2:${identity}`).digest('hex')}`;
 }
 
 export function propertyVoxelMetadataSignature(draftId: string, taskId: string, name: string) {
@@ -66,7 +68,7 @@ export function propertyVoxelMintConfigured() {
 }
 
 export async function buildPropertyVoxelVoucher(input: {
-  userId: string;
+  propertyIdentity: string;
   draftId: string;
   taskId: string;
   wallet: string;
@@ -78,7 +80,7 @@ export async function buildPropertyVoxelVoucher(input: {
   if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) throw new Error('VoxelFlip mint signer is not configured.');
   const signer = new Wallet(privateKey);
   const metadataUrl = propertyVoxelMetadataUrl(input.origin, input.draftId, input.taskId, input.name);
-  const voucherId = propertyVoxelVoucherId(input.userId, input.draftId, input.taskId);
+  const voucherId = propertyVoxelVoucherId(input.propertyIdentity);
   const uriHash = keccak256(toUtf8Bytes(metadataUrl));
   const digest = solidityPackedKeccak256(['address', 'bytes32', 'bytes32'], [input.wallet, uriHash, voucherId]);
   const signature = await signer.signMessage(getBytes(digest));
@@ -124,7 +126,7 @@ export async function verifyPropertyVoxelMint(input: {
     ]);
     if (String(owner).toLowerCase() !== input.wallet.toLowerCase()) throw new Error('The connected wallet does not own this minted voxel.');
     if (String(tokenUri) !== input.metadataUrl) throw new Error('The minted token metadata does not match this property voxel.');
-    if (!used) throw new Error('The one-time mint voucher is not marked used on Base.');
+    if (!used) throw new Error('The one-time property mint voucher is not marked used on Base.');
     return {
       tokenId: String(input.tokenId),
       owner: String(owner),
