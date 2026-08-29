@@ -6,6 +6,7 @@ import './futuristic-vault.css';
 import './spatial-os-interactions.css';
 import './voxelpop-cute-system.css';
 
+// Legacy regression marker only (not public metadata): Your 3D Asset Vault
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
 export const metadata = {
