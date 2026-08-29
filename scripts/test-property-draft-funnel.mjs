@@ -51,12 +51,15 @@ assert.match(vaultPage, /Saving this model does not create deed\/title/, 'saved 
 
 assert.match(draftViewer, /readPropertyDraft\(draftId\)/, 'exact viewer must first load the saved local geometry snapshot');
 assert.match(draftViewer, /loadAccountPropertyDrafts/, 'exact viewer must restore a missing local snapshot from the signed-in account');
-assert.match(draftViewer, /geometry: draft\.geometry \|\| null/, 'exact viewer must render saved geometry rather than a fresh nearest-building guess');
+assert.match(draftViewer, /geometry: parcelOnly \? null : \(draft\.geometry \|\| null\)/, 'parcel-only geometry must not be extruded as a fake building');
+assert.match(draftViewer, /parcelGeometry: draft\.geometry/, 'parcel-only drafts must still render their saved parcel geometry');
+assert.match(draftViewer, /PARCEL · NO BUILDING INVENTED/, 'land drafts must disclose that no structure was invented');
 assert.match(draftViewer, /GeoReferenceModel/, 'saved property geometry must reopen inside the real 3D renderer');
 assert.match(draftViewer, /live map updates do not silently replace it/, 'viewer must explain that the snapshot is stable until explicitly updated');
+assert.match(draftViewer, /CHECK CURRENT MAP EVIDENCE/, 'viewer must be able to compare the saved snapshot with current map evidence without overwriting it');
 assert.match(draftViewer, /not a deed or guaranteed perfect replica/i, 'exact viewer must keep legal and fidelity claims conservative');
 
 assert.match(earthPage, /PropertyTruthStack/, 'the 3D-first funnel must remain mounted in the main Earth property experience');
 assert.match(earthPage, /automatic|MESHY|Meshy/i, 'Earth must keep its existing controlled high-fidelity reconstruction layer');
 
-console.log('3D property draft checks passed: exact snapshots reopen in 3D, browser saves stay wallet-free, signed-in drafts sync across devices, synced deletion is supported, truth boundaries remain explicit, and minting stays optional.');
+console.log('3D property draft checks passed: exact snapshots reopen in 3D, vacant land stays parcel-only, browser saves stay wallet-free, signed-in drafts sync across devices, synced deletion is supported, live evidence comparison does not overwrite the snapshot, and minting stays optional.');
