@@ -78,7 +78,7 @@ export default function WorldPage() {
     <header className="top"><Link href="/" className="brand">V</Link><div><Link href="/property">Create</Link><Link href="/vault">Vault</Link></div></header>
 
     <section className="head">
-      <small>{signedIn ? 'MY WORLD' : 'VOXEL WORLD'}</small>
+      <small>{signedIn ? 'MY WORLD + PUBLIC WORLD' : 'VOXEL WORLD'}</small>
       <h1>{signedIn ? <>Your world.<br/><em>Your voxels.</em></> : <>See voxels<br/><em>in their places.</em></>}</h1>
       <p>{message}</p>
     </section>
