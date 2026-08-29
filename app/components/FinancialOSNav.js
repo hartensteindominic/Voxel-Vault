@@ -16,6 +16,10 @@ export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
 
+  // Home and the paid VoxelPop creator have a focused product header. Do not
+  // stack a second navigation system underneath those two core surfaces.
+  if (pathname === '/' || pathname === '/property') return null;
+
   const simple = isSimplePropertyRoute(pathname);
   const dock = simple ? SIMPLE_PROPERTY_DOCK.filter((item) => item.id !== 'more') : APP_DOCK;
   const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);

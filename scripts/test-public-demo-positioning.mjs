@@ -21,7 +21,7 @@ assert.match(home, /Try the sample · no login/, 'home must show product value b
 assert.match(home, /href="\/demo"/, 'home must link to the public product sample');
 assert.match(home, /Create my VoxelPop · \$4\.99/, 'home must keep the paid creation price visible');
 assert.match(home, /3D voxel photo[\s\S]*movable 3D voxel/i, 'home must preserve voxel-photo-before-model positioning');
-assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product preview instead of decorative art');
+assert.match(home, /HomeProductPreview/, 'home hero must show the real product preview instead of decorative art');
 assert.match(homePreview, /PhotoReliefModelViewer/, 'home product proof must use the production voxel-photo viewer');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production local voxel viewer');
 assert.match(homePreview, /House photo/, 'home preview must expose the source-photo state');
@@ -31,13 +31,17 @@ assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
 assert.match(home, /About/, 'home footer must expose About/contact information');
 
-assert.match(photoViewer, /getImageData/, 'voxel-photo stage must sample visible source-image colors');
-assert.match(photoViewer, /InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
-assert.match(photoViewer, /BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage must use real block geometry');
-assert.match(photoViewer, /const depth = 0\.11/, 'voxel-photo blocks must have shallow inspectable depth');
-assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo preview must keep the original source visible for comparison');
-assert.match(photoViewer, /ArrowLeft|ArrowRight/, '3D voxel photo must support keyboard inspection as well as drag input');
-assert.match(photoViewerStyles, /focus-visible/, '3D viewer must keep a visible keyboard focus treatment');
+// The first review surface now prioritizes likeness: it presents the exact
+// selected house image as a photo-matched voxel-photo preview before the
+// separate local Three.js movable voxel is built. It must not fabricate unseen
+// geometry merely to make this approval step look more "3D".
+assert.match(photoViewer, /className=\{styles\.housePhoto\} src=\{imageUrl\}/, 'voxel-photo review must preserve the selected house image itself');
+assert.match(photoViewer, /3D VOXEL PHOTO/, 'review surface must identify the intermediate voxel-photo stage');
+assert.match(photoViewer, /PHOTO-MATCHED/, 'review surface must clearly describe its likeness-preserving behavior');
+assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo review must keep the original source visible for comparison');
+assert.doesNotMatch(photoViewer, /InstancedMesh|getImageData|BoxGeometry/, 'the first review stage must not invent block geometry from a single view');
+assert.match(photoViewerStyles, /\.housePhoto\{/, 'photo-matched review must have a dedicated visible house-photo treatment');
+assert.match(photoViewerStyles, /\.sourceCard\{/, 'photo-matched review must keep an original-photo comparison card');
 
 assert.match(demo, /FREE SAMPLE · NO LOGIN · NO PAYMENT/, 'demo must state that it is public and free to inspect');
 assert.match(demo, /built-in demo artwork/i, 'demo must identify its built-in artwork');
@@ -70,5 +74,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: sample-first product proof, real 3D voxel-photo semantics, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
+console.log('Public VoxelPop positioning checks passed: sample-first product proof, photo-matched voxel-photo review, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
 await import('./test-public-surface-coherence.mjs');

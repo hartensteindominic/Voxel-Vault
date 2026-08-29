@@ -38,7 +38,49 @@ jobs:
       - run: npm run test:liquidity-engine
       - run: npm run test:multipair
       - run: npm run test:ai-licensing
-      - run: npm run test:property-platform
+      # Keep property-platform checks split into named steps. These regressions
+      # cover very different surfaces, so one aggregate shell failure hid the
+      # actual stale assertion whenever the VoxelPop UI changed.
+      - name: Property platform safety
+        run: node scripts/test-property-platform-safety.mjs
+      - name: Erie County spatial intake
+        run: node scripts/test-erie-county-spatial-intake.mjs
+      - name: Fractional property bridge
+        run: node scripts/test-fractional-property-bridge.mjs
+      - name: Algorand position verifier
+        run: node scripts/test-algorand-position-verifier.mjs
+      - name: GEO property onboarding
+        run: node scripts/test-geo-property-onboarding.mjs
+      - name: GEO finish polish
+        run: node scripts/test-geo-finish-polish.mjs
+      - name: GEO map context
+        run: node scripts/test-geo-map-context.mjs
+      - name: GEO map explorer
+        run: node scripts/test-geo-map-explorer.mjs
+      - name: Buffalo property reference
+        run: node scripts/test-buffalo-property-reference.mjs
+      - name: Financial OS coherence
+        run: node scripts/test-financial-os-coherence.mjs
+      - name: Hyperreal voxel building
+        run: node scripts/test-hyperreal-voxel-building.mjs
+      - name: Property draft funnel
+        run: npm run test:property-draft-funnel
+      # The simple VoxelPop suite also spans several independent contracts.
+      # Keep them named so the exact broken promise is visible in CI.
+      - name: Public VoxelPop positioning
+        run: node scripts/test-public-demo-positioning.mjs
+      - name: Simple VoxelPop property world
+        run: node scripts/test-simple-property-world.mjs
+      - name: Photo-to-voxel approval flow
+        run: node scripts/test-photo-to-voxel-autostart.mjs
+      - name: Property collectible model access
+        run: node scripts/test-property-collectible-model-access.mjs
+      - name: Meshy polycount limit
+        run: node scripts/test-meshy-polycount-limit.mjs
+      - name: Catalog 3D generation record compatibility
+        run: node scripts/test-catalog3d-generation-record-compat.mjs
+      - name: Paid VoxelPop property generation
+        run: node scripts/test-paid-property-generation.mjs
       - name: First real Erie parcel evidence
         run: npm run test:first-real-erie-parcel
       - run: npm run test:global-rent
