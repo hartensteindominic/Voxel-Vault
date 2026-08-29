@@ -4,35 +4,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   APP_DOCK,
+  SIMPLE_PROPERTY_DOCK,
   dockItemForPath,
   isOrganizedUserRoute,
   isSimplePropertyRoute,
+  simplePropertyDockItemForPath,
 } from '../../lib/product-map';
-
-const CUTE_CORE_DOCK = Object.freeze([
-  { id: 'home', href: '/', label: 'Home', icon: 'V' },
-  { id: 'create', href: '/property', label: 'Create', icon: '+' },
-  { id: 'world', href: '/world', label: 'World', icon: '◎' },
-  { id: 'vault', href: '/vault', label: 'Vault', icon: '◇' },
-  { id: 'more', href: '/more', label: 'More', icon: '•••' },
-]);
-
-function cuteDockItemForPath(pathname = '/') {
-  const path = String(pathname || '/');
-  if (path === '/property' || path.startsWith('/property/')) return CUTE_CORE_DOCK[1];
-  if (path === '/world' || path.startsWith('/world/') || path.startsWith('/geo/')) return CUTE_CORE_DOCK[2];
-  if (path === '/vault' || path.startsWith('/vault/') || path.startsWith('/purchases/') || path.startsWith('/asset/')) return CUTE_CORE_DOCK[3];
-  if (path === '/more' || path.startsWith('/more/') || path.startsWith('/real-estate/') || path.startsWith('/marketplace/') || path.startsWith('/ai/') || path.startsWith('/forge/')) return CUTE_CORE_DOCK[4];
-  return CUTE_CORE_DOCK[0];
-}
 
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
 
   const simple = isSimplePropertyRoute(pathname);
-  const dock = simple ? CUTE_CORE_DOCK : APP_DOCK;
-  const active = simple ? cuteDockItemForPath(pathname) : dockItemForPath(pathname);
+  const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
+  const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);
 
   return (
     <>
@@ -40,12 +25,10 @@ export default function FinancialOSNav() {
       <nav aria-label="Voxel Vault primary navigation" style={{ ...styles.nav, gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))`, ...(simple ? styles.simpleNav : {}) }}>
         {dock.map((item) => {
           const selected = item.id === active.id;
-          return (
-            <Link key={item.id} href={item.href} aria-current={selected ? 'page' : undefined} style={{ ...styles.item, ...(selected ? styles.itemActive : {}) }}>
-              <span style={{ ...styles.icon, ...(selected ? styles.iconActive : {}) }}>{item.icon}</span>
-              <b style={{ ...styles.label, ...(selected ? styles.labelActive : {}) }}>{item.label}</b>
-            </Link>
-          );
+          return <Link key={item.id} href={item.href} aria-current={selected ? 'page' : undefined} style={{ ...styles.item, ...(selected ? styles.itemActive : {}) }}>
+            <span style={{ ...styles.icon, ...(selected ? styles.iconActive : {}) }}>{item.icon}</span>
+            <b style={{ ...styles.label, ...(selected ? styles.labelActive : {}) }}>{item.label}</b>
+          </Link>;
         })}
       </nav>
     </>
