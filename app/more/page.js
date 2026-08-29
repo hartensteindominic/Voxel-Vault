@@ -3,8 +3,8 @@ import { APP_SECTIONS } from '../../lib/product-map';
 import styles from './more.module.css';
 
 export const metadata = {
-  title: 'More',
-  description: 'The organized directory for Voxel Vault products, tools, ownership workflows and owner operations.',
+  title: 'More · Voxel Vault',
+  description: 'A clear directory for Voxel Vault live, sandbox, provider-gated and owner tools.',
 };
 
 export default function MorePage() {
@@ -12,16 +12,16 @@ export default function MorePage() {
     <div className={styles.shell}>
       <header className={styles.top}>
         <Link className={styles.brand} href="/">VOXEL VAULT</Link>
-        <span>ONE APP · CLEARLY ORGANIZED</span>
+        <span>LIVE · SANDBOX · PROVIDER-GATED</span>
       </header>
 
       <section className={styles.hero}>
-        <small>EVERYTHING, WITHOUT THE CLUTTER</small>
-        <h1>One Vault.<br/>Clear places for everything.</h1>
-        <p>Voxel Vault now separates the main jobs instead of making every screen explain the whole company. Explore real places, create 3D assets, manage your Vault, use provider-backed money tools, and keep operator controls in their own advanced area.</p>
+        <small>EVERYTHING ELSE, ORGANIZED</small>
+        <h1>Know what each feature actually is.</h1>
+        <p>The main app is Create → World → Vault. This directory keeps map tools, digital assets, sandbox experiments, regulated/provider-dependent features, and owner controls in separate groups.</p>
         <div className={styles.heroActions}>
-          <Link href="/vault/earth">EXPLORE EARTH</Link>
-          <Link href="/studio">CREATE 3D</Link>
+          <Link href="/property">CREATE PROPERTY</Link>
+          <Link href="/world">OPEN MY WORLD</Link>
           <Link href="/vault">OPEN MY VAULT</Link>
         </div>
       </section>
@@ -43,8 +43,8 @@ export default function MorePage() {
       </section>)}
 
       <div className={styles.note}>
-        <b>PRODUCT TRUTH RULE</b>
-        <span>Map data, AI models, creator assets, securities, wallet holdings, income records and real-property title are intentionally separate data layers. Organizing them into one app does not make them legally equivalent.</span>
+        <b>ONE SIMPLE RULE</b>
+        <span>A digital asset, map record, wallet balance, payment record, security, lease and property deed are different things. Voxel Vault may show them in one interface, but it never treats them as legally or financially interchangeable.</span>
       </div>
     </div>
   </main>;
