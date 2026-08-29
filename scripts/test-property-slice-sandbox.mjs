@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import {
+  DEFAULT_PROPERTY_SLICE_CENTS,
+  buildPropertySliceSandbox,
+  buildUnifiedAssetConversionPreview,
+} from '../lib/real-estate/property-slice-sandbox.js';
+
+const equalPrice = buildPropertySliceSandbox({
+  propertyReferencePriceCents: 10_000_000,
+  benchmarkReferencePriceCents: 10_000_000,
+});
+
+assert.equal(equalPrice.amountCents, DEFAULT_PROPERTY_SLICE_CENTS);
+assert.equal(equalPrice.amountCents, 199);
+assert.equal(equalPrice.relativePropertyPriceIndex, 1);
+assert.equal(equalPrice.relativeSliceWeight, 1);
+assert.equal(equalPrice.benchmarkEquivalentCents, 199);
+assert.equal(equalPrice.legalEffects.transfersFunds, false);
+assert.equal(equalPrice.legalEffects.createsDeedOwnership, false);
+assert.equal(equalPrice.legalEffects.createsLlcInterest, false);
+assert.equal(equalPrice.legalEffects.purchasesSecurity, false);
+assert.equal(equalPrice.legalEffects.mintsRealEstateSecurity, false);
+
+const doublePrice = buildPropertySliceSandbox({
+  amountCents: 199,
+  propertyReferencePriceCents: 20_000_000,
+  benchmarkReferencePriceCents: 10_000_000,
+});
+
+assert.equal(doublePrice.relativePropertyPriceIndex, 2);
+assert.equal(doublePrice.relativeSliceWeight, 0.5);
+assert.equal(doublePrice.benchmarkEquivalentCents, 100);
+assert.ok(doublePrice.hypotheticalPercent > 0);
+assert.equal(doublePrice.sandboxOnly, true);
+
+const unified = buildUnifiedAssetConversionPreview({
+  settledUsdCents: 500,
+  estimatedCryptoValueCents: 2_000,
+  estimatedNftValueCents: 3_000,
+  propertyGoalCents: 1_000,
+});
+
+assert.equal(unified.balances.estimatedTotalCents, 6_500);
+assert.equal(unified.spendableNowCents, 500);
+assert.equal(unified.legalEffects.executesTrade, false);
+assert.equal(unified.legalEffects.cashesOutNft, false);
+assert.equal(unified.legalEffects.cashesOutCrypto, false);
+assert.equal(unified.legalEffects.createsDepositAccount, false);
+assert.equal(unified.legalEffects.createsPropertyOwnership, false);
+assert.equal(unified.conversionRoutes.length, 4);
+
+console.log('property slice sandbox checks passed');
