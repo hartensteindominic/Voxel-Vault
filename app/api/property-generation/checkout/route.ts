@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
@@ -5,8 +6,7 @@ import {
   PROPERTY_VOXEL_GENERATION_KIND,
   PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
   PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-  deleteStagedPropertyPhoto,
-  stagePaidPropertyPhoto,
+  preparePropertyGenerationCheckoutPhoto,
 } from '../../../../lib/property-generation-payment';
 import {
   MESHY_PROPERTY_CREDITS,
@@ -37,27 +37,35 @@ export async function POST(request: Request) {
   const apiKey = process.env.MESHY_API_KEY?.trim();
   if (!apiKey) return privateJson({ ok: false, error: 'VoxelPop 3D generation is not configured on this deployment.' }, { status: 503 });
 
-  let stagedDraftId = '';
   try {
     const form = await request.formData();
     const photo = form.get('photo');
-    const draftId = clean(form.get('draftId'), 100);
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
     if (!(photo instanceof File)) return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
     if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+    if (photo.size <= 0 || photo.size > 8 * 1024 * 1024) return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
 
-    // Do not charge a customer unless the backend currently has enough Meshy
-    // capacity for the complete automatic source-3D -> voxel-image -> final-3D flow.
+    // Read once to bind Stripe to the exact source photo. Nothing is written to
+    // Supabase or other Voxel Vault storage; the browser keeps its own private
+    // IndexedDB copy until the customer returns from Stripe.
+    const bytes = Buffer.from(await photo.arrayBuffer());
+    const prepared = preparePropertyGenerationCheckoutPhoto({
+      draftId: form.get('draftId'),
+      digest: createHash('sha256').update(bytes).digest('hex'),
+      contentType: photo.type,
+      fileName: photo.name,
+      sizeBytes: bytes.length,
+    });
+
+    // Read-only Meshy balance preflight: this does not start a Meshy task or
+    // spend credits. It only avoids charging when the service cannot finish.
     const balance = await readMeshyCreditBalance(apiKey);
     if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.fullPipeline)) {
       return privateJson(meshyCreditError('opening VoxelPop checkout', MESHY_PROPERTY_CREDITS.fullPipeline), { status: 503 });
     }
 
-    const staged = await stagePaidPropertyPhoto(auth, draftId, photo);
-    stagedDraftId = staged.draftId;
     const origin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
     const email = typeof auth.user.email === 'string' && auth.user.email.includes('@') ? auth.user.email : undefined;
-
     const checkout = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{
@@ -76,46 +84,28 @@ export async function POST(request: Request) {
       metadata: {
         kind: PROPERTY_VOXEL_GENERATION_KIND,
         voxelpop_user_id: auth.user.id,
-        draft_id: staged.draftId,
-        source_storage_path: staged.storagePath,
-        source_sha256: staged.digest,
-        source_content_type: staged.contentType,
-        source_name: staged.fileName,
+        draft_id: prepared.draftId,
+        source_sha256: prepared.digest,
+        source_content_type: prepared.contentType,
+        source_name: prepared.fileName,
+        source_size_bytes: String(prepared.sizeBytes),
+        source_retention: 'browser_indexeddb_until_paid_handoff',
         rights_confirmed: 'true',
         price_cents: String(PROPERTY_VOXEL_GENERATION_PRICE_CENTS),
       },
-      success_url: `${origin}/property?generation_session={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/property?generation_checkout=cancelled&draftId=${encodeURIComponent(staged.draftId)}`,
+      success_url: `${origin}/property?generation_session={CHECKOUT_SESSION_ID}&draftId=${encodeURIComponent(prepared.draftId)}`,
+      cancel_url: `${origin}/property?generation_checkout=cancelled&draftId=${encodeURIComponent(prepared.draftId)}`,
     });
 
     if (!checkout.url) throw new Error('Stripe did not return a checkout URL.');
-    return privateJson({
-      ok: true,
-      url: checkout.url,
-      priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
-      priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-      draftId: staged.draftId,
-      staged: true,
-    });
+    return privateJson({ ok: true, url: checkout.url, priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS, priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL, draftId: prepared.draftId, retainedOnDevice: true });
   } catch (error) {
-    if (stagedDraftId) await deleteStagedPropertyPhoto(auth, stagedDraftId);
-    return privateJson({
-      ok: false,
-      error: error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.',
-    }, { status: 500 });
+    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
-  try {
-    const url = new URL(request.url);
-    const draftId = clean(url.searchParams.get('draftId'), 100);
-    if (!draftId) return privateJson({ ok: false, error: 'draftId is required.' }, { status: 400 });
-    await deleteStagedPropertyPhoto(auth, draftId);
-    return privateJson({ ok: true, deleted: true });
-  } catch (error) {
-    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Checkout staging cleanup failed.' }, { status: 400 });
-  }
+  return privateJson({ ok: true, deleted: false, localOnly: true });
 }
