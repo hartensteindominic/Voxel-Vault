@@ -8,6 +8,7 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
+const LOCAL_PREVIEW_PROVIDER = 'voxel-vault-local-preview';
 
 function clean(value: unknown, max = 520) { return String(value || '').trim().slice(0, max); }
 
@@ -39,12 +40,14 @@ export async function GET(request: Request) {
     if (!verifyPropertyGenerationModelToken(apiKey, taskId, token)) return NextResponse.json({ ok: false, error: 'Invalid or expired 3D model link.' }, { status: 403 });
 
     const saved = await readCatalog3DByTask(taskId);
+    const localStoragePath = saved?.model_storage_path
+      || (saved?.provider === LOCAL_PREVIEW_PROVIDER && saved?.item_id ? `models/${encodeURIComponent(String(saved.item_id))}.glb` : null);
 
     // Always prefer Voxel Vault's private cached GLB. This supports both repaired
     // Meshy assets and the explicitly labeled no-credit local preview without
     // making another provider request.
-    if (!wantsPreview && saved?.model_storage_path) {
-      const signed = await createModelSignedUrl(saved.model_storage_path, 10 * 60);
+    if (!wantsPreview && localStoragePath) {
+      const signed = await createModelSignedUrl(localStoragePath, 10 * 60);
       if (signed) {
         const cached = await fetchBytes(signed);
         if (cached) return binaryResponse(cached, 'model/gltf-binary');
@@ -57,7 +60,7 @@ export async function GET(request: Request) {
         const preview = await fetchBytes(clean(saved.thumbnail_url, 2400));
         if (preview) return binaryResponse(preview, 'image/webp');
       }
-      return NextResponse.json({ ok: false, error: saved?.provider === 'voxel-vault-local-preview' ? 'The local preview model could not be loaded from private storage.' : 'The 3D provider task reference is invalid.' }, { status: 404 });
+      return NextResponse.json({ ok: false, error: saved?.provider === LOCAL_PREVIEW_PROVIDER ? 'The local preview model could not be loaded from private storage.' : 'The 3D provider task reference is invalid.' }, { status: 404 });
     }
 
     if (wantsPreview) {
