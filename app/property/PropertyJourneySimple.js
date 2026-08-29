@@ -14,6 +14,7 @@ const DEVICE_DB = 'voxelpop-property-device-v1';
 const DEVICE_STORE = 'pending-photos';
 const CONTEXT_PREFIX = 'voxel-vault:property-generation-context:';
 const empty3d = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
+const emptyPropertyLock = () => ({ identityKey: '', atlasId: '', address: '' });
 
 function clean(value) { return String(value || '').trim(); }
 function newDraftId() {
@@ -97,10 +98,10 @@ async function loadSavedPropertyPhoto(property) {
   return originalDraftId ? loadDevicePhoto(originalDraftId).catch(() => null) : null;
 }
 
-function writeContext(draftId, sourceProperty) {
+function writeContext(draftId, sourceProperty, propertyAddress) {
   if (typeof window === 'undefined' || !draftId) return;
   try {
-    window.localStorage.setItem(`${CONTEXT_PREFIX}${draftId}`, JSON.stringify({ sourceProperty: sourceProperty || null }));
+    window.localStorage.setItem(`${CONTEXT_PREFIX}${draftId}`, JSON.stringify({ sourceProperty: sourceProperty || null, propertyAddress: clean(propertyAddress) }));
   } catch {}
 }
 function readContext(draftId) {
@@ -139,6 +140,8 @@ export default function PropertyJourneySimple() {
   const [session, setSession] = useState(null);
   const [draftId, setDraftId] = useState('');
   const [sourceProperty, setSourceProperty] = useState(null);
+  const [propertyAddress, setPropertyAddress] = useState('');
+  const [propertyLock, setPropertyLock] = useState(emptyPropertyLock);
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [pendingPreview, setPendingPreview] = useState('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -216,7 +219,12 @@ export default function PropertyJourneySimple() {
     }
     setSourceProperty(property);
     const existingDraftId = clean(property?.voxelpop?.creationDraftId);
+    const savedAddress = clean(property?.voxelpop?.propertyAddress || property?.address || property?.world?.address);
+    const savedAtlasId = clean(property?.voxelpop?.atlasId || property?.propertyIdentity?.atlasId);
+    const savedIdentityKey = clean(property?.voxelpop?.identityKey);
     setDraftId(existingDraftId || newDraftId());
+    if (savedAddress) setPropertyAddress(savedAddress);
+    if (savedAddress || savedAtlasId || savedIdentityKey) setPropertyLock({ identityKey: savedIdentityKey, atlasId: savedAtlasId, address: savedAddress });
     if (property?.voxelpop?.paidCreation) setPaidSessionId('saved-property');
     loadSavedPropertyPhoto(property).then((photo) => {
       if (photo) {
@@ -273,7 +281,7 @@ export default function PropertyJourneySimple() {
       setLocalRecipe(null);
       setFinal3d(empty3d());
       setSavedDraft(null);
-      setMessage(paidSessionId ? 'Photo ready. Confirm permission, then continue—already paid.' : `Photo ready. Confirm permission, then pay ${PRICE}.`);
+      setMessage(paidSessionId ? 'Photo ready. Confirm permission, then continue—already paid.' : `Photo ready. Add the address, confirm permission, then pay ${PRICE}.`);
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
     } finally {
@@ -301,6 +309,7 @@ export default function PropertyJourneySimple() {
       checkoutHandledRef.current = key;
       const context = readContext(canceledDraftId);
       if (context?.sourceProperty) setSourceProperty(context.sourceProperty);
+      if (context?.propertyAddress) setPropertyAddress(clean(context.propertyAddress));
       setDraftId(canceledDraftId);
       loadDevicePhoto(canceledDraftId).then((photo) => {
         if (photo) { setPendingPhoto(photo); setPreviewFromFile(photo); }
@@ -315,20 +324,24 @@ export default function PropertyJourneySimple() {
     checkoutHandledRef.current = generationSessionId;
     let active = true;
     setBusy('payment-return');
-    setMessage('Payment received. Opening your voxel photo…');
+    setMessage('Payment received. Verifying the one-property lock…');
     (async () => {
       try {
         const data = await verifyPaidSession(generationSessionId);
         if (!active) return;
         const context = readContext(data.draftId);
         if (context?.sourceProperty) setSourceProperty(context.sourceProperty);
+        const verifiedAddress = clean(data.propertyAddress || context?.propertyAddress);
+        const nextLock = { identityKey: clean(data.identityKey), atlasId: clean(data.atlasId), address: verifiedAddress };
+        setPropertyLock(nextLock);
+        if (verifiedAddress) setPropertyAddress(verifiedAddress);
         setPaidSessionId(generationSessionId);
         setDraftId(data.draftId);
         const photo = await loadDevicePhoto(data.draftId).catch(() => null);
         if (!active) return;
         if (!photo) {
           setCreationUnlocked(false);
-          setMessage('Payment verified. Choose the same photo again—no second charge.');
+          setMessage('Payment and one-property lock verified. Choose the same photo again—no second charge.');
         } else {
           setPendingPhoto(photo);
           setPreviewFromFile(photo);
@@ -336,7 +349,7 @@ export default function PropertyJourneySimple() {
           setCreationUnlocked(true);
           setPreviewReady(false);
           setPreviewApproved(false);
-          setMessage('Payment verified. Building your 3D voxel photo.');
+          setMessage('Payment verified. This property is now locked to one VoxelPop purchase. Building your 3D voxel photo.');
         }
         setBusy('');
         window.history.replaceState({}, '', '/property');
@@ -354,11 +367,13 @@ export default function PropertyJourneySimple() {
   async function payAndCreate() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
+    const address = clean(propertyAddress);
+    if (!paidSessionId && !address) return setMessage('Enter the property address so Voxel Vault can block duplicate purchases and duplicate mints.');
     setBusy('generation-checkout');
     try {
       await saveDevicePhoto(draftId, pendingPhoto).catch(() => {});
       if (sourceProperty?.id) await saveDevicePhoto(propertyPhotoKey(sourceProperty.id), pendingPhoto).catch(() => {});
-      writeContext(draftId, sourceProperty);
+      writeContext(draftId, sourceProperty, address);
       if (paidSessionId) {
         setCreationUnlocked(true);
         setPreviewReady(false);
@@ -367,10 +382,11 @@ export default function PropertyJourneySimple() {
         setBusy('');
         return;
       }
-      setMessage(`Opening secure ${PRICE} checkout…`);
+      setMessage('Checking that this property is still available…');
       const form = new FormData();
       form.append('draftId', draftId);
       form.append('rightsConfirmed', 'true');
+      form.append('address', address);
       const response = await fetch('/api/property-generation/checkout', { method: 'POST', headers: authHeaders(), body: form });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.url) throw new Error(data?.error || 'Secure checkout could not open.');
@@ -407,6 +423,9 @@ export default function PropertyJourneySimple() {
 
       const now = new Date().toISOString();
       const existing = isSavedPropertyDraft(sourceProperty) ? sourceProperty : null;
+      const savedAtlasId = clean(propertyLock.atlasId) || clean(existing?.voxelpop?.atlasId) || clean(existing?.propertyIdentity?.atlasId);
+      const savedIdentityKey = clean(propertyLock.identityKey) || clean(existing?.voxelpop?.identityKey);
+      const savedAddress = clean(propertyLock.address || propertyAddress) || clean(existing?.voxelpop?.propertyAddress || existing?.address || existing?.world?.address);
       const finishedDraft = {
         ...(existing || {}),
         schemaVersion: existing?.schemaVersion || 1,
@@ -420,7 +439,7 @@ export default function PropertyJourneySimple() {
         geometryKind: existing?.geometryKind || 'digital-only',
         coordinates: existing?.coordinates || { latitude: null, longitude: null },
         geometry: existing?.geometry || null,
-        propertyIdentity: existing?.propertyIdentity || { atlasId: null, parcelId: null, pin: null, sbl: null },
+        propertyIdentity: { ...(existing?.propertyIdentity || {}), atlasId: savedAtlasId || null, parcelId: existing?.propertyIdentity?.parcelId || null, pin: existing?.propertyIdentity?.pin || null, sbl: existing?.propertyIdentity?.sbl || null },
         evidence: existing?.evidence || {},
         visual: { ...(existing?.visual || {}), modelUrl: data.modelUrl, modelTaskId: data.taskId, renderMode: 'voxelpop-local-3d' },
         voxelpop: {
@@ -435,8 +454,13 @@ export default function PropertyJourneySimple() {
           creationDraftId: draftId,
           modelTaskId: data.taskId,
           modelUrl: data.modelUrl,
+          identityKey: savedIdentityKey || null,
+          atlasId: savedAtlasId || null,
+          propertyAddress: savedAddress || null,
+          onePropertyOnePurchase: true,
+          onePropertyOneMint: true,
         },
-        blockchain: { ...(existing?.blockchain || {}), minted: Boolean(existing?.blockchain?.minted), optional: true, optionalAfterCreation: true },
+        blockchain: { ...(existing?.blockchain || {}), minted: Boolean(existing?.blockchain?.minted), optional: true, optionalAfterCreation: true, onePropertyOneMint: true },
         world: { ...(existing?.world || {}), public: false, publishedAt: null, publicLabel: 'VoxelPop Property' },
         legal: {
           ...(existing?.legal || {}),
@@ -464,7 +488,7 @@ export default function PropertyJourneySimple() {
       registeringRef.current = false;
       setBusy('');
     }
-  }, [draftId, session?.access_token, session?.user, sourceProperty, pendingPhoto]);
+  }, [draftId, session?.access_token, session?.user, sourceProperty, pendingPhoto, propertyAddress, propertyLock]);
 
   const handleLocal3DReady = useCallback((recipe) => {
     setLocalRecipe(recipe);
@@ -475,6 +499,8 @@ export default function PropertyJourneySimple() {
     const oldDraft = draftId;
     setDraftId(newDraftId());
     setSourceProperty(null);
+    setPropertyAddress('');
+    setPropertyLock(emptyPropertyLock());
     setPendingPhoto(null);
     setPreviewFromFile(null);
     setRightsConfirmed(false);
@@ -539,11 +565,17 @@ export default function PropertyJourneySimple() {
         <p className={styles.bigPrompt}>{paidSessionId ? 'Ready to create.' : `Create for ${PRICE}.`}</p>
         <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>YOUR PHOTO · DEVICE ONLY</span></div>
         <div className={styles.choicePanel}>
+          {!paidSessionId ? <>
+            <div className={styles.searchForm}>
+              <input value={propertyAddress} onChange={(event) => setPropertyAddress(event.target.value)} placeholder="Property address · 123 Main St, City, State" autoComplete="street-address" autoCapitalize="words" aria-label="Property address"/>
+            </div>
+            <small className={styles.mapNote}>Used to match one source-backed mapped building before checkout. Voxel Vault blocks payment if that property was already purchased.</small>
+          </> : propertyAddress ? <div className={styles.autoPanel}><b>✓ ONE-OF-ONE PROPERTY LOCK</b><span>{propertyAddress}</span></div> : null}
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening…' : paidSessionId ? 'Create 3D voxel photo · paid' : `Pay ${PRICE} & create`}</button>
+          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || (!paidSessionId && !clean(propertyAddress)) || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Checking property…' : paidSessionId ? 'Create 3D voxel photo · paid' : `Pay ${PRICE} & create`}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Change photo</button>
         </div>
-        <p className={styles.truth}>The payment buys one digital VoxelPop creation only, not rights in the physical property.</p>
+        <p className={styles.truth}>Before checkout, the address is re-checked against mapped building data. If someone already purchased this property, payment is blocked. One property can only be purchased once and minted once. The digital VoxelPop does not transfer rights in the physical property.</p>
       </> : null}
 
       {step === 2 ? <>
@@ -581,6 +613,7 @@ export default function PropertyJourneySimple() {
 
       {step === 4 ? <>
         <div className={styles.autoPanel}><b>✓ DONE</b><span>Your movable 3D voxel is saved to Vault.</span></div>
+        {propertyAddress ? <div className={styles.autoPanel}><b>1 OF 1 PROPERTY CLAIM</b><span>{propertyAddress} · duplicate purchase and duplicate mint are blocked.</span></div> : null}
         <p className={styles.bigPrompt}>Your voxel is ready.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={pendingPreview} sourceImageUrl={pendingPreview}/>
@@ -590,7 +623,7 @@ export default function PropertyJourneySimple() {
           <a className={styles.primaryLink} href="/vault/property-drafts">Open Vault</a>
           {mintReady ? <a className={styles.textLink} href={mintHref}>Mint NFT · optional</a> : null}
         </div>
-        <p className={styles.truth}>Minting is optional and only represents the digital voxel. It does not create physical-property ownership rights.</p>
+        <p className={styles.truth}>One property, one purchase, one NFT maximum. Minting is optional and only represents the digital voxel. It does not create physical-property ownership rights.</p>
       </> : null}
 
       {step > 1 || pendingPhoto ? <button className={styles.change} type="button" onClick={resetCreation}>Start a new VoxelPop</button> : null}
