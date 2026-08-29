@@ -38,7 +38,9 @@ const required = [
 for (const file of required) must(fs.existsSync(path.join(root, file)), `${file}: required consumer UI file is missing`);
 
 const home = read('app/page.js');
+const homeCss = read('app/home.module.css');
 const preview = read('app/components/HomeProductPreview.js');
+const previewCss = read('app/components/HomeProductPreview.module.css');
 const topNav = read('app/components/ProductTopNav.js');
 const topCss = read('app/components/ProductTopNav.module.css');
 const dock = read('app/components/FinancialOSNav.js');
@@ -47,19 +49,30 @@ const footer = read('app/components/ConsumerFooter.js');
 const system = read('app/ui-system.css');
 const demo = read('app/demo/page.js');
 const property = read('app/property/PropertyJourneyExact.js');
+const propertyCss = read('app/property/property.module.css');
+const photoViewerCss = read('app/property/PhotoReliefModelViewer.module.css');
 
 must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proof.');
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/WHAT'S INCLUDED \/ WHAT'S NOT/.test(home), 'Dense legal/purchase detail must stay in progressive disclosure.');
-must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual preview and voxel viewers.');
+must(/WHAT \$4\.99 INCLUDES/.test(home), 'Purchase detail must stay in progressive disclosure.');
+must(/AFTER CREATION/.test(home), 'Vault, World, and mint choices must stay downstream of the core creation flow.');
+must(/3D VOXEL PHOTO/.test(home) && /MOVABLE VOXEL/.test(home), 'Homepage must distinguish the reviewable voxel photo from the movable model.');
+must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
+must(/label: 'House photo'/.test(preview) && /label: '3D voxel photo'/.test(preview) && /label: 'Movable 3D voxel'/.test(preview), 'Home product proof must retain all three visual stages.');
+must(!/box-shadow:0 6px 0 var\(--vv-purple-700\)/.test(homeCss), 'Homepage CTA must not regress to an exaggerated toy-like extrusion.');
+must(!/box-shadow:0 4px 0 var\(--vv-purple-700\)/.test(previewCss), 'Home sample controls must stay flat and product-like.');
 
-must(/Create[\s\S]*World[\s\S]*Vault[\s\S]*More/.test(topNav), 'Desktop product nav must mirror the core product map.');
-must(/isOrganizedUserRoute/.test(topNav) && /mobileDocked/.test(topNav), 'Shared top nav must know when the mobile bottom dock owns core navigation.');
-must(/\.mobileDocked \.links a:not\(\.demo\)\{display:none\}/.test(topCss), 'Core mobile routes must not duplicate the five-item bottom navigation.');
+must(/Create · \$4\.99[\s\S]*Vault[\s\S]*World/.test(topNav), 'Desktop product nav must stay focused on Create, Vault, and World.');
+must(/href="\/demo"/.test(topNav), 'Desktop product nav must keep the public demo reachable.');
+must(!/label: 'More'/.test(topNav), 'More must not return to the primary desktop product navigation.');
+must(/isOrganizedUserRoute/.test(topNav) && /mobileDocked/.test(topNav), 'Shared top nav must know when the mobile dock owns core navigation.');
+must(/\.mobileDocked \.links\{display:none\}/.test(topCss), 'Core mobile routes must not duplicate the bottom navigation.');
+must(/SIMPLE_PROPERTY_DOCK\.filter\(\(item\) => item\.id !== 'more'\)/.test(dock), 'Core iPhone navigation must stay condensed to Home, Create, World, and Vault.');
 must(/@media\(max-width:720px\)/.test(dockCss) && /\.nav\{display:none\}/.test(dockCss), 'Bottom dock must be mobile-only.');
-must(/FinancialOSNav\.module\.css/.test(dock), 'Bottom dock must use responsive stylesheet rather than always-on inline chrome.');
+must(!/box-shadow:0 3px 0 #5120cf/.test(dockCss), 'Active dock icons must stay flat instead of toy-like.');
+must(!/box-shadow:0 4px 0 var\(--vv-purple-700\)/.test(topCss), 'VoxelPop top-nav mark must stay flat.');
 
 must(!/fontSize:\s*7\.8/.test(footer), 'Shared footer must not use unreadable 7.8px legal text.');
 must(/\/demo/.test(footer) && /\/privacy/.test(footer) && /\/about/.test(footer), 'Shared footer must cover demo and trust surfaces.');
@@ -67,8 +80,14 @@ must(/\.vvConsumerFooterTruth\{[^}]*font-size:10\.5px/.test(system), 'Shared leg
 must(/\[role="button"\]:focus-visible/.test(system), 'Custom interactive controls must receive visible keyboard focus.');
 must(/prefers-reduced-motion:reduce/.test(system), 'UI system must respect reduced motion.');
 
+must(/aspect-ratio:4\/3/.test(propertyCss), 'Create house review must stay landscape-oriented so the property is the visual focus.');
+must(!/box-shadow:0 6px 0 var\(--purple-dark\)/.test(propertyCss), 'Core Create buttons must not regress to exaggerated extruded shadows.');
+must(/width:132px/.test(photoViewerCss), 'Desktop voxel-photo review must keep a prominent original-photo comparison inset.');
+must(/width:104px/.test(photoViewerCss), 'Mobile voxel-photo review must keep the original photo large enough to judge likeness.');
+
 must(/ProductTopNav/.test(demo), 'Public demo must use shared product chrome.');
 must(/role="tablist"/.test(demo) && /aria-selected/.test(demo), 'Public demo stage switcher must expose tab semantics.');
+must(/3D VOXEL PHOTO/.test(demo) && /MOVABLE 3D VOXEL/.test(demo), 'Public demo must use the same two-output terminology as Create.');
 for (const file of ['app/privacy/page.js','app/terms/page.js','app/about/page.js']) {
   const source = read(file);
   must(/ProductTopNav/.test(source), `${file}: trust surface must use shared product chrome`);
@@ -112,5 +131,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real 3D proof, one desktop/mobile navigation map, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real three-stage VoxelPop proof, condensed navigation, landscape Create review, prominent source comparison, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
