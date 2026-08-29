@@ -54,7 +54,7 @@ for (const [name, source] of [['checkout', checkout], ['secure checkout', secure
   assert.doesNotMatch(source, /https:\/\/voxel-vault\.vercel\.app/, `${name} must not redirect a customer to the obsolete Vercel hostname.`);
 }
 
-assert.match(productMap, /Authorized photo → \$4\.99 textured 3D preview → approval → movable voxel → optional World\/map\/mint\./, 'Canonical product-map copy must preserve preview-before-voxel ordering.');
+assert.match(productMap, /Authorized photo → \$4\.99 → 3D voxel photo → approval → movable voxel → optional World\/map\/mint\./, 'Canonical product-map copy must preserve voxel-photo-before-movable-voxel ordering.');
 assert.match(productMap, /included voxel for eligible purchases/, 'Product-map Digital Twin copy must preserve the purchased-twin voxel entitlement.');
 
-console.log('Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and preview-before-voxel positioning are aligned.');
+console.log('Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and 3D-voxel-photo-before-movable-voxel positioning are aligned.');
