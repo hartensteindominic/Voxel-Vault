@@ -17,7 +17,7 @@ export default function FinancialOSNav() {
   if (!isOrganizedUserRoute(pathname)) return null;
 
   const simple = isSimplePropertyRoute(pathname);
-  const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
+  const dock = simple ? SIMPLE_PROPERTY_DOCK.filter((item) => item.id !== 'more') : APP_DOCK;
   const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);
 
   return <>
