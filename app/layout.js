@@ -1,23 +1,19 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
 import FinancialOSNav from './components/FinancialOSNav';
-import AppCommandCenter from './components/AppCommandCenter';
-import ConsumerFooter from './components/ConsumerFooter';
 import './vault-fallback.css';
-import './futuristic-vault.css';
-import './spatial-os-interactions.css';
 import './voxelpop-cute-system.css';
 import './ui-system.css';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
-const TITLE = 'Voxel Vault | Turn a House Photo into a 3D Voxel Photo';
-const DESCRIPTION = 'Turn an authorized house photo into a block-by-block 3D VoxelPop photo for $4.99, approve it, then create a separate movable 3D voxel. Source photo stays on your device; minting is optional.';
+const TITLE = 'VoxelPop | Photo in. Voxel out.';
+const DESCRIPTION = 'Turn a house photo into a 3D VoxelPop for $4.99. Approve the voxel photo, then get a movable 3D voxel. Saved to Vault. Mint optional.';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: '%s | Voxel Vault' },
+  title: { default: TITLE, template: '%s | VoxelPop' },
   description: DESCRIPTION,
-  keywords: ['house photo to voxel', '3D voxel photo', 'voxel house creator', 'VoxelPop', '3D voxel creator', 'Voxel Vault'],
+  keywords: ['VoxelPop', 'house photo to voxel', '3D voxel photo', 'voxel house creator', 'Voxel Vault'],
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
@@ -25,8 +21,8 @@ export const metadata = {
     description: DESCRIPTION,
     type: 'website',
     url: SITE_URL,
-    siteName: 'Voxel Vault',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'VoxelPop house photo to 3D voxel photo preview' }],
+    siteName: 'VoxelPop',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'VoxelPop photo to 3D voxel' }],
   },
   twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION, images: ['/opengraph-image'] },
 };
@@ -40,5 +36,5 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body><WalletIdentityProvider>{children}<ConsumerFooter/><AppCommandCenter/><FinancialOSNav/></WalletIdentityProvider></body></html>;
+  return <html lang="en"><body><WalletIdentityProvider>{children}<FinancialOSNav/></WalletIdentityProvider></body></html>;
 }
