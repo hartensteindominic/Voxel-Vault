@@ -2,12 +2,55 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function MeshyModelViewer({ modelUrl }) {
+function cacheBust(url) {
+  try {
+    const next = new URL(String(url || ''), window.location.href);
+    next.searchParams.set('vv_retry', String(Date.now()));
+    return next.toString();
+  } catch {
+    const joiner = String(url || '').includes('?') ? '&' : '?';
+    return `${url}${joiner}vv_retry=${Date.now()}`;
+  }
+}
+
+export default function MeshyModelViewer({ modelUrl, posterUrl = '', onRecover = null, label = 'Interactive VoxelPop 3D model' }) {
   const mountRef = useRef(null);
+  const recoveryRef = useRef(0);
+  const [activeUrl, setActiveUrl] = useState(modelUrl || '');
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
-    if (!modelUrl || !mountRef.current) return undefined;
+    recoveryRef.current = 0;
+    setActiveUrl(modelUrl || '');
+    setLoaded(false);
+    setError('');
+    setRecovering(false);
+  }, [modelUrl]);
+
+  async function recover({ manual = false } = {}) {
+    if (!modelUrl || recovering) return;
+    setRecovering(true);
+    setError('');
+    try {
+      let nextUrl = '';
+      if (typeof onRecover === 'function') {
+        nextUrl = String(await onRecover() || '').trim();
+      }
+      recoveryRef.current += 1;
+      setLoaded(false);
+      setActiveUrl(nextUrl || cacheBust(modelUrl));
+      if (manual) setError('');
+    } catch {
+      setError('The 3D preview could not be refreshed. Your generated image is still available.');
+    } finally {
+      setRecovering(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!activeUrl || !mountRef.current) return undefined;
     let dead = false;
     let cleanup = () => {};
     setError('');
@@ -22,7 +65,7 @@ export default function MeshyModelViewer({ modelUrl }) {
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
-        setError('3D model preview is unavailable in this browser.');
+        setError('3D preview is unavailable in this browser. The generated image is still shown.');
         return;
       }
       const width = Math.max(280, mount.clientWidth || 360);
@@ -67,10 +110,9 @@ export default function MeshyModelViewer({ modelUrl }) {
       scene.add(floor);
 
       const loader = new loaderModule.GLTFLoader();
-      let model = null;
-      loader.load(modelUrl, (gltf) => {
+      loader.load(activeUrl, (gltf) => {
         if (dead) return;
-        model = gltf.scene;
+        const model = gltf.scene;
         model.traverse((object) => {
           if (!object?.isMesh) return;
           object.castShadow = !compact;
@@ -90,8 +132,16 @@ export default function MeshyModelViewer({ modelUrl }) {
         model.scale.setScalar(scale);
         model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
         root.add(model);
+        setLoaded(true);
+        setError('');
       }, undefined, () => {
-        if (!dead) setError('The cached Meshy GLB could not be loaded. Regenerating is not automatic.');
+        if (dead) return;
+        setLoaded(false);
+        if (recoveryRef.current < 1) {
+          recover();
+        } else {
+          setError('The 3D preview could not load. Your generated image is safe; try the 3D preview again.');
+        }
       });
 
       const pointers = new Map();
@@ -207,16 +257,18 @@ export default function MeshyModelViewer({ modelUrl }) {
         mount.innerHTML = '';
       };
     }).catch(() => {
-      if (!dead) setError('The 3D model viewer could not start.');
+      if (!dead) setError('The 3D viewer could not start. Your generated image is still available.');
     });
 
     return () => { dead = true; cleanup(); };
-  }, [modelUrl]);
+  }, [activeUrl]);
 
   return <div className="viewerShell">
-    <div ref={mountRef} className="viewer" aria-label="Interactive Meshy hero-property 3D model" />
-    {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">DRAG · PINCH TO ZOOM · CACHED GLB</div>
-    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0}.viewerError{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:#09100f}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#7e8c87;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
+    {posterUrl && !loaded ? <img className="viewerPoster" src={posterUrl} alt="Generated VoxelPop preview"/> : null}
+    <div ref={mountRef} className={`viewer ${loaded ? 'viewerLoaded' : ''}`} aria-label={label} />
+    {!loaded && !error ? <div className="viewerStatus">{recovering ? 'Refreshing 3D preview…' : 'Loading interactive 3D…'}</div> : null}
+    {error ? <div className="viewerError"><span>{error}</span><button type="button" onClick={() => recover({ manual: true })} disabled={recovering}>{recovering ? 'Refreshing…' : 'Try 3D again'}</button></div> : null}
+    {loaded ? <div className="viewerHint">DRAG · PINCH TO ZOOM · 3D READY</div> : null}
+    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0;opacity:0;transition:opacity .18s ease}.viewerLoaded{opacity:1}.viewerPoster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b1210}.viewerStatus{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);padding:8px 11px;border-radius:999px;background:rgba(9,16,15,.78);color:#e7efec;font-size:9px;font-weight:850;letter-spacing:.04em;backdrop-filter:blur(12px);white-space:nowrap}.viewerError{position:absolute;left:14px;right:14px;bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid rgba(255,255,255,.12);border-radius:14px;color:#eef4f1;font-size:10px;line-height:1.35;background:rgba(9,16,15,.9);backdrop-filter:blur(15px)}.viewerError span{min-width:0}.viewerError button{flex:0 0 auto;min-height:36px;padding:0 12px;border:0;border-radius:11px;background:#c9ff54;color:#26330c;font-size:9px;font-weight:950}.viewerError button:disabled{opacity:.65}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#9aa8a3;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}@media(max-width:520px){.viewerError{align-items:stretch;flex-direction:column}.viewerError button{width:100%;min-height:42px}}`}</style>
   </div>;
 }
