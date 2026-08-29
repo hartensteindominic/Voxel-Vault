@@ -2,15 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const GRID = 24;
-const MIN_GRID = 12;
+const GRID = 32;
+const MIN_GRID = 16;
+const COLOR_STEP = 12;
 
 function clamp(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, Number(value || 0)));
 }
 
 function quantize(value) {
-  return Math.max(0, Math.min(255, Math.round(Number(value || 0) / 18) * 18));
+  return Math.max(0, Math.min(255, Math.round(Number(value || 0) / COLOR_STEP) * COLOR_STEP));
 }
 
 function toHex(value) {
@@ -37,7 +38,7 @@ function averageRgb(pixels) {
 function recipeDimensions(image) {
   const width = Math.max(1, image.naturalWidth || 1);
   const height = Math.max(1, image.naturalHeight || 1);
-  const ratio = clamp(width / height, 0.5, 2);
+  const ratio = clamp(width / height, 0.5, 2.25);
   if (ratio >= 1) return { width: GRID, height: Math.max(MIN_GRID, Math.round(GRID / ratio)) };
   return { width: Math.max(MIN_GRID, Math.round(GRID * ratio)), height: GRID };
 }
@@ -66,6 +67,103 @@ function centeredMass(rawMask, width, height) {
   return mask;
 }
 
+function stabilizeMask(input, width, height) {
+  let mask = input.slice();
+  for (let pass = 0; pass < 2; pass += 1) {
+    const next = mask.slice();
+    for (let row = 0; row < height; row += 1) {
+      for (let column = 0; column < width; column += 1) {
+        const index = row * width + column;
+        if (mask[index]) continue;
+        let neighbors = 0;
+        for (let y = Math.max(0, row - 1); y <= Math.min(height - 1, row + 1); y += 1) {
+          for (let x = Math.max(0, column - 1); x <= Math.min(width - 1, column + 1); x += 1) {
+            if (x === column && y === row) continue;
+            if (mask[y * width + x]) neighbors += 1;
+          }
+        }
+        if (neighbors >= 4) next[index] = true;
+      }
+    }
+    mask = next;
+  }
+  return mask;
+}
+
+function keepBestComponent(input, width, height) {
+  const visited = new Array(width * height).fill(false);
+  let best = [];
+  let bestScore = -Infinity;
+  const directions = [-1, 0, 1];
+
+  for (let start = 0; start < input.length; start += 1) {
+    if (!input[start] || visited[start]) continue;
+    const queue = [start];
+    const cells = [];
+    visited[start] = true;
+    let cursor = 0;
+    while (cursor < queue.length) {
+      const index = queue[cursor];
+      cursor += 1;
+      cells.push(index);
+      const row = Math.floor(index / width);
+      const column = index % width;
+      for (const dy of directions) {
+        for (const dx of directions) {
+          if (dx === 0 && dy === 0) continue;
+          const x = column + dx;
+          const y = row + dy;
+          if (x < 0 || x >= width || y < 0 || y >= height) continue;
+          const next = y * width + x;
+          if (input[next] && !visited[next]) {
+            visited[next] = true;
+            queue.push(next);
+          }
+        }
+      }
+    }
+
+    let xTotal = 0;
+    let yTotal = 0;
+    for (const index of cells) {
+      xTotal += index % width;
+      yTotal += Math.floor(index / width);
+    }
+    const cx = cells.length ? xTotal / cells.length / Math.max(1, width - 1) : 0.5;
+    const cy = cells.length ? yTotal / cells.length / Math.max(1, height - 1) : 0.55;
+    const centerBias = 1 - Math.min(1, Math.abs(cx - 0.5) / 0.5);
+    const verticalBias = 1 - Math.min(1, Math.abs(cy - 0.57) / 0.57);
+    const score = cells.length * (0.68 + centerBias * 0.24 + verticalBias * 0.08);
+    if (score > bestScore) {
+      bestScore = score;
+      best = cells;
+    }
+  }
+
+  const result = new Array(width * height).fill(false);
+  for (const index of best) result[index] = true;
+  return result;
+}
+
+function fillSmallGaps(input, width, height) {
+  const mask = input.slice();
+  for (let row = 0; row < height; row += 1) {
+    let left = -1;
+    for (let column = 0; column < width; column += 1) {
+      const active = input[row * width + column];
+      if (!active) continue;
+      if (left >= 0) {
+        const gap = column - left - 1;
+        if (gap > 0 && gap <= 2) {
+          for (let fill = left + 1; fill < column; fill += 1) mask[row * width + fill] = true;
+        }
+      }
+      left = column;
+    }
+  }
+  return mask;
+}
+
 function sampleRecipe(image) {
   const { width, height } = recipeDimensions(image);
   const canvas = document.createElement('canvas');
@@ -74,9 +172,9 @@ function sampleRecipe(image) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
-  // Preserve the entire uploaded photo instead of center-cropping it into a square.
-  // That keeps the visible roofline, facade width and house proportions tied to the source.
-  context.filter = 'saturate(1.04) contrast(1.05)';
+  // Preserve the entire photo and sample more densely than the original 24-cell pass.
+  // The final voxel should retain roofline, window spacing and facade color relationships.
+  context.filter = 'saturate(1.035) contrast(1.035)';
   context.drawImage(image, 0, 0, image.naturalWidth || 1, image.naturalHeight || 1, 0, 0, width, height);
   const data = context.getImageData(0, 0, width, height).data;
   const rgb = [];
@@ -95,8 +193,8 @@ function sampleRecipe(image) {
 
   const skySamples = [];
   const groundSamples = [];
-  const topRows = Math.max(2, Math.round(height * 0.16));
-  const bottomRows = Math.max(2, Math.round(height * 0.14));
+  const topRows = Math.max(2, Math.round(height * 0.15));
+  const bottomRows = Math.max(2, Math.round(height * 0.13));
   for (let row = 0; row < topRows; row += 1) {
     for (let column = 0; column < width; column += 1) {
       if (row < 2 || column < 2 || column > width - 3) skySamples.push(rgb[row * width + column]);
@@ -117,7 +215,7 @@ function sampleRecipe(image) {
     const right = luminance[row * width + Math.min(width - 1, column + 1)] ?? value;
     const up = luminance[Math.max(0, row - 1) * width + column] ?? value;
     const down = luminance[Math.min(height - 1, row + 1) * width + column] ?? value;
-    return clamp(Math.abs(left - right) * 1.7 + Math.abs(up - down) * 1.7);
+    return clamp(Math.abs(left - right) * 1.55 + Math.abs(up - down) * 1.55);
   });
 
   const rawMask = new Array(width * height).fill(false);
@@ -130,22 +228,22 @@ function sampleRecipe(image) {
       const skyDistance = rgbDistance(rgb[index], sky);
       const groundDistance = rgbDistance(rgb[index], ground);
       const edge = edgeStrength[index];
-      const outsideSide = x < 0.035 || x > 0.965;
-      const obviousSky = y < 0.42 && skyDistance < (0.105 + edge * 0.10);
-      const obviousGround = y > 0.79 && groundDistance < (0.095 + edge * 0.11);
-      const structuralEvidence = skyDistance * 0.44 + groundDistance * 0.12 + edge * 0.34 + center * 0.10;
-      const centralFacade = y > 0.22 && y < 0.88 && center > 0.18 && skyDistance > 0.07;
-      rawMask[index] = !outsideSide && !obviousSky && !obviousGround && y > 0.045 && y < 0.965 && (structuralEvidence > 0.225 || centralFacade);
+      const outsideSide = x < 0.025 || x > 0.975;
+      const obviousSky = y < 0.48 && skyDistance < 0.09 && edge < 0.12;
+      const obviousGround = y > 0.80 && groundDistance < 0.08 && edge < 0.11;
+      const structuralEvidence = skyDistance * 0.46 + groundDistance * 0.10 + edge * 0.32 + center * 0.12;
+      const centralFacade = y > 0.18 && y < 0.91 && center > 0.12 && (skyDistance > 0.06 || edge > 0.065);
+      rawMask[index] = !outsideSide && !obviousSky && !obviousGround && y > 0.035 && y < 0.97
+        && (structuralEvidence > 0.20 || centralFacade);
     }
   }
 
-  let mask = centeredMass(rawMask, width, height);
+  let mask = fillSmallGaps(keepBestComponent(stabilizeMask(rawMask, width, height), width, height), width, height);
   let activeCount = mask.filter(Boolean).length;
 
-  // Difficult lighting can make a real facade resemble the sampled sky. Relax only
-  // toward evidence that is still present in the user's actual photo. Never substitute
-  // a generic roof/body silhouette that was not present in the source image.
-  if (activeCount < width * height * 0.12) {
+  // Difficult lighting can make a facade resemble sky/ground. Relax toward evidence
+  // still present in the source, then retain the strongest connected central object.
+  if (activeCount < width * height * 0.10) {
     const relaxed = new Array(width * height).fill(false);
     for (let row = 0; row < height; row += 1) {
       for (let column = 0; column < width; column += 1) {
@@ -156,24 +254,42 @@ function sampleRecipe(image) {
         const skyDistance = rgbDistance(rgb[index], sky);
         const groundDistance = rgbDistance(rgb[index], ground);
         const edge = edgeStrength[index];
-        relaxed[index] = x > 0.045 && x < 0.955 && y > 0.075 && y < 0.94 && center > 0.08 && (
-          skyDistance > 0.075 || groundDistance > 0.09 || edge > 0.09
-        );
+        relaxed[index] = x > 0.035 && x < 0.965 && y > 0.06 && y < 0.95 && center > 0.05
+          && (skyDistance > 0.06 || groundDistance > 0.08 || edge > 0.07);
       }
     }
-    mask = centeredMass(relaxed, width, height);
+    mask = fillSmallGaps(keepBestComponent(stabilizeMask(relaxed, width, height), width, height), width, height);
     activeCount = mask.filter(Boolean).length;
   }
 
-  if (activeCount < Math.max(12, Math.round(width * height * 0.06))) {
+  if (activeCount < Math.max(18, Math.round(width * height * 0.055))) {
+    mask = centeredMass(rawMask, width, height);
+    activeCount = mask.filter(Boolean).length;
+  }
+
+  if (activeCount < Math.max(18, Math.round(width * height * 0.055))) {
     throw new Error('VoxelPop could not isolate enough of the uploaded building to make a trustworthy voxel. Try a clearer front or three-quarter photo.');
   }
+
+  const smoothLuminance = luminance.map((value, index) => {
+    const row = Math.floor(index / width);
+    const column = index % width;
+    let total = 0;
+    let count = 0;
+    for (let y = Math.max(0, row - 1); y <= Math.min(height - 1, row + 1); y += 1) {
+      for (let x = Math.max(0, column - 1); x <= Math.min(width - 1, column + 1); x += 1) {
+        total += luminance[y * width + x];
+        count += 1;
+      }
+    }
+    return count ? total / count : value;
+  });
 
   const depths = luminance.map((value, index) => {
     if (!mask[index]) return 0;
     const edge = edgeStrength[index];
-    const facadeRelief = Math.round(3 + value * 2.1 + edge * 3.4);
-    return Math.max(2, Math.min(9, facadeRelief));
+    const facadeRelief = Math.round(5 + (smoothLuminance[index] - 0.5) * 1.3 + Math.min(0.9, edge) * 1.6);
+    return Math.max(4, Math.min(8, facadeRelief));
   });
 
   return { version: 1, width, height, colors, depths };
@@ -224,11 +340,14 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         const initialHeight = Math.max(280, mount.clientHeight || 360);
         const compact = initialWidth < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.12 : 1.38));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.22 : 1.55));
         renderer.setSize(initialWidth, initialHeight);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.06;
+        renderer.toneMappingExposure = 1.08;
+        renderer.setClearColor(0x000000, 0);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.domElement.style.touchAction = 'none';
         renderer.domElement.style.opacity = '0';
         renderer.domElement.style.transition = 'opacity .34s ease';
@@ -236,32 +355,40 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
-        scene.add(new THREE.HemisphereLight(0xfffbef, 0x21122d, 2.6));
-        const key = new THREE.DirectionalLight(0xffedd5, 4.0);
+        scene.add(new THREE.HemisphereLight(0xfffbef, 0x21122d, 2.45));
+        const key = new THREE.DirectionalLight(0xfff7ec, 3.7);
         key.position.set(5, 8, 7);
+        key.castShadow = true;
+        key.shadow.mapSize.set(1024, 1024);
         scene.add(key);
-        const rim = new THREE.DirectionalLight(0xc5b4ff, 2.0);
+        const fill = new THREE.DirectionalLight(0xd6c9ff, 1.3);
+        fill.position.set(-4, 3, 5);
+        scene.add(fill);
+        const rim = new THREE.DirectionalLight(0xc9ff54, 0.72);
         rim.position.set(-5, 3, -4);
         scene.add(rim);
 
-        const cell = compact ? 0.275 : 0.292;
+        const longestSide = Math.max(recipe.width, recipe.height);
+        const cell = (compact ? 6.15 : 6.55) / longestSide;
         const facadeWidth = recipe.width * cell;
         const facadeHeight = recipe.height * cell;
         const maxDimension = Math.max(facadeWidth, facadeHeight);
-        const camera = new THREE.PerspectiveCamera(34, initialWidth / initialHeight, 0.1, 80);
-        let cameraDistance = clamp(maxDimension * 1.55 + 1.7, 7.4, 13.6);
-        camera.position.set(0, 0.1, cameraDistance);
-        camera.lookAt(0, -0.1, 0);
+        const camera = new THREE.PerspectiveCamera(32, initialWidth / initialHeight, 0.1, 80);
+        let cameraDistance = clamp(maxDimension * 1.62 + 1.35, 7.1, 12.8);
+        camera.position.set(0, 0.08, cameraDistance);
+        camera.lookAt(0, -0.08, 0);
 
         const root = new THREE.Group();
-        root.rotation.x = -0.075;
-        root.rotation.y = 0.10;
+        root.rotation.x = -0.055;
+        root.rotation.y = 0.08;
         scene.add(root);
 
         const active = recipe.depths.reduce((count, depth) => count + (depth > 0 ? 1 : 0), 0);
-        const geometry = new THREE.BoxGeometry(cell * 0.90, cell * 0.90, 1);
-        const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.76, metalness: 0.015 });
+        const geometry = new THREE.BoxGeometry(cell * 0.93, cell * 0.93, 1);
+        const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.005 });
         const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, active));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         const dummy = new THREE.Object3D();
         const color = new THREE.Color();
         let instance = 0;
@@ -270,11 +397,11 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           for (let column = 0; column < recipe.width; column += 1) {
             const index = row * recipe.width + column;
             if (recipe.depths[index] <= 0) continue;
-            const depth = 0.44 + (recipe.depths[index] / 9) * 0.92;
+            const depth = 0.50 + (recipe.depths[index] / 9) * 0.80;
             dummy.position.set(
               (column - (recipe.width - 1) / 2) * cell,
               ((recipe.height - 1) / 2 - row) * cell,
-              depth / 2 - 0.46,
+              depth / 2 - 0.43,
             );
             dummy.scale.set(1, 1, depth);
             dummy.updateMatrix();
@@ -288,34 +415,42 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         root.add(mesh);
 
-        const baseRadius = Math.max(2.2, facadeWidth * 0.52);
-        const baseGeometry = new THREE.CylinderGeometry(baseRadius, baseRadius + 0.24, 0.20, 32);
-        const baseMaterial = new THREE.MeshStandardMaterial({ color: 0xefe6d8, roughness: 0.94, metalness: 0 });
-        const base = new THREE.Mesh(baseGeometry, baseMaterial);
-        base.position.set(0, -facadeHeight / 2 - 0.30, -0.12);
-        scene.add(base);
+        const platformGeometry = new THREE.BoxGeometry(Math.max(3.1, facadeWidth + 0.75), 0.18, 2.35);
+        const platformMaterial = new THREE.MeshStandardMaterial({ color: 0xeee7dd, roughness: 0.96, metalness: 0 });
+        const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+        platform.position.set(0, -facadeHeight / 2 - 0.28, -0.22);
+        platform.castShadow = true;
+        platform.receiveShadow = true;
+        scene.add(platform);
 
-        const ringGeometry = new THREE.TorusGeometry(baseRadius * 0.82, 0.05, 10, 64);
-        const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xc9ff54, transparent: true, opacity: 0.88 });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.set(0, -facadeHeight / 2 - 0.18, -0.08);
-        scene.add(ring);
+        const edgeGeometry = new THREE.EdgesGeometry(platformGeometry);
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xc9ff54, transparent: true, opacity: 0.82 });
+        const platformEdge = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        platformEdge.position.copy(platform.position);
+        scene.add(platformEdge);
+
+        const floorGeometry = new THREE.PlaneGeometry(15, 11);
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x21162d, roughness: 1, transparent: true, opacity: 0.72 });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0, -facadeHeight / 2 - 0.39, -1.12);
+        floor.receiveShadow = true;
+        scene.add(floor);
 
         const pointers = new Map();
         let lastX = 0;
         let lastY = 0;
         let pinch = 0;
-        let targetX = -0.075;
-        let targetY = 0.10;
+        let targetX = -0.055;
+        let targetY = 0.08;
 
         const distance = () => {
           const pair = [...pointers.values()].slice(0, 2);
           return pair.length === 2 ? pointerDistance(pair[0], pair[1]) : 0;
         };
         const updateCamera = () => {
-          camera.position.set(0, 0.1, cameraDistance);
-          camera.lookAt(0, -0.1, 0);
+          camera.position.set(0, 0.08, cameraDistance);
+          camera.lookAt(0, -0.08, 0);
         };
         const down = (event) => {
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -329,15 +464,15 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
           if (pointers.size >= 2) {
             const next = distance();
-            if (pinch) cameraDistance = clamp(cameraDistance - (next - pinch) * 0.012, 5.8, 15.5);
+            if (pinch) cameraDistance = clamp(cameraDistance - (next - pinch) * 0.011, 5.7, 14.8);
             pinch = next;
             updateCamera();
             return;
           }
           const dx = event.clientX - lastX;
           const dy = event.clientY - lastY;
-          targetY += dx * 0.008;
-          targetX = clamp(targetX + dy * 0.004, -0.50, 0.34);
+          targetY = clamp(targetY + dx * 0.0065, -0.58, 0.58);
+          targetX = clamp(targetX + dy * 0.0035, -0.28, 0.22);
           lastX = event.clientX;
           lastY = event.clientY;
         };
@@ -348,7 +483,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         };
         const wheel = (event) => {
           event.preventDefault();
-          cameraDistance = clamp(cameraDistance + Math.sign(event.deltaY) * 0.45, 5.8, 15.5);
+          cameraDistance = clamp(cameraDistance + Math.sign(event.deltaY) * 0.42, 5.7, 14.8);
           updateCamera();
         };
         renderer.domElement.addEventListener('pointerdown', down);
@@ -390,11 +525,12 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
         };
-        window.addEventListener('resize', resize);
+        const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
+        observer?.observe(mount);
 
         cleanup = () => {
           cancelAnimationFrame(frame);
-          window.removeEventListener('resize', resize);
+          observer?.disconnect();
           renderer.domElement.removeEventListener('pointerdown', down);
           renderer.domElement.removeEventListener('pointermove', move);
           renderer.domElement.removeEventListener('pointerup', up);
@@ -402,10 +538,12 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           renderer.domElement.removeEventListener('wheel', wheel);
           geometry.dispose();
           material.dispose();
-          baseGeometry.dispose();
-          baseMaterial.dispose();
-          ringGeometry.dispose();
-          ringMaterial.dispose();
+          platformGeometry.dispose();
+          platformMaterial.dispose();
+          edgeGeometry.dispose();
+          edgeMaterial.dispose();
+          floorGeometry.dispose();
+          floorMaterial.dispose();
           renderer.dispose();
           mount.innerHTML = '';
         };
@@ -426,16 +564,20 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
   const posterUrl = sourceImageUrl || imageUrl;
   return <div className="viewerShell">
     {posterUrl ? <img className={`viewerPoster ${ready ? 'hidden' : ''}`} src={posterUrl} alt="Approved property photo"/> : null}
+    <div className="viewerGlow" aria-hidden="true"/>
     <div ref={mountRef} className="viewerCanvas" aria-label="Interactive property voxel model"/>
-    {!ready && !error ? <div className="viewerStage">APPROVED HOUSE → BUILDING VOXELS</div> : null}
+    {!ready && !error ? <div className="viewerStage">APPROVED HOUSE → HIGH-DETAIL VOXEL</div> : null}
+    {ready ? <div className="viewerQuality">PHOTO-MATCHED · 32-CELL DETAIL</div> : null}
     {error ? <div className="viewerError">{error}</div> : null}
     <div className="viewerHint">{ready ? '3D VOXEL · DRAG BUILDING · PINCH TO ZOOM' : 'THE APPROVED HOUSE PHOTO STAYS VISIBLE WHILE VOXELS BUILD'}</div>
     <style jsx>{`
-      .viewerShell{position:relative;width:100%;height:100%;min-height:280px;overflow:hidden;background:radial-gradient(circle at 50% 30%,#3c2a52,#18101f 66%)}
+      .viewerShell{position:relative;width:100%;height:100%;min-height:280px;overflow:hidden;background:radial-gradient(circle at 50% 28%,#4a3560 0,#2a1b38 40%,#17101f 78%)}
+      .viewerGlow{position:absolute;z-index:0;inset:10% 14% 20%;border-radius:50%;background:radial-gradient(circle,rgba(201,255,84,.12),rgba(113,56,245,.08) 45%,transparent 72%);filter:blur(22px)}
       .viewerCanvas,.viewerPoster{position:absolute;inset:0;width:100%;height:100%}.viewerCanvas{z-index:2}.viewerPoster{z-index:1;object-fit:contain;background:#18101f;transition:opacity .34s ease}.viewerPoster.hidden{opacity:0;pointer-events:none}
-      .viewerStage{position:absolute;z-index:4;left:12px;top:12px;padding:8px 10px;border-radius:999px;background:rgba(28,18,35,.80);color:#f4edff;font-size:7px;font-weight:1000;letter-spacing:.11em;backdrop-filter:blur(10px)}
+      .viewerStage,.viewerQuality{position:absolute;z-index:4;top:12px;padding:8px 10px;border-radius:999px;background:rgba(28,18,35,.78);color:#f4edff;font-size:7px;font-weight:1000;letter-spacing:.105em;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08)}
+      .viewerStage{left:12px}.viewerQuality{right:12px;color:#e9ffc1;border-color:rgba(201,255,84,.22)}
       .viewerError{position:absolute;z-index:5;left:12px;right:12px;bottom:38px;padding:9px 11px;border-radius:13px;background:rgba(28,18,35,.86);color:#efe8f5;font-size:9px;line-height:1.45;backdrop-filter:blur(9px)}
-      .viewerHint{position:absolute;z-index:6;left:10px;right:10px;bottom:10px;color:#ded5e5;text-align:center;font-size:6.5px;font-weight:1000;letter-spacing:.11em;pointer-events:none;text-shadow:0 1px 6px #000}
+      .viewerHint{position:absolute;z-index:6;left:10px;right:10px;bottom:10px;color:#eee6f5;text-align:center;font-size:6.5px;font-weight:1000;letter-spacing:.105em;pointer-events:none;text-shadow:0 1px 7px #000}
     `}</style>
   </div>;
 }
