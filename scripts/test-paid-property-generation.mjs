@@ -10,6 +10,7 @@ const paidVerify = read('app/api/property-photo-upload/route.ts');
 const localVoxel = read('app/api/property-local-voxel/route.ts');
 const localStore = read('lib/local-voxel-store.js');
 const payment = read('lib/property-generation-payment.ts');
+const preview = read('app/property/PhotoDepthPreview.js');
 const viewer = read('app/property/LocalVoxelModelViewer.js');
 
 assert.match(route, /PropertyJourneySimple/, 'the /property route must use the simplified paid journey');
@@ -33,28 +34,41 @@ assert.match(paidVerify, /paidPropertyGenerationReceipt\(auth, stripe, generatio
 assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|storage\.from|createBucket/i, 'paid verification must not start a provider job or use Storage');
 
 assert.match(property, /CREATION_PRICE_LABEL = '\$4\.99'/, 'maker shows the $4.99 creation price');
-assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'the authorized photo persists across Stripe on the same device');
-assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'photo is retained on-device before checkout');
+assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'the authorized photo can persist across Stripe on the same device');
+assert.match(property, /let cachedOnDevice = false/, 'private device caching is explicitly best-effort');
+assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'photo is retained on-device before checkout when possible');
+assert.match(property, /browser could not keep the photo privately through checkout/i, 'storage failure no longer blocks checkout');
 assert.match(property, /\/api\/property-generation\/checkout/, 'photo approval opens paid generation checkout');
-assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Create 3D/, 'primary CTA clearly says payment immediately creates 3D');
-assert.match(property, /The \$4\.99 purchase includes this VoxelPop 3D creation and saving it to My World/, 'one payment must include the useful creation journey');
-assert.match(property, /no second collection payment required just to continue/i, 'the guided journey must not introduce a second paywall');
+assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} · Open 3D Preview/, 'primary CTA clearly says payment opens the preview first');
+assert.match(property, /purchase unlocks the 3D photo preview and the voxel version/i, 'one payment includes preview and voxel creation');
+assert.match(property, /there is no second charge/i, 'the guided journey must not introduce a second creation paywall');
 assert.match(property, /generation_session/, 'maker resumes a successful paid creation after Stripe');
 assert.match(property, /form\.append\('generationSessionId', generationSessionId\)/, 'Stripe return passes the session into the payment verifier');
-assert.match(property, /you will not be charged again/i, 'missing local photo recovery must never charge twice');
-assert.match(property, /createVoxelPoster/, 'the VoxelPop image is generated locally');
-assert.match(property, /LocalVoxelModelViewer/, 'the paid flow uses the local interactive 3D viewer');
+assert.match(property, /Choose the same property photo again to open the 3D preview—there is no second charge/i, 'missing local photo recovery must never charge twice');
+assert.match(property, /PhotoDepthPreview/, 'the paid flow has a distinct photo-faithful 3D preview');
+assert.match(property, /Looks right · Create Voxel 3D/, 'voxel creation waits for explicit preview approval');
+assert.doesNotMatch(property, /await startVoxelBuild\(/, 'Stripe payment return cannot automatically skip the preview stage');
+assert.match(property, /createVoxelPoster/, 'the VoxelPop voxel poster is generated locally after approval');
+assert.match(property, /LocalVoxelModelViewer/, 'the voxel stage uses the local interactive 3D viewer');
 assert.match(property, /\/api\/property-local-voxel/, 'local model recipe is account-linked after rendering');
 assert.match(property, /saveToMyWorld/, 'post-map continuation saves directly to My World');
+assert.match(property, /href="\/vault\/properties\/claim">Verify \+ Mint · Optional/, 'minting is a distinct final optional action');
 assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndSave|Collect voxel ·/, 'guided creation must not demand a second collectible checkout');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided paid property creation must not call metered Meshy endpoints');
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
-assert.match(viewer, /const GRID = 24/, 'photo-matched building uses a higher-detail local grid');
+assert.match(preview, /new THREE\.Texture\(image\)/, 'preview renders the exact photo rather than a generic house');
+assert.match(preview, /PlaneGeometry/, 'preview has actual local 3D relief geometry');
+assert.match(preview, /Depth is estimated locally/, 'preview truthfully labels inferred depth');
+
+assert.match(viewer, /const MAX_SIDE = 24/, 'photo-matched voxel stays within the supported local recipe limit');
+assert.match(viewer, /gridForImage/, 'voxel grid preserves source aspect ratio');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells must become empty space');
 assert.match(viewer, /if \(recipe\.depths\[index\] <= 0\) continue/, 'interactive viewer must not instantiate background voxels');
 assert.match(viewer, /sourceImageUrl/, '3D sampling can use the original property photo instead of the stylized poster');
-assert.match(viewer, /InstancedMesh/, 'local 3D is real WebGL voxel geometry');
+assert.match(viewer, /InstancedMesh/, 'local voxel is real WebGL geometry');
+assert.match(viewer, />SOURCE<\//, 'source photo can be compared directly against the voxel');
+assert.match(viewer, /object-fit:contain/, 'source comparison preserves the property photo framing');
 assert.doesNotMatch(viewer, /backingGeometry/, 'the old square backing slab must stay removed');
 
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF must preserve the empty background too');
@@ -63,4 +77,4 @@ assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt fro
 assert.match(localStore, /Deliberately table-only/, 'local record persistence deliberately avoids Storage');
 assert.doesNotMatch(localStore, /createBucket|storage\.from/, 'local record persistence must not touch a Storage bucket');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> photo-matched local 3D -> address/map -> save to My World, with no second creation paywall, Meshy credits, or checkout bucket.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> photo-faithful 3D preview -> approved local voxel -> address/map -> save -> optional mint, with no second creation paywall, Meshy credits, or checkout bucket.');
