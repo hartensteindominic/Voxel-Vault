@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
-import { verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
+import { readPropertyCollectibleReservation, updatePropertyCollectibleReservation, verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
 import { propertyVoxelMetadataUrl, propertyVoxelVoucherId, verifyPropertyVoxelMint } from '../../../../lib/property-voxel-mint';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,8 @@ export async function POST(request: Request) {
     const wallet = clean(body?.wallet, 60);
     const tokenId = clean(body?.tokenId, 100);
     const txHash = clean(body?.txHash, 100);
-    if (!draftId || !taskId || !ADDRESS_RE.test(wallet) || !tokenId || !txHash) {
+    const propertyIdentity = clean(body?.propertyIdentity, 100);
+    if (!draftId || !taskId || !propertyIdentity.startsWith('property:') || !ADDRESS_RE.test(wallet) || !tokenId || !txHash) {
       return privateJson({ ok: false, error: 'Mint confirmation details are incomplete.' }, { status: 400 });
     }
 
@@ -37,10 +38,25 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, error: 'This mint does not match a finished local property voxel owned by this account.' }, { status: 403 });
     }
 
+    const reservation = await readPropertyCollectibleReservation(propertyIdentity);
+    if (!reservation || reservation.buyerId !== auth.user.id || !['paid', 'minted'].includes(reservation.state) || reservation.draftId !== owned.draftId) {
+      return privateJson({ ok: false, error: 'The canonical one-property purchase lock does not match this mint.' }, { status: 403 });
+    }
+
     const origin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
     const metadataUrl = propertyVoxelMetadataUrl(origin, owned.draftId, taskId, name);
-    const voucherId = propertyVoxelVoucherId(auth.user.id, owned.draftId, taskId);
+    const voucherId = propertyVoxelVoucherId(propertyIdentity);
     const verified = await verifyPropertyVoxelMint({ tokenId, wallet, txHash, voucherId, metadataUrl });
+
+    if (reservation.state !== 'minted') {
+      await updatePropertyCollectibleReservation({
+        identityKey: propertyIdentity,
+        buyerId: auth.user.id,
+        state: 'minted',
+        source: 'base-voxel-mint',
+        sourceId: txHash,
+      });
+    }
 
     return privateJson({
       ok: true,
@@ -48,6 +64,10 @@ export async function POST(request: Request) {
       ...verified,
       draftId: owned.draftId,
       taskId,
+      propertyIdentity,
+      atlasId: reservation.atlasId,
+      propertyAddress: reservation.address,
+      onePropertyOneMint: true,
       digitalOnly: true,
       physicalPropertyRights: false,
     });
