@@ -61,10 +61,10 @@ assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndS
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided paid property creation must not call metered Meshy endpoints');
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
-assert.match(photoPreview, /CanvasTexture/, 'recognizable picture keeps the real source photo as the visible texture');
-assert.match(photoPreview, /PlaneGeometry/, '3D picture is a real Three.js surface rather than a static label change');
-assert.match(photoPreview, /setZ\(/, '3D picture adds bounded relief before voxelization');
-assert.match(photoPreview, /clamp\(relief, -0\.012, 0\.05\)/, '3D picture cannot distort the source photo with deep relief spikes');
+assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'recognizable picture keeps the real source photo as the visible texture');
+assert.match(photoPreview, /PlaneGeometry\(photoWidth, photoHeight, 1, 1\)/, 'visible source pixels remain on an undistorted Three.js surface');
+assert.match(photoPreview, /BoxGeometry\(photoWidth \+ 0\.18, photoHeight \+ 0\.18, depth/, 'the 3D picture gets physical depth from a backing body rather than pixel deformation');
+assert.doesNotMatch(photoPreview, /getImageData|luminance\(|positions\.setZ|setZ\(/, '3D picture cannot distort the source photo with brightness-derived relief');
 assert.match(photoPreview, /targetY = clamp/, '3D picture rotation is deliberately bounded so unseen sides are not invented');
 
 assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-detail 32-cell local voxel grid');
@@ -98,4 +98,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> recognizable 3D picture -> explicit approval -> separate local voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> recognizable photo-faithful 3D picture -> explicit approval -> separate higher-detail local voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');

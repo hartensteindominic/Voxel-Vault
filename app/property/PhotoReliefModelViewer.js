@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import styles from './PhotoReliefModelViewer.module.css';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -10,6 +11,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
   const mountRef = useRef(null);
   const callbackRef = useRef(onReady);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState('loading');
   callbackRef.current = onReady;
 
   useEffect(() => {
@@ -17,6 +19,7 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
     let dead = false;
     let cleanup = () => {};
     setError('');
+    setStatus('loading');
 
     const image = new Image();
     image.decoding = 'async';
@@ -26,139 +29,123 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
         const THREE = await import('three');
         if (dead || !mountRef.current) return;
         const mount = mountRef.current;
-        const width = Math.max(280, mount.clientWidth || 360);
-        const height = Math.max(280, mount.clientHeight || 360);
-        const compact = width < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
+        const initialWidth = Math.max(280, mount.clientWidth || 360);
+        const initialHeight = Math.max(280, mount.clientHeight || 360);
+        const compact = initialWidth < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.35 : 1.7));
-        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.25 : 1.7));
+        renderer.setSize(initialWidth, initialHeight);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.08;
-        renderer.setClearColor(0x000000, 0);
+        renderer.toneMappingExposure = 1.04;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setClearColor(0x000000, 0);
         renderer.domElement.style.touchAction = 'none';
+        renderer.domElement.tabIndex = 0;
+        renderer.domElement.setAttribute('aria-label', 'Interactive photo-faithful 3D preview. Drag or use the arrow keys to inspect the depth.');
         mount.innerHTML = '';
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
-        scene.add(new THREE.HemisphereLight(0xfffbf4, 0x2a1838, 2.35));
-        const key = new THREE.DirectionalLight(0xffffff, 3.15);
-        key.position.set(4.5, 6.5, 7.5);
+        const camera = new THREE.PerspectiveCamera(31, initialWidth / initialHeight, 0.1, 80);
+        const objectGroup = new THREE.Group();
+        scene.add(objectGroup);
+
+        const hemisphere = new THREE.HemisphereLight(0xfffcf3, 0x1b1220, 2.25);
+        scene.add(hemisphere);
+        const key = new THREE.DirectionalLight(0xfff7eb, 3.2);
+        key.position.set(4.5, 5.5, 6.5);
         key.castShadow = true;
-        key.shadow.mapSize.set(1024, 1024);
+        key.shadow.mapSize.set(compact ? 512 : 1024, compact ? 512 : 1024);
+        key.shadow.camera.near = 0.5;
+        key.shadow.camera.far = 24;
+        key.shadow.camera.left = -8;
+        key.shadow.camera.right = 8;
+        key.shadow.camera.top = 8;
+        key.shadow.camera.bottom = -8;
         scene.add(key);
-        const fill = new THREE.DirectionalLight(0xd8ccff, 1.1);
-        fill.position.set(-4, 2.5, 4);
+        const fill = new THREE.DirectionalLight(0xded5ff, 1.25);
+        fill.position.set(-4.5, 1.8, 4);
         scene.add(fill);
-        const rim = new THREE.DirectionalLight(0xc9ff54, 0.42);
-        rim.position.set(-2, 4, -4);
+        const rim = new THREE.DirectionalLight(0xe8ffc0, 0.85);
+        rim.position.set(1.5, 4, -3);
         scene.add(rim);
 
-        const sourceCanvas = document.createElement('canvas');
-        const maxTexture = compact ? 1400 : 2048;
-        const scale = Math.min(1, maxTexture / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
-        sourceCanvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
-        sourceCanvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
-        const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
-        if (!sourceContext) throw new Error('The 3D photo preview is unavailable on this device.');
-        sourceContext.drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height);
-        const texture = new THREE.CanvasTexture(sourceCanvas);
+        const ratio = Math.max(0.32, Math.min(3.2, (image.naturalWidth || 1) / (image.naturalHeight || 1)));
+        const maxWidth = compact ? 4.8 : 5.45;
+        const maxHeight = compact ? 3.8 : 4.25;
+        let photoWidth = maxWidth;
+        let photoHeight = photoWidth / ratio;
+        if (photoHeight > maxHeight) {
+          photoHeight = maxHeight;
+          photoWidth = photoHeight * ratio;
+        }
+        const depth = clamp(Math.min(photoWidth, photoHeight) * 0.085, 0.22, 0.38);
+
+        const texture = new THREE.Texture(image);
+        texture.needsUpdate = true;
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
 
-        // Keep the photo recognizable. The old preview pushed high-contrast edges far
-        // forward and could make roofs/windows look melted. This pass only applies a
-        // tiny low-frequency relief so perspective/light can read as 3D without
-        // materially warping the source photo.
-        const sampleSize = 48;
-        const sampleCanvas = document.createElement('canvas');
-        sampleCanvas.width = sampleSize;
-        sampleCanvas.height = sampleSize;
-        const sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true });
-        if (!sampleContext) throw new Error('The 3D photo preview is unavailable on this device.');
-        sampleContext.filter = 'blur(1.4px) saturate(1.02) contrast(1.02)';
-        sampleContext.drawImage(image, 0, 0, sampleSize, sampleSize);
-        const pixels = sampleContext.getImageData(0, 0, sampleSize, sampleSize).data;
-        const luminance = (x, y) => {
-          const cx = clamp(Math.round(x), 0, sampleSize - 1);
-          const cy = clamp(Math.round(y), 0, sampleSize - 1);
-          const index = (cy * sampleSize + cx) * 4;
-          return (pixels[index] * 0.2126 + pixels[index + 1] * 0.7152 + pixels[index + 2] * 0.0722) / 255;
+        const frameGeometry = new THREE.BoxGeometry(photoWidth + 0.18, photoHeight + 0.18, depth, 1, 1, 1);
+        const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x1a111f, roughness: 0.62, metalness: 0.08 });
+        const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+        frame.castShadow = true;
+        frame.receiveShadow = true;
+        objectGroup.add(frame);
+
+        const photoGeometry = new THREE.PlaneGeometry(photoWidth, photoHeight, 1, 1);
+        const photoMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide, toneMapped: false });
+        const photo = new THREE.Mesh(photoGeometry, photoMaterial);
+        photo.position.z = depth / 2 + 0.012;
+        photo.castShadow = true;
+        objectGroup.add(photo);
+
+        const edgeGeometry = new THREE.EdgesGeometry(frameGeometry, 24);
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.19 });
+        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        objectGroup.add(edges);
+
+        const groundGeometry = new THREE.PlaneGeometry(Math.max(8, photoWidth * 1.8), 6);
+        const groundMaterial = new THREE.ShadowMaterial({ color: 0x000000, transparent: true, opacity: compact ? 0.16 : 0.23 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.set(0, -photoHeight / 2 - 0.5, 0.25);
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const fitCamera = (width, height) => {
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+          const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+          const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
+          const distanceForHeight = (photoHeight * 0.62) / Math.tan(verticalFov / 2);
+          const distanceForWidth = (photoWidth * 0.62) / Math.tan(Math.max(0.12, horizontalFov / 2));
+          const distance = Math.max(distanceForHeight, distanceForWidth, 5.2) + 0.65;
+          camera.position.set(0, 0.18, distance);
+          camera.lookAt(0, -0.05, 0);
         };
+        fitCamera(initialWidth, initialHeight);
 
-        const ratio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
-        const planeHeight = ratio >= 1 ? 4.75 : 5.25;
-        const planeWidth = planeHeight * ratio;
-        const boundedWidth = Math.min(7.5, Math.max(3.2, planeWidth));
-        const boundedHeight = boundedWidth / ratio;
-        const geometry = new THREE.PlaneGeometry(boundedWidth, boundedHeight, 36, 36);
-        const positions = geometry.attributes.position;
-        for (let index = 0; index < positions.count; index += 1) {
-          const u = geometry.attributes.uv.getX(index);
-          const v = geometry.attributes.uv.getY(index);
-          const sx = u * (sampleSize - 1);
-          const sy = (1 - v) * (sampleSize - 1);
-          const center = luminance(sx, sy);
-          const smooth = (
-            center
-            + luminance(sx - 2, sy)
-            + luminance(sx + 2, sy)
-            + luminance(sx, sy - 2)
-            + luminance(sx, sy + 2)
-          ) / 5;
-          const edge = Math.abs(luminance(sx + 1, sy) - luminance(sx - 1, sy))
-            + Math.abs(luminance(sx, sy + 1) - luminance(sx, sy - 1));
-          const relief = (smooth - 0.5) * 0.02 + Math.min(0.03, edge * 0.028);
-          positions.setZ(index, clamp(relief, -0.012, 0.05));
-        }
-        positions.needsUpdate = true;
-        geometry.computeVertexNormals();
-
-        const group = new THREE.Group();
-        group.rotation.x = -0.02;
-        group.rotation.y = 0.035;
-        scene.add(group);
-
-        const backingGeometry = new THREE.BoxGeometry(boundedWidth + 0.11, boundedHeight + 0.11, 0.18);
-        const backingMaterial = new THREE.MeshStandardMaterial({ color: 0x24172f, roughness: 0.92, metalness: 0 });
-        const backing = new THREE.Mesh(backingGeometry, backingMaterial);
-        backing.position.z = -0.095;
-        backing.castShadow = true;
-        group.add(backing);
-
-        const material = new THREE.MeshStandardMaterial({
-          map: texture,
-          roughness: 0.9,
-          metalness: 0,
-          side: THREE.FrontSide,
-        });
-        const photoMesh = new THREE.Mesh(geometry, material);
-        photoMesh.position.z = 0.012;
-        photoMesh.castShadow = true;
-        group.add(photoMesh);
-
-        const floorGeometry = new THREE.PlaneGeometry(15, 11);
-        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x251832, roughness: 1, transparent: true, opacity: 0.66 });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.set(0, -boundedHeight / 2 - 0.38, -1.05);
-        floor.receiveShadow = true;
-        scene.add(floor);
-
-        const camera = new THREE.PerspectiveCamera(29, width / height, 0.1, 60);
-        const cameraDistance = Math.max(8.3, boundedWidth * 1.5);
-        camera.position.set(0, 0.05, cameraDistance);
-        camera.lookAt(0, -0.03, 0);
-
-        let targetX = -0.02;
-        let targetY = 0.035;
+        let targetX = -0.035;
+        let targetY = 0.09;
         let pointerId = null;
         let lastX = 0;
         let lastY = 0;
+        let frameId = 0;
+
+        const renderOnce = () => renderer.render(scene, camera);
+        const applyReducedMotionRotation = () => {
+          if (!reducedMotion) return;
+          objectGroup.rotation.x = targetX;
+          objectGroup.rotation.y = targetY;
+          renderOnce();
+        };
         const down = (event) => {
           pointerId = event.pointerId;
           lastX = event.clientX;
@@ -171,83 +158,118 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           const dy = event.clientY - lastY;
           lastX = event.clientX;
           lastY = event.clientY;
-          targetY = clamp(targetY + dx * 0.0028, -0.18, 0.18);
-          targetX = clamp(targetX + dy * 0.0018, -0.08, 0.07);
+          targetY = clamp(targetY + dx * 0.0048, -0.36, 0.36);
+          targetX = clamp(targetX + dy * 0.0035, -0.14, 0.14);
+          applyReducedMotionRotation();
         };
         const up = (event) => {
-          if (pointerId === event.pointerId) pointerId = null;
+          if (pointerId === event.pointerId) {
+            renderer.domElement.releasePointerCapture?.(event.pointerId);
+            pointerId = null;
+          }
+        };
+        const keydown = (event) => {
+          let handled = true;
+          if (event.key === 'ArrowLeft') targetY = clamp(targetY - 0.055, -0.36, 0.36);
+          else if (event.key === 'ArrowRight') targetY = clamp(targetY + 0.055, -0.36, 0.36);
+          else if (event.key === 'ArrowUp') targetX = clamp(targetX - 0.04, -0.14, 0.14);
+          else if (event.key === 'ArrowDown') targetX = clamp(targetX + 0.04, -0.14, 0.14);
+          else handled = false;
+          if (handled) {
+            event.preventDefault();
+            applyReducedMotionRotation();
+          }
         };
         renderer.domElement.addEventListener('pointerdown', down);
         renderer.domElement.addEventListener('pointermove', move);
         renderer.domElement.addEventListener('pointerup', up);
         renderer.domElement.addEventListener('pointercancel', up);
+        renderer.domElement.addEventListener('keydown', keydown);
 
-        let frame = 0;
-        const render = () => {
-          if (dead) return;
-          group.rotation.x += (targetX - group.rotation.x) * 0.085;
-          group.rotation.y += (targetY - group.rotation.y) * 0.085;
-          renderer.render(scene, camera);
-          frame = requestAnimationFrame(render);
-        };
-        if (reducedMotion) renderer.render(scene, camera);
-        else render();
+        objectGroup.rotation.set(targetX, targetY, 0);
+        if (reducedMotion) {
+          renderOnce();
+        } else {
+          const render = () => {
+            if (dead) return;
+            objectGroup.rotation.x += (targetX - objectGroup.rotation.x) * 0.085;
+            objectGroup.rotation.y += (targetY - objectGroup.rotation.y) * 0.085;
+            renderer.render(scene, camera);
+            frameId = requestAnimationFrame(render);
+          };
+          render();
+        }
 
         const resize = () => {
           if (dead || !mountRef.current) return;
-          const nextWidth = Math.max(280, mountRef.current.clientWidth || width);
-          const nextHeight = Math.max(280, mountRef.current.clientHeight || height);
+          const nextWidth = Math.max(280, mountRef.current.clientWidth || initialWidth);
+          const nextHeight = Math.max(280, mountRef.current.clientHeight || initialHeight);
           renderer.setSize(nextWidth, nextHeight);
-          camera.aspect = nextWidth / nextHeight;
-          camera.updateProjectionMatrix();
-          if (reducedMotion) renderer.render(scene, camera);
+          fitCamera(nextWidth, nextHeight);
+          if (reducedMotion) renderOnce();
         };
         const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
         observer?.observe(mount);
-        callbackRef.current?.();
+
+        if (!dead) {
+          setStatus('ready');
+          callbackRef.current?.();
+        }
 
         cleanup = () => {
-          if (frame) cancelAnimationFrame(frame);
+          if (frameId) cancelAnimationFrame(frameId);
           observer?.disconnect();
           renderer.domElement.removeEventListener('pointerdown', down);
           renderer.domElement.removeEventListener('pointermove', move);
           renderer.domElement.removeEventListener('pointerup', up);
           renderer.domElement.removeEventListener('pointercancel', up);
-          geometry.dispose();
-          material.dispose();
+          renderer.domElement.removeEventListener('keydown', keydown);
+          photoGeometry.dispose();
+          photoMaterial.dispose();
           texture.dispose();
-          backingGeometry.dispose();
-          backingMaterial.dispose();
-          floorGeometry.dispose();
-          floorMaterial.dispose();
+          edgeGeometry.dispose();
+          edgeMaterial.dispose();
+          frameGeometry.dispose();
+          frameMaterial.dispose();
+          groundGeometry.dispose();
+          groundMaterial.dispose();
           renderer.dispose();
+          renderer.forceContextLoss?.();
           if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
         };
       } catch (previewError) {
-        if (!dead) setError(String(previewError?.message || previewError || 'The 3D photo preview could not open.'));
+        if (!dead) {
+          setStatus('error');
+          setError(String(previewError?.message || previewError || 'The 3D photo preview could not open.'));
+        }
       }
     };
-    image.onerror = () => setError('The selected photo could not be opened for the 3D preview.');
+    image.onerror = () => {
+      if (!dead) {
+        setStatus('error');
+        setError('The selected photo could not be opened for the 3D preview.');
+      }
+    };
 
     return () => {
       dead = true;
+      image.onload = null;
+      image.onerror = null;
       cleanup();
     };
   }, [imageUrl]);
 
-  return <div className="viewerShell">
-    <div className="viewerGlow" aria-hidden="true"/>
-    <div ref={mountRef} className="viewerCanvas"/>
-    {!error ? <div className="viewerBadge">SOURCE PHOTO · CLEAN 3D PREVIEW</div> : null}
-    {!error ? <div className="viewerHint">DRAG SLIGHTLY TO VIEW DEPTH · PHOTO STAYS RECOGNIZABLE</div> : null}
-    {error ? <div className="viewerError">{error}</div> : null}
-    <style jsx>{`
-      .viewerShell{position:relative;width:100%;height:100%;min-height:300px;overflow:hidden;background:radial-gradient(circle at 50% 24%,#4b3764 0,#2a1b38 38%,#17101f 78%)}
-      .viewerGlow{position:absolute;inset:8% 14% 18%;border-radius:48%;background:radial-gradient(circle,rgba(201,255,84,.12),rgba(113,56,245,.08) 45%,transparent 72%);filter:blur(24px)}
-      .viewerCanvas{position:absolute;inset:0;z-index:2}
-      .viewerBadge{position:absolute;z-index:4;left:12px;top:12px;padding:8px 10px;border-radius:999px;background:rgba(24,16,31,.72);color:#f8f3ff;font-size:7px;font-weight:1000;letter-spacing:.11em;backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08)}
-      .viewerHint{position:absolute;z-index:5;left:12px;right:12px;bottom:10px;color:#eee6f5;text-align:center;font-size:6.5px;font-weight:1000;letter-spacing:.10em;pointer-events:none;text-shadow:0 1px 7px #000}
-      .viewerError{position:absolute;z-index:6;inset:0;display:grid;place-items:center;padding:24px;color:#fff;text-align:center;background:#21172c}
-    `}</style>
+  return <div className={`viewerShell ${styles.shell}`}>
+    <div ref={mountRef} className={styles.canvasMount}/>
+    {status === 'loading' ? <div className={styles.loading}><span>PREPARING PHOTO-FAITHFUL 3D…</span></div> : null}
+    {!error ? <>
+      <div className={styles.qualityBadge} aria-hidden="true"><span>PHOTO-FAITHFUL 3D</span><b>NO WARPING</b></div>
+      <div className={styles.hint} aria-hidden="true">DRAG TO INSPECT DEPTH</div>
+      <div className={styles.sourceCard} aria-hidden="true"><img src={imageUrl} alt=""/><span>ORIGINAL REFERENCE</span></div>
+    </> : null}
+    {error ? <div className={styles.error} role="status">
+      <img src={imageUrl} alt="Original property reference"/>
+      <p>{error} The original reference is still shown so the property is never replaced by a misleading render.</p>
+    </div> : null}
   </div>;
 }

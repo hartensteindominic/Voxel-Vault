@@ -25,8 +25,10 @@ assert.match(property, /Demo property slice · not real-property ownership/, 'sa
 assert.match(property, /setMessage\('Payment verified\. Loading your 3D picture first\.'\)/,
   'a verified paid session stops at the recognizable 3D picture first');
 assert.match(property, /PhotoReliefModelViewer/, 'source-faithful 3D picture is a distinct stage');
-assert.match(photoPreview, /CanvasTexture/, 'the actual uploaded photo remains the visible material in the first 3D stage');
-assert.match(photoPreview, /PlaneGeometry/, 'the first stage is interactive Three.js geometry');
+assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'the actual uploaded photo remains the visible texture in the first 3D stage');
+assert.match(photoPreview, /PlaneGeometry\(photoWidth, photoHeight, 1, 1\)/, 'the visible photo stays on an undistorted flat front surface');
+assert.match(photoPreview, /BoxGeometry\(photoWidth \+ 0\.18, photoHeight \+ 0\.18, depth/, '3D depth comes from the physical backing rather than warped source pixels');
+assert.doesNotMatch(photoPreview, /getImageData|luminance\(|positions\.setZ/, 'photo likeness must not be distorted by brightness-derived displacement');
 assert.match(property, /Looks good → Create 3D Voxel/, 'user approval is required before voxel generation');
 assert.match(property, /async function approvePreviewAndBuildVoxel\(\)/, 'voxel generation has an explicit post-preview gate');
 assert.match(property, /const poster = await createVoxelPoster\(pendingPhoto\)/, 'voxel image is not created until after preview approval');
@@ -77,4 +79,4 @@ assert.match(mintPage, /Mint Later/, 'final mint page keeps minting optional');
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal paid creation flow does not lead into another paid collectible funnel');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided property flow does not call metered provider generation routes');
 
-console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> source-faithful 3D picture -> explicit user approval -> separate local 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with optional map/World and no Meshy credits or second paywall.');
+console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> photo-faithful 3D picture -> explicit user approval -> separate local 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with optional map/World and no Meshy credits or second paywall.');

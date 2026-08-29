@@ -69,10 +69,11 @@ assert.match(property, /You see and approve the 3D picture before VoxelPop creat
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
 assert.match(property, /PhotoReliefModelViewer/, 'recognizable 3D photo preview is a first-class stage');
-assert.match(photoPreview, /CanvasTexture/, 'first 3D preview uses the actual uploaded photo texture');
-assert.match(photoPreview, /PlaneGeometry/, 'first preview uses actual Three.js geometry');
-assert.match(photoPreview, /setZ\(/, 'first preview applies bounded relief to the photo surface');
-assert.match(photoPreview, /clamp\(relief, -0\.012, 0\.05\)/, '3D picture relief stays shallow enough to preserve the source-photo likeness');
+assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'first 3D preview uses the actual uploaded photo texture');
+assert.match(photoPreview, /PlaneGeometry\(photoWidth, photoHeight, 1, 1\)/, 'the visible source photo stays on an undistorted flat surface');
+assert.match(photoPreview, /BoxGeometry\(photoWidth \+ 0\.18, photoHeight \+ 0\.18, depth/, 'real 3D depth comes from a physical backing instead of pixel warping');
+assert.doesNotMatch(photoPreview, /getImageData|luminance\(|positions\.setZ|setZ\(/, 'first preview must not reshape source pixels from brightness or edges');
+assert.match(photoPreview, /targetY = clamp/, '3D picture rotation stays deliberately bounded so unseen sides are not invented');
 assert.match(property, /Looks good → Create 3D Voxel/, 'user explicitly approves the 3D picture before voxelization');
 assert.match(property, /createVoxelPoster/, 'VoxelPop voxel image is built only after preview approval');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive voxel is a separate later stage');
@@ -151,4 +152,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable 3D picture -> explicit approval -> separate 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable photo-faithful 3D picture -> explicit approval -> separate higher-detail 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
