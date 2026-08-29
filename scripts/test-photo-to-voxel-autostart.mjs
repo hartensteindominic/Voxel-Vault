@@ -9,6 +9,7 @@ const voxelModel = fs.readFileSync(new URL('../app/api/property-voxel-model/rout
 const modelViewer = fs.readFileSync(new URL('../app/vault/earth/MeshyModelViewer.js', import.meta.url), 'utf8');
 const taskRecovery = fs.readFileSync(new URL('../lib/property-generation-task.ts', import.meta.url), 'utf8');
 const modelDelivery = fs.readFileSync(new URL('../lib/property-generation-model.ts', import.meta.url), 'utf8');
+const meshyCredits = fs.readFileSync(new URL('../lib/meshy-credits.ts', import.meta.url), 'utf8');
 
 assert.match(property, /async function usePhotoAndBuild\(\)/, 'photo approval must own the automatic generation handoff');
 assert.match(property, /form\.append\('draftId', draftId\)/, 'approved photo must be tied to an account-scoped creation before generation');
@@ -20,6 +21,29 @@ assert.match(photoHandoff, /meshy-property-direct-photo-to-3d/, 'direct source g
 assert.match(photoHandoff, /inline-photo:\$\{digest\}/, 'Voxel Vault should retain only a source-photo fingerprint in the generation record');
 assert.match(photoHandoff, /storagePath: `meshy-source:\$\{taskId\}`/, 'the UI handoff should carry an opaque account-bound provider job reference');
 assert.doesNotMatch(photoHandoff, /storage\.from\(|createBucket\(|createSignedUrl\(/, 'normal VoxelPop photo creation must not require Supabase Storage');
+
+assert.match(meshyCredits, /openapi\/v1\/balance/, 'VoxelPop must use Meshy Balance API before paid generation');
+assert.match(meshyCredits, /source3d:\s*15/, 'first textured Smart Topology 3D cost must stay explicit');
+assert.match(meshyCredits, /voxelImage:\s*3/, 'nano-banana voxel style cost must stay explicit');
+assert.match(meshyCredits, /final3d:\s*15/, 'final textured Smart Topology 3D cost must stay explicit');
+assert.match(meshyCredits, /afterSource:\s*18/, 'remaining style + final 3D budget must be guarded together');
+assert.match(meshyCredits, /fullPipeline:\s*33/, 'full automatic property build must preflight its complete current Meshy cost');
+assert.match(meshyCredits, /code:\s*'MESHY_CREDITS_REQUIRED'/, 'credit exhaustion must have a structured provider-specific error code');
+assert.match(meshyCredits, /Meshy credit balance, not your Voxel Vault USD, crypto, or property balance/, 'credit errors must not look like a Voxel Vault wallet or property-funds failure');
+assert.match(meshyCredits, /code === 402/, 'Meshy HTTP 402 must be recognized as provider credit exhaustion');
+assert.match(photoHandoff, /ensureMeshyCredits\(apiKey, MESHY_PROPERTY_CREDITS\.fullPipeline/, 'photo handoff must preflight the full 33-credit automatic chain');
+assert.match(voxelImage, /ensureMeshyCredits\(apiKey, MESHY_PROPERTY_CREDITS\.afterSource/, 'voxel styling must require enough balance to finish style plus final 3D');
+assert.match(voxel3d, /ensureMeshyCredits\(apiKey, MESHY_PROPERTY_CREDITS\.final3d/, 'each genuinely new textured 3D call must preflight its 15-credit cost');
+
+const photoGate = photoHandoff.indexOf('const creditGate = await ensureMeshyCredits');
+const photoPaidCall = photoHandoff.indexOf('const response = await fetch(ENDPOINT, {');
+assert.ok(photoGate >= 0 && photoPaidCall >= 0 && photoGate < photoPaidCall, 'full-pipeline balance check must happen before the first paid Meshy 3D request');
+const styleGate = voxelImage.indexOf('const creditGate = await ensureMeshyCredits');
+const stylePaidCall = voxelImage.indexOf('const create = await fetch(ENDPOINT, {');
+assert.ok(styleGate >= 0 && stylePaidCall >= 0 && styleGate < stylePaidCall, 'remaining-balance check must happen before the paid voxel style request');
+const finalGate = voxel3d.indexOf('const creditGate = await ensureMeshyCredits');
+const finalPaidCall = voxel3d.indexOf('const response = await fetch(ENDPOINT, {');
+assert.ok(finalGate >= 0 && finalPaidCall >= 0 && finalGate < finalPaidCall, '3D balance check must happen before a new paid Meshy 3D request');
 
 assert.match(property, /phase: 'source'/, 'automatic pipeline must continue through the first 3D source phase');
 assert.match(property, /sourceStoragePath: reference\.storagePath/, 'first 3D continuation must pass the opaque direct-job reference');
@@ -86,4 +110,4 @@ assert.match(property, /Your finished VoxelPop image is preserved on this page/,
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> rendered 3D image -> same-origin self-repairing interactive GLB -> VoxelPop style -> resumable final movable voxel 3D without re-spending completed stages.');
+console.log('Property automatic journey regression passed: authorized photo -> 33-credit preflight -> direct provider source 3D -> rendered 3D image -> 18-credit remaining-stage preflight -> VoxelPop style -> 15-credit final-3D preflight -> resumable final movable voxel 3D without re-spending completed stages.');
