@@ -16,8 +16,8 @@ export default function Home() {
 
         <div className={styles.centerMachine}>
           <HomeProductPreview/>
-          <Link className={styles.primaryAction} href="/property">Create · $4.99</Link>
-          <p className={styles.microCopy}>Saved to Vault automatically · NFT optional · no wallet needed to create</p>
+          <Link className={styles.primaryAction} href="/property">Create mine · $4.99</Link>
+          <p className={styles.microCopy}>Saved to Vault automatically · Your movable voxel is built and saved. · NFT optional · no wallet needed to create</p>
         </div>
 
         <div className={styles.simpleSteps} aria-label="VoxelPop house steps">
@@ -30,8 +30,8 @@ export default function Home() {
       </section>
 
       <section className={styles.truthCard}>
-        <div><b>Digital asset only.</b><span>One confirmed property can have one VoxelPop collectible.</span></div>
-        <p>Creating, saving, or minting the voxel does not create or transfer ownership of the physical property.</p>
+        <div><b>VoxelPop creates a digital asset only.</b><span>One confirmed property can have one VoxelPop collectible.</span></div>
+        <p>VoxelPop does not create or transfer ownership, deed/title, rent, occupancy, investment, appreciation, or other rights in a physical property.</p>
       </section>
 
       <footer className={styles.footer}>
