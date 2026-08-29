@@ -94,11 +94,16 @@ assert.equal(truth.latePaymentEndsTenancy, false, 'late payment cannot itself te
 assert.equal(truth.attachmentRequiresWalletOwnershipProof, true, 'permanent tenant placement must require current wallet ownership proof');
 assert.equal(truth.tenantKeepsOwnedVoxelAfterLease, true, 'renter keeps separately owned voxels after lease end');
 
-const [migration, tenantApi, adminApi, rentalPage, productMap, rentalDocs] = await Promise.all([
+const [migration, roomMigration, tenantApi, roomPhotoApi, adminApi, rentalPage, roomPanel, roomDecorator, voxelAccount, productMap, rentalDocs] = await Promise.all([
   source('../supabase/migrations/020_property_rentals.sql'),
+  source('../supabase/migrations/021_rental_room_references.sql'),
   source('../app/api/vault/rentals/[leaseId]/attachments/route.ts'),
+  source('../app/api/vault/rentals/[leaseId]/room-photo/route.ts'),
   source('../app/api/admin/rentals/route.ts'),
   source('../app/vault/rentals/page.js'),
+  source('../app/vault/rentals/RentalRoomPanel.js'),
+  source('../app/vault/rentals/BasicRoomDecorator.js'),
+  source('../lib/voxelpop-account.ts'),
   source('../lib/product-map.js'),
   source('../docs/PROPERTY_RENTALS.md'),
 ]);
@@ -107,11 +112,28 @@ assert.match(migration, /status <> 'ended'[\s\S]*termination_verified_at is not 
 assert.doesNotMatch(migration, /for insert to authenticated|for update to authenticated|for delete to authenticated/i, 'tenants must not self-verify or mutate authoritative lease/payment rows directly');
 assert.match(migration, /ownership_proof_hash/, 'tenant placement must retain a non-secret audit hash of wallet ownership proof');
 assert.match(migration, /ownership_verified_at/, 'tenant placement must record when wallet ownership was checked');
+assert.match(migration, /placed_transform jsonb/, 'tenant attachment schema must have a private placement transform');
+assert.match(roomMigration, /vault_rental_room_references/, 'room references must live in a separate private rental table');
+assert.match(roomMigration, /No authenticated client write policy/i, 'room-photo writes must stay behind signed-in server verification');
+assert.match(roomMigration, /not public property evidence|not.*verified floor plans/i, 'room photo schema must deny property/floor-plan truth semantics');
+
 assert.match(tenantApi, /loadAccountVoxel/, 'tenant attachment API must bind placement to the signed-in account voxel record');
 assert.match(tenantApi, /verifyMessage/, 'tenant attachment API must verify a wallet signature server-side');
 assert.match(tenantApi, /ownerOf/, 'tenant attachment API must check current on-chain token ownership');
 assert.match(tenantApi, /walletOwnershipVerified:\s*true/, 'permanent attachment may pass only after wallet and chain verification');
 assert.match(tenantApi, /ownershipVerifiedOnChain:\s*true/, 'successful attachment response must disclose that current chain ownership was verified');
+assert.match(tenantApi, /export async function PATCH/, 'tenant attachment API must support saving decoration placement');
+assert.match(tenantApi, /position:\s*\[clamp\([\s\S]*-3\.45, 3\.45\)[\s\S]*-2\.45, 2\.45\)/, 'room placement positions must be bounded server-side');
+assert.match(tenantApi, /scale:\s*\[uniformScale, uniformScale, uniformScale\]/, 'room placement scale must be normalized server-side');
+assert.match(tenantApi, /Canonical property geometry is unchanged/i, 'layout save must deny edits to canonical property truth');
+
+assert.match(roomPhotoApi, /requireVoxelVaultUser/, 'room photo upload must require the signed-in renter');
+assert.match(roomPhotoApi, /canTenantUseProperty/, 'room photo upload must require verified active tenant rights');
+assert.match(roomPhotoApi, /rightsConfirmed/, 'room photo upload must require explicit photo rights confirmation');
+assert.match(roomPhotoApi, /public:\s*false/, 'room photos must use private storage');
+assert.match(roomPhotoApi, /createSignedUrl/, 'room photo viewing must use temporary signed URLs');
+assert.match(roomPhotoApi, /not a verified floor plan or canonical property geometry/i, 'room photo API must label the upload as reference-only');
+
 assert.match(adminApi, /requireVoxelVaultAdmin/, 'lease/payment reconciliation must be owner/provider-gated');
 assert.match(adminApi, /automaticEviction:\s*false/, 'admin rental API must explicitly deny automatic eviction semantics');
 assert.match(adminApi, /status:\s*'archived'/, 'verified lease end archives tenant placements instead of deleting assets');
@@ -119,9 +141,25 @@ assert.match(rentalPage, /does not automatically evict/i, 'renter UI must explai
 assert.match(rentalPage, /getWallet/, 'renter must explicitly connect/sign with the current token-owning wallet before placement');
 assert.match(rentalPage, /On-chain ownership was checked/i, 'renter UI must disclose successful current-owner verification');
 assert.match(rentalPage, /PAY MONTHLY/, 'renter UI should keep the monthly payment flow simple and visible');
+assert.match(rentalPage, /UPLOAD ROOM/, 'renter flow must expose room photo upload before decoration');
+assert.match(rentalPage, /RentalRoomPanel/, 'rented property page must include the room decoration experience');
+
+assert.match(roomPanel, /Upload room photo/, 'room panel must offer a clear image upload action');
+assert.match(roomPanel, /image\/\*,\.heic,\.heif/, 'room upload picker should support iPhone photo selection');
+assert.match(roomPanel, /I took this photo or have permission to use it/, 'room upload must confirm user rights after preview');
+assert.match(roomPanel, /ROOM REFERENCE · NOT VERIFIED FLOOR PLAN/, 'room upload must visibly deny floor-plan verification');
+assert.match(roomPanel, /method:\s*'PATCH'/, 'room panel must persist selected voxel placement');
+assert.match(roomPanel, /only changes your renter decoration layer/i, 'room panel must explain saved layout is tenant-only');
+
+assert.match(roomDecorator, /BASIC ROOM · DECORATION LAYER/, 'decorator must label the approximate basic room');
+assert.match(roomDecorator, /Not a verified floor plan/, 'decorator must deny exact floor-plan truth');
+assert.match(roomDecorator, /Save layout/, 'decorator must provide an explicit touch-friendly persistence action');
+assert.match(roomDecorator, /DRAG TO TURN ROOM · PINCH TO ZOOM · TAP A VOXEL/, 'decorator must expose mobile 3D controls');
+assert.match(voxelAccount, /modelUrl:\s*String\(normalized\.payload\.mesh\?\.modelUrl/, 'rental room must receive ready VoxelPop GLB URLs when available');
+
 assert.match(productMap, /href: '\/vault\/rentals', label: 'Rented'/, 'Rented must be discoverable from the simple VoxelPop property dock');
 assert.match(productMap, /path === '\/vault\/rentals'/, 'Rented must stay inside the simplified property navigation mode');
 assert.match(rentalDocs, /does \*\*not\*\* yet provide:[\s\S]*production e-signature provider/i, 'docs must fail closed about legal lease execution');
 assert.match(rentalDocs, /late rent does not automatically end tenancy/i, 'docs must preserve lawful termination boundary');
 
-console.log('Global rent + legal tenant-layer safety checks passed: verified lease -> monthly status -> Rented Vault -> wallet-owned minted voxels -> lawful lease end/archive, never automatic eviction.');
+console.log('Global rent + room decorator safety checks passed: verified lease -> monthly status -> private room reference -> wallet-owned minted voxels -> bounded tenant layout -> lawful lease end/archive, never automatic eviction or fake floor-plan truth.');

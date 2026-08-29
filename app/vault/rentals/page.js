@@ -6,6 +6,8 @@ import { getWallet } from '../../../lib/blockchain';
 import { tenantVoxelOwnershipMessage } from '../../../lib/real-estate/property-rental';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 import { loadAccountVoxels, summarizeVoxel } from '../../../lib/voxelpop-account';
+import RentalDecoratorPreview from './RentalDecoratorPreview';
+import RentalRoomPanel from './RentalRoomPanel';
 import styles from './rentals.module.css';
 
 function money(minor, currency = 'USD') {
@@ -186,11 +188,11 @@ export default function RentalsPage() {
       <header className={styles.header}>
         <div className={styles.kicker}>MY VAULT · RENTED</div>
         <h1>Your place.<br/><em>Your voxels.</em></h1>
-        <p>A verified rental can live in your Vault while you are the tenant. Your own minted voxels can move in with you.</p>
+        <p>A verified rental can live in your Vault while you are the tenant. Upload a room reference and move your own minted voxels into a private decoration layer.</p>
       </header>
 
       <div className={styles.flow} aria-label="Rental flow">
-        <span>LEASE</span><i>→</i><span>PAY MONTHLY</span><i>→</i><span>DECORATE</span><i>→</i><span>MOVE OUT</span>
+        <span>LEASE</span><i>→</i><span>PAY MONTHLY</span><i>→</i><span>UPLOAD ROOM</span><i>→</i><span>DECORATE</span><i>→</i><span>MOVE OUT</span>
       </div>
 
       {!authReady || busy === 'load' ? <div className={styles.empty}>Loading your rented properties…</div> : null}
@@ -198,7 +200,7 @@ export default function RentalsPage() {
       {authReady && !session?.user ? <section className={styles.signinCard}>
         <div className={styles.bigIcon}>⌂</div>
         <h2>Sign in to see rentals.</h2>
-        <p>Lease and payment details stay private to your signed-in account.</p>
+        <p>Lease, payment and private room-reference details stay inside your signed-in account.</p>
         <button onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'Opening…' : 'Sign in with Google'}</button>
       </section> : null}
 
@@ -213,6 +215,8 @@ export default function RentalsPage() {
         <p>A property appears here only after a real rental agreement is verified. Uploading or minting a house does not make you its tenant.</p>
         <Link className={styles.linkButton} href="/property">Explore a property</Link>
       </section> : null}
+
+      {authReady && !leases.length && busy !== 'load' ? <RentalDecoratorPreview/> : null}
 
       <div className={styles.leaseList}>
         {leases.map((lease) => {
@@ -258,6 +262,15 @@ export default function RentalsPage() {
                   </button>) : <div className={styles.pickerEmpty}>No unused minted voxels yet. <Link href="/studio">Create one →</Link></div>}
                 </div> : null}
 
+                <RentalRoomPanel
+                  session={session}
+                  lease={lease}
+                  attachments={attached}
+                  voxelBySession={voxelBySession}
+                  editable={editable}
+                  onRefresh={() => refreshAll()}
+                />
+
                 {attached.length ? <div className={styles.attachedGrid}>
                   {attached.map((attachment) => {
                     const voxel = voxelBySession.get(attachment.voxel_session_id);
@@ -280,7 +293,7 @@ export default function RentalsPage() {
       </div>
 
       {message ? <div className={styles.message} role="status">{message}</div> : null}
-      <footer className={styles.truth}>A Rental Pass or voxel layer records digital access/status only. It is not the lease itself, does not replace landlord-tenant law, and cannot automatically evict a tenant.</footer>
+      <footer className={styles.truth}>Room photos and voxel placements are private renter decoration references. A Rental Pass or voxel layer is not the lease itself, does not replace landlord-tenant law, and cannot automatically evict a tenant.</footer>
     </section>
   </main>;
 }
