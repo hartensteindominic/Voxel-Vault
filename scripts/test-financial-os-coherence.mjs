@@ -27,6 +27,9 @@ for (const route of ['/property', '/vault/earth', '/geo', '/studio', '/capture',
 }
 assert.match(productMap, /\$1\.99 Property Sandbox/, 'the tiny property comparison must remain explicitly sandboxed under More');
 assert.match(productMap, /No real funds or property rights move/, 'sandbox description must preserve the no-rights boundary');
+assert.match(productMap, /\$4\.99 local VoxelPop image \+ interactive 3D/, 'property creator directory entry must disclose the local paid creation');
+assert.match(productMap, /badge: 'PROVIDER-GATED'/, 'regulated investment tools must be visibly provider-gated');
+assert.match(productMap, /A token or VoxelPop item is never the deed/, 'direct ownership path must keep title separate from the token');
 assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');
 assert.match(productMap, /isOrganizedUserRoute/);
 assert.match(productMap, /isSimplePropertyRoute/);
@@ -60,22 +63,25 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced tool
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/, 'tool finder must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain pure navigation and never execute side effects');
 
-// Consumer Home describes only the current zero-credit property flow.
-assert.match(rootHome, /START → SIGN IN \+ CREATE/, 'root Home should make the account-first transition explicit');
+// Consumer Home must make both digital prices and the legal boundaries obvious.
+assert.match(rootHome, /CREATE A PROPERTY/, 'root Home should have one clear primary creation CTA');
 assert.match(rootHome, /href="\/property"/, 'root Home should route the primary CTA into the account-gated maker');
-assert.match(rootHome, /Photo → voxel → mapped 3D\./, 'root Home should describe the actual photo/local-preview/map flow');
-assert.match(rootHome, /<b>PHOTO<\/b>/, 'root Home should put the authorized photo first');
-assert.match(rootHome, /<b>VOXEL<\/b>/, 'root Home should expose the local VoxelPop stage');
-assert.match(rootHome, /<b>3D<\/b>/, 'root Home should expose mapped interactive 3D');
-assert.match(rootHome, /<b>WORLD<\/b>/, 'root Home should preview the asset in World before optional collection');
-assert.match(rootHome, /OPTIONAL COLLECT \+ VAULT/, 'root Home should make digital collection optional');
+assert.match(rootHome, /PHOTO → CREATE 3D → MAP → WORLD → COLLECT/, 'root Home should describe the actual local creation and map flow');
+for (const step of ['PHOTO', 'CREATE 3D', 'MAP', 'WORLD', 'OPTIONAL COLLECT']) {
+  assert.match(rootHome, new RegExp(`<b>${step.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}<\\/b>`), `root Home flow should include ${step}`);
+}
+assert.match(rootHome, /One VoxelPop creation costs \$4\.99/i, 'root Home must disclose the generation price');
+assert.match(rootHome, /source photo stays on your device/i, 'root Home must explain the on-device source-photo boundary');
+assert.match(rootHome, /without Meshy credits/i, 'root Home must accurately describe the local generation engine');
+assert.match(rootHome, /Optional Collect later is a separate digital-item purchase/i, 'root Home must distinguish generation from the later collectible checkout');
 assert.match(rootHome, /A wallet is optional/i, 'wallet must remain optional until a user chooses a downstream wallet action');
-assert.match(rootHome, /No Meshy credits are required/i, 'normal property creation should advertise its zero-Meshy dependency accurately');
-assert.match(rootHome, /does not buy the physical property/i, 'root Home must distinguish collecting a voxel from buying physical property');
-assert.match(rootHome, /deed\/title, rent, occupancy, or investment rights/, 'root Home must preserve digital versus legal-rights truth');
+assert.match(rootHome, /Voxel Vault is not a bank/i, 'root Home must not imply bank status');
+assert.match(rootHome, /VoxelPop item is not a deed/i, 'root Home must distinguish a digital item from title');
+assert.match(rootHome, /\$1\.99 property comparison is a sandbox/i, 'root Home must label the property slice as sandbox');
+assert.match(rootHome, /Financial products are provider-gated/i, 'root Home must label regulated financial tools as provider-gated');
 assert.match(rootHome, /href="\/more"/, 'optional and advanced tools must remain deliberately reachable');
 assert.doesNotMatch(rootHome, /YOUR 3D MONEY \+ ASSET WORLD|PROPERTY · CASH · CRYPTO · NFT|TRY THE \$1\.99 SLICE/, 'bank-like and sandbox-heavy language must not dominate the front door');
-assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'unverified physical-property purchase execution must stay out of the consumer front door');
+assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING|guaranteed returns|guaranteed yield|risk[- ]free/i, 'unverified property purchase or return claims must stay out of the consumer front door');
 assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
 
 // Capability status remains safe even though it is not on the consumer front door.
@@ -89,10 +95,11 @@ assert.doesNotMatch(homeCapabilities, /process\.env|MESHY_API_KEY|BRIDGE_ACCESS_
 assert.match(capabilitiesApi, /automaticGeneration:\s*false/, 'server capability contract must keep Meshy automatic generation disabled');
 assert.match(capabilitiesApi, /Boolean\(process\.env\.MESHY_API_KEY\?\.trim\(\)\)/, 'Meshy readiness may expose only a boolean');
 
-assert.match(more, /Everything, without the clutter/i);
+assert.match(more, /Know what each feature actually is/i, 'More must explain its status-driven purpose');
 assert.match(more, /APP_SECTIONS/);
-assert.match(more, /PRODUCT TRUTH RULE/);
-assert.match(more, /Explore real places, create 3D assets, manage your Vault/i);
+assert.match(more, /ONE SIMPLE RULE/);
+assert.match(more, /Create → World → Vault/, 'More must keep the main consumer journey short');
+assert.match(more, /LIVE · SANDBOX · PROVIDER-GATED/, 'More must expose feature status at the top');
 
 assert.match(integrationsApi, /requireVoxelVaultAdmin/, 'integration status must be owner-authenticated');
 assert.match(integrationsApi, /MESHY_API_KEY/);
@@ -126,4 +133,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault condensed Create -> World -> Vault consumer journey + separated optional property/money tools + fail-closed advanced rails coherence checks passed');
+console.log('Voxel Vault coherence checks passed: Home -> Create -> World -> Vault -> More, explicit $4.99 local VoxelPop creation, separate optional collection, sandbox/provider status labels, and fail-closed legal/financial rails.');
