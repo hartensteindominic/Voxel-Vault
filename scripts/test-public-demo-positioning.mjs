@@ -34,10 +34,14 @@ assert.match(home, /About/, 'home footer must expose About/contact information')
 assert.match(photoViewer, /getImageData/, 'voxel-photo stage must sample visible source-image colors');
 assert.match(photoViewer, /InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
 assert.match(photoViewer, /BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage must use real block geometry');
-assert.match(photoViewer, /const depth = 0\.11/, 'voxel-photo blocks must have shallow inspectable depth');
+assert.match(photoViewer, /const columns = compact \? 52 : 64/, 'voxel-photo stage must preserve house detail with a dense grid');
+assert.match(photoViewer, /const depth = 0\.105 \+ \(1 - luminance\) \* 0\.045/, 'voxel-photo blocks must stay shallow instead of becoming a fake full reconstruction');
+assert.match(photoViewer, /-0\.28, 0\.28/, 'voxel-photo rotation must stay bounded around the visible photo');
 assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo preview must keep the original source visible for comparison');
 assert.match(photoViewer, /ArrowLeft|ArrowRight/, '3D voxel photo must support keyboard inspection as well as drag input');
 assert.match(photoViewerStyles, /focus-visible/, '3D viewer must keep a visible keyboard focus treatment');
+assert.match(photoViewerStyles, /width:132px/, 'desktop comparison photo must remain prominent');
+assert.match(photoViewerStyles, /width:104px/, 'mobile comparison photo must remain readable');
 
 assert.match(demo, /FREE SAMPLE · NO LOGIN · NO PAYMENT/, 'demo must state that it is public and free to inspect');
 assert.match(demo, /built-in demo artwork/i, 'demo must identify its built-in artwork');
@@ -70,5 +74,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: sample-first product proof, real 3D voxel-photo semantics, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
+console.log('Public VoxelPop positioning checks passed: sample-first proof, faithful real 3D voxel-photo semantics, movable voxel separation, focused $4.99 story, and current trust surfaces remain aligned.');
 await import('./test-public-surface-coherence.mjs');
