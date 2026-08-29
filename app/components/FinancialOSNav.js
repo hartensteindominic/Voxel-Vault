@@ -27,7 +27,7 @@ export default function FinancialOSNav() {
   if (pathname === '/' || pathname === '/property') return null;
 
   const simple = isSimplePropertyRoute(pathname);
-  const sourceDock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
+  const sourceDock = simple ? SIMPLE_PROPERTY_DOCK.filter((item) => item.id !== 'more') : APP_DOCK;
   const dock = centerVoxelPop(sourceDock);
   const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);
 
