@@ -49,11 +49,13 @@ assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank statu
 assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 
-for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
+for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0|#fffaf2/i, 'simple surfaces keep the warm VoxelPop canvas');
 assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple remains');
 assert.match(propertyCss, /#c9ff54/i, 'VoxelPop lime remains');
-assert.match(propertyCss, /#f7ae2d|#ee950f/i, 'optional collectible styling can remain available elsewhere');
+assert.match(propertyCss, /#ffb03a|#f09712|#f7ae2d|#ee950f/i, 'warm accent remains available');
 assert.match(propertyCss, /grid-template-columns:repeat\(5,1fr\)/, 'maker keeps five guided steps');
+assert.match(propertyCss, /safe-area-inset-bottom/, 'property flow respects iPhone safe areas');
+assert.match(propertyCss, /prefers-reduced-motion/, 'property flow respects reduced-motion preferences');
 
 assert.match(property, /Sign in first\./, 'maker exposes the account gate');
 assert.match(property, /Continue with Google/, 'account gate has one clear sign-in action');
@@ -62,16 +64,15 @@ assert.match(property, /Choose a clear house photo\./, 'first signed-in step is 
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone photo preparation remains automatic');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo requires rights confirmation');
-assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Preview/, 'paid CTA explicitly creates the preview first');
-assert.match(property, /The \$4\.99 creation unlocks the 3D preview and the voxel build/, 'one payment includes both visual creation stages');
-assert.match(property, /The voxel does not start until after you see and approve the preview/, 'voxel creation is gated behind preview approval');
+assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Picture/, 'paid CTA explicitly creates the 3D picture first');
+assert.match(property, /You see and approve the 3D picture before VoxelPop creates the separate voxel/, 'one payment preserves the picture-before-voxel order');
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
 assert.match(property, /PhotoReliefModelViewer/, 'recognizable 3D photo preview is a first-class stage');
 assert.match(photoPreview, /CanvasTexture/, 'first 3D preview uses the actual uploaded photo texture');
 assert.match(photoPreview, /PlaneGeometry/, 'first preview uses actual Three.js geometry');
 assert.match(photoPreview, /setZ\(/, 'first preview applies bounded relief to the photo surface');
-assert.match(property, /Looks right → Build the 3D Voxel/, 'user explicitly approves the preview before voxelization');
+assert.match(property, /Looks good → Create 3D Voxel/, 'user explicitly approves the 3D picture before voxelization');
 assert.match(property, /createVoxelPoster/, 'VoxelPop voxel image is built only after preview approval');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive voxel is a separate later stage');
 assert.match(localViewer, /const GRID = 24/, 'building voxel uses the higher-detail local grid');
@@ -86,9 +87,12 @@ assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditB
 assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot call Meshy or private Storage');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided maker must not call metered Meshy routes');
 
-assert.match(property, /Voxel 3D ready\. You can mint this digital voxel now/, 'mint becomes available only after the local voxel is registered');
-assert.match(property, /Mint this digital voxel/, 'mint CTA explicitly names the digital voxel');
+assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel auto-saves to Vault before minting');
+assert.match(property, /Mint Now/, 'finished voxel has a simple primary Mint Now action');
+assert.match(property, /Mint Later · Saved to Vault/, 'finished voxel has a real Mint Later path backed by Vault persistence');
 assert.match(property, /\/property\/mint\?draftId=/, 'finished voxel points to its dedicated mint route');
+assert.match(vault, /directMintHref/, 'Vault can recover the direct mint route for a saved local voxel');
+assert.match(vault, /MINT · OPTIONAL/, 'Mint Later remains actionable from the Vault card');
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint preparation verifies ownership of the finished local voxel');
 assert.match(mintPrepare, /propertyVoxelVoucherUsed/, 'mint preparation prevents duplicate one-time voucher use');
 assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'property mint does not require Meshy');
@@ -97,18 +101,19 @@ assert.match(mintMetadata, /animation_url/, 'NFT metadata exposes the finished l
 assert.match(mintMetadata, /digital collectible only/i, 'NFT metadata states its digital-only legal meaning');
 assert.match(mintPage, /connectVoxelFlipWallet/, 'wallet is connected only in the final mint step');
 assert.match(mintPage, /mintVoxelFlip/, 'final step uses the reviewed VoxelFlip contract flow');
-assert.match(mintPage, /Mint the voxel\.[\s\S]*Not the house\./, 'mint page cannot imply physical-property ownership');
+assert.match(mintPage, /Mint your voxel\./, 'mint page presents one clear consumer mint action');
+assert.match(mintPage, /Mint Later/, 'mint page keeps minting optional and lets the user return to Vault');
+assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint page cannot imply physical-property ownership');
 
-assert.match(property, /Also match this voxel to the real map/, 'address/map remains available after voxel creation');
+assert.match(property, /Optional · add this voxel to My World/, 'address/map is optional and does not block the finished voxel');
 assert.match(property, /setAtlasBuildings/, 'address lookup retains nearby source-backed buildings');
 assert.match(property, /PropertyWorldMap/, 'guided map uses the focused property map');
 assert.match(propertyMap, /ExtrudeGeometry/, 'focused map extrudes source-backed footprints');
 assert.match(propertyMap, /PROPERTY MAP ·/, 'focused map identifies itself');
 assert.match(propertyMap, /pointerdown/, 'focused map supports touch drag interaction');
 assert.match(propertyMap, /Zoom property map in/, 'focused map exposes mobile zoom controls');
-assert.match(property, /Save to My World/, 'map has an obvious continuation action');
+assert.match(property, /Add to My World/, 'optional map path has an understandable action');
 assert.match(property, /View My World/, 'mapped creation has an obvious destination');
-assert.match(property, /savePropertyDraft\(draft\)/, 'creation saves directly to the existing property draft library');
 assert.match(property, /savePropertyDraftToAccount/, 'creation attempts account sync without blocking local success');
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|Collect voxel ·|collectAndSave/, 'normal creation no longer enters the separate collectible checkout');
 
@@ -142,4 +147,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable 3D preview -> explicit approval -> local voxel -> optional Base mint, while map/World and separate regulated/property-rights rails remain distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable 3D picture -> explicit approval -> separate 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
