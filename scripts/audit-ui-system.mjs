@@ -24,6 +24,8 @@ const required = [
   'app/components/ConsumerFooter.js',
   'app/components/FinancialOSNav.js',
   'app/components/FinancialOSNav.module.css',
+  'app/property/VoxelPopHouseImageGenerator.js',
+  'app/property/VoxelPopHouseRenderPreview.js',
   'app/ui-system.css',
   'app/page.js',
   'app/demo/page.js',
@@ -39,6 +41,8 @@ for (const file of required) must(fs.existsSync(path.join(root, file)), `${file}
 
 const home = read('app/page.js');
 const preview = read('app/components/HomeProductPreview.js');
+const houseGenerator = read('app/property/VoxelPopHouseImageGenerator.js');
+const houseRenderPreview = read('app/property/VoxelPopHouseRenderPreview.js');
 const topNav = read('app/components/ProductTopNav.js');
 const topCss = read('app/components/ProductTopNav.module.css');
 const dock = read('app/components/FinancialOSNav.js');
@@ -53,7 +57,10 @@ must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS ho
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
 must(/WHAT'S INCLUDED \/ WHAT'S NOT/.test(home), 'Dense legal/purchase detail must stay in progressive disclosure.');
-must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual preview and voxel viewers.');
+must(/VoxelPopHouseRenderPreview/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the real generated-house preview and movable voxel viewers.');
+must(/VoxelPopHouseRenderPreview/.test(houseGenerator) && /\/api\/property-3d-picture/.test(houseGenerator), 'Paid picture generation must feed the shared generated-house preview from the real renderer endpoint.');
+must(/VOXELPOP 3D HOUSE/.test(houseRenderPreview) && /Generated VoxelPop 3D house render/.test(houseRenderPreview), 'Shared generated-house preview must clearly identify the VoxelPop house render.');
+must(!/PhotoReliefModelViewer/.test(property), 'Paid property editor must not regress to the raw-photo relief/pixel-extrusion preview.');
 
 must(/Create[\s\S]*World[\s\S]*Vault[\s\S]*More/.test(topNav), 'Desktop product nav must mirror the core product map.');
 must(/isOrganizedUserRoute/.test(topNav) && /mobileDocked/.test(topNav), 'Shared top nav must know when the mobile bottom dock owns core navigation.');
@@ -112,5 +119,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real 3D proof, one desktop/mobile navigation map, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: generated VoxelPop house proof, separate movable voxel, one desktop/mobile navigation map, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
