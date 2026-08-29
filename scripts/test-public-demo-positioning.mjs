@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const home = read('app/page.js');
+const homeCss = read('app/home.module.css');
 const homePreview = read('app/components/HomeProductPreview.js');
 const photoViewer = read('app/property/PhotoReliefModelViewer.js');
 const photoViewerStyles = read('app/property/PhotoReliefModelViewer.module.css');
@@ -17,22 +18,32 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /HOUSE PHOTO → VOXEL → MINT/, 'home must communicate the complete house flow immediately');
-assert.match(home, /Create house voxel/, 'home must keep one clear creation CTA');
+assert.match(home, /PROPERTY → COLLECTIBLE/, 'home must communicate the focused property collectible product immediately');
+assert.match(home, /Create a property voxel/, 'home must keep a clear creation CTA');
+assert.match(home, /Open Inventory/, 'home must keep the saved collection reachable from the front door');
 assert.match(home, /confirm the address/i, 'home must include the property confirmation step');
-assert.match(home, /Saved to Inventory/i, 'home must make the automatic saved result clear');
-assert.doesNotMatch(home, /Create mine · \$4\.99|Create · \$4\.99/, 'home must not insert checkout copy into the condensed creator');
-assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product result instead of decorative art');
-assert.doesNotMatch(home, /secondaryAction|Try voxel sample · no login/, 'home must not add a competing hero action');
-assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production movable-voxel viewer');
-assert.doesNotMatch(homePreview, /PhotoReliefModelViewer/, 'home proof must not force users through a stage switcher before creating');
-assert.match(homePreview, />Address</, 'home proof must disclose address confirmation');
-assert.match(homePreview, />Inventory</, 'home proof must disclose where the finished voxel is saved');
-assert.match(homePreview, /MOVABLE 3D VOXEL/, 'home proof must identify the interactive final result');
-assert.doesNotMatch(homePreview, /\$4\.99/, 'home proof must not show stale checkout pricing');
+assert.match(home, /voxel image/i, 'home must explain the voxel-preview stage');
+assert.match(home, /saved to Inventory first/i, 'home must make the automatic saved result clear');
+assert.match(home, /Mint if you want|Minting optional/i, 'home must keep minting explicitly optional');
+assert.doesNotMatch(home, /Create mine · \$4\.99|Create · \$4\.99/, 'home must not insert legacy per-property checkout copy into the guided studio');
+assert.match(home, /heroVisual/, 'home hero must use the new branded voxel-house visual system');
+assert.match(homeCss, /#6f42f5/i, 'home must use the new Voxel Vault purple');
+assert.match(homeCss, /#c9ff55/i, 'home must use the playful lime accent');
+assert.match(homeCss, /@media\(max-width:620px\)/, 'home must include a dedicated phone layout');
+assert.match(home, /This collectible is digital only\./, 'home must identify the collectible as digital');
+assert.match(home, /does not create or transfer deed, title/i, 'home must preserve the physical-property rights boundary');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
 assert.match(home, /About/, 'home footer must expose About/contact information');
+
+// Keep the production viewer proof component healthy for demo/secondary surfaces even though
+// the redesigned homepage intentionally uses a playful branded illustration instead.
+assert.match(homePreview, /LocalVoxelModelViewer/, 'production proof component must keep the real movable-voxel viewer');
+assert.doesNotMatch(homePreview, /PhotoReliefModelViewer/, 'production proof component must not force users through a stage switcher');
+assert.match(homePreview, />Address</, 'production proof component must disclose address confirmation');
+assert.match(homePreview, />Inventory</, 'production proof component must disclose where the finished voxel is saved');
+assert.match(homePreview, /MOVABLE 3D VOXEL/, 'production proof component must identify the interactive final result');
+assert.doesNotMatch(homePreview, /\$4\.99/, 'production proof component must not show stale checkout pricing');
 
 assert.match(photoViewer, /getImageData\(0, 0, columns, rows\)/, 'voxel-photo stage must sample visible source-image colors');
 assert.match(photoViewer, /new THREE\.InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
@@ -56,10 +67,11 @@ assert.match(demo, /not a fake reconstruction of unseen walls/i, 'demo must expl
 assert.match(demo, /cannot prove hidden sides/i, 'demo must state what a single photo cannot establish');
 assert.doesNotMatch(demo, /getSupabaseBrowserAsync|signInWithOAuth|checkout\.sessions|\/api\/property-generation\/checkout/, 'public demo must not hide an auth or payment gate');
 
-assert.match(layout, /Turn a House Photo into a 3D Voxel/, 'site metadata must use the focused current promise');
-assert.match(layout, /3D voxel photo/, 'metadata must describe the voxel-photo product');
+assert.match(layout, /Turn Property Photos into 3D Voxel Collectibles/, 'site metadata must use the redesigned current promise');
+assert.match(layout, /confirm the address, build a 3D voxel collectible/i, 'metadata must describe the property-photo creation journey');
+assert.match(layout, /mint it when you want/i, 'metadata must keep minting optional and downstream');
 assert.doesNotMatch(layout, /real estate digital twin|NFT vault/i, 'metadata must not revive broad legacy positioning');
-assert.match(og, /house photo into a movable 3D voxel/i, 'social preview must show the current product story');
+assert.match(og, /house photo into a movable 3D voxel/i, 'social preview may retain the detailed product story');
 assert.match(og, /3D VOXEL PHOTO/, 'social preview steps must name the voxel-photo stage');
 assert.match(og, /MOVABLE VOXEL/, 'social preview steps must name the movable-voxel stage');
 
@@ -79,5 +91,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public Voxel Vault positioning checks passed: one-action house creator, real final voxel proof, address confirmation, high-fidelity voxel geometry, Inventory persistence, optional minting, and current trust surfaces remain aligned.');
+console.log('Public Voxel Vault positioning checks passed: branded property-collectible home, guided creation, high-fidelity voxel geometry, Inventory persistence, optional minting, and current trust surfaces remain aligned.');
 await import('./test-public-surface-coherence.mjs');
