@@ -21,6 +21,9 @@ assert.match(payment, /let uploaded = await admin\.storage\.from\(BUCKET\)\.uplo
 assert.match(payment, /if \(!bucketMissing\(uploaded\.error\)\)/, 'bucket creation must not run for ordinary upload failures');
 assert.match(payment, /await ensureBucket\(admin\)/, 'a genuinely missing private bucket must retain a one-time recovery path');
 assert.doesNotMatch(payment, /storage\.listBuckets\(\)/, 'checkout must not fail just because runtime bucket listing is unavailable');
+assert.match(payment, /getSupabaseAdminCandidates/, 'checkout staging should reuse every configured server credential rather than trusting only the auth credential');
+assert.match(payment, /for \(const admin of storageClients\(auth\)\)/, 'private checkout upload, read, and cleanup paths must be able to fall through to another server credential');
+assert.match(payment, /No payment was started/, 'storage failure must make clear that Stripe was never opened');
 
 assert.match(checkout, /requireVoxelVaultUser/, 'checkout must require a signed-in Voxel Vault account');
 assert.match(checkout, /MESHY_PROPERTY_CREDITS\.fullPipeline/, 'provider capacity must be checked before charging');
@@ -51,4 +54,4 @@ assert.match(property, /generation_checkout.*cancelled/, 'the maker must recogni
 assert.match(property, /method: 'DELETE'/, 'canceled checkout must request cleanup of the staged source photo');
 assert.match(property, /The \{CREATION_PRICE_LABEL\} charge is for one digital VoxelPop creation/, 'UI copy must explain that $4.99 buys digital generation rather than real estate');
 
-console.log('Paid VoxelPop property-generation regression passed: signed-in photo -> private staging with direct-upload-first bucket recovery -> Meshy capacity preflight -> server-authoritative $4.99 Stripe checkout -> paid account/draft verification -> idempotent Meshy start -> automatic voxel pipeline, with unpaid calls failing closed.');
+console.log('Paid VoxelPop property-generation regression passed: signed-in photo -> direct-upload-first private staging with multi-credential recovery -> Meshy capacity preflight -> server-authoritative $4.99 Stripe checkout -> paid account/draft verification -> idempotent Meshy start -> automatic voxel pipeline, with unpaid calls failing closed.');
