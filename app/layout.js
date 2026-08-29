@@ -10,18 +10,22 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Voxel Vault | 3D Property + Digital Assets', template: '%s | Voxel Vault' },
-  description: 'Your 3D Asset Vault for paid digital VoxelPop creations, source-backed property maps, digital collectibles, and clearly separated sandbox, provider-backed, and title-based property workflows.',
-  keywords: ['3D property', 'voxel creator', 'digital property', 'NFT vault', 'real estate digital twin', 'digital assets', 'Voxel Vault'],
+  title: { default: 'Voxel Vault | Turn a House Photo into 3D', template: '%s | Voxel Vault' },
+  description: 'Upload an authorized house photo, see a 3D preview, turn it into a movable VoxelPop voxel, save it to your World and Vault, and optionally mint the finished digital voxel.',
+  keywords: ['house photo to 3D', 'voxel house', '3D property creator', 'VoxelPop', 'digital property', '3D voxel', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
-    title: 'Voxel Vault | 3D Property + Digital Assets',
-    description: 'Create digital VoxelPop property assets, explore source-backed places in 3D, and keep digital assets, sandbox tools, provider positions, and real-property title clearly separated.',
-    type: 'website', url: SITE_URL, siteName: 'Voxel Vault', images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
+    title: 'Voxel Vault | See Your House in 3D',
+    description: 'Photo → 3D preview → movable voxel → optional mint. Try the public sample before you sign in or pay.',
+    type: 'website', url: SITE_URL, siteName: 'Voxel Vault',
   },
-  twitter: { card: 'summary', title: 'Voxel Vault | 3D Property + Digital Assets', description: 'Create, map, collect, and organize digital property assets with clear ownership boundaries.', images: ['/voxelpop/voxelpop-logo.png'] },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Voxel Vault | See Your House in 3D',
+    description: 'Photo → 3D preview → movable voxel → optional mint. Try the public sample first.',
+  },
 };
 
 export const viewport = {
