@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const GRID = 24;
+const GRID_WIDTH = 32;
+const GRID_HEIGHT = 24;
 
 function clamp(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -35,31 +36,37 @@ function averageRgb(pixels) {
 
 function sampleRecipe(image) {
   const canvas = document.createElement('canvas');
-  canvas.width = GRID;
-  canvas.height = GRID;
+  canvas.width = GRID_WIDTH;
+  canvas.height = GRID_HEIGHT;
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Local voxel sampling is unavailable in this browser.');
 
-  const sourceRatio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
+  // Preserve a normal house-photo aspect ratio instead of forcing every image into
+  // the old square crop. This keeps wide facades, porches, garages and roof lines
+  // in frame more reliably before the conservative local silhouette pass.
+  const naturalWidth = image.naturalWidth || 1;
+  const naturalHeight = image.naturalHeight || 1;
+  const sourceRatio = naturalWidth / naturalHeight;
+  const targetRatio = GRID_WIDTH / GRID_HEIGHT;
   let sx = 0;
   let sy = 0;
-  let sw = image.naturalWidth || 1;
-  let sh = image.naturalHeight || 1;
-  if (sourceRatio > 1) {
-    sw = sh;
-    sx = ((image.naturalWidth || 1) - sw) / 2;
-  } else if (sourceRatio < 1) {
-    sh = sw;
-    sy = ((image.naturalHeight || 1) - sh) / 2;
+  let sw = naturalWidth;
+  let sh = naturalHeight;
+  if (sourceRatio > targetRatio) {
+    sw = sh * targetRatio;
+    sx = (naturalWidth - sw) / 2;
+  } else if (sourceRatio < targetRatio) {
+    sh = sw / targetRatio;
+    sy = (naturalHeight - sh) / 2;
   }
   context.filter = 'saturate(1.04) contrast(1.05)';
-  context.drawImage(image, sx, sy, sw, sh, 0, 0, GRID, GRID);
-  const data = context.getImageData(0, 0, GRID, GRID).data;
+  context.drawImage(image, sx, sy, sw, sh, 0, 0, GRID_WIDTH, GRID_HEIGHT);
+  const data = context.getImageData(0, 0, GRID_WIDTH, GRID_HEIGHT).data;
   const rgb = [];
   const luminance = [];
   const colors = [];
 
-  for (let index = 0; index < GRID * GRID; index += 1) {
+  for (let index = 0; index < GRID_WIDTH * GRID_HEIGHT; index += 1) {
     const offset = index * 4;
     const red = quantize(data[offset]);
     const green = quantize(data[offset + 1]);
@@ -71,87 +78,90 @@ function sampleRecipe(image) {
 
   const skySamples = [];
   const groundSamples = [];
-  for (let row = 0; row < 4; row += 1) {
-    for (let column = 0; column < GRID; column += 1) {
-      if (column < 2 || column > GRID - 3 || row < 2) skySamples.push(rgb[row * GRID + column]);
+  const topRows = Math.max(3, Math.round(GRID_HEIGHT * 0.16));
+  const groundStart = Math.max(0, GRID_HEIGHT - Math.max(3, Math.round(GRID_HEIGHT * 0.13)));
+  for (let row = 0; row < topRows; row += 1) {
+    for (let column = 0; column < GRID_WIDTH; column += 1) {
+      if (column < 3 || column > GRID_WIDTH - 4 || row < 2) skySamples.push(rgb[row * GRID_WIDTH + column]);
     }
   }
-  for (let row = GRID - 3; row < GRID; row += 1) {
-    for (let column = 0; column < GRID; column += 1) {
-      if (column < 5 || column > GRID - 6 || row > GRID - 2) groundSamples.push(rgb[row * GRID + column]);
+  for (let row = groundStart; row < GRID_HEIGHT; row += 1) {
+    for (let column = 0; column < GRID_WIDTH; column += 1) {
+      if (column < 6 || column > GRID_WIDTH - 7 || row > GRID_HEIGHT - 2) groundSamples.push(rgb[row * GRID_WIDTH + column]);
     }
   }
   const sky = averageRgb(skySamples);
   const ground = averageRgb(groundSamples);
 
   const edgeStrength = luminance.map((value, index) => {
-    const row = Math.floor(index / GRID);
-    const column = index % GRID;
-    const left = luminance[row * GRID + Math.max(0, column - 1)] ?? value;
-    const right = luminance[row * GRID + Math.min(GRID - 1, column + 1)] ?? value;
-    const up = luminance[Math.max(0, row - 1) * GRID + column] ?? value;
-    const down = luminance[Math.min(GRID - 1, row + 1) * GRID + column] ?? value;
+    const row = Math.floor(index / GRID_WIDTH);
+    const column = index % GRID_WIDTH;
+    const left = luminance[row * GRID_WIDTH + Math.max(0, column - 1)] ?? value;
+    const right = luminance[row * GRID_WIDTH + Math.min(GRID_WIDTH - 1, column + 1)] ?? value;
+    const up = luminance[Math.max(0, row - 1) * GRID_WIDTH + column] ?? value;
+    const down = luminance[Math.min(GRID_HEIGHT - 1, row + 1) * GRID_WIDTH + column] ?? value;
     return clamp(Math.abs(left - right) * 1.8 + Math.abs(up - down) * 1.8);
   });
 
-  const rawMask = new Array(GRID * GRID).fill(false);
-  for (let row = 0; row < GRID; row += 1) {
-    for (let column = 0; column < GRID; column += 1) {
-      const index = row * GRID + column;
-      const x = column / (GRID - 1);
-      const y = row / (GRID - 1);
+  const rawMask = new Array(GRID_WIDTH * GRID_HEIGHT).fill(false);
+  for (let row = 0; row < GRID_HEIGHT; row += 1) {
+    for (let column = 0; column < GRID_WIDTH; column += 1) {
+      const index = row * GRID_WIDTH + column;
+      const x = column / (GRID_WIDTH - 1);
+      const y = row / (GRID_HEIGHT - 1);
       const center = 1 - Math.min(1, Math.abs(x - 0.5) / 0.5);
       const skyDistance = rgbDistance(rgb[index], sky);
       const groundDistance = rgbDistance(rgb[index], ground);
       const edge = edgeStrength[index];
 
-      const outsideSide = x < 0.055 || x > 0.945;
+      const outsideSide = x < 0.035 || x > 0.965;
       const obviousSky = y < 0.34 && skyDistance < (0.11 + edge * 0.15);
-      const obviousGround = y > 0.82 && groundDistance < (0.10 + edge * 0.13);
+      const obviousGround = y > 0.84 && groundDistance < (0.10 + edge * 0.13);
       const buildingEvidence = skyDistance * 0.48 + edge * 0.36 + center * 0.16;
-      const centralLowerBody = y > 0.34 && y < 0.83 && center > 0.22 && skyDistance > 0.08;
-      rawMask[index] = !outsideSide && !obviousSky && !obviousGround && y > 0.07 && y < 0.94 && (buildingEvidence > 0.245 || centralLowerBody);
+      const centralLowerBody = y > 0.34 && y < 0.84 && center > 0.18 && skyDistance > 0.075;
+      rawMask[index] = !outsideSide && !obviousSky && !obviousGround && y > 0.055 && y < 0.95 && (buildingEvidence > 0.235 || centralLowerBody);
     }
   }
 
-  // Keep the central connected-looking mass and close tiny holes. This is intentionally
-  // conservative: a single photo can describe the visible facade, not unseen geometry.
-  const mask = new Array(GRID * GRID).fill(false);
-  for (let row = 0; row < GRID; row += 1) {
+  // Keep a connected-looking central building mass and close small holes. One
+  // photo still cannot prove unseen walls, roof planes or exact dimensions.
+  const mask = new Array(GRID_WIDTH * GRID_HEIGHT).fill(false);
+  for (let row = 0; row < GRID_HEIGHT; row += 1) {
     const candidates = [];
-    for (let column = 0; column < GRID; column += 1) {
-      if (rawMask[row * GRID + column]) candidates.push(column);
+    for (let column = 0; column < GRID_WIDTH; column += 1) {
+      if (rawMask[row * GRID_WIDTH + column]) candidates.push(column);
     }
     if (!candidates.length) continue;
-    const centerColumn = (GRID - 1) / 2;
+    const centerColumn = (GRID_WIDTH - 1) / 2;
     let nearest = candidates[0];
     for (const candidate of candidates) {
       if (Math.abs(candidate - centerColumn) < Math.abs(nearest - centerColumn)) nearest = candidate;
     }
     let left = nearest;
     let right = nearest;
-    while (left > 0 && (rawMask[row * GRID + (left - 1)] || rawMask[row * GRID + Math.max(0, left - 2)])) left -= 1;
-    while (right < GRID - 1 && (rawMask[row * GRID + (right + 1)] || rawMask[row * GRID + Math.min(GRID - 1, right + 2)])) right += 1;
-    if (right - left < 4 && row > Math.round(GRID * 0.35)) {
-      left = Math.max(2, nearest - 3);
-      right = Math.min(GRID - 3, nearest + 3);
+    while (left > 0 && (rawMask[row * GRID_WIDTH + (left - 1)] || rawMask[row * GRID_WIDTH + Math.max(0, left - 2)])) left -= 1;
+    while (right < GRID_WIDTH - 1 && (rawMask[row * GRID_WIDTH + (right + 1)] || rawMask[row * GRID_WIDTH + Math.min(GRID_WIDTH - 1, right + 2)])) right += 1;
+    if (right - left < 5 && row > Math.round(GRID_HEIGHT * 0.35)) {
+      left = Math.max(2, nearest - 4);
+      right = Math.min(GRID_WIDTH - 3, nearest + 4);
     }
     for (let column = left; column <= right; column += 1) {
-      if (rawMask[row * GRID + column] || (column > left && column < right)) mask[row * GRID + column] = true;
+      if (rawMask[row * GRID_WIDTH + column] || (column > left && column < right)) mask[row * GRID_WIDTH + column] = true;
     }
   }
 
   let activeCount = mask.filter(Boolean).length;
-  if (activeCount < GRID * GRID * 0.18) {
-    // Fallback to a simple house-like silhouette instead of ever returning the old square slab.
+  if (activeCount < GRID_WIDTH * GRID_HEIGHT * 0.16) {
+    // Fallback stays house-shaped and keeps the wider 4:3 proportions instead of
+    // returning the old generic square slab.
     mask.fill(false);
-    for (let row = Math.round(GRID * 0.22); row < Math.round(GRID * 0.86); row += 1) {
-      const roof = row < GRID * 0.43;
-      const progress = clamp((row - GRID * 0.22) / (GRID * 0.21));
-      const halfWidth = roof ? Math.round(2 + progress * GRID * 0.30) : Math.round(GRID * 0.34);
-      const center = Math.round((GRID - 1) / 2);
-      for (let column = Math.max(1, center - halfWidth); column <= Math.min(GRID - 2, center + halfWidth); column += 1) {
-        mask[row * GRID + column] = true;
+    for (let row = Math.round(GRID_HEIGHT * 0.20); row < Math.round(GRID_HEIGHT * 0.87); row += 1) {
+      const roof = row < GRID_HEIGHT * 0.43;
+      const progress = clamp((row - GRID_HEIGHT * 0.20) / (GRID_HEIGHT * 0.23));
+      const halfWidth = roof ? Math.round(3 + progress * GRID_WIDTH * 0.31) : Math.round(GRID_WIDTH * 0.36);
+      const center = Math.round((GRID_WIDTH - 1) / 2);
+      for (let column = Math.max(1, center - halfWidth); column <= Math.min(GRID_WIDTH - 2, center + halfWidth); column += 1) {
+        mask[row * GRID_WIDTH + column] = true;
       }
     }
     activeCount = mask.filter(Boolean).length;
@@ -164,20 +174,32 @@ function sampleRecipe(image) {
     return Math.max(3, Math.min(8, facadeRelief));
   });
 
-  return { version: 1, width: GRID, height: GRID, colors, depths };
+  return { version: 2, width: GRID_WIDTH, height: GRID_HEIGHT, colors, depths };
 }
 
 export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onReady }) {
   const mountRef = useRef(null);
   const callbackRef = useRef(onReady);
   const reportedRef = useRef('');
+  const sampleUrl = sourceImageUrl || imageUrl || '';
+  const previewUrl = sourceImageUrl || imageUrl || '';
+  const [approvedUrl, setApprovedUrl] = useState('');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const buildRequested = Boolean(sampleUrl && approvedUrl === sampleUrl);
   callbackRef.current = onReady;
 
   useEffect(() => {
-    const sampleUrl = sourceImageUrl || imageUrl;
-    if (!sampleUrl || !mountRef.current) return undefined;
+    if (approvedUrl !== sampleUrl) {
+      setReady(false);
+      setError('');
+      reportedRef.current = '';
+      if (mountRef.current) mountRef.current.innerHTML = '';
+    }
+  }, [approvedUrl, sampleUrl]);
+
+  useEffect(() => {
+    if (!buildRequested || !sampleUrl || !mountRef.current) return undefined;
     let dead = false;
     let cleanup = () => {};
     setReady(false);
@@ -204,7 +226,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         try {
           renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
         } catch {
-          setError('Interactive 3D is unavailable here. The VoxelPop image remains visible.');
+          setError('Interactive 3D is unavailable here. Your approved 3D picture remains visible.');
           return;
         }
 
@@ -232,8 +254,8 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         rim.position.set(-5, 3, -4);
         scene.add(rim);
 
-        const camera = new THREE.PerspectiveCamera(34, initialWidth / initialHeight, 0.1, 80);
-        let cameraDistance = compact ? 11.3 : 10.6;
+        const camera = new THREE.PerspectiveCamera(34, initialWidth / initialHeight, 0.1, 90);
+        let cameraDistance = compact ? 13.1 : 12.3;
         camera.position.set(0, 0.15, cameraDistance);
         camera.lookAt(0, -0.2, 0);
 
@@ -243,12 +265,12 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         scene.add(root);
 
         const active = recipe.depths.reduce((count, depth) => count + (depth > 0 ? 1 : 0), 0);
-        const geometry = new THREE.BoxGeometry(0.255, 0.255, 1);
+        const geometry = new THREE.BoxGeometry(0.235, 0.235, 1);
         const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.76, metalness: 0.015 });
         const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, active));
         const dummy = new THREE.Object3D();
         const color = new THREE.Color();
-        const cell = 0.285;
+        const cell = 0.26;
         let instance = 0;
 
         for (let row = 0; row < recipe.height; row += 1) {
@@ -273,13 +295,13 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         root.add(mesh);
 
-        const baseGeometry = new THREE.CylinderGeometry(3.2, 3.45, 0.22, 32);
+        const baseGeometry = new THREE.CylinderGeometry(4.15, 4.4, 0.22, 36);
         const baseMaterial = new THREE.MeshStandardMaterial({ color: 0xefe6d8, roughness: 0.94, metalness: 0 });
         const base = new THREE.Mesh(baseGeometry, baseMaterial);
         base.position.set(0, -3.42, -0.12);
         scene.add(base);
 
-        const ringGeometry = new THREE.TorusGeometry(2.65, 0.055, 10, 64);
+        const ringGeometry = new THREE.TorusGeometry(3.35, 0.055, 10, 72);
         const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xc9ff54, transparent: true, opacity: 0.88 });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
         ring.rotation.x = Math.PI / 2;
@@ -313,7 +335,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
           if (pointers.size >= 2) {
             const next = distance();
-            if (pinch) cameraDistance = Math.max(8.1, Math.min(14.2, cameraDistance - (next - pinch) * 0.012));
+            if (pinch) cameraDistance = Math.max(9.2, Math.min(16.0, cameraDistance - (next - pinch) * 0.012));
             pinch = next;
             updateCamera();
             return;
@@ -332,7 +354,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
         };
         const wheel = (event) => {
           event.preventDefault();
-          cameraDistance = Math.max(8.1, Math.min(14.2, cameraDistance + Math.sign(event.deltaY) * 0.42));
+          cameraDistance = Math.max(9.2, Math.min(16.0, cameraDistance + Math.sign(event.deltaY) * 0.42));
           updateCamera();
         };
         renderer.domElement.addEventListener('pointerdown', down);
@@ -391,7 +413,7 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
           mount.innerHTML = '';
         };
       }).catch(() => {
-        if (!dead) setError('Interactive 3D could not start. The VoxelPop image remains visible.');
+        if (!dead) setError('Interactive 3D could not start. Your approved 3D picture remains visible.');
       });
     };
     image.onerror = () => {
@@ -402,20 +424,42 @@ export default function LocalVoxelModelViewer({ imageUrl, sourceImageUrl, onRead
       dead = true;
       cleanup();
     };
-  }, [imageUrl, sourceImageUrl]);
+  }, [buildRequested, sampleUrl]);
+
+  function buildVoxel() {
+    if (!sampleUrl) return;
+    setError('');
+    setReady(false);
+    setApprovedUrl(sampleUrl);
+  }
 
   return <div className="localViewerShell">
-    {imageUrl ? <img className={`localPoster ${ready ? 'hidden' : ''}`} src={imageUrl} alt="VoxelPop rendered building preview"/> : null}
+    {previewUrl ? <div className={`previewStage ${buildRequested || ready ? 'building' : ''}`}>
+      <div className="photoDepth"><img src={previewUrl} alt="Your property photo shown as the 3D picture review"/></div>
+      {!buildRequested ? <div className="reviewPanel">
+        <b>3D PICTURE READY</b>
+        <span>Check that this still looks like your house before VoxelPop turns it into blocks.</span>
+        <button type="button" onClick={buildVoxel}>Create 3D Voxel from this picture</button>
+      </div> : null}
+    </div> : null}
     <div ref={mountRef} className="localCanvas" aria-label="Interactive photo-matched VoxelPop building"/>
-    {!ready && !error ? <div className="stage">MATCHING BUILDING · LOCAL 3D</div> : null}
+    {!buildRequested && !error ? <div className="stage">STEP 3 · REVIEW 3D PICTURE</div> : null}
+    {buildRequested && !ready && !error ? <div className="stage">STEP 4 · CREATING 3D VOXEL</div> : null}
+    {ready ? <div className="stage readyStage">STEP 4 · 3D VOXEL READY</div> : null}
     {error ? <div className="softError">{error}</div> : null}
-    <div className="hint">{ready ? 'DRAG BUILDING · PINCH TO ZOOM' : 'PHOTO → BUILDING-SHAPED VOXEL'}</div>
+    <div className="hint">{ready ? 'DRAG VOXEL · PINCH TO ZOOM · MINT COMES AFTER' : buildRequested ? 'APPROVED PICTURE → BUILDING-SHAPED VOXEL' : 'LOOK FIRST → THEN CREATE THE VOXEL'}</div>
     <style jsx>{`
       .localViewerShell{position:relative;width:100%;height:100%;min-height:300px;overflow:hidden;background:radial-gradient(circle at 50% 34%,#4a3561 0,#25182f 55%,#17101c 100%)}
-      .localPoster,.localCanvas{position:absolute;inset:0;width:100%;height:100%}.localPoster{z-index:1;object-fit:cover;opacity:1;transition:opacity .36s ease}.localPoster.hidden{opacity:0;pointer-events:none}.localCanvas{z-index:2}
-      .stage{position:absolute;z-index:4;left:12px;top:12px;padding:8px 10px;border-radius:999px;background:rgba(28,18,35,.8);backdrop-filter:blur(10px);color:#f4edff;font-size:7px;font-weight:1000;letter-spacing:.12em}
-      .softError{position:absolute;z-index:5;left:12px;right:12px;bottom:36px;padding:9px 11px;border-radius:13px;background:rgba(28,18,35,.86);color:#efe8f5;font-size:9px;line-height:1.45;backdrop-filter:blur(9px)}
-      .hint{position:absolute;z-index:6;left:10px;right:10px;bottom:10px;color:#e6deeb;text-align:center;font-size:6.5px;font-weight:1000;letter-spacing:.12em;pointer-events:none;text-shadow:0 1px 6px #000}
+      .localCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:3}
+      .previewStage{position:absolute;inset:0;z-index:4;display:grid;place-items:center;padding:42px 16px 86px;background:radial-gradient(circle at 50% 32%,#5d4775 0,#2b1c35 61%,#17101c 100%);transition:opacity .3s ease}.previewStage.building{opacity:0;pointer-events:none}
+      .photoDepth{width:min(88%,640px);height:min(72%,430px);min-height:190px;border-radius:22px;overflow:hidden;background:#120c18;box-shadow:18px 18px 0 rgba(201,255,84,.15),0 24px 55px rgba(0,0,0,.35);transform:perspective(900px) rotateX(1.5deg) rotateY(-4deg)}
+      .photoDepth img{display:block;width:100%;height:100%;object-fit:contain;background:#120c18;filter:saturate(1.04) contrast(1.03)}
+      .reviewPanel{position:absolute;z-index:8;left:14px;right:14px;bottom:32px;margin:auto;max-width:650px;padding:12px;border-radius:17px;background:rgba(25,16,32,.91);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;color:#f8f4fb}.reviewPanel b{font-size:8px;letter-spacing:.12em}.reviewPanel span{font-size:8px;line-height:1.4;color:#cfc4d5}.reviewPanel button{min-height:44px;border:0;border-radius:13px;padding:0 14px;background:#c9ff54;color:#263800;font-size:8px;font-weight:1000;letter-spacing:.04em;cursor:pointer}
+      .stage{position:absolute;z-index:7;left:12px;top:12px;padding:8px 10px;border-radius:999px;background:rgba(28,18,35,.84);backdrop-filter:blur(10px);color:#f4edff;font-size:7px;font-weight:1000;letter-spacing:.12em}.readyStage{background:rgba(54,83,11,.88);color:#efffc6}
+      .softError{position:absolute;z-index:8;left:12px;right:12px;bottom:36px;padding:9px 11px;border-radius:13px;background:rgba(28,18,35,.9);color:#efe8f5;font-size:9px;line-height:1.45;backdrop-filter:blur(9px)}
+      .hint{position:absolute;z-index:9;left:10px;right:10px;bottom:10px;color:#e6deeb;text-align:center;font-size:6.5px;font-weight:1000;letter-spacing:.12em;pointer-events:none;text-shadow:0 1px 6px #000}
+      @media(max-width:620px){.previewStage{padding:48px 10px 118px}.photoDepth{width:94%;height:67%;border-radius:18px;transform:perspective(700px) rotateX(1deg) rotateY(-2deg)}.reviewPanel{grid-template-columns:1fr;text-align:center;bottom:28px}.reviewPanel button{width:100%;font-size:9px}}
+      @media(prefers-reduced-motion:reduce){.previewStage,.photoDepth{transition:none;transform:none}}
     `}</style>
   </div>;
 }
