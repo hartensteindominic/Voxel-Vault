@@ -6,6 +6,7 @@ const photoHandoff = fs.readFileSync(new URL('../app/api/property-photo-upload/r
 const voxel3d = fs.readFileSync(new URL('../app/api/property-voxel-3d/route.ts', import.meta.url), 'utf8');
 const voxelImage = fs.readFileSync(new URL('../app/api/property-voxel-image/route.ts', import.meta.url), 'utf8');
 const taskRecovery = fs.readFileSync(new URL('../lib/property-generation-task.ts', import.meta.url), 'utf8');
+const modelViewer = fs.readFileSync(new URL('../app/vault/earth/MeshyModelViewer.js', import.meta.url), 'utf8');
 
 assert.match(property, /async function usePhotoAndBuild\(\)/, 'photo approval must own the automatic generation handoff');
 assert.match(property, /form\.append\('draftId', draftId\)/, 'approved photo must be tied to an account-scoped creation before generation');
@@ -37,6 +38,13 @@ assert.match(taskRecovery, /createHmac\('sha256', secret\)/, 'recovery task refe
 assert.match(taskRecovery, /property-voxel-recovery-v1:\$\{userId\}:\$\{providerTaskId\}/, 'recovery signatures must bind the provider task to the signed-in account');
 assert.match(taskRecovery, /timingSafeEqual/, 'recovery signature verification must use constant-time comparison');
 
+assert.match(voxel3d, /if \(isHttpUrl\(saved\?\.model_url\)\) return saved\.model_url/, 'active 3D previews must prefer the current Meshy provider GLB over a potentially stale private cache object');
+assert.match(voxel3d, /createModelSignedUrl\(saved\.model_storage_path/, 'durable private GLB storage must remain available as a fallback when no provider URL is present');
+assert.match(modelViewer, /loadAttempt < 1/, '3D viewer must retry a failed GLB load automatically');
+assert.match(modelViewer, /vv_reload=/, '3D viewer retry must bypass a stale browser or edge cache');
+assert.match(modelViewer, /Loading live 3D model/, '3D viewer must show an explicit loading state while the generated model is being displayed');
+assert.doesNotMatch(modelViewer, /Regenerating is not automatic/, 'a failed cached GLB must not tell the user that the flow is permanently stuck');
+
 assert.match(property, /Building a first 3D model from your photo/, 'user must see the first automatic 3D processing state');
 assert.match(property, /Turning the 3D into VoxelPop/, 'user must see the voxel processing state');
 assert.match(property, /Building your final VoxelPop 3D/, 'user must see final voxel 3D progress');
@@ -48,4 +56,4 @@ assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> generated-3D voxel style -> final voxel 3D, including signed account-bound recovery when generation-record persistence is temporarily unavailable.');
+console.log('Property automatic journey regression passed: authorized photo -> direct provider source 3D -> generated-3D voxel style -> final voxel 3D, including signed recovery and resilient live GLB display.');
