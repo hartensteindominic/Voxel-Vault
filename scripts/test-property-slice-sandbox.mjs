@@ -12,9 +12,12 @@ const equalPrice = buildPropertySliceSandbox({
 
 assert.equal(equalPrice.amountCents, DEFAULT_PROPERTY_SLICE_CENTS);
 assert.equal(equalPrice.amountCents, 199);
+assert.equal(equalPrice.benchmarkAnchorAmountCents, 199);
+assert.equal(equalPrice.adjustedTestPriceCents, 199);
 assert.equal(equalPrice.relativePropertyPriceIndex, 1);
 assert.equal(equalPrice.relativeSliceWeight, 1);
 assert.equal(equalPrice.benchmarkEquivalentCents, 199);
+assert.equal(equalPrice.pricingModel.sameProportionalSliceAcrossProperties, true);
 assert.equal(equalPrice.legalEffects.transfersFunds, false);
 assert.equal(equalPrice.legalEffects.createsDeedOwnership, false);
 assert.equal(equalPrice.legalEffects.createsLlcInterest, false);
@@ -29,9 +32,19 @@ const doublePrice = buildPropertySliceSandbox({
 
 assert.equal(doublePrice.relativePropertyPriceIndex, 2);
 assert.equal(doublePrice.relativeSliceWeight, 0.5);
-assert.equal(doublePrice.benchmarkEquivalentCents, 100);
-assert.ok(doublePrice.hypotheticalPercent > 0);
+assert.equal(doublePrice.adjustedTestPriceCents, 398);
+assert.equal(doublePrice.benchmarkEquivalentCents, 199);
+assert.equal(doublePrice.hypotheticalPercent, equalPrice.hypotheticalPercent);
 assert.equal(doublePrice.sandboxOnly, true);
+
+const halfPrice = buildPropertySliceSandbox({
+  amountCents: 199,
+  propertyReferencePriceCents: 5_000_000,
+  benchmarkReferencePriceCents: 10_000_000,
+});
+assert.equal(halfPrice.adjustedTestPriceCents, 100);
+assert.equal(halfPrice.relativePropertyPriceIndex, 0.5);
+assert.ok(Math.abs(halfPrice.hypotheticalPercent - equalPrice.hypotheticalPercent) < 0.000001);
 
 const unified = buildUnifiedAssetConversionPreview({
   settledUsdCents: 500,
