@@ -61,11 +61,17 @@ assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndS
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided paid property creation must not call metered Meshy endpoints');
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
-assert.match(photoPreview, /className=\{styles\.housePhoto\} src=\{imageUrl\}/, 'recognizable voxel-photo review keeps the real source house visible');
-assert.match(photoPreview, /3D VOXEL PHOTO/, 'the review surface must identify the current voxel-photo stage');
-assert.match(photoPreview, /PHOTO-MATCHED/, 'the review surface must prioritize likeness to the selected house');
-assert.match(photoPreview, /ORIGINAL PHOTO/, 'the source photo remains visible for direct comparison');
-assert.doesNotMatch(photoPreview, /getImageData|InstancedMesh|BoxGeometry|PlaneGeometry|THREE\./, 'the first approval surface must not fabricate 3D geometry from a single visible view');
+assert.match(photoPreview, /getImageData\(0, 0, columns, rows\)/, '3D voxel-photo review samples the selected source image into voxel data');
+assert.match(photoPreview, /new THREE\.InstancedMesh/, '3D voxel-photo review renders real block instances');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, '3D voxel-photo review is composed of real cubes');
+assert.match(photoPreview, /const depth = 0\.42/, '3D voxel-photo review has inspectable shallow block depth');
+assert.match(photoPreview, /edge \* 0\.34/, '3D voxel-photo depth responds to visible source structure');
+assert.match(photoPreview, /voxels\.setColorAt\(instance, color\)/, '3D voxel-photo colors remain tied to the source image');
+assert.match(photoPreview, /ORIGINAL PHOTO/, 'the original source photo remains visible for direct comparison');
+assert.match(photoPreview, /PHOTO-MATCHED BLOCKS/, 'the review stage identifies its real source-matched block geometry');
+assert.doesNotMatch(photoPreview, /backingGeometry/, 'the 3D voxel photo cannot regress to a rectangular picture backing');
+assert.match(photoPreview, /plinthGeometry/, 'the 3D voxel photo may use a floor reference without becoming a backed image');
+assert.match(photoPreview, /targetY = clamp/, '3D voxel-photo rotation stays bounded so unseen sides are not presented as known');
 
 assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-detail 32-cell local voxel grid');
 assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
@@ -99,4 +105,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> recognizable photo-matched 3D voxel-photo review -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> real photo-matched 3D voxel geometry -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
