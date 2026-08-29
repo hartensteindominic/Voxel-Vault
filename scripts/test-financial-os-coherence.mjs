@@ -28,7 +28,7 @@ for (const route of ['/property', '/vault/earth', '/geo', '/studio', '/capture',
 }
 assert.match(productMap, /\$1\.99 Property Sandbox/, 'the tiny property comparison must remain explicitly sandboxed under More');
 assert.match(productMap, /No real funds or property rights move/, 'sandbox description must preserve the no-rights boundary');
-assert.match(productMap, /\$4\.99 local VoxelPop image \+ interactive 3D/, 'property creator directory entry must disclose the local paid creation');
+assert.match(productMap, /Authorized photo → \$4\.99 textured 3D preview → approval → movable voxel/, 'property creator directory entry must disclose the paid preview-before-voxel creation sequence');
 assert.match(productMap, /badge: 'PROVIDER-GATED'/, 'regulated investment tools must be visibly provider-gated');
 assert.match(productMap, /A token or VoxelPop item is never the deed/, 'direct ownership path must keep title separate from the token');
 assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');

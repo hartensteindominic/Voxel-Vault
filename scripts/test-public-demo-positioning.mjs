@@ -51,3 +51,4 @@ assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidan
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
 console.log('Public VoxelPop positioning checks passed: no-login product proof, focused $4.99 story, corrected trust pages, richer social preview, and scoped README remain intact.');
+await import('./test-public-surface-coherence.mjs');

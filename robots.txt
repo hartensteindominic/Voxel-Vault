@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://hartensteindominic.github.io/Ad-Revenue/sitemap.xml
+Sitemap: https://www.voxelvault.io/sitemap.xml
