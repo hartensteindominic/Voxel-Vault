@@ -57,7 +57,7 @@ export async function readMeshyCreditBalance(apiKey: string) {
 export async function ensureMeshyCredits(apiKey: string, requiredCredits: number, stage: string) {
   const balance = await readMeshyCreditBalance(apiKey);
   if (balance === null || balance >= requiredCredits) {
-    return { ok: true as const, availableCredits: balance, requiredCredits, stage };
+    return { ok: true as const, status: 200 as const, availableCredits: balance, requiredCredits, stage };
   }
   return {
     ...meshyCreditFailure(requiredCredits, balance, stage),
