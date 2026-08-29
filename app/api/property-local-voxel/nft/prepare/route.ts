@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../../../lib/user-auth';
 import { readCatalog3DByTask } from '../../../../../lib/catalog3dStore';
 import { getVoxelFlipDeployment } from '../../../../../lib/voxelflip-deployment';
+import { normalizePropertyDraftId, propertyDraftItemId } from '../../../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,47 +63,74 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const draftId = clean(body?.draftId, 80);
+    const draftId = normalizePropertyDraftId(body?.draftId);
     const wallet = clean(body?.wallet, 60);
-    if (!draftId || !ADDRESS_RE.test(wallet)) {
-      return NextResponse.json({ ok: false, error: 'Choose the saved VoxelPop property and connect a valid wallet first.' }, { status: 400 });
+    const requestedTaskId = clean(body?.taskId, 160);
+    if (!ADDRESS_RE.test(wallet)) {
+      return NextResponse.json({ ok: false, error: 'Connect a valid wallet before minting.' }, { status: 400 });
     }
 
-    const { data: profile, error: profileError } = await auth.admin
-      .from('vault_profiles')
-      .select('avatar_style')
-      .eq('user_id', auth.user.id)
-      .maybeSingle();
-    if (profileError) throw new Error(`Your saved property could not be opened: ${profileError.message}`);
+    let taskId = requestedTaskId;
+    let label = safeLabel(body?.label || 'VoxelPop Property');
+    let model = null;
 
-    const draft = propertyLibrary(profile).find((item) => String(item.id) === draftId);
-    if (!draft) return NextResponse.json({ ok: false, error: 'This saved property is not in your signed-in Vault.' }, { status: 404 });
+    if (requestedTaskId) {
+      // Immediate mint path: the reviewed voxel has already been persisted under
+      // an account-scoped item ID by /api/property-local-voxel. No address/map
+      // record is required just to mint the digital asset.
+      if (!requestedTaskId.startsWith('local-v1:')) {
+        return NextResponse.json({ ok: false, error: 'Create and approve the local 3D voxel before minting.' }, { status: 409 });
+      }
+      model = await readCatalog3DByTask(requestedTaskId);
+      const expectedItemId = propertyDraftItemId(auth.user.id, draftId, 'voxel');
+      if (!model || model.item_id !== expectedItemId) {
+        return NextResponse.json({ ok: false, error: 'This reviewed voxel is not bound to your signed-in creation.' }, { status: 403 });
+      }
+    } else {
+      // Saved-Vault path: recover the exact model task from the signed-in user's
+      // saved property draft and verify that model below.
+      const { data: profile, error: profileError } = await auth.admin
+        .from('vault_profiles')
+        .select('avatar_style')
+        .eq('user_id', auth.user.id)
+        .maybeSingle();
+      if (profileError) throw new Error(`Your saved property could not be opened: ${profileError.message}`);
 
-    const taskId = clean(draft?.voxelpop?.modelTaskId, 160);
-    if (!taskId.startsWith('local-v1:')) {
-      return NextResponse.json({ ok: false, error: 'Create and approve the local 3D voxel before minting.' }, { status: 409 });
+      const draft = propertyLibrary(profile).find((item) => String(item.id) === draftId);
+      if (!draft) return NextResponse.json({ ok: false, error: 'This saved property is not in your signed-in Vault.' }, { status: 404 });
+      taskId = clean(draft?.voxelpop?.modelTaskId, 160);
+      label = safeLabel(draft?.label || draft?.world?.publicLabel || label);
+      if (!taskId.startsWith('local-v1:')) {
+        return NextResponse.json({ ok: false, error: 'Create and approve the local 3D voxel before minting.' }, { status: 409 });
+      }
+      model = await readCatalog3DByTask(taskId);
+      const expectedItemId = propertyDraftItemId(auth.user.id, draft?.voxelpop?.creationDraftId || draftId, 'voxel');
+      if (!model || model.item_id !== expectedItemId) {
+        return NextResponse.json({ ok: false, error: 'The saved reviewed voxel is not bound to this signed-in account.' }, { status: 403 });
+      }
     }
 
-    const model = await readCatalog3DByTask(taskId);
     if (!model || model.provider !== LOCAL_PROVIDER || model.status !== 'SUCCEEDED' || !model.model_url) {
       return NextResponse.json({ ok: false, error: 'The reviewed local voxel is not available for minting yet.' }, { status: 409 });
     }
 
     const deployment = await getVoxelFlipDeployment();
-    if (!ADDRESS_RE.test(deployment?.address || '')) {
+    if (!ADDRESS_RE.test(deployment?.address || '') || !ADDRESS_RE.test(deployment?.mintSigner || '')) {
       return NextResponse.json({ ok: false, error: 'VoxelFlip minting is not configured on this deployment yet.' }, { status: 503 });
     }
     if (!signerSecret()) {
       return NextResponse.json({ ok: false, error: 'VoxelFlip mint signing is not configured on this deployment yet.' }, { status: 503 });
     }
 
-    const label = safeLabel(draft?.label || draft?.world?.publicLabel || 'VoxelPop Property');
     const metadataSig = hmac(`local-property-metadata:${draftId}:${taskId}:${label}`);
     const origin = new URL(request.url).origin;
     const metadataUrl = `${origin}/api/property-local-voxel/nft/metadata?${new URLSearchParams({ draftId, taskId, label, sig: metadataSig }).toString()}`;
     const voucherId = voucherIdFor(draftId, taskId);
     const voucher = await signVoucher(wallet, metadataUrl, voucherId);
     if (!voucher) return NextResponse.json({ ok: false, error: 'VoxelFlip mint signing is unavailable.' }, { status: 503 });
+    if (voucher.signer.toLowerCase() !== deployment.mintSigner.toLowerCase()) {
+      return NextResponse.json({ ok: false, error: 'VoxelFlip mint signer does not match the reviewed production collection.' }, { status: 503 });
+    }
 
     return NextResponse.json({
       ok: true,
@@ -117,7 +145,7 @@ export async function POST(request: Request) {
       signature: voucher.signature,
       signer: voucher.signer,
       contractAddress: deployment.address,
-      chainId: deployment.chainId || '0x2105',
+      chainId: deployment.chainId || 8453,
       note: 'This voucher mints the reviewed digital voxel only. It does not represent the deed or physical-property rights.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
