@@ -1,6 +1,8 @@
 import type Stripe from 'stripe';
 import { createHash } from 'node:crypto';
 import { getSupabaseAdmin } from './supabase-admin';
+import { createModelSignedUrl, readCatalog3DByTask } from './catalog3dStore';
+import { normalizePropertyDraftId, propertyDraftItemId } from './property-generation-ids';
 
 const PROVIDER = 'property-collectible-reservation';
 const HOLD_MINUTES = 35;
@@ -54,7 +56,7 @@ export function quotePropertyCollectible(building: any) {
 
   if (detailScore >= 42 || heightMeters >= 28) {
     return {
-      priceCents: 1999,
+      priceCents: 399,
       tier: 'landmark',
       label: 'Landmark Voxel',
       explanation: 'Higher digital-build complexity from the mapped footprint and height evidence.',
@@ -64,7 +66,7 @@ export function quotePropertyCollectible(building: any) {
   }
   if (detailScore >= 22 || heightMeters >= 13) {
     return {
-      priceCents: 1499,
+      priceCents: 299,
       tier: 'detailed',
       label: 'Detailed Voxel',
       explanation: 'Mid-range digital-build complexity from the mapped footprint and height evidence.',
@@ -73,7 +75,7 @@ export function quotePropertyCollectible(building: any) {
     };
   }
   return {
-    priceCents: 999,
+    priceCents: 199,
     tier: 'classic',
     label: 'Classic Voxel',
     explanation: 'Standard digital-build complexity from the mapped footprint and height evidence.',
@@ -89,6 +91,22 @@ export function propertyCollectibleIdentity(atlasIdRaw: unknown) {
   }
   const digest = createHash('sha256').update(`voxel-pop-property-v1:${atlasId}`).digest('hex');
   return `property:${digest.slice(0, 48)}`;
+}
+
+export async function verifyOwnedFinalVoxelModel(input: { userId: string; draftId: unknown; modelTaskId: unknown }) {
+  const draftId = normalizePropertyDraftId(input.draftId);
+  const modelTaskId = clean(input.modelTaskId, 260);
+  if (!modelTaskId) throw new Error('Finish the final voxel 3D before checkout.');
+  const savedModel = await readCatalog3DByTask(modelTaskId);
+  const expectedItemId = propertyDraftItemId(input.userId, draftId, 'voxel');
+  if (!savedModel?.item_id || savedModel.item_id !== expectedItemId) {
+    throw new Error('That final voxel model does not belong to this signed-in creation.');
+  }
+  if (!savedModel.model_url && !savedModel.model_storage_path) throw new Error('The final voxel model is not finished yet.');
+  const modelUrl = savedModel.model_storage_path
+    ? await createModelSignedUrl(savedModel.model_storage_path, 60 * 60)
+    : savedModel.model_url;
+  return { draftId, modelTaskId, savedModel, modelUrl: modelUrl || savedModel.model_url || null };
 }
 
 function encode(value: Omit<PropertyCollectibleReservation, 'identityKey' | 'processedAt'>) {
@@ -142,6 +160,20 @@ export async function readPropertyCollectibleReservation(identityKey: string) {
   return decode(identityKey, data);
 }
 
+export async function listPaidPropertyCollectiblesForBuyer(buyerId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('commerce_webhook_events')
+    .select('event_id,event_type,processed_at')
+    .eq('provider', PROVIDER)
+    .order('processed_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data || [])
+    .map((row: any) => decode(String(row.event_id || ''), row))
+    .filter((item: PropertyCollectibleReservation | null) => Boolean(item && item.buyerId === buyerId && permanent(item.state)));
+}
+
 export async function acquirePropertyCollectibleReservation(input: {
   identityKey: string;
   buyerId: string;
@@ -180,7 +212,7 @@ export async function acquirePropertyCollectibleReservation(input: {
       buyerId: input.buyerId,
       atlasId: clean(input.atlasId, 180),
       address: clean(input.address, 220),
-      draftId: clean(input.draftId, 180),
+      draftId: normalizePropertyDraftId(input.draftId),
       modelTaskId: clean(input.modelTaskId, 260),
       priceCents: Math.max(0, Math.trunc(input.priceCents)),
       priceTier: clean(input.priceTier, 40),
@@ -226,19 +258,6 @@ export async function updatePropertyCollectibleReservation(input: {
   if (current.buyerId !== input.buyerId) throw new Error('Property collectible reservation belongs to another account.');
   if (permanent(current.state) && current.state !== input.state) throw new Error(`Property collectible is already locked in state ${current.state}.`);
 
-  const previous = encode({
-    state: current.state,
-    buyerId: current.buyerId,
-    atlasId: current.atlasId,
-    address: current.address,
-    draftId: current.draftId,
-    modelTaskId: current.modelTaskId,
-    priceCents: current.priceCents,
-    priceTier: current.priceTier,
-    priceLabel: current.priceLabel,
-    source: current.source,
-    ...(current.sourceId ? { sourceId: current.sourceId } : {}),
-  });
   const nextPayload = {
     state: input.state,
     buyerId: current.buyerId,
@@ -258,7 +277,7 @@ export async function updatePropertyCollectibleReservation(input: {
     .update({ event_type: encode(nextPayload), processed_at: new Date().toISOString() })
     .eq('provider', PROVIDER)
     .eq('event_id', current.identityKey)
-    .eq('event_type', previous)
+    .eq('processed_at', current.processedAt)
     .select('event_id')
     .maybeSingle();
   if (error) throw error;
@@ -274,7 +293,8 @@ export async function releasePropertyCollectibleReservation(identityKey: string,
     .from('commerce_webhook_events')
     .delete()
     .eq('provider', PROVIDER)
-    .eq('event_id', identityKey);
+    .eq('event_id', identityKey)
+    .eq('processed_at', current.processedAt);
   if (error) throw error;
   return true;
 }
@@ -297,6 +317,7 @@ export async function secureStripePropertyCollectiblePurchase({
   if (!reservation || reservation.buyerId !== buyerId) throw new Error('PROPERTY_COLLECTIBLE_RESERVATION_MISMATCH');
   if (session.currency !== 'usd' || Number(session.amount_total) !== reservation.priceCents) throw new Error('PROPERTY_COLLECTIBLE_AMOUNT_MISMATCH');
   if (String(session.metadata?.atlas_id || '') !== reservation.atlasId) throw new Error('PROPERTY_COLLECTIBLE_ATLAS_MISMATCH');
+  if (String(session.metadata?.draft_id || '') !== reservation.draftId || String(session.metadata?.model_task_id || '') !== reservation.modelTaskId) throw new Error('PROPERTY_COLLECTIBLE_CREATION_MISMATCH');
   if (String(session.metadata?.price_cents || '') !== String(reservation.priceCents)) throw new Error('PROPERTY_COLLECTIBLE_PRICE_MISMATCH');
   if (reservation.sourceId && reservation.sourceId !== session.id) throw new Error('PROPERTY_COLLECTIBLE_SESSION_MISMATCH');
 
@@ -323,6 +344,7 @@ export function propertyCollectiblePaymentErrorMessage(error: unknown) {
     PROPERTY_COLLECTIBLE_RESERVATION_MISMATCH: 'The one-property reservation could not be verified.',
     PROPERTY_COLLECTIBLE_AMOUNT_MISMATCH: 'The paid amount does not match the server-authoritative digital build price.',
     PROPERTY_COLLECTIBLE_ATLAS_MISMATCH: 'The checkout no longer matches the mapped World property identity.',
+    PROPERTY_COLLECTIBLE_CREATION_MISMATCH: 'The checkout does not match the generated voxel creation.',
     PROPERTY_COLLECTIBLE_PRICE_MISMATCH: 'The checkout price metadata does not match the reserved price.',
     PROPERTY_COLLECTIBLE_SESSION_MISMATCH: 'A different checkout session owns this reservation.',
   };
