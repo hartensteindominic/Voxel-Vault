@@ -42,8 +42,6 @@ assert.ok(plan.purchases.every((asset) => asset.acquisitionCost > 0), 'only vali
 const tinyPlan = buildAcquisitionPlan({ capital: 400, reserveFloor: 0.1 });
 assert.equal(tinyPlan.purchases.length, 0, 'engine must keep cash rather than force an unaffordable purchase');
 
-// Real rental V1: payment delinquency may change workflow status, but does not itself
-// terminate the lease or remove tenant-layer permissions.
 for (const status of ['current', 'late', 'notice', 'legal-process']) {
   assert.equal(canTenantUseProperty({ status, leaseVerifiedAt: '2026-08-01T00:00:00Z' }), true, `${status} must retain tenant-layer access before lawful termination`);
 }
@@ -58,27 +56,9 @@ assert.equal(assertRentalTransition('late', 'ended', {
   terminationReferenceHash: 'b'.repeat(64),
 }), true, 'lawfully verified termination may end the digital tenant layer');
 
-assert.equal(canAttachMintedVoxel({
-  status: 'current',
-  leaseVerifiedAt: '2026-08-01T00:00:00Z',
-  tokenId: '42',
-  accountMintConfirmed: true,
-  walletOwnershipVerified: true,
-}), true, 'account-confirmed mint plus current wallet owner proof may be associated with an active rental');
-assert.equal(canAttachMintedVoxel({
-  status: 'current',
-  leaseVerifiedAt: '2026-08-01T00:00:00Z',
-  tokenId: '42',
-  accountMintConfirmed: true,
-  walletOwnershipVerified: false,
-}), false, 'a stored token ID alone is not enough to attach a voxel');
-assert.equal(canAttachMintedVoxel({
-  status: 'current',
-  leaseVerifiedAt: '2026-08-01T00:00:00Z',
-  tokenId: '',
-  accountMintConfirmed: false,
-  walletOwnershipVerified: false,
-}), false, 'unminted creation must not be permanently attached');
+assert.equal(canAttachMintedVoxel({ status: 'current', leaseVerifiedAt: '2026-08-01T00:00:00Z', tokenId: '42', accountMintConfirmed: true, walletOwnershipVerified: true }), true, 'account-confirmed mint plus current wallet owner proof may be associated with an active rental');
+assert.equal(canAttachMintedVoxel({ status: 'current', leaseVerifiedAt: '2026-08-01T00:00:00Z', tokenId: '42', accountMintConfirmed: true, walletOwnershipVerified: false }), false, 'a stored token ID alone is not enough to attach a voxel');
+assert.equal(canAttachMintedVoxel({ status: 'current', leaseVerifiedAt: '2026-08-01T00:00:00Z', tokenId: '', accountMintConfirmed: false, walletOwnershipVerified: false }), false, 'unminted creation must not be permanently attached');
 
 const ownershipMessage = tenantVoxelOwnershipMessage({ userId: 'user-1', leaseId: 'lease-1', sessionId: 'voxel-1', tokenId: '42', signedAt: '2026-08-29T00:00:00.000Z' });
 assert.match(ownershipMessage, /does not transfer the voxel, property, lease, money, or any ownership right/i, 'wallet proof must be non-transactional and narrowly scoped');
@@ -157,9 +137,10 @@ assert.match(roomDecorator, /Save layout/, 'decorator must provide an explicit t
 assert.match(roomDecorator, /DRAG TO TURN ROOM · PINCH TO ZOOM · TAP A VOXEL/, 'decorator must expose mobile 3D controls');
 assert.match(voxelAccount, /modelUrl:\s*String\(normalized\.payload\.mesh\?\.modelUrl/, 'rental room must receive ready VoxelPop GLB URLs when available');
 
-assert.match(productMap, /href: '\/vault\/rentals', label: 'Rented'/, 'Rented must be discoverable from the simple VoxelPop property dock');
-assert.match(productMap, /path === '\/vault\/rentals'/, 'Rented must stay inside the simplified property navigation mode');
+assert.match(productMap, /href: '\/vault\/rentals', label: 'Lease Records'/, 'lease records must remain discoverable under the organized More directory');
+assert.match(productMap, /badge: 'VERIFIED DATA'/, 'lease records must be labeled as verified data rather than a primary ownership action');
+assert.match(productMap, /path === '\/vault\/rentals'|path\.startsWith\('\/vault\/'\)/, 'rental routes must remain inside the organized Voxel Vault navigation shell');
 assert.match(rentalDocs, /does \*\*not\*\* yet provide:[\s\S]*production e-signature provider/i, 'docs must fail closed about legal lease execution');
 assert.match(rentalDocs, /late rent does not automatically end tenancy/i, 'docs must preserve lawful termination boundary');
 
-console.log('Global rent + room decorator safety checks passed: verified lease -> monthly status -> private room reference -> wallet-owned minted voxels -> bounded tenant layout -> lawful lease end/archive, never automatic eviction or fake floor-plan truth.');
+console.log('Global rent + room decorator safety checks passed: lease records remain discoverable under More without cluttering the five-item consumer dock; verified lease/payment safety, lawful termination, private room references and wallet-owned voxel placement remain enforced.');
