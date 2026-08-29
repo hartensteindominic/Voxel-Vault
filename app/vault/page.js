@@ -150,7 +150,7 @@ export default function VaultPage() {
         return <article className={`propertyCard ${property.demoOnly ? 'demo' : ''}`} key={property.id}>
           <div className="propertyVisual">{property?.visual?.thumbnailUrl ? <img src={property.visual.thumbnailUrl} alt=""/> : <div className="miniScene"><i/><i/><b/></div>}<span>{propertyStatus(property)}</span></div>
           <div className="propertyBody">
-            <small>{property.demoOnly ? 'TEST BUY · DEMO ONLY' : collected ? 'PURCHASED DIGITAL PROPERTY' : 'PROPERTY SOURCE'}</small>
+            <small>{property.demoOnly ? 'TEST BUY · NOT REAL OWNERSHIP' : collected ? 'PURCHASED DIGITAL PROPERTY' : 'PROPERTY SOURCE'}</small>
             <h3>{property.label || 'Saved property'}</h3>
             <p>{propertyCopy(property)}</p>
             {property.demoOnly && property?.demoPurchase?.priceCents ? <div className="priceLine"><b>{money(property.demoPurchase.priceCents)}</b><span>demo credit</span></div> : null}
@@ -171,17 +171,17 @@ export default function VaultPage() {
     </section>
 
     <details className="purchased" id="purchased-twins">
-      <summary><span><small>PURCHASED DIGITAL TWINS</small><b>{purchasedTwins.length ? `${purchasedTwins.length} purchase${purchasedTwins.length === 1 ? '' : 's'}` : 'Account purchases'}</b></span><i>+</i></summary>
+      <summary><span><small>MY PURCHASED TWINS</small><b>{purchasedTwins.length ? `${purchasedTwins.length} purchase${purchasedTwins.length === 1 ? '' : 's'}` : 'Account purchases'}</b></span><i>+</i></summary>
       <p className="purchasedIntro">Purchased Digital Twins stay available, but they do not need to dominate the everyday Vault.</p>
       {purchasedTwins.length ? <div className="propertyGrid">{purchasedTwins.map((item) => {
         const estate = item.estate || {};
         const voxelReady = Boolean(item.voxelReady && item.voxelTaskId && item.voxelModelUrl);
         const mintHref = voxelReady ? `/property/mint?draftId=${encodeURIComponent(`estate-${estate.id}`)}&taskId=${encodeURIComponent(item.voxelTaskId)}&name=${encodeURIComponent(estate.name || 'Digital Twin')}` : '';
-        return <article className="propertyCard" key={estate.id}><div className="propertyVisual"><div className="miniScene"><i/><i/><b/></div><span>{voxelReady ? '3D READY' : 'PURCHASED'}</span></div><div className="propertyBody"><small>DIGITAL PURCHASE</small><h3>{estate.name || 'Purchased Digital Twin'}</h3><p>{voxelReady ? 'Your saved 3D voxel is attached to this purchase.' : 'Its custom VoxelPop 3D voxel is included with the purchase—no second property-creation charge.'}</p><div className="cardActions"><Link href={`/vault/estates/${encodeURIComponent(estate.id)}/voxel`} className="make3d">{voxelReady ? 'Open / remake' : 'Create included voxel'}</Link><Link href="/vault/estates/mine" className="open3d">Purchase details</Link>{mintHref ? <Link href={mintHref} className="mint">Optional mint</Link> : null}</div></div></article>;
+        return <article className="propertyCard" key={estate.id}><div className="propertyVisual"><div className="miniScene"><i/><i/><b/></div><span>{voxelReady ? '3D READY' : 'PURCHASED'}</span></div><div className="propertyBody"><small>DIGITAL PURCHASE</small><h3>{estate.name || 'Purchased Digital Twin'}</h3><p>{voxelReady ? 'Your saved 3D voxel is attached to this purchase.' : 'Its custom VoxelPop 3D voxel is included with the purchase—no second property-creation charge.'}</p><div className="cardActions"><Link href={`/vault/estates/${encodeURIComponent(estate.id)}/voxel`} className="make3d">{voxelReady ? 'Open / remake' : 'Create my 3D Voxel · included'}</Link><Link href="/vault/estates/mine" className="open3d">Purchase details</Link>{mintHref ? <Link href={mintHref} className="mint">Optional mint</Link> : null}</div></div></article>;
       })}</div> : <div className="smallEmpty">{session?.user ? 'No Digital Twin purchases are attached to this account yet.' : 'Sign in to restore account-secured purchases.'}</div>}
     </details>
 
-    <section className="extras"><div><small>OPTIONAL</small><h2>Need advanced tools?</h2><p>Marketplace, property verification, investment-provider screens, wallets, and owner controls stay under More so the main Vault remains understandable.</p></div><Link href="/more">Open More →</Link></section>
+    <section className="extras"><div><small>OPTIONAL</small><h2>Need the other tools?</h2><p>Marketplace, property verification, investment-provider screens, wallets, and owner controls stay under More so the main Vault remains understandable.</p></div><Link href="/more">Open More →</Link></section>
   </div>
 
   <style jsx>{`
