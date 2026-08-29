@@ -21,6 +21,14 @@ import {
   verifyPropertyGenerationRecoveryTaskId,
 } from '../../../lib/property-generation-task';
 import { propertyGenerationModelUrl } from '../../../lib/property-generation-model';
+import {
+  MESHY_PROPERTY_CREDITS,
+  meshyClientStatus,
+  meshyCreditError,
+  meshyCreditsSufficient,
+  meshyProviderFailure,
+  readMeshyCreditBalance,
+} from '../../../lib/meshy-credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -104,7 +112,10 @@ async function verifiedVoxelImageUrl(apiKey: string, userId: string, taskIdRaw: 
     cache: 'no-store',
   });
   const task = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(task?.message || task?.error || 'The voxel image job could not be verified.');
+  if (!response.ok) {
+    if (response.status === 402) throw new Error(meshyCreditError('reading the completed VoxelPop image', 0).error);
+    throw new Error(task?.message || task?.error || 'The voxel image job could not be verified.');
+  }
   if (String(task?.status || '').toUpperCase() !== 'SUCCEEDED') throw new Error('Finish the voxel image before building the final 3D collectible.');
   const imageUrl = Array.isArray(task?.image_urls) ? clean(task.image_urls[0], 2200) : '';
   if (!isHttpUrl(imageUrl)) throw new Error('The completed voxel image is unavailable.');
@@ -181,6 +192,20 @@ export async function POST(request: Request) {
       return privateJson({ ok: true, reused: true, ...publicState(existing) });
     }
 
+    // Every new Image-to-3D task created by this route currently uses textured
+    // Smart Topology at 2K, which costs 15 Meshy credits. Preflight immediately
+    // before task creation so old/retried jobs also cannot surface raw 402 copy.
+    const balance = await readMeshyCreditBalance(apiKey);
+    if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.final3d)) {
+      return privateJson(
+        meshyCreditError(
+          provider === 'meshy-property-voxel-style-to-3d' ? 'starting the final VoxelPop 3D' : 'starting a property 3D build',
+          MESHY_PROPERTY_CREDITS.final3d,
+        ),
+        { status: 503 },
+      );
+    }
+
     const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -197,7 +222,18 @@ export async function POST(request: Request) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+    if (!response.ok) {
+      return privateJson(
+        meshyProviderFailure(
+          response.status,
+          data,
+          `3D provider returned ${response.status}.`,
+          provider === 'meshy-property-voxel-style-to-3d' ? 'starting the final VoxelPop 3D' : 'starting a property 3D build',
+          MESHY_PROPERTY_CREDITS.final3d,
+        ),
+        { status: meshyClientStatus(response.status) },
+      );
+    }
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
@@ -290,7 +326,12 @@ export async function GET(request: Request) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || 'Could not read property 3D status.' }, { status: response.status });
+    if (!response.ok) {
+      return privateJson(
+        meshyProviderFailure(response.status, data, 'Could not read property 3D status.', 'reading the property 3D job'),
+        { status: meshyClientStatus(response.status) },
+      );
+    }
 
     const status = clean(data?.status || 'PENDING', 80);
     const progress = Number(data?.progress || 0);
