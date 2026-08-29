@@ -32,10 +32,10 @@ assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'the 3D voxel ph
 assert.match(photoPreview, /voxels\.setColorAt\(instance, color\)/, 'voxel-photo colors remain tied to the source image');
 assert.match(photoPreview, /targetY = clamp/, '3D voxel-photo rotation remains deliberately bounded');
 assert.match(property, /Looks good → Create Movable 3D Voxel/, 'user approval is required before movable-voxel generation');
-assert.match(property, /async function approvePreviewAndBuildVoxel\(\)/, 'movable-voxel generation has an explicit post-preview gate');
-assert.match(property, /const poster = await createVoxelPoster\(pendingPhoto\)/, 'voxel image is not created until after preview approval');
-assert.match(property, /LocalVoxelModelViewer imageUrl=\{voxelPoster \|\| pendingPreview\} sourceImageUrl=\{pendingPreview \|\| voxelPoster\}/,
-  'the movable voxel stage uses the approved original photo for building matching');
+assert.match(property, /function approvePreviewAndBuildVoxel\(\)/, 'movable-voxel generation has an explicit post-preview gate');
+assert.doesNotMatch(property, /createVoxelPoster|voxelPoster/, 'the post-approval path must not manufacture a 2D voxel picture');
+assert.match(property, /LocalVoxelModelViewer imageUrl=\{pendingPreview\} sourceImageUrl=\{pendingPreview\}/,
+  'the movable voxel stage builds directly from the approved original photo');
 assert.match(property, /\/api\/property-local-voxel/, 'finished local voxel is registered for continuity and minting');
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel is saved to Vault before minting');
 assert.match(property, /Your 3D voxel is ready and saved to Vault/, 'successful voxel creation makes its saved state explicit');
@@ -83,4 +83,4 @@ assert.match(mintPage, /Mint Later/, 'final mint page keeps minting optional');
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal paid creation flow does not lead into another paid collectible funnel');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided property flow does not call metered provider generation routes');
 
-console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> 3D voxel photo -> explicit user approval -> separate local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with optional map/World, resilient persistence, and no Meshy credits or second paywall.');
+console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> real 3D voxel photo -> explicit user approval -> direct source-photo stacked movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with optional map/World, resilient persistence, and no 2D poster detour, Meshy credits, or second paywall.');

@@ -49,7 +49,8 @@ assert.match(property, /you will not be charged again/i, 'missing local photo re
 assert.match(property, /PhotoReliefModelViewer imageUrl=\{pendingPreview\}/, 'paid flow shows a source-faithful photo-matched voxel-photo review');
 assert.match(property, /Looks good → Create Movable 3D Voxel/, 'the user explicitly approves the 3D voxel photo before voxel conversion');
 assert.match(property, /approvePreviewAndBuildVoxel/, 'voxel-photo approval owns the movable-voxel transition');
-assert.match(property, /createVoxelPoster\(pendingPhoto\)/, 'movable voxelization starts only after preview approval');
+assert.doesNotMatch(property, /createVoxelPoster|voxelPoster/, 'the approved flow must not create a 2D voxel picture between the real 3D review and movable voxel');
+assert.match(property, /LocalVoxelModelViewer imageUrl=\{pendingPreview\} sourceImageUrl=\{pendingPreview\}/, 'movable voxelization starts directly from the approved property photo');
 assert.match(property, /LocalVoxelModelViewer/, 'the separate voxel stage uses local interactive voxel geometry');
 assert.match(property, /\/api\/property-local-voxel/, 'local voxel recipe is account-linked after rendering');
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel is saved before optional minting');
@@ -78,7 +79,7 @@ assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-
 assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
 assert.match(viewer, /keepBestComponent/, 'voxel extraction keeps the strongest connected building region');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells become empty space');
-assert.match(viewer, /if \(recipe\.depths\[index\] <= 0\) continue/, 'interactive voxel viewer does not instantiate background voxels');
+assert.match(viewer, /if \(!depth\) continue/, 'interactive stacked voxel viewer does not instantiate background voxels');
 assert.match(viewer, /sourceImageUrl/, 'voxel sampling uses the original property photo');
 assert.match(viewer, /InstancedMesh/, 'local movable voxel is real WebGL geometry');
 assert.doesNotMatch(viewer, /backingGeometry/, 'the old square backing slab must stay removed');
@@ -87,7 +88,7 @@ assert.match(localVoxel, /const MAX_SIDE = 32/, 'saved local recipe accepts the 
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF preserves the empty background');
 assert.match(localVoxel, /silhouette-aware voxel recipe/, 'saved record documents the silhouette-aware model');
 assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt from the compact recipe');
-assert.match(localStore, /saveCatalog3D/, 'local record persistence has a resilient shared-catalog fallback when the table is unavailable');
+assert.match(localStore, /saveCatalog3D/, 'local record persistence has the shared catalog fallback');
 assert.match(localStore, /source photo is never/, 'local persistence must preserve the source-photo privacy boundary');
 assert.match(localStore, /return null/, 'persistence failure must remain non-fatal to local voxel creation');
 
@@ -106,4 +107,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> high-fidelity source-matched real 3D voxel-photo review -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> high-fidelity source-matched real 3D voxel-photo review -> explicit approval -> direct source-photo stacked movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no 2D poster detour, Meshy credits, hidden second paywall, or physical-property claim.');
