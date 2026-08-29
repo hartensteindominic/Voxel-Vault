@@ -21,6 +21,12 @@ import {
   verifyPropertyGenerationRecoveryTaskId,
 } from '../../../lib/property-generation-task';
 import { propertyGenerationModelUrl } from '../../../lib/property-generation-model';
+import {
+  ensureMeshyCredits,
+  isMeshyCreditFailure,
+  MESHY_PROPERTY_CREDITS,
+  meshyCreditFailure,
+} from '../../../lib/meshy-credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -124,10 +130,12 @@ export async function POST(request: Request) {
     let itemId = '';
     let imageUrl = '';
     let provider = 'meshy-property-voxel-image-to-3d';
+    let generationStage = 'the property 3D';
 
     if (draftIdRaw) {
       const draftId = normalizePropertyDraftId(draftIdRaw);
       const phase = normalizePropertyGenerationPhase(body?.phase);
+      generationStage = phase === 'voxel' ? 'the final movable VoxelPop 3D' : 'the first property 3D';
       itemId = propertyDraftItemId(auth.user.id, draftId, phase);
       if (phase === 'source') {
         const sourceStoragePath = clean(body?.sourceStoragePath, 900);
@@ -181,6 +189,10 @@ export async function POST(request: Request) {
       return privateJson({ ok: true, reused: true, ...publicState(existing) });
     }
 
+    // Only a genuinely new textured image-to-3D call reaches this point.
+    const creditGate = await ensureMeshyCredits(apiKey, MESHY_PROPERTY_CREDITS.final3d, generationStage);
+    if (!creditGate.ok) return privateJson(creditGate, { status: creditGate.status });
+
     const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -197,7 +209,12 @@ export async function POST(request: Request) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+    if (!response.ok) {
+      if (isMeshyCreditFailure(response.status, data)) {
+        return privateJson(meshyCreditFailure(MESHY_PROPERTY_CREDITS.final3d, null, generationStage), { status: 402 });
+      }
+      return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+    }
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
