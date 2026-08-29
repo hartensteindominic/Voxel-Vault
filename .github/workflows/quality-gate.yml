@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: node scripts/test-repository-hygiene.mjs
       - run: npm run test:collection
       - run: npm run test:commerce
       - run: npm run test:routes
