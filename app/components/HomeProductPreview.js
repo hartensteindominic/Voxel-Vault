@@ -28,7 +28,6 @@ const STAGES = {
 
 export default function HomeProductPreview() {
   const [stage, setStage] = useState('preview');
-  const [voxelReady, setVoxelReady] = useState(false);
   const current = STAGES[stage];
   const showingVoxel = stage === 'voxel';
 
@@ -40,18 +39,14 @@ export default function HomeProductPreview() {
 
     <div className={styles.viewer} aria-label={`${current.label} sample`}>
       {showingVoxel
-        ? <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE} onReady={() => setVoxelReady(true)}/>
+        ? <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE}/>
         : <PhotoReliefModelViewer imageUrl={SAMPLE}/>}
     </div>
 
     <div className={styles.controls} style={{gridTemplateColumns:'1fr'}}>
-      <button
-        type="button"
-        className={styles.active}
-        onClick={() => setStage(showingVoxel ? 'preview' : 'voxel')}
-      >
+      <button type="button" className={styles.active} onClick={() => setStage(showingVoxel ? 'preview' : 'voxel')}>
         <span>{showingVoxel ? '2' : '3'}</span>
-        {showingVoxel ? 'See voxel photo' : voxelReady ? 'See movable voxel' : 'See movable voxel'}
+        {showingVoxel ? 'See voxel photo' : 'See movable voxel'}
       </button>
     </div>
     <p>{current.copy}</p>
