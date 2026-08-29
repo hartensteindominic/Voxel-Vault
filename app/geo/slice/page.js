@@ -20,6 +20,16 @@ function money(cents) {
   }).format(value);
 }
 
+function referenceMoney(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return '$0';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(number);
+}
+
 function percent(value) {
   const number = Number(value || 0);
   if (!Number.isFinite(number)) return '0%';
@@ -29,7 +39,7 @@ function percent(value) {
 
 function indexLabel(value) {
   const number = Number(value || 0);
-  return Number.isFinite(number) ? `${number.toFixed(3)}×` : '—';
+  return Number.isFinite(number) ? `${number.toFixed(1)}x` : '—';
 }
 
 export default function PropertySlicePage() {
@@ -46,9 +56,16 @@ export default function PropertySlicePage() {
   const [moneyInputs, setMoneyInputs] = useState({ usd: '0', crypto: '0', nft: '0', property: '0' });
   const [moneyResult, setMoneyResult] = useState(null);
   const [moneyBusy, setMoneyBusy] = useState(false);
-  const [message, setMessage] = useState('Try the $1.99 sandbox first. Nothing here moves money or creates real-property ownership.');
+  const [message, setMessage] = useState('Sandbox preview · no money moves until a verified provider is connected.');
 
   const shortWallet = useMemo(() => address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '', [address]);
+  const selectedPriceNumber = Number(slice.selectedPrice || 0);
+  const benchmarkPriceNumber = Number(slice.benchmarkPrice || 0);
+  const amountNumber = Number(slice.amount || 0);
+  const previewPercent = selectedPriceNumber > 0 ? (amountNumber / selectedPriceNumber) * 100 : 0;
+  const previewIndex = benchmarkPriceNumber > 0 ? selectedPriceNumber / benchmarkPriceNumber : 0;
+  const slicePercent = sliceResult?.hypotheticalPercent ?? previewPercent;
+  const benchmarkWeight = sliceResult?.relativePropertyPriceIndex ?? previewIndex;
 
   function changeSlice(key, value) {
     setSlice((current) => ({ ...current, [key]: value }));
@@ -75,7 +92,7 @@ export default function PropertySlicePage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Could not calculate Property Slice.');
       setSliceResult(data.result);
-      setMessage(`${money(data.result.amountCents)} is now modeled against this property. This is a sandbox comparison, not legal ownership.`);
+      setMessage(`${money(data.result.amountCents)} slice saved to this sandbox view. No deed, security, or funds transfer was created.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not calculate Property Slice.');
     } finally {
@@ -101,7 +118,7 @@ export default function PropertySlicePage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Could not build unified Vault preview.');
       setMoneyResult(data.result);
-      setMessage('Unified Vault preview updated. Only settled USD is counted as spendable right now.');
+      setMessage('Vault preview updated. Only settled USD is spendable; crypto and NFT values stay estimates until settlement.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not build unified Vault preview.');
     } finally {
@@ -112,145 +129,153 @@ export default function PropertySlicePage() {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        <nav className={styles.nav}>
-          <Link href="/geo" className={styles.brand}><span>✦</span> GEO</Link>
-          <div className={styles.navLinks}>
-            <Link href="/geo">3D Property</Link>
-            <Link href="/vault">My Vault</Link>
-          </div>
-        </nav>
-
-        <header className={styles.hero}>
-          <div className={styles.eyebrow}>PROPERTY + MONEY + DIGITAL ASSETS</div>
-          <h1>A $1.99 slice of your <em>3D property world.</em></h1>
-          <p>
-            Test tiny property amounts, compare every place to your benchmark property, and see USD, crypto and NFTs in one Vault—without blurring the legal difference between a digital asset and real estate.
-          </p>
-          <div className={styles.heroActions}>
-            <a href="#slice" className={styles.primaryAction}>Try $1.99</a>
-            <Link href="/geo" className={styles.secondaryAction}>Open 3D GEO</Link>
-          </div>
-          <div className={styles.truthPill}>Sandbox now · real ownership only through verified offerings</div>
+        <header className={styles.topbar}>
+          <Link href="/" className={styles.brand} aria-label="Voxel Vault home">
+            <span className={styles.vaultLogo}><i>+</i></span>
+            <strong>Voxel Vault</strong>
+          </Link>
+          <button type="button" className={styles.avatarButton} onClick={connect} aria-label={connected ? `Wallet ${shortWallet}` : 'Connect wallet'}>
+            <span className={styles.pixelAvatar}><i /></span>
+            <b className={connected ? styles.online : styles.offline} />
+          </button>
         </header>
 
-        <section className={styles.vaultStrip} aria-label="Unified Vault asset types">
-          <AssetTile icon="⌂" label="PROPERTY" value={sliceResult ? money(sliceResult.amountCents) : '$1.99'} note="sandbox slice" />
-          <AssetTile icon="$" label="USD" value={moneyResult ? money(moneyResult.balances.settledUsdCents) : '$0.00'} note="settled only" />
-          <AssetTile icon="◇" label="CRYPTO" value={moneyResult ? money(moneyResult.balances.estimatedCryptoValueCents) : '$0.00'} note="estimated" />
-          <AssetTile icon="▦" label="NFTs" value={moneyResult ? money(moneyResult.balances.estimatedNftValueCents) : '$0.00'} note="estimated" />
+        <section className={styles.titleBlock}>
+          <h1>Property Slice</h1>
+          <p>Start tiny. Keep property, USD, crypto and NFTs in one simple Vault.</p>
         </section>
 
-        <section id="slice" className={styles.panel}>
-          <div className={styles.panelHead}>
+        <form onSubmit={calculateSlice} className={styles.sliceForm}>
+          <section className={styles.heroCard} aria-label="$1.99 Property Slice sandbox">
+            <VoxelHouseArt />
+            <div className={styles.buySide}>
+              <div className={styles.heroPrice}>{money(toCents(slice.amount))}</div>
+              <button type="submit" className={styles.buyButton} disabled={sliceBusy}>
+                <span className={styles.miniVault}>+</span>
+                {sliceBusy ? 'Saving…' : 'Buy Slice'}
+              </button>
+              <small>Sandbox preview · no funds move</small>
+            </div>
+          </section>
+
+          <section className={styles.referenceCard}>
+            <span className={`${styles.miniTile} ${styles.houseTile}`}>⌂</span>
             <div>
-              <div className={styles.kicker}>PROPERTY SLICE · SANDBOX</div>
-              <h2>Make $1.99 comparable everywhere.</h2>
+              <small>Reference property</small>
+              <b>{slice.selectedName}</b>
             </div>
-            <div className={styles.priceBadge}>$1.99</div>
-          </div>
+            <strong>{referenceMoney(slice.selectedPrice)}</strong>
+          </section>
 
-          <form onSubmit={calculateSlice} className={styles.formGrid}>
-            <label className={styles.fieldWide}>
-              <span>Selected property</span>
-              <input value={slice.selectedName} onChange={(e) => changeSlice('selectedName', e.target.value)} />
-            </label>
-            <label>
-              <span>Property reference price</span>
-              <div className={styles.moneyInput}><b>$</b><input inputMode="decimal" value={slice.selectedPrice} onChange={(e) => changeSlice('selectedPrice', e.target.value)} /></div>
-            </label>
-            <label>
-              <span>Test amount</span>
-              <div className={styles.moneyInput}><b>$</b><input inputMode="decimal" value={slice.amount} onChange={(e) => changeSlice('amount', e.target.value)} /></div>
-            </label>
-            <label className={styles.fieldWide}>
-              <span>Benchmark property</span>
-              <input value={slice.benchmarkName} onChange={(e) => changeSlice('benchmarkName', e.target.value)} />
-            </label>
-            <label className={styles.fieldWide}>
-              <span>Benchmark reference price</span>
-              <div className={styles.moneyInput}><b>$</b><input inputMode="decimal" value={slice.benchmarkPrice} onChange={(e) => changeSlice('benchmarkPrice', e.target.value)} /></div>
-            </label>
-            <button className={styles.calculateButton} disabled={sliceBusy}>{sliceBusy ? 'Calculating…' : 'Calculate my $1.99 slice'}</button>
-          </form>
-
-          {sliceResult && (
-            <div className={styles.resultArea}>
-              <div className={styles.resultGrid}>
-                <ResultCard label="YOUR TEST SLICE" value={money(sliceResult.amountCents)} note="same starting amount" />
-                <ResultCard label="MATH-ONLY FRACTION" value={percent(sliceResult.hypotheticalPercent)} note={`${sliceResult.hypotheticalPartsPerMillion} ppm of reference price`} />
-                <ResultCard label="PRICE VS BENCHMARK" value={indexLabel(sliceResult.relativePropertyPriceIndex)} note={sliceResult.relativePropertyPriceIndex > 1 ? 'selected property costs more' : sliceResult.relativePropertyPriceIndex < 1 ? 'selected property costs less' : 'same reference price'} />
-                <ResultCard label="BENCHMARK EQUIVALENT" value={money(sliceResult.benchmarkEquivalentCents)} note="same mathematical fraction of benchmark" />
-              </div>
-              <div className={styles.warningBox}>
-                <strong>What you bought in this test: nothing legal yet.</strong>
-                <span>{sliceResult.note}</span>
-              </div>
+          <section className={styles.metricCard}>
+            <div className={styles.metricHalf}>
+              <span className={styles.pieIcon}><i /></span>
+              <div><small>Your {money(toCents(slice.amount))} =</small><strong>{percent(slicePercent)}</strong></div>
             </div>
-          )}
+            <div className={styles.metricHalf}>
+              <span className={styles.barIcon}><i /><i /><i /></span>
+              <div><small>Benchmark weight =</small><strong>{indexLabel(benchmarkWeight)}</strong></div>
+            </div>
+          </section>
+
+          <details className={styles.editorCard}>
+            <summary>Change property values</summary>
+            <div className={styles.editorGrid}>
+              <label><span>Property name</span><input value={slice.selectedName} onChange={(e) => changeSlice('selectedName', e.target.value)} /></label>
+              <label><span>Property value</span><div className={styles.moneyInput}><b>$</b><input inputMode="decimal" value={slice.selectedPrice} onChange={(e) => changeSlice('selectedPrice', e.target.value)} /></div></label>
+              <label><span>Slice amount</span><div className={styles.moneyInput}><b>$</b><input inputMode="decimal" value={slice.amount} onChange={(e) => changeSlice('amount', e.target.value)} /></div></label>
+              <label><span>Benchmark name</span><input value={slice.benchmarkName} onChange={(e) => changeSlice('benchmarkName', e.target.value)} /></label>
+              <label><span>Benchmark value</span><div className={styles.moneyInput}><b>$</b><input inputMode="decimal" value={slice.benchmarkPrice} onChange={(e) => changeSlice('benchmarkPrice', e.target.value)} /></div></label>
+            </div>
+          </details>
+        </form>
+
+        <section className={styles.assetGrid} aria-label="Unified Vault">
+          <AssetTile kind="property" icon="⌂" label="Property" value={sliceResult ? 'Slice saved' : 'Ready'} />
+          <AssetTile kind="usd" icon="$" label="USD" value={moneyResult ? money(moneyResult.balances.settledUsdCents) : '$0.00'} />
+          <AssetTile kind="crypto" icon="◆" label="Crypto" value={connected ? shortWallet : 'Connect'} onClick={connect} />
+          <AssetTile kind="nft" icon="▣" label="NFTs" value={moneyResult ? money(moneyResult.balances.estimatedNftValueCents) : '$0.00 est.'} />
         </section>
 
-        <section className={styles.panel}>
-          <div className={styles.panelHead}>
-            <div>
-              <div className={styles.kicker}>ONE VAULT · FOUR ASSET TYPES</div>
-              <h2>Make NFTs useful without pretending they are cash.</h2>
-            </div>
-            <button className={styles.walletButton} type="button" onClick={connect}>{connected ? shortWallet : 'Connect wallet'}</button>
+        <section className={styles.convertCard}>
+          <h2>Convert path</h2>
+          <div className={styles.convertFlow}>
+            <FlowStep kind="nft" icon="▣" label="NFT" />
+            <span className={styles.arrow}>→</span>
+            <FlowStep kind="market" icon="▤" label="Sale" />
+            <span className={styles.arrow}>→</span>
+            <FlowStep kind="cash" icon="$" label="USD" />
+            <span className={styles.arrow}>→</span>
+            <FlowStep kind="home" icon="⌂" label="Property" />
           </div>
+        </section>
 
-          <form onSubmit={previewMoney} className={styles.balanceGrid}>
+        <details className={styles.editorCard}>
+          <summary>Update Vault balances</summary>
+          <form onSubmit={previewMoney} className={styles.editorGrid}>
             <BalanceInput label="Settled USD" value={moneyInputs.usd} onChange={(value) => changeMoney('usd', value)} />
-            <BalanceInput label="Crypto value" value={moneyInputs.crypto} onChange={(value) => changeMoney('crypto', value)} />
-            <BalanceInput label="NFT estimated value" value={moneyInputs.nft} onChange={(value) => changeMoney('nft', value)} />
+            <BalanceInput label="Crypto estimated USD value" value={moneyInputs.crypto} onChange={(value) => changeMoney('crypto', value)} />
+            <BalanceInput label="NFT estimated USD value" value={moneyInputs.nft} onChange={(value) => changeMoney('nft', value)} />
             <BalanceInput label="Property goal" value={moneyInputs.property} onChange={(value) => changeMoney('property', value)} />
-            <button className={styles.calculateButton} disabled={moneyBusy}>{moneyBusy ? 'Updating…' : 'Preview unified balance'}</button>
+            <button className={styles.updateButton} disabled={moneyBusy}>{moneyBusy ? 'Updating…' : 'Update Vault preview'}</button>
           </form>
+          {moneyResult && <div className={styles.spendable}>Spendable now: <b>{money(moneyResult.spendableNowCents)}</b> settled USD</div>}
+        </details>
 
-          {moneyResult && (
-            <div className={styles.moneyPreview}>
-              <div className={styles.bigBalance}>
-                <small>ESTIMATED VAULT VIEW</small>
-                <strong>{money(moneyResult.balances.estimatedTotalCents)}</strong>
-                <span>Spendable now: {money(moneyResult.spendableNowCents)} settled USD</span>
-              </div>
-              <div className={styles.routeList}>
-                {moneyResult.conversionRoutes.map((route) => (
-                  <div key={`${route.from}-${route.to}`} className={styles.routeRow}>
-                    <b>{route.from.toUpperCase()} → {route.to.toUpperCase()}</b>
-                    <span>{route.description}</span>
-                    <small>{route.status.replaceAll('_', ' ')}</small>
-                  </div>
-                ))}
-              </div>
+        {sliceResult && (
+          <details className={styles.truthCard}>
+            <summary>What does this slice mean?</summary>
+            <p>{sliceResult.note}</p>
+            <div className={styles.truthStats}>
+              <span><small>Benchmark equivalent</small><b>{money(sliceResult.benchmarkEquivalentCents)}</b></span>
+              <span><small>Reference fraction</small><b>{sliceResult.hypotheticalPartsPerMillion} ppm</b></span>
             </div>
-          )}
-        </section>
-
-        <section className={styles.architecture}>
-          <div><span>1</span><b>3D property</b><small>source-backed GEO twin</small></div>
-          <div><span>2</span><b>Property rights</b><small>verified provider / legal entity</small></div>
-          <div><span>3</span><b>NFT layer</b><small>optional collectible or rights token</small></div>
-          <div><span>4</span><b>Crypto wallet</b><small>user-controlled first</small></div>
-          <div><span>5</span><b>USD account</b><small>bank/payment partner required live</small></div>
-        </section>
+          </details>
+        )}
 
         <div className={styles.status}>{message}</div>
 
-        <footer className={styles.footer}>
-          <strong>Voxel Vault is the interface—not automatically the bank, broker, exchange, custodian or deed registry.</strong>
-          <p>Live customer USD, crypto exchange/custody, tokenized securities and real-property interests must stay provider-backed and separately verified. The product can still feel like one account while those rails remain legally distinct underneath.</p>
-        </footer>
+        <nav className={styles.bottomNav} aria-label="Primary navigation">
+          <Link href="/"><span>⌂</span><b>Home</b></Link>
+          <Link href="/geo"><span>◈</span><b>Explore</b></Link>
+          <Link href="/vault"><span>▣</span><b>Vault</b></Link>
+          <button type="button" onClick={connect}><span>☺</span><b>{connected ? 'Wallet' : 'Profile'}</b></button>
+        </nav>
       </div>
     </main>
   );
 }
 
-function AssetTile({ icon, label, value, note }) {
-  return <div className={styles.assetTile}><span className={styles.assetIcon}>{icon}</span><div><small>{label}</small><strong>{value}</strong><em>{note}</em></div></div>;
+function VoxelHouseArt() {
+  return (
+    <div className={styles.sceneWrap} aria-hidden="true">
+      <div className={styles.voxelLot}>
+        <div className={styles.tree}><i className={styles.treeTop} /><i className={styles.treeMid} /><i className={styles.treeTrunk} /></div>
+        <div className={styles.house}>
+          <i className={styles.roofBack} /><i className={styles.roofFront} />
+          <i className={styles.houseBody} /><i className={styles.door} /><i className={styles.windowOne} /><i className={styles.windowTwo} />
+          <i className={styles.chimney} /><i className={styles.smokeOne} /><i className={styles.smokeTwo} />
+        </div>
+        <i className={styles.pathOne} /><i className={styles.pathTwo} /><i className={styles.pathThree} />
+        <i className={styles.flowerOne} /><i className={styles.flowerTwo} />
+      </div>
+    </div>
+  );
 }
 
-function ResultCard({ label, value, note }) {
-  return <div className={styles.resultCard}><small>{label}</small><strong>{value}</strong><span>{note}</span></div>;
+function AssetTile({ kind, icon, label, value, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag type={onClick ? 'button' : undefined} onClick={onClick} className={`${styles.assetTile} ${styles[kind]}`}>
+      <span className={styles.assetArt}>{icon}</span>
+      <b>{label}</b>
+      <small>{value}</small>
+    </Tag>
+  );
+}
+
+function FlowStep({ kind, icon, label }) {
+  return <div className={`${styles.flowStep} ${styles[`flow_${kind}`]}`}><span>{icon}</span><b>{label}</b></div>;
 }
 
 function BalanceInput({ label, value, onChange }) {
