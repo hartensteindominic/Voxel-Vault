@@ -65,7 +65,9 @@ export async function GET(request: Request) {
       { trait_type: 'Modeled Square Feet', value: estate.sqft },
       { trait_type: 'Modeled Lot Square Feet', value: estate.lotSqft },
       { trait_type: 'Digital List Price USD', value: estate.purchasePriceCents / 100 },
-      { trait_type: 'Real-World Reference USD', value: estate.referenceValueCents / 100 },
+      { trait_type: 'Digital Price Index', value: estate.relativeIndexBps / 10_000 },
+      { trait_type: 'Pricing Anchor USD', value: estate.anchorPriceCents / 100 },
+      { trait_type: 'Pricing Model', value: estate.pricingModel },
       { trait_type: 'Real Property Rights', value: 'None' },
       { trait_type: 'Rent Rights', value: 'None' },
       { trait_type: 'Deed', value: 'None' },
@@ -73,8 +75,10 @@ export async function GET(request: Request) {
     properties: {
       digital_only: true,
       real_property_rights: false,
-      reference_value_is_appraisal: false,
-      purchase_price_matches_reference_value: estate.purchasePriceCents === estate.referenceValueCents,
+      pricing_is_real_property_appraisal: false,
+      pricing_model: estate.pricingModel,
+      pricing_anchor_cents: estate.anchorPriceCents,
+      relative_index_bps: estate.relativeIndexBps,
     },
   }, {
     headers: {
