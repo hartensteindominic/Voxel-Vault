@@ -2,7 +2,7 @@ import PropertyDraftSyncBridge from './PropertyDraftSyncBridge';
 
 export const metadata = {
   title: 'My Vault | Voxel Vault',
-  description: 'Verified creator assets, wallet collectibles, user-bound provider positions and observed income inside the Voxel Vault financial OS.',
+  description: 'Organize digital creations, wallet-verified collectibles, and separately verified provider positions without mixing their legal meaning.',
 };
 
 export default function VaultLayout({ children }) {
