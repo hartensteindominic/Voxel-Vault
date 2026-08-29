@@ -8,14 +8,14 @@ import './spatial-os-interactions.css';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
-const TITLE = 'VoxelPop | Turn a House Photo into a 3D Voxel Photo';
-const DESCRIPTION = 'Turn a House Photo into a 3D Voxel Photo for $4.99. Approve the voxel photo, then get a movable 3D voxel. Source photo stays on your device; minting is optional. Saved to Vault.';
+const TITLE = 'Voxel Vault | Turn Property Photos into 3D Voxel Collectibles';
+const DESCRIPTION = 'Take a property photo, confirm the address, build a 3D voxel collectible, save it to your Voxel Vault Inventory, and mint it when you want.';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: '%s | VoxelPop' },
+  title: { default: TITLE, template: '%s | Voxel Vault' },
   description: DESCRIPTION,
-  keywords: ['VoxelPop', 'house photo to voxel', '3D voxel photo', 'voxel house creator', 'Voxel Vault'],
+  keywords: ['Voxel Vault', 'property voxel', 'house photo to voxel', '3D voxel collectible', 'property NFT'],
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
@@ -23,8 +23,8 @@ export const metadata = {
     description: DESCRIPTION,
     type: 'website',
     url: SITE_URL,
-    siteName: 'VoxelPop',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'VoxelPop photo to 3D voxel' }],
+    siteName: 'Voxel Vault',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'Voxel Vault property photo to 3D voxel' }],
   },
   twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION, images: ['/opengraph-image'] },
 };
@@ -32,8 +32,8 @@ export const metadata = {
 export const viewport = {
   width: 'device-width', initialScale: 1, viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fffaf0' },
-    { media: '(prefers-color-scheme: dark)', color: '#fffaf0' },
+    { media: '(prefers-color-scheme: light)', color: '#f8f5ff' },
+    { media: '(prefers-color-scheme: dark)', color: '#f8f5ff' },
   ],
 };
 
