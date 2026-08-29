@@ -83,7 +83,8 @@ assert.match(myWorldApi, /requireVoxelVaultUser/, 'My World feed stays authentic
 assert.match(worldApi, /toFixed\(3\)/, 'public coordinates remain privacy-rounded');
 assert.match(drafts, /world:\s*\{\s*public:\s*false/, 'new saved drafts remain private by default');
 
-assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'secondary routes keep the condensed consumer navigation');
+assert.match(dock, /const DOCK = \[[\s\S]*id: 'home'[\s\S]*id: 'create'[\s\S]*id: 'vault'/, 'mobile navigation stays condensed to Home, VoxelPop, and Vault');
+assert.doesNotMatch(dock, /id: 'world'|id: 'more'/, 'World and More stay out of the primary mobile dock');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Simple VoxelPop checks passed: one CTA home -> four-screen creator -> real voxel-photo review -> automatic movable voxel and Vault save -> optional mint, while World stays separate from the core funnel.');
+console.log('Simple VoxelPop checks passed: one CTA home -> four-screen creator -> real voxel-photo review -> automatic movable voxel and Vault save -> optional mint, with Home/VoxelPop/Vault as the only primary mobile actions.');
