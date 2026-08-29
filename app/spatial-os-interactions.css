@@ -1,9 +1,18 @@
 :root {
-  --vv-accent: #9ff5df;
-  --vv-accent-soft: rgba(159, 245, 223, .12);
-  --vv-border: rgba(171, 235, 212, .16);
-  --vv-focus: rgba(159, 245, 223, .92);
+  --vv-purple: #7138f5;
+  --vv-purple-strong: #5421d2;
+  --vv-lime: #c9ff54;
+  --vv-ink: #211820;
+  --vv-muted: #6f6673;
+  --vv-surface: #fffdf8;
+  --vv-accent: var(--vv-purple);
+  --vv-accent-soft: rgba(113, 56, 245, .10);
+  --vv-border: rgba(91, 70, 104, .16);
+  --vv-focus: rgba(113, 56, 245, .88);
   --vv-radius-control: 14px;
+  --vv-radius-card: 22px;
+  --vv-shadow-1: 0 8px 22px rgba(70, 48, 82, .06);
+  --vv-shadow-2: 0 18px 48px rgba(70, 48, 82, .10);
   --vv-tap-min: 44px;
 }
 
@@ -44,12 +53,12 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--vv-focus);
+  outline: 3px solid var(--vv-focus);
   outline-offset: 3px;
 }
 
 ::selection {
-  background: rgba(159, 245, 223, .24);
+  background: rgba(113, 56, 245, .18);
 }
 
 @media (pointer: coarse) {
