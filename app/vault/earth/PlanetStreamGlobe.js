@@ -180,6 +180,51 @@ export default function PlanetStreamGlobe({
       let listingMarkers = [];
       let atlasMarkers = [];
       let markerResources = [];
+      let lastFocusKey = '';
+
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      const activePointers = new Map();
+      let moved = false;
+      let dragX = 0;
+      let dragY = 0;
+      let pinchDistance = 0;
+      let targetX = 0.18;
+      let targetY = -0.42;
+      let inViewport = true;
+      let pageVisible = !document.hidden;
+      let viewportTimer = 0;
+
+      function visibleCenter() {
+        const worldFront = new THREE.Vector3(0, 0, 4.1);
+        const localFront = root.worldToLocal(worldFront.clone());
+        return vectorToLatLng(localFront);
+      }
+
+      function emitViewport() {
+        const center = visibleCenter();
+        callbacksRef.current.onViewport?.({ ...center, cameraDistance });
+      }
+
+      function scheduleViewport(delay = 420) {
+        window.clearTimeout(viewportTimer);
+        viewportTimer = window.setTimeout(emitViewport, delay);
+      }
+
+      const updateCamera = () => camera.position.set(0, 0.18, cameraDistance);
+
+      function focusLocation(latitude, longitude, closer = true) {
+        const lat = Number(latitude);
+        const lon = Number(longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        targetX = Math.max(-1.08, Math.min(1.08, lat * Math.PI / 180));
+        targetY = -lon * Math.PI / 180;
+        if (closer) {
+          cameraDistance = compact ? 11.8 : 11.15;
+          updateCamera();
+        }
+        scheduleViewport(700);
+      }
 
       function clearMarkers() {
         markerGroup.clear();
@@ -245,35 +290,15 @@ export default function PlanetStreamGlobe({
           atlasGroup.add(mesh);
           atlasMarkers.push(mesh);
         });
-      }
 
-      const raycaster = new THREE.Raycaster();
-      const pointer = new THREE.Vector2();
-      const activePointers = new Map();
-      let moved = false;
-      let dragX = 0;
-      let dragY = 0;
-      let pinchDistance = 0;
-      let targetX = 0.18;
-      let targetY = -0.42;
-      let inViewport = true;
-      let pageVisible = !document.hidden;
-      let viewportTimer = 0;
-
-      function visibleCenter() {
-        const worldFront = new THREE.Vector3(0, 0, 4.1);
-        const localFront = root.worldToLocal(worldFront.clone());
-        return vectorToLatLng(localFront);
-      }
-
-      function emitViewport() {
-        const center = visibleCenter();
-        callbacksRef.current.onViewport?.({ ...center, cameraDistance });
-      }
-
-      function scheduleViewport(delay = 420) {
-        window.clearTimeout(viewportTimer);
-        window.setTimeout(emitViewport, delay);
+        const selectedListing = (next.listings || []).find((item) => item?.id === next.selectedId);
+        const selectedAtlas = (next.atlasBuildings || []).find((item) => item?.atlasId === next.selectedAtlasId);
+        const focused = selectedListing || selectedAtlas || null;
+        const focusKey = selectedListing ? `listing:${selectedListing.id}` : selectedAtlas ? `atlas:${selectedAtlas.atlasId}` : '';
+        if (focused && focusKey && focusKey !== lastFocusKey) {
+          lastFocusKey = focusKey;
+          focusLocation(focused.latitude, focused.longitude, true);
+        }
       }
 
       const setPointer = (event) => {
@@ -282,7 +307,6 @@ export default function PlanetStreamGlobe({
         pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       };
 
-      const updateCamera = () => camera.position.set(0, 0.18, cameraDistance);
       const down = (event) => {
         activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         renderer.domElement.setPointerCapture?.(event.pointerId);
@@ -386,6 +410,7 @@ export default function PlanetStreamGlobe({
       const engine = {
         updateMarkers,
         reset() {
+          lastFocusKey = '';
           targetX = 0.18;
           targetY = -0.42;
           cameraDistance = compact ? 13.9 : 13.1;
@@ -396,6 +421,10 @@ export default function PlanetStreamGlobe({
           cameraDistance = Math.max(10.2, Math.min(17.2, cameraDistance + delta));
           updateCamera();
           scheduleViewport(280);
+        },
+        focusSelected() {
+          lastFocusKey = '';
+          updateMarkers(dataRef.current);
         },
         streamHere() { emitViewport(); },
       };
@@ -433,15 +462,18 @@ export default function PlanetStreamGlobe({
     return <div className="planetFallback" role="status"><b>3D WORLD UNAVAILABLE</b><span>{webglError}</span><style jsx>{`.planetFallback{position:absolute;inset:0;display:grid;place-content:center;gap:8px;text-align:center;padding:28px;background:radial-gradient(circle at 50% 45%,#173a33,#091015 65%);color:#d8e7e2}.planetFallback b{font-size:10px;letter-spacing:.14em}.planetFallback span{max-width:320px;color:#899a95;font-size:11px;line-height:1.5}`}</style></div>;
   }
 
+  const hasSelection = Boolean(selectedId || selectedAtlasId);
+
   return <div className="planetRoot">
     <div ref={mountRef} className="planetMount" />
-    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? 'PUBLIC 3D PROPERTY WORLD' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
+    <div className="planetStatus"><i className={streaming ? 'busy' : ''}/><span>{simpleMode ? 'MY WORLD · REAL MAP LOCATION' : streaming ? 'STREAMING VISIBLE REGION' : 'GLOBAL ON-DEMAND ATLAS'}</span></div>
     <div className="planetControls" aria-label="Globe controls">
       <button type="button" onClick={() => engineRef.current?.zoom?.(-0.7)} aria-label="Zoom in">+</button>
       <button type="button" onClick={() => engineRef.current?.zoom?.(0.7)} aria-label="Zoom out">−</button>
+      {hasSelection ? <button type="button" className="stream" onClick={() => engineRef.current?.focusSelected?.()}>LOCATE</button> : null}
       {!simpleMode ? <button type="button" className="stream" onClick={() => engineRef.current?.streamHere?.()}>LOAD HERE</button> : null}
       <button type="button" className="stream" onClick={() => engineRef.current?.reset?.()}>RESET</button>
     </div>
-    <style jsx>{`.planetRoot,.planetMount{position:absolute;inset:0}.planetStatus{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(4,10,12,.7);backdrop-filter:blur(12px);color:#b8c9c4;font-size:7px;font-weight:900;letter-spacing:.1em}.planetStatus i{width:7px;height:7px;border-radius:50%;background:#79efbc;box-shadow:0 0 12px rgba(121,239,188,.5)}.planetStatus i.busy{animation:planetPulse .9s ease-in-out infinite alternate}.planetControls{position:absolute;right:12px;top:12px;z-index:3;display:flex;gap:6px}.planetControls button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,10,12,.72);backdrop-filter:blur(12px);color:#edf7f3;font-size:18px;font-weight:800}.planetControls .stream{width:auto;padding:0 10px;font-size:7px;letter-spacing:.08em}@keyframes planetPulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}@media(max-width:640px){.planetStatus{left:9px;top:9px;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetControls{right:9px;top:48px;display:grid;grid-template-columns:34px 34px}.planetControls button{width:34px;height:34px}.planetControls .stream{grid-column:span 2;width:74px}}`}</style>
+    <style jsx>{`.planetRoot,.planetMount{position:absolute;inset:0}.planetStatus{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(4,10,12,.7);backdrop-filter:blur(12px);color:#b8c9c4;font-size:7px;font-weight:900;letter-spacing:.1em}.planetStatus i{width:7px;height:7px;border-radius:50%;background:#79efbc;box-shadow:0 0 12px rgba(121,239,188,.5)}.planetStatus i.busy{animation:planetPulse .9s ease-in-out infinite alternate}.planetControls{position:absolute;right:12px;top:12px;z-index:3;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:190px}.planetControls button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,10,12,.72);backdrop-filter:blur(12px);color:#edf7f3;font-size:18px;font-weight:800}.planetControls .stream{width:auto;padding:0 10px;font-size:7px;letter-spacing:.08em}@keyframes planetPulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}@media(max-width:640px){.planetStatus{left:9px;top:9px;max-width:58%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.planetControls{right:9px;top:48px;display:grid;grid-template-columns:34px 34px;max-width:86px}.planetControls button{width:34px;height:34px}.planetControls .stream{grid-column:span 2;width:74px}}`}</style>
   </div>;
 }
