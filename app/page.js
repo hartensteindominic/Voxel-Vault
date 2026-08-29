@@ -30,7 +30,7 @@ export default function Home() {
     </section>
 
     <footer className={styles.footer}>
-      <span>A 3D model or NFT is not a deed. Real ownership stays tied to verified legal records and settlement.</span>
+      <span>Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist. A 3D model or NFT alone is not a deed.</span>
       <Link href="/more">Advanced</Link>
     </footer>
   </main>;
