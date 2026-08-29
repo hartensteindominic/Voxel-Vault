@@ -21,21 +21,32 @@ export default function UnifiedPropertyWalletPage() {
       </nav>
 
       <header className={styles.hero}>
-        <p className={styles.kicker}>✦ PROPERTY → $1.99 → YOUR VAULT ✦</p>
-        <h1>One property.<br/><em>One little vault.</em></h1>
-        <p className={styles.lead}>Pick a property, test-buy its digital Voxel for a tiny price, then keep property, dollars, crypto and optional NFTs together.</p>
+        <p className={styles.kicker}>✦ TRY THE $1.99 PROPERTY DEMO ✦</p>
+        <h1>Buy a little<br/><em>digital property.</em></h1>
+        <p className={styles.lead}>Start with your property value. Pick one property. Tap Buy. That’s it.</p>
+        <a className={styles.heroStart} href="#start">START TEST BUY →</a>
+        <p className={styles.heroHint}>Uses demo money only.</p>
       </header>
 
-      <section className={styles.previewCard}>
-        <PropertyTwinCanvas style={{ width: '100%', height: '100%' }} />
-        <span className={styles.previewBadge}>3D PROPERTY</span>
-        <div className={styles.previewPrice}><small>STARTING TEST PRICE</small><b>$1.99</b></div>
+      <div id="start">
+        <UnifiedVault />
+      </div>
+
+      <section className={styles.previewSection}>
+        <div className={styles.previewCopy}>
+          <span>AFTER YOU BUY</span>
+          <h2>See it as a 3D VoxelPop property.</h2>
+          <p>Your digital property can live in the Vault and World first. Minting stays optional.</p>
+        </div>
+        <section className={styles.previewCard}>
+          <PropertyTwinCanvas style={{ width: '100%', height: '100%' }} />
+          <span className={styles.previewBadge}>3D PROPERTY</span>
+          <div className={styles.previewPrice}><small>DEMO STARTING PRICE</small><b>$1.99</b></div>
+        </section>
       </section>
 
-      <UnifiedVault />
-
       <footer className={styles.footer}>
-        <span>This is a sandbox digital-property experience. A digital unit or NFT is not a deed, rent right, bank deposit or real-estate investment by itself.</span>
+        <span>This demo buys a digital property unit, not the physical property or a deed. Live banking, crypto conversion and real investment rights require separate verified providers.</span>
         <Link href="/real-estate/launch">Advanced</Link>
       </footer>
     </main>
