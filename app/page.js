@@ -5,52 +5,71 @@ import styles from './home.module.css';
 
 export const metadata = { alternates: { canonical: '/' } };
 
+const STEPS = [
+  ['01', 'Choose a photo', 'Use a clear front or three-quarter view of the house.'],
+  ['02', 'Review the 3D voxel photo', 'Your photo becomes a block-by-block 3D voxel view you can inspect first.'],
+  ['03', 'Create the movable voxel', 'Approve the voxel photo, then build the separate movable 3D voxel.'],
+  ['04', 'Save it. Mint only if you want.', 'Your finished voxel goes to Vault. NFT minting stays optional.'],
+];
+
 export default function Home() {
   return <main className={styles.page}>
     <ProductTopNav/>
+
     <div className={styles.shell}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL</p>
-          <h1>Turn your house photo<br/><em>into a 3D voxel photo.</em></h1>
-          <p className={styles.lead}>Upload one house photo and VoxelPop rebuilds the visible photo as a block-by-block 3D voxel photo. Approve it, then create the separate movable 3D voxel. Minting is optional.</p>
+          <div className={styles.eyebrow}><span/>VOXELPOP</div>
+          <h1>Your house.<br/><em>Rebuilt in voxels.</em></h1>
+          <p className={styles.lead}>Upload one house photo. Pay $4.99 once. Review a <b>3D voxel photo that still looks like your house</b>, then approve the separate movable voxel.</p>
+
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/property">Create mine · $4.99</Link>
-            <Link className={styles.secondaryAction} href="/demo">Try the free voxel demo</Link>
+            <Link className={styles.primaryAction} href="/property">Create my house <span>→</span></Link>
+            <Link className={styles.secondaryAction} href="/demo">Try the free demo</Link>
           </div>
-          <div className={styles.trustRow} aria-label="VoxelPop creation facts">
-            <span>Voxel photo before model</span><span>Photo stays on device</span><span>Mint only if you want</span>
+
+          <div className={styles.facts} aria-label="VoxelPop creation facts">
+            <span><b>$4.99</b> one creation</span>
+            <span><b>Private</b> source photo stays on device</span>
+            <span><b>Optional</b> mint after creation</span>
           </div>
         </div>
-        <div className={styles.heroVisual}><HomeProductPreview/></div>
-      </section>
 
-      <section className={styles.flowCard} id="how-it-works" aria-label="VoxelPop creation steps">
-        <div className={styles.flowIntro}><p>THE WHOLE FLOW</p><h2>Photo. Voxel photo. Movable voxel.</h2></div>
-        <div className={styles.microFlow}><b>PHOTO</b><i>→</i><b>3D VOXEL PHOTO</b><i>→</i><b>APPROVE</b><i>→</i><b>MOVABLE 3D VOXEL</b></div>
-        <Link className={styles.startButton} href="/property">Start my VoxelPop →</Link>
-      </section>
-
-      <details className={styles.inclusion}>
-        <summary><span><small>AFTER YOU CREATE</small><b>Save it, place it, or mint it later</b></span><i>+</i></summary>
-        <div className={styles.afterCreate}>
-          <p><b>Vault</b> keeps your finished VoxelPop so you can reopen it later.</p>
-          <p><b>World</b> can pair the finished voxel with map and building context.</p>
-          <p><b>Mint</b> is optional and comes after the movable voxel is finished. No wallet is required to create.</p>
-          <div className={styles.afterLinks}><Link href="/vault">Open Vault →</Link><Link href="/world">Open World →</Link><Link href="/more">More tools →</Link></div>
+        <div className={styles.heroVisual}>
+          <HomeProductPreview/>
         </div>
-      </details>
+      </section>
 
-      <details className={styles.inclusion}>
-        <summary><span><small>WHAT YOU'RE BUYING</small><b>One digital VoxelPop creation · $4.99</b></span><i>+</i></summary>
+      <section className={styles.steps} aria-labelledby="how-title">
+        <div className={styles.sectionHeading}>
+          <p>HOW IT WORKS</p>
+          <h2 id="how-title">One simple creation flow.</h2>
+          <span>No map, wallet, or NFT is required to make your voxel.</span>
+        </div>
+        <div className={styles.stepGrid}>
+          {STEPS.map(([number, title, copy]) => <article key={number} className={styles.stepCard}>
+            <span>{number}</span>
+            <div><h3>{title}</h3><p>{copy}</p></div>
+          </article>)}
+        </div>
+      </section>
+
+      <section className={styles.resultCard}>
         <div>
-          <p>Sign in, choose a house photo, and complete the $4.99 creation checkout. You then see the 3D voxel photo before the separate movable voxel is built.</p>
-          <p>Your source photo stays on your device in the normal creation flow. One photo can represent the visible view, but it cannot prove hidden sides or survey-grade dimensions.</p>
-          <p><b>Voxel Vault is not a bank, brokerage, title company, or real-estate marketplace.</b> A VoxelPop item, NFT, map marker, payment, or Property Passport does not create physical-property ownership, rent, occupancy, investment, or appreciation rights.</p>
+          <p className={styles.resultKicker}>WHAT YOU GET</p>
+          <h2>A finished VoxelPop you can reopen anytime.</h2>
+          <p>Your movable voxel is saved to Vault first. From there, you can keep it digital, place it in World, or choose to mint the finished voxel later.</p>
         </div>
-      </details>
+        <div className={styles.resultActions}>
+          <Link href="/property">Start creating →</Link>
+          <Link href="/vault">Open Vault</Link>
+        </div>
+      </section>
 
-      <footer className={styles.footer}><span>Voxel Vault is a digital creation product. Physical-property and regulated financial rights remain separate.</span><span><Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/about">About</Link> · <Link href="/demo">Voxel demo</Link></span></footer>
+      <footer className={styles.footer}>
+        <p>VoxelPop is a digital creation product. A VoxelPop, map marker, payment, or NFT does not create ownership or financial rights in a physical property.</p>
+        <span><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/about">About</Link></span>
+      </footer>
     </div>
   </main>;
 }
