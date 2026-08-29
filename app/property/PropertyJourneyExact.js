@@ -276,7 +276,7 @@ export default function PropertyJourneyExact() {
   const localReady = final3d?.status === 'SUCCEEDED' && Boolean(final3d?.taskId && final3d?.modelUrl);
   const mintReady = localReady && String(final3d.taskId || '').startsWith('local-v1:');
   const stage = localReady ? 5 : previewApproved ? 4 : creationUnlocked ? 3 : pendingPhoto ? 2 : 1;
-  const labels = ['PHOTO', 'PAY', '3D PREVIEW', 'VOXEL', 'MINT'];
+  const labels = ['PHOTO', 'PAY', '3D PREVIEW', 'VOXEL', 'DONE'];
 
   const setPreviewFromFile = useCallback((photo) => {
     setPendingPreview((current) => {
@@ -597,7 +597,7 @@ export default function PropertyJourneyExact() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.taskId || !data?.modelUrl) throw new Error(data?.error || 'The local voxel could not be linked to your account.');
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: data.modelUrl, taskId: data.taskId });
-      setMessage('Voxel 3D ready. You can mint this digital voxel now, or add its real address to My World.');
+      setMessage('Voxel 3D ready. Keep it in Vault, add its real address to My World, or optionally mint it.');
     } catch (error) {
       setFinal3d({ status: 'LOCAL_ONLY', progress: 100, modelUrl: null, taskId: null });
       setMessage(`${String(error?.message || error || 'The voxel is visible on this device, but account registration failed.')} Retry registration before minting.`);
@@ -735,11 +735,15 @@ export default function PropertyJourneyExact() {
       <section className={styles.signinPanel}>
         <div className={styles.signinMark}>V</div>
         <p className={styles.bigPrompt}>Sign in first.</p>
-        <p className={styles.signinCopy}>Your paid creation, finished voxel, optional mint, Vault, and World stay tied to one account.</p>
+        <p className={styles.signinCopy}>Sign in only keeps the paid creation and finished voxel tied to you. You do not pay until after you choose a photo and confirm you can use it.</p>
+        <div className="vvSignedOutProof">
+          <img src="/voxelpop/demo-house.svg" alt="Illustrative VoxelPop demo house"/>
+          <div><small>SEE BEFORE YOU PAY</small><b>Preview the actual 3D interaction.</b><span>Try the production 3D preview and voxel viewer with a built-in sample.</span><a href="/demo">Try 3D demo →</a></div>
+        </div>
         <button className={styles.primaryPurple} type="button" onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'Opening sign-in…' : 'Continue with Google'}</button>
-        <small>No wallet is needed until you choose Mint.</small>
+        <small>$4.99 is charged only when you explicitly start a new creation. No wallet is needed to create.</small>
       </section>
-      <p className={styles.message}>{message}</p>
+      <p className={styles.message} role="status">{message}</p>
     </section></main>;
   }
 
@@ -769,12 +773,12 @@ export default function PropertyJourneyExact() {
         {sourceMode === 'properties' ? <div className={styles.choicePanel}>
           {propertyChoices.length ? propertyChoices.map((property) => <button key={property.id} className={styles.secondaryLink} style={{border:0,cursor:'pointer',minHeight:58,padding:'10px 14px',display:'grid',gridTemplateColumns:'1fr auto',textAlign:'left',gap:8}} type="button" onClick={() => selectProperty(property)} disabled={busy === 'reuse-photo'}>
             <span><b style={{display:'block',fontSize:13}}>{property.label || 'Saved property'}</b><small style={{display:'block',marginTop:4,color:'#7d7168'}}>{property.demoOnly ? 'Demo property slice · not real-property ownership' : property?.voxelpop?.paidCreation ? 'Saved VoxelPop property · creation already paid' : 'Saved property · add or reuse a photo'}</small></span>
-            <b style={{fontSize:9,letterSpacing:'.08em'}}>{property.demoOnly ? 'DEMO' : 'USE'}</b>
+            <b style={{fontSize:10,letterSpacing:'.08em'}}>{property.demoOnly ? 'DEMO' : 'USE'}</b>
           </button>) : <div className={styles.autoPanel}><b>NO SAVED PROPERTIES YET</b><span>Upload a property photo to create your first one.</span></div>}
           <button className={styles.primaryTeal} type="button" onClick={choosePhoto}>Add a property photo</button>
         </div> : <>
           {selectedProperty ? <div className={styles.autoPanel}><b>PROPERTY SELECTED</b><span>{selectedProperty.label || 'Saved property'} · add its photo below.</span></div> : null}
-          <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
+          <div className={styles.photoDrop} onClick={choosePhoto} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choosePhoto(); } }} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>Front or three-quarter view works best · iPhone photos supported</span></div>
           <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : selectedProperty ? 'Add photo to this property' : 'Choose photo'}</button>
         </>}
         {selectedProperty && !pendingPhoto ? <button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Add photo to {selectedProperty.label || 'this property'}</button> : null}
@@ -823,20 +827,23 @@ export default function PropertyJourneyExact() {
       </> : null}
 
       {stage === 5 ? <>
-        <p className={styles.bigPrompt}>Voxel ready. Mint is next.</p>
-        <p className={styles.stepCopy}>You have already seen the photo-faithful 3D preview and then created the voxel version. Minting is now a separate wallet action for the finished digital voxel.</p>
+        <p className={styles.bigPrompt}>Voxel ready. Choose what’s next.</p>
+        <p className={styles.stepCopy}>Your paid creation is complete. Keep the finished voxel in Vault, add an optional address for My World, or mint the digital voxel if you want an on-chain collectible.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster}/>
-          <span className={styles.badge}>FINAL 3D VOXEL · READY TO MINT</span>
+          <span className={styles.badge}>FINAL 3D VOXEL · COMPLETE</span>
         </div>
         <div className={styles.choicePanel}>
-          <a className={styles.primaryLink} href={mintHref}>Mint this digital voxel →</a>
-          <span style={{fontSize:11,color:'#7b7068',lineHeight:1.5}}>Your wallet opens only now. You approve the Base transaction yourself; Voxel Vault does not auto-sign or auto-spend.</span>
+          <div className={styles.nextGrid}>
+            <a className={styles.primaryLink} href="/vault">Keep it in my Vault →</a>
+            <a className={styles.secondaryLink} href={mintHref}>Optional mint →</a>
+          </div>
+          <span className={styles.nextNote}>Minting is optional. Your wallet opens only if you choose it, and you approve the Base transaction yourself.</span>
         </div>
 
         <form className={styles.searchForm} onSubmit={mapBuilding}>
           <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Optional: property address for My World" aria-label="Property address" autoComplete="street-address"/>
-          <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Also match this voxel to the real map'}</button>
+          <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Add this voxel to the real map'}</button>
         </form>
         {building ? <>
           <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>{building?.geometry ? 'SOURCE-BACKED BUILDING FOOTPRINT' : 'VERIFIED LOCATION REFERENCE'}</span></div>
