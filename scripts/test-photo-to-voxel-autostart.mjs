@@ -26,11 +26,15 @@ assert.match(property, /Demo property slice · not real-property ownership/, 'sa
 assert.match(property, /setMessage\('Payment verified\. Loading your 3D voxel photo first\.'\)/,
   'a verified paid session stops at the 3D voxel-photo review stage first');
 assert.match(property, /PhotoReliefModelViewer/, '3D voxel photo is a distinct stage');
-assert.match(photoPreview, /className=\{styles\.housePhoto\} src=\{imageUrl\}/, 'the review stage preserves the selected house photo itself');
-assert.match(photoPreview, /3D VOXEL PHOTO/, 'the review stage is identified as the 3D voxel-photo step');
-assert.match(photoPreview, /PHOTO-MATCHED/, 'the review stage makes likeness preservation explicit');
-assert.match(photoPreview, /ORIGINAL PHOTO/, 'the review stage keeps the original image visible for comparison');
-assert.doesNotMatch(photoPreview, /InstancedMesh|getImageData|BoxGeometry/, 'the approval preview must not fabricate unseen cube geometry from one photo');
+assert.match(photoPreview, /getImageData\(0, 0, columns, rows\)/, 'the review stage samples the selected house photo into voxel data');
+assert.match(photoPreview, /new THREE\.InstancedMesh/, 'the review stage renders actual Three.js voxel instances');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'the review stage uses real cube geometry');
+assert.match(photoPreview, /const depth = 0\.42/, 'the review stage gives source-matched cubes inspectable shallow depth');
+assert.match(photoPreview, /edge \* 0\.34/, 'the review stage uses visible image structure for depth emphasis');
+assert.match(photoPreview, /PHOTO-MATCHED BLOCKS/, 'the review stage labels the result as source-matched blocks');
+assert.match(photoPreview, /ORIGINAL PHOTO/, 'the review stage keeps the original image visible for direct comparison');
+assert.doesNotMatch(photoPreview, /backingGeometry/, 'the review stage must not regress to a flat picture backing');
+assert.match(photoPreview, /targetY = clamp/, 'the review stage keeps rotation bounded instead of inventing unseen sides');
 assert.match(property, /Looks good → Create Movable 3D Voxel/, 'user approval is required before movable-voxel generation');
 assert.match(property, /async function approvePreviewAndBuildVoxel\(\)/, 'movable-voxel generation has an explicit post-preview gate');
 assert.match(property, /const poster = await createVoxelPoster\(pendingPhoto\)/, 'voxel image is not created until after preview approval');
@@ -83,4 +87,4 @@ assert.match(mintPage, /Mint Later/, 'final mint page keeps minting optional');
 assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal paid creation flow does not lead into another paid collectible funnel');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided property flow does not call metered provider generation routes');
 
-console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> photo-matched 3D voxel-photo review -> explicit user approval -> separate local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with optional map/World, resilient persistence, and no Meshy credits or second paywall.');
+console.log('Property journey regression passed: saved/reusable property photo or new photo -> one paid unlock -> real photo-matched 3D voxel geometry -> explicit user approval -> separate local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with optional map/World, resilient persistence, and no Meshy credits or second paywall.');
