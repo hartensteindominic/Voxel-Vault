@@ -11,7 +11,9 @@ export async function GET(request: Request) {
 
   try {
     const entitlement = await getVoxelMakerEntitlement(auth.user.id);
-    const used = entitlement.active ? await countVoxelMakerGenerations(auth.user.id) : 0;
+    const used = entitlement.active
+      ? await countVoxelMakerGenerations(auth.user.id, entitlement.record?.currentPeriodStart)
+      : 0;
     const limit = entitlement.plan?.monthlyVoxels || 0;
     return NextResponse.json({
       ok: true,
@@ -19,6 +21,7 @@ export async function GET(request: Request) {
       plan: entitlement.plan,
       status: entitlement.record?.status || 'none',
       cancelAtPeriodEnd: Boolean(entitlement.record?.cancelAtPeriodEnd),
+      currentPeriodStart: entitlement.record?.currentPeriodStart || null,
       currentPeriodEnd: entitlement.record?.currentPeriodEnd || null,
       usage: { used, limit, remaining: Math.max(0, limit - used) },
       canManageBilling: Boolean(entitlement.record?.stripeCustomerId),
