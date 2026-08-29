@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   buildPropertySliceSandbox,
+  buildSandboxPropertyPurchase,
   buildUnifiedAssetConversionPreview,
 } from '../../../../lib/real-estate/property-slice-sandbox.js';
 
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
 
     let result;
     if (mode === 'slice') result = buildPropertySliceSandbox(body);
+    else if (mode === 'purchase') result = buildSandboxPropertyPurchase(body);
     else if (mode === 'conversion_preview') result = buildUnifiedAssetConversionPreview(body);
     else throw new Error('Unsupported property-slice mode.');
 
