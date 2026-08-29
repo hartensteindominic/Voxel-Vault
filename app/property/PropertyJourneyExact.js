@@ -276,7 +276,7 @@ export default function PropertyJourneyExact() {
   const localReady = final3d?.status === 'SUCCEEDED' && Boolean(final3d?.taskId && final3d?.modelUrl);
   const mintReady = localReady && String(final3d.taskId || '').startsWith('local-v1:');
   const stage = localReady ? 5 : previewApproved ? 4 : creationUnlocked ? 3 : pendingPhoto ? 2 : 1;
-  const labels = ['PHOTO', 'PAY', '3D PREVIEW', 'VOXEL', 'MINT'];
+  const labels = ['PHOTO', 'PAY', '3D VOXEL PHOTO', 'MOVABLE VOXEL', 'MINT'];
 
   const setPreviewFromFile = useCallback((photo) => {
     setPendingPreview((current) => {
@@ -396,15 +396,15 @@ export default function PropertyJourneyExact() {
         setPreviewFromFile(photo);
         setRightsConfirmed(false);
         setMessage(alreadyPaid
-          ? 'Your saved property photo is ready to reuse. Confirm permission, then make the 3D preview—no second creation charge.'
-          : 'Your saved property photo is ready. Confirm permission, then continue to the 3D preview.');
+          ? 'Your saved property photo is ready to reuse. Confirm permission, then make the 3D voxel photo—no second creation charge.'
+          : 'Your saved property photo is ready. Confirm permission, then continue to the 3D voxel photo.');
       } else {
         setPendingPhoto(null);
         setPreviewFromFile(null);
         setRightsConfirmed(false);
         setMessage(alreadyPaid
           ? 'This paid property is selected. Its older temporary photo is no longer on this device, so add the property photo once; you will not pay the creation charge again.'
-          : 'This property is selected. Add its photo to create the 3D preview and voxel.');
+          : 'This property is selected. Add its photo to create the 3D voxel photo and movable voxel.');
       }
     } finally {
       setBusy('');
@@ -434,7 +434,7 @@ export default function PropertyJourneyExact() {
       setSavedDraft(null);
       restoreMapFromProperty(selectedProperty);
       setMessage(paidSessionId
-        ? 'Payment is already verified. Confirm permission, then make the 3D preview—no second charge.'
+        ? 'Payment is already verified. Confirm permission, then make the 3D voxel photo—no second charge.'
         : `Photo ready. Confirm permission, then pay ${CREATION_PRICE_LABEL}.`);
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
@@ -486,7 +486,7 @@ export default function PropertyJourneyExact() {
     checkoutHandledRef.current = generationSessionId;
     let active = true;
     setBusy('payment-return');
-    setMessage('Payment received. Opening your private photo for the 3D preview…');
+    setMessage('Payment received. Opening your private photo for the 3D voxel photo…');
 
     (async () => {
       try {
@@ -514,7 +514,7 @@ export default function PropertyJourneyExact() {
         setRightsConfirmed(true);
         setPreviewReady(false);
         setPreviewApproved(false);
-        setMessage('Payment verified. Loading your 3D picture first.');
+        setMessage('Payment verified. Loading your 3D voxel photo first.');
         setBusy('');
       } catch (error) {
         if (active) {
@@ -544,12 +544,12 @@ export default function PropertyJourneyExact() {
         setCreationUnlocked(true);
         setPreviewReady(false);
         setPreviewApproved(false);
-        setMessage('Payment already verified. Loading the 3D picture—no second charge.');
+        setMessage('Payment already verified. Loading the 3D voxel photo—no second charge.');
         setBusy('');
         return;
       }
       setMessage(cachedOnDevice
-        ? `Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D picture before any voxel is built.`
+        ? `Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D voxel photo before the movable voxel is built.`
         : `Opening secure ${CREATION_PRICE_LABEL} checkout. Your browser could not keep the photo through checkout, so after payment you may need to choose the same photo once. You will not be charged again.`);
       const form = new FormData();
       form.append('draftId', draftId);
@@ -568,13 +568,13 @@ export default function PropertyJourneyExact() {
     if (!pendingPhoto || !previewReady) return;
     setPreviewApproved(true);
     setBusy('voxel-image');
-    setMessage('3D picture approved. Creating your separate movable VoxelPop voxel…');
+    setMessage('3D voxel photo approved. Creating your separate movable VoxelPop voxel…');
     try {
       const poster = await createVoxelPoster(pendingPhoto);
       setVoxelPoster(poster);
       setFinal3d({ status: 'IN_PROGRESS', progress: 55, modelUrl: null, taskId: null });
       setBusy('voxel-3d');
-      setMessage('Creating the 3D voxel from the same approved house photo…');
+      setMessage('Creating the movable 3D voxel from the approved voxel photo…');
     } catch (error) {
       setPreviewApproved(false);
       setBusy('');
@@ -857,7 +857,7 @@ export default function PropertyJourneyExact() {
 
       {stage === 1 ? <>
         <p className={styles.bigPrompt}>Choose a clear house photo.</p>
-        <p className={styles.flowHint}>Photo → $4.99 → 3D picture → 3D voxel → mint now or save for later.</p>
+        <p className={styles.flowHint}>Photo → $4.99 → 3D voxel photo → movable 3D voxel → mint now or save for later.</p>
         <div className={styles.choicePanel}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <button className={sourceMode === 'photo' ? styles.primaryPurple : styles.primaryTeal} style={{minHeight:50,boxShadow:'none',fontSize:14}} type="button" onClick={() => setSourceMode('photo')}>Upload / Photos</button>
@@ -881,53 +881,53 @@ export default function PropertyJourneyExact() {
       </> : null}
 
       {stage === 2 ? <>
-        <p className={styles.bigPrompt}>{paidSessionId ? 'See the 3D picture.' : 'Pay $4.99. See the 3D picture.'}</p>
-        <p className={styles.stepCopy}>You see and approve the 3D picture before VoxelPop creates the separate voxel. {paidSessionId ? 'This creation is already paid, so there is no second creation charge.' : ''}</p>
+        <p className={styles.bigPrompt}>{paidSessionId ? 'See the 3D voxel photo.' : 'Pay $4.99. See the 3D voxel photo.'}</p>
+        <p className={styles.stepCopy}>You see and approve the 3D voxel photo before VoxelPop creates the separate movable 3D voxel. {paidSessionId ? 'This creation is already paid, so there is no second creation charge.' : ''}</p>
         <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>{selectedProperty ? 'REUSABLE PROPERTY PHOTO · DEVICE ONLY' : 'YOUR HOUSE PHOTO · DEVICE ONLY'}</span></div>
         <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : paidSessionId ? 'Make 3D Picture · already paid' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Picture`}</button>
+          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : paidSessionId ? 'Make 3D Voxel Photo · already paid' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Voxel Photo`}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another photo</button>
         </div>
         <p className={styles.truth}>The $4.99 payment buys one digital VoxelPop creation. It does not buy the physical property or any deed, rent, occupancy, investment, or guaranteed-value rights.</p>
       </> : null}
 
       {stage === 3 ? <>
-        <p className={styles.bigPrompt}>{previewReady ? '3D picture ready.' : 'Creating your 3D picture.'}</p>
-        <p className={styles.stepCopy}>Review the recognizable textured house first. The voxel is not created until you approve this step.</p>
+        <p className={styles.bigPrompt}>{previewReady ? '3D voxel photo ready.' : 'Creating your 3D voxel photo.'}</p>
+        <p className={styles.stepCopy}>Review the photo-matched voxelized house first. The separate movable voxel is not created until you approve this step.</p>
         {!pendingPreview ? <section className={styles.donePanel}><b>PAYMENT VERIFIED</b><span>Choose the same photo again. You will not be charged again.</span><button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Choose photo again</button></section> : <>
           <div className={styles.heroCard}>
             <PhotoReliefModelViewer imageUrl={pendingPreview} onReady={() => setPreviewReady(true)}/>
-            <span className={styles.badge}>3D PICTURE · VOXEL NOT BUILT YET</span>
+            <span className={styles.badge}>3D VOXEL PHOTO · MOVABLE VOXEL NOT BUILT YET</span>
             {!previewReady ? <div className={styles.buildPulse}/> : null}
           </div>
           <div className={styles.choicePanel}>
-            <b>{previewReady ? 'Does this look like the house in your photo?' : 'Building the recognizable 3D picture…'}</b>
-            <button className={styles.primaryPurple} type="button" onClick={approvePreviewAndBuildVoxel} disabled={!previewReady || busy === 'voxel-image'}>{busy === 'voxel-image' ? 'Starting voxel…' : 'Looks good → Create 3D Voxel'}</button>
+            <b>{previewReady ? 'Does this voxel photo look like the house in your photo?' : 'Building the 3D voxel photo…'}</b>
+            <button className={styles.primaryPurple} type="button" onClick={approvePreviewAndBuildVoxel} disabled={!previewReady || busy === 'voxel-image'}>{busy === 'voxel-image' ? 'Starting movable voxel…' : 'Looks good → Create Movable 3D Voxel'}</button>
             <button className={styles.textButton} type="button" onClick={choosePhoto}>Use a different photo · no second charge</button>
           </div>
         </>}
-        <p className={styles.truth}>The visible front stays tied to your source photo. One photo cannot prove hidden sides, the back, or exact dimensions.</p>
+        <p className={styles.truth}>The visible voxelized view stays tied to your source photo. One photo cannot prove hidden sides, the back, or exact dimensions.</p>
       </> : null}
 
       {stage === 4 ? <>
-        <p className={styles.bigPrompt}>Create the 3D voxel.</p>
-        <p className={styles.stepCopy}>VoxelPop now converts the same approved house image into the separate movable voxel version.</p>
+        <p className={styles.bigPrompt}>Create the movable 3D voxel.</p>
+        <p className={styles.stepCopy}>VoxelPop now converts the approved 3D voxel photo into the separate movable voxel version.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster} onReady={handleLocal3DReady}/>
-          <span className={styles.badge}>{final3d.status === 'LOCAL_ONLY' ? 'VOXEL VISIBLE · SAVE NEEDS RETRY' : 'CREATING PHOTO-MATCHED 3D VOXEL'}</span>
+          <span className={styles.badge}>{final3d.status === 'LOCAL_ONLY' ? 'VOXEL VISIBLE · SAVE NEEDS RETRY' : 'CREATING PHOTO-MATCHED MOVABLE 3D VOXEL'}</span>
           {!localReady ? <div className={styles.buildPulse}/> : null}
         </div>
-        {final3d.status === 'LOCAL_ONLY' && localRecipe ? <button className={styles.primaryPurple} type="button" onClick={() => registerVoxel(localRecipe)} disabled={busy === 'register'}>{busy === 'register' ? 'Saving voxel…' : 'Retry saving voxel'}</button> : <div className={styles.autoPanel}><b>3D PICTURE APPROVED → 3D VOXEL</b><span>Your source photo remains on this device. No Meshy credits are used for this local voxel build.</span></div>}
+        {final3d.status === 'LOCAL_ONLY' && localRecipe ? <button className={styles.primaryPurple} type="button" onClick={() => registerVoxel(localRecipe)} disabled={busy === 'register'}>{busy === 'register' ? 'Saving voxel…' : 'Retry saving voxel'}</button> : <div className={styles.autoPanel}><b>3D VOXEL PHOTO APPROVED → MOVABLE 3D VOXEL</b><span>Your source photo remains on this device. No Meshy credits are used for this local voxel build.</span></div>}
       </> : null}
 
       {stage === 5 ? <>
-        <div className={styles.autoPanel}><b>✓ PAID · $4.99 COMPLETE</b><span>3D picture approved · 3D voxel created · saved to Vault</span></div>
-        <p className={styles.bigPrompt}>Your voxel is ready.</p>
+        <div className={styles.autoPanel}><b>✓ PAID · $4.99 COMPLETE</b><span>3D voxel photo approved · movable 3D voxel created · saved to Vault</span></div>
+        <p className={styles.bigPrompt}>Your movable voxel is ready.</p>
         <p className={styles.stepCopy}>Mint it now, or keep the finished digital voxel in your Vault and mint it later.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster}/>
-          <span className={styles.badge}>FINAL 3D VOXEL · SAVED</span>
+          <span className={styles.badge}>FINAL MOVABLE 3D VOXEL · SAVED</span>
         </div>
         <div className={styles.choicePanel}>
           <a className={styles.primaryLink} href={mintHref}>Mint Now</a>
