@@ -82,7 +82,7 @@ export default function AppCommandCenter() {
         <div className="vvCommandResults">
           {results.map((item) => <Link href={item.href} key={`${item.id}-${item.href}`}><span>{item.icon || '→'}</span><div><b>{item.label}</b><small>{item.description}</small></div></Link>)}
         </div>
-        <footer><span>Navigation only. No trades, mints or property actions happen from search.</span><Link href="/more">FULL DIRECTORY →</Link></footer>
+        <footer><span>Search is navigation only. It never executes trades, mints, Meshy generations or property actions.</span><Link href="/more">FULL DIRECTORY →</Link></footer>
       </section>
     </div> : null}
     <style jsx global>{`
