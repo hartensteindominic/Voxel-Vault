@@ -39,7 +39,7 @@ export default function MorePage() {
         <div className={styles.coreCopy}>
           <small>CORE PROPERTY FLOW</small>
           <h2>Bought or saved a property?</h2>
-          <p>Use a new property photo or reuse one you already saved, then continue through <b>3D preview → approve → 3D voxel → optional mint</b>.</p>
+          <p>Use a new property photo or reuse one you already saved, then continue through <b>3D voxel photo → approve → movable 3D voxel → optional mint</b>.</p>
           <div className={styles.coreActions}>
             <Link className={styles.primary} href="/property?source=properties">Create from My Properties →</Link>
             <Link href="/property">Use a new photo →</Link>
@@ -47,7 +47,7 @@ export default function MorePage() {
           </div>
         </div>
         <div className={styles.flowVisual} aria-label="Property creation flow">
-          <span>PHOTO</span><i>→</i><span>3D</span><i>→</i><span>APPROVE</span><i>→</i><span>VOXEL</span><i>→</i><span>OPTIONAL MINT</span>
+          <span>PHOTO</span><i>→</i><span>VOXEL PHOTO</span><i>→</i><span>APPROVE</span><i>→</i><span>MOVABLE VOXEL</span><i>→</i><span>OPTIONAL MINT</span>
         </div>
       </section>
 
