@@ -15,15 +15,15 @@ const layout = fs.readFileSync(new URL('../app/layout.js', import.meta.url), 'ut
 const vaultLayout = fs.readFileSync(new URL('../app/vault/layout.js', import.meta.url), 'utf8');
 const home = fs.readFileSync(new URL('../app/real-estate/page.js', import.meta.url), 'utf8');
 
-for (const label of ['Home', 'Earth', 'Create', 'Vault', 'More']) {
+for (const label of ['Home', 'Explore', 'Create', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
 assert.match(productMap, /SIMPLE_PROPERTY_DOCK/, 'simple property product should have a dedicated consumer dock');
-for (const label of ['Home', 'Add', 'Vault', 'World']) {
-  assert.match(productMap, new RegExp(`label: '${label}'`), `simple property dock should include ${label}`);
+for (const label of ['Home', 'Create', '$1.99', 'Vault', 'World']) {
+  assert.ok(productMap.includes(`label: '${label}'`), `simple property dock should include ${label}`);
 }
 assert.match(productMap, /APP_SECTIONS/);
-for (const route of ['/vault/earth', '/geo', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/asset', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
+for (const route of ['/vault/earth', '/geo', '/geo/slice', '/studio', '/capture', '/receipt', '/avatar', '/room', '/trade', '/asset', '/marketplace', '/ai', '/ai-licensing', '/hunt', '/real-estate/reits', '/vault/income', '/real-estate/acquire', '/vault/properties/claim', '/forge/mainnet', '/admin/integrations']) {
   assert.ok(productMap.includes(`'${route}'`), `canonical product map should organize ${route}`);
 }
 assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');
@@ -56,12 +56,10 @@ assert.match(commandCenter, /APP_DOCK, APP_SECTIONS/, 'command center should ind
 assert.match(commandCenter, /metaKey \|\| event\.ctrlKey/, 'command center should support desktop keyboard invocation');
 assert.match(commandCenter, /event\.key === '\/'/, 'command center should support fast slash invocation outside text fields');
 assert.match(commandCenter, /safe-area-inset-bottom/, 'command center trigger must respect iPhone safe area');
-assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from the simple Home, Add, Vault and World routes');
+assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from the simple Home, Create, $1.99, Vault and World routes');
 assert.match(commandCenter, /Search is navigation only\. It never executes trades, mints, Meshy generations or property actions\./, 'command center must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
-// Consumer Home is intentionally much smaller than the underlying Spatial Asset OS.
-// The front door is account-first, then photo -> automatic 3D -> automatic voxel -> My World -> digital collection -> Vault.
 assert.match(rootHome, /START → SIGN IN/, 'root Home should make the account-first transition explicit');
 assert.match(rootHome, /href="\/property"/, 'root Home should route the single property CTA into the account-gated maker');
 assert.match(rootHome, /<b>PHOTO<\/b>/, 'root Home should put the authorized photo first');
@@ -70,14 +68,13 @@ assert.match(rootHome, /<b>VOXEL<\/b>/, 'root Home should expose the automatic V
 assert.match(rootHome, /<b>WORLD<\/b>/, 'root Home should preview the completed voxel on World before checkout');
 assert.match(rootHome, /COLLECT \+ VAULT/, 'root Home should make digital collection and Vault delivery the end of the loop');
 assert.match(rootHome, /A wallet is optional/i, 'wallet must remain optional until a user chooses the downstream mint path');
-assert.match(rootHome, /does not buy the physical property/i, 'root Home must distinguish collecting a voxel from buying physical property');
+assert.match(rootHome, /does not buy the physical property/i, 'root Home must distinguish collecting the voxel from buying physical property');
 assert.match(rootHome, /deed\/title, rent, occupancy, or investment rights/, 'root Home must preserve model versus legal-rights truth');
 assert.match(rootHome, /href="\/more"/, 'advanced Spatial Asset OS tools must remain deliberately reachable');
 assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'unverified physical-property purchase execution must stay out of the consumer front door');
 assert.doesNotMatch(rootHome, /HomeCapabilityStrip|FOUR CORE JOBS|title: 'Create'|title: 'Earth'|title: 'Invest'/, 'advanced capability and product taxonomy must not re-clutter the simple home');
 assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
 
-// The capability component and endpoint remain safe even though they moved out of the consumer front door.
 assert.match(homeCapabilities, /\/api\/world-atlas\/capabilities/, 'capability strip must use the safe public readiness endpoint wherever it is surfaced');
 for (const label of ['WORLD DATA', 'OPEN STREET', 'MESHY 7', 'MARKET FEEDS']) assert.match(homeCapabilities, new RegExp(label));
 assert.match(homeCapabilities, /READY · MANUAL/, 'Meshy readiness must remain explicitly manual');
@@ -109,7 +106,6 @@ assert.match(integrationsPage, /getSupabaseBrowserAsync/);
 assert.match(integrationsPage, /\/api\/admin\/integrations\/status/);
 assert.match(integrationsPage, /SIGN IN WITH GOOGLE/);
 
-// The detailed real-estate area remains an advanced, fail-closed subsystem while direct physical-property buying is absent from the simple digital collectible maker.
 assert.match(home, /Explore → invest → verify → observe → own/);
 assert.match(home, /Your money,/);
 assert.match(home, /provider-backed investment assets/i);
