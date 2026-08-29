@@ -19,12 +19,13 @@ async function fetchBytes(url: string) {
   return response;
 }
 
-function binaryResponse(response: Response, fallbackType: string) {
+function binaryResponse(response: Response, fallbackType: string, repaired = false) {
   return new Response(response.body, {
     status: 200,
     headers: {
       'Content-Type': response.headers.get('content-type') || fallbackType,
-      'Cache-Control': 'private, max-age=300',
+      'Cache-Control': repaired ? 'private, no-store, max-age=0' : 'private, max-age=300',
+      ...(repaired ? { 'X-Voxel-Vault-Model-Repaired': '1' } : {}),
     },
   });
 }
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
     const taskId = clean(url.searchParams.get('taskId'));
     const token = clean(url.searchParams.get('token'), 128);
     const wantsPreview = url.searchParams.get('preview') === '1';
+    const forceProviderRepair = url.searchParams.has('previewRetry') || url.searchParams.get('repair') === '1';
     if (!verifyPropertyGenerationModelToken(apiKey, taskId, token)) {
       return NextResponse.json({ ok: false, error: 'Invalid or expired 3D model link.' }, { status: 403 });
     }
@@ -79,7 +81,11 @@ export async function GET(request: Request) {
       return binaryResponse(preview, 'image/webp');
     }
 
-    if (saved?.model_storage_path) {
+    // A GLB can return HTTP 200 and still contain stale/corrupt bytes that
+    // GLTFLoader cannot parse. The viewer adds previewRetry only after an actual
+    // parse/load failure, so treat that retry as a trusted signal to bypass the
+    // private object once and rebuild it from the already-completed Meshy task.
+    if (!forceProviderRepair && saved?.model_storage_path) {
       const signed = await createModelSignedUrl(saved.model_storage_path, 10 * 60);
       if (signed) {
         const cached = await fetchBytes(signed);
@@ -101,15 +107,16 @@ export async function GET(request: Request) {
     }
 
     // The provider task already exists and is complete. If the private cached GLB
-    // was missing or unreadable, overwrite that cache from the existing Meshy GLB.
-    // This repairs delivery without starting or charging for another generation.
+    // was missing, unreadable, or explicitly failed in GLTFLoader, overwrite that
+    // cache from the existing Meshy GLB. This never starts or charges for another
+    // generation.
     if (saved?.item_id) {
       const repairedPath = await persistModelBinary(saved.item_id, providerModelUrl);
       if (repairedPath) {
         const signed = await createModelSignedUrl(repairedPath, 10 * 60);
         if (signed) {
           const repaired = await fetchBytes(signed);
-          if (repaired) return binaryResponse(repaired, 'model/gltf-binary');
+          if (repaired) return binaryResponse(repaired, 'model/gltf-binary', forceProviderRepair);
         }
       }
     }
@@ -118,7 +125,7 @@ export async function GET(request: Request) {
     if (!providerModel) {
       return NextResponse.json({ ok: false, error: 'The refreshed 3D model could not be downloaded.' }, { status: 502 });
     }
-    return binaryResponse(providerModel, 'model/gltf-binary');
+    return binaryResponse(providerModel, 'model/gltf-binary', forceProviderRepair);
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : '3D model delivery failed.' }, { status: 500 });
   }
