@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 export default function MeshyModelViewer({ modelUrl }) {
   const mountRef = useRef(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(Boolean(modelUrl));
 
   useEffect(() => {
     if (!modelUrl || !mountRef.current) return undefined;
     let dead = false;
     let cleanup = () => {};
     setError('');
+    setLoading(true);
 
     Promise.all([
       import('three'),
@@ -22,6 +24,7 @@ export default function MeshyModelViewer({ modelUrl }) {
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
+        setLoading(false);
         setError('3D model preview is unavailable in this browser.');
         return;
       }
@@ -68,31 +71,48 @@ export default function MeshyModelViewer({ modelUrl }) {
 
       const loader = new loaderModule.GLTFLoader();
       let model = null;
-      loader.load(modelUrl, (gltf) => {
-        if (dead) return;
-        model = gltf.scene;
-        model.traverse((object) => {
-          if (!object?.isMesh) return;
-          object.castShadow = !compact;
-          object.receiveShadow = !compact;
-          if (object.material) {
-            object.material.envMapIntensity = 0.75;
-            object.material.needsUpdate = true;
+      let loadAttempt = 0;
+      const loadModel = () => {
+        const separator = String(modelUrl).includes('?') ? '&' : '?';
+        const url = loadAttempt === 0 ? modelUrl : `${modelUrl}${separator}vv_reload=${Date.now()}`;
+        loader.load(url, (gltf) => {
+          if (dead) return;
+          model = gltf.scene;
+          model.traverse((object) => {
+            if (!object?.isMesh) return;
+            object.castShadow = !compact;
+            object.receiveShadow = !compact;
+            if (object.material) {
+              object.material.envMapIntensity = 0.75;
+              object.material.needsUpdate = true;
+            }
+          });
+          const box = new THREE.Box3().setFromObject(model);
+          const size = new THREE.Vector3();
+          const center = new THREE.Vector3();
+          box.getSize(size);
+          box.getCenter(center);
+          const largest = Math.max(size.x, size.y, size.z, 0.001);
+          const scale = 5.7 / largest;
+          model.scale.setScalar(scale);
+          model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
+          root.add(model);
+          setLoading(false);
+          setError('');
+        }, undefined, () => {
+          if (dead) return;
+          if (loadAttempt < 1) {
+            loadAttempt += 1;
+            setError('');
+            setLoading(true);
+            window.setTimeout(loadModel, 350);
+            return;
           }
+          setLoading(false);
+          setError('The 3D preview could not be loaded. Refresh the creation to request a fresh Meshy model link.');
         });
-        const box = new THREE.Box3().setFromObject(model);
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
-        const largest = Math.max(size.x, size.y, size.z, 0.001);
-        const scale = 5.7 / largest;
-        model.scale.setScalar(scale);
-        model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
-        root.add(model);
-      }, undefined, () => {
-        if (!dead) setError('The cached Meshy GLB could not be loaded. Regenerating is not automatic.');
-      });
+      };
+      loadModel();
 
       const pointers = new Map();
       let moved = false;
@@ -207,7 +227,10 @@ export default function MeshyModelViewer({ modelUrl }) {
         mount.innerHTML = '';
       };
     }).catch(() => {
-      if (!dead) setError('The 3D model viewer could not start.');
+      if (!dead) {
+        setLoading(false);
+        setError('The 3D model viewer could not start.');
+      }
     });
 
     return () => { dead = true; cleanup(); };
@@ -215,8 +238,9 @@ export default function MeshyModelViewer({ modelUrl }) {
 
   return <div className="viewerShell">
     <div ref={mountRef} className="viewer" aria-label="Interactive Meshy hero-property 3D model" />
+    {loading && !error ? <div className="viewerLoading">Loading live 3D model…</div> : null}
     {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">DRAG · PINCH TO ZOOM · CACHED GLB</div>
-    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0}.viewerError{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:#09100f}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#7e8c87;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
+    <div className="viewerHint">DRAG · PINCH TO ZOOM · LIVE 3D</div>
+    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0}.viewerLoading{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:rgba(9,16,15,.68);pointer-events:none}.viewerError{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:#09100f}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#7e8c87;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
   </div>;
 }
