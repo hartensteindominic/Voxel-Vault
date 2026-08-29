@@ -61,6 +61,34 @@ export async function POST(request: Request) {
     const digest = createHash('sha256').update(bytes).digest('hex');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
     const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
+    const sourceFingerprint = `inline-photo:${digest}`;
+    const startedAt = new Date().toISOString();
+
+    // Reserve the signed-in account record before spending a Meshy job. If the
+    // database/storage layer is not writable, fail here instead of starting a
+    // provider task that Voxel Vault cannot safely resume or associate with the user.
+    const reservation = await saveCatalog3D(itemId, {
+      task_id: null,
+      source_image_url: sourceFingerprint,
+      source_image_urls: [sourceFingerprint],
+      provider: 'meshy-property-direct-photo-to-3d',
+      status: 'PREPARING',
+      progress: 0,
+      model_url: null,
+      model_storage_path: null,
+      thumbnail_url: null,
+      exact_model_approved: false,
+      started_at: startedAt,
+      completed_at: null,
+      error: null,
+    });
+    if (!reservation?.item_id) {
+      return privateJson({
+        ok: false,
+        error: 'VoxelPop cannot save generation records on this deployment yet. No 3D job was started. Check the Supabase server write configuration and try again.',
+        setupRequired: true,
+      }, { status: 503 });
+    }
 
     const response = await fetch(ENDPOINT, {
       method: 'POST',
@@ -79,13 +107,22 @@ export async function POST(request: Request) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      await saveCatalog3D(itemId, {
+        task_id: null,
+        source_image_url: sourceFingerprint,
+        provider: 'meshy-property-direct-photo-to-3d',
+        status: 'FAILED',
+        progress: 0,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        error: clean(data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.`, 800),
+      });
       return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
     }
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
     const taskId = taskKey(providerTaskId);
-    const sourceFingerprint = `inline-photo:${digest}`;
     const saved = await saveCatalog3D(itemId, {
       task_id: taskId,
       source_image_url: sourceFingerprint,
@@ -97,12 +134,12 @@ export async function POST(request: Request) {
       model_storage_path: null,
       thumbnail_url: null,
       exact_model_approved: false,
-      started_at: new Date().toISOString(),
+      started_at: startedAt,
       completed_at: null,
       error: null,
     });
     if (!saved?.task_id) {
-      throw new Error('VoxelPop started the 3D job, but the account generation record could not be saved. Please try again shortly.');
+      throw new Error('VoxelPop started the 3D job but could not attach its task ID to the reserved account record. The generation was not charged again; retry status after the deployment storage is repaired.');
     }
 
     const uploadedAt = new Date().toISOString();
