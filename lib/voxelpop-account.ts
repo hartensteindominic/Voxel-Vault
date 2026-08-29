@@ -145,6 +145,7 @@ export function summarizeVoxel(record: AccountVoxel) {
     sessionId: normalized.sessionId,
     name: String(normalized.payload.asset?.name || 'Your voxel'),
     image: String(normalized.payload.asset?.dataUrl || ''),
+    modelUrl: String(normalized.payload.mesh?.modelUrl || ''),
     meshStatus: String(normalized.payload.mesh?.status || 'idle'),
     mint: normalized.payload.mint || null,
   };
