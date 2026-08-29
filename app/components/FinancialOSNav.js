@@ -99,11 +99,6 @@ const styles = {
     color: '#766d7c',
     background: 'rgba(105,78,118,.07)',
   },
-  itemActive: {
-    border: '1px solid rgba(92,48,218,.2)',
-    background: 'linear-gradient(180deg, #7d42ff, #6630e9)',
-    boxShadow: '0 4px 0 #4d1bc5, 0 8px 18px rgba(103,54,223,.2)',
-  },
   iconActive: { color: '#2e400c', background: '#c9ff54' },
   label: { fontSize: 9, lineHeight: 1.05, color: '#756d7a' },
   labelActive: { color: '#fff' },
