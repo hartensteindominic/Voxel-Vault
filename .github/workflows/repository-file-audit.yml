@@ -25,3 +25,5 @@ jobs:
           node-version: 22
       - name: Read and audit every tracked file
         run: node scripts/audit-all-files.mjs
+      - name: Verify package-lock matches package.json
+        run: node scripts/test-lockfile-sync.mjs
