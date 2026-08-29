@@ -68,7 +68,7 @@ export async function deleteStagedPropertyPhoto(auth: any, draftIdRaw: unknown) 
   return storagePath;
 }
 
-export async function paidPropertyGenerationInput(auth: any, stripe: any, sessionIdRaw: unknown) {
+export async function paidPropertyGenerationReceipt(auth: any, stripe: any, sessionIdRaw: unknown) {
   const sessionId = clean(sessionIdRaw, 260);
   if (!sessionId) throw new Error('The VoxelPop payment session is missing.');
   const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -91,14 +91,9 @@ export async function paidPropertyGenerationInput(auth: any, stripe: any, sessio
   const storagePath = clean(metadata.source_storage_path, 900);
   if (storagePath !== expectedPath) throw new Error('The paid source photo does not match this creation.');
 
-  const { data, error } = await auth.admin.storage.from(BUCKET).download(storagePath);
-  if (error || !data) throw new Error('The paid source photo is no longer available.');
-  const bytes = Buffer.from(await data.arrayBuffer());
-  if (!bytes.length || bytes.length > MAX_BYTES) throw new Error('The paid source photo is invalid.');
-  const digest = createHash('sha256').update(bytes).digest('hex');
-  if (digest !== clean(metadata.source_sha256, 80)) throw new Error('The paid source photo changed after checkout started.');
-
+  const digest = clean(metadata.source_sha256, 80);
   const contentType = clean(metadata.source_content_type, 80).toLowerCase();
+  if (!/^[a-f0-9]{64}$/i.test(digest)) throw new Error('The paid source photo fingerprint is invalid.');
   if (!ALLOWED_TYPES.has(contentType)) throw new Error('The paid source photo format is unsupported.');
 
   return {
@@ -106,8 +101,22 @@ export async function paidPropertyGenerationInput(auth: any, stripe: any, sessio
     draftId,
     storagePath,
     digest,
-    bytes,
     contentType,
     fileName: clean(metadata.source_name, 120) || 'property-photo',
   };
+}
+
+export async function loadPaidPropertyGenerationPhoto(auth: any, receipt: any) {
+  const { data, error } = await auth.admin.storage.from(BUCKET).download(receipt.storagePath);
+  if (error || !data) throw new Error('The paid source photo is no longer available.');
+  const bytes = Buffer.from(await data.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_BYTES) throw new Error('The paid source photo is invalid.');
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== receipt.digest) throw new Error('The paid source photo changed after checkout started.');
+  return { ...receipt, bytes };
+}
+
+export async function paidPropertyGenerationInput(auth: any, stripe: any, sessionIdRaw: unknown) {
+  const receipt = await paidPropertyGenerationReceipt(auth, stripe, sessionIdRaw);
+  return loadPaidPropertyGenerationPhoto(auth, receipt);
 }
