@@ -42,7 +42,7 @@
     "test:property-claims": "node scripts/test-property-claim-verification.mjs && node scripts/test-property-registry-anchor.mjs",
     "test:property-registry": "node scripts/test-property-registry-anchor.mjs",
     "test:test-land": "node scripts/test-test-land.mjs",
-    "test:digital-estates": "node scripts/test-digital-estates.mjs",
+    "test:digital-estates": "node scripts/test-digital-estates.mjs && node scripts/test-purchased-estate-voxel.mjs",
     "test:world-streaming": "node scripts/test-world-atlas-streaming.mjs",
     "test:world-atlas": "node scripts/test-world-atlas-streaming.mjs && node scripts/test-world-atlas-stewardship.mjs && node scripts/test-world-atlas-rebuild.mjs && node scripts/test-open-street-imagery.mjs && node scripts/test-world-atlas-live.mjs && node scripts/test-world-atlas-1047-live.mjs",
     "test:global-earth": "node scripts/test-world-atlas-streaming.mjs && node scripts/test-global-earth.mjs && node scripts/test-world-atlas-stewardship.mjs && node scripts/test-world-atlas-rebuild.mjs && node scripts/test-open-street-imagery.mjs && node scripts/test-world-atlas-live.mjs && node scripts/test-world-atlas-1047-live.mjs",
