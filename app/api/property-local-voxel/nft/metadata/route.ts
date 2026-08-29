@@ -62,7 +62,9 @@ export async function GET(request: Request) {
       description: 'A user-reviewed VoxelPop digital property voxel created from an authorized reference photo and saved as a digital asset. This NFT is not a deed, title record, property equity, occupancy right, rent right, or real-estate investment.',
       image,
       animation_url: model.model_url,
-      external_url: `${origin}/vault/property-drafts/${encodeURIComponent(draftId)}`,
+      // Immediate minting is allowed before a map-backed property draft exists,
+      // so the stable Vault collection is the canonical safe external page.
+      external_url: `${origin}/vault/property-drafts`,
       attributes: [
         { trait_type: 'Asset type', value: 'Digital VoxelPop property' },
         { trait_type: '3D engine', value: 'VoxelPop local reviewed voxel' },
