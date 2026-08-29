@@ -28,10 +28,10 @@ export function meshyCreditFailure(requiredCredits: number, availableCredits: nu
   const available = numericBalance(availableCredits);
   const balanceCopy = available === null ? '' : ` The connected Meshy API account currently has ${available} credit${available === 1 ? '' : 's'}.`;
   return {
-    ok: false,
-    code: 'MESHY_CREDITS_REQUIRED',
-    creditRequired: true,
-    provider: 'meshy',
+    ok: false as const,
+    code: 'MESHY_CREDITS_REQUIRED' as const,
+    creditRequired: true as const,
+    provider: 'meshy' as const,
     stage,
     requiredCredits,
     availableCredits: available,
@@ -60,8 +60,8 @@ export async function ensureMeshyCredits(apiKey: string, requiredCredits: number
     return { ok: true as const, availableCredits: balance, requiredCredits, stage };
   }
   return {
-    ok: false as const,
-    status: 402,
     ...meshyCreditFailure(requiredCredits, balance, stage),
+    ok: false as const,
+    status: 402 as const,
   };
 }
