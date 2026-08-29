@@ -2,40 +2,39 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-const property = read('app/property/PropertyJourneySimple.js');
+const propertyRoute = read('app/property/page.js');
+const property = read('app/property/HouseVoxelMintFlow.js');
 const photoPreview = read('app/property/PhotoReliefModelViewer.js');
-const checkout = read('app/api/property-generation/checkout/route.ts');
-const paidVerify = read('app/api/property-photo-upload/route.ts');
 const localVoxel = read('app/api/property-local-voxel/route.ts');
 const viewer = read('app/property/LocalVoxelModelViewer.js');
+const confirm = read('app/api/property-generation/confirm/route.ts');
+const finalize = read('app/api/property-generation/finalize/route.ts');
 const mintPrepare = read('app/api/property-voxel-nft/prepare/route.ts');
 const mintPage = read('app/property/mint/page.js');
 const vault = read('app/vault/property-drafts/page.js');
 
-assert.match(property, /async function payAndCreate\(\)/, 'the photo screen owns the single paid handoff');
-assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'the approved photo is retained on-device before checkout when available');
-assert.match(property, /propertyPhotoKey/, 'saved properties retain a stable private device-photo key');
-assert.match(property, /loadSavedPropertyPhoto/, 'a saved property can reopen its device-local source photo');
-assert.match(property, /Use a saved property instead/, 'saved-property reuse remains available without competing with the main photo action');
-assert.match(property, /sourcePhotoRetainedOnDevice: true/, 'saved records keep the source-photo boundary explicit');
-assert.match(property, /setPaidSessionId\('saved-property'\)/, 'a previously paid saved property is recognized as paid');
-assert.match(property, /No second creation charge|not be charged twice|no second charge/i, 'saved paid properties never require a duplicate creation payment');
+assert.match(propertyRoute, /HouseVoxelMintFlow/, 'the live property route uses the house voxel mint flow');
+assert.match(property, /Upload one house photo\./, 'the flow starts with one obvious photo action');
+assert.match(property, /Confirm the address\./, 'address confirmation follows photo selection');
+assert.match(property, /\/api\/property-generation\/confirm/, 'address confirmation uses the dedicated one-property lock endpoint');
+assert.doesNotMatch(property, /\/api\/property-generation\/checkout|generation_session|Pay \$|Stripe/i, 'the live house flow contains no checkout or payment resume path');
 
-assert.match(property, /PhotoReliefModelViewer/, 'the real 3D voxel photo remains a distinct review stage');
+assert.match(property, /PhotoReliefModelViewer/, 'the photo is rebuilt as a voxel image stage');
 assert.match(photoPreview, /getImageData\(0, 0, columns, rows\)/, 'the source image supplies voxel color data');
-assert.match(photoPreview, /new THREE\.InstancedMesh/, 'the review uses real voxel instances');
-assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'the review is physical cube geometry');
-assert.match(property, /Looks good · continue/, 'one explicit approval is required before movable-voxel generation');
-assert.match(property, /function approvePreviewAndBuildVoxel\(\)/, 'movable-voxel generation has an explicit post-preview gate');
-assert.doesNotMatch(property, /createVoxelPoster|voxelPoster/, 'no 2D voxel poster is inserted after approval');
+assert.match(photoPreview, /new THREE\.InstancedMesh/, 'the voxel image uses real voxel instances');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'the voxel image is physical cube geometry');
+assert.match(property, /setVoxelImageReady\(true\)/, 'the flow detects when the voxel image is ready');
+assert.match(property, /setStage\('model'\)/, 'voxel image readiness automatically advances to 3D generation');
+assert.doesNotMatch(property, /Looks good · continue|approvePreviewAndBuildVoxel|approveVoxelImage/, 'no extra approval click interrupts the automatic conversion');
 
-assert.match(property, /LocalVoxelModelViewer imageUrl=\{pendingPreview\} sourceImageUrl=\{pendingPreview\}/, 'movable voxel builds directly from the approved photo');
+assert.match(property, /LocalVoxelModelViewer imageUrl=\{photoUrl\} sourceImageUrl=\{photoUrl\} onReady=\{saveFinishedVoxel\}/, 'movable voxel builds directly from the selected house photo');
 assert.match(property, /\/api\/property-local-voxel/, 'the finished local voxel is registered for continuity and minting');
-assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'the finished voxel is saved to Vault automatically');
-assert.match(property, /Open Vault/, 'completion sends the user to the saved result with one primary action');
-assert.match(property, /Mint NFT · optional/, 'mint remains optional and secondary');
-assert.match(vault, /directMintHref/, 'saved local voxels can recover their optional mint route from Vault');
-assert.match(vault, /MINT · OPTIONAL/, 'Vault keeps minting optional');
+assert.match(property, /\/api\/property-generation\/finalize/, 'the property lock is finalized only after the 3D voxel exists');
+assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'the finished voxel is saved to Inventory automatically');
+assert.match(property, /savePropertyDraftToAccount/, 'the saved voxel is associated with the signed-in account');
+assert.match(property, /Mint voxel/, 'completion exposes the mint action');
+assert.match(property, /Keep in inventory/, 'completion also preserves the inventory-only choice');
+assert.match(vault, /directMintHref/, 'saved local voxels can recover their mint route from Inventory');
 
 assert.match(viewer, /sampleRecipe/, 'the interactive local voxel derives from the property photo');
 assert.match(viewer, /rawMask/, 'the viewer separates the building from background');
@@ -44,15 +43,12 @@ assert.match(viewer, /DRAG BUILDING · PINCH TO ZOOM/, 'the local voxel stays in
 assert.match(localVoxel, /saveLocalVoxelRecord/, 'local voxel persists an account-bound record');
 assert.match(localVoxel, /buildGltf\(recipe\)/, 'saved local recipes remain reconstructable as glTF');
 
-assert.match(checkout, /generation_engine: PROPERTY_VOXEL_GENERATION_ENGINE/, 'checkout explicitly selects the local generation engine');
-assert.match(checkout, /source_storage: 'device-local'/, 'checkout does not imply source upload');
-assert.doesNotMatch(checkout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto/i, 'paid checkout never calls Meshy capacity checks');
-assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|api\.meshy|image-to-3d|storage\.from/i, 'paid resume never calls Meshy or source-photo cloud storage');
-assert.doesNotMatch(property, /\/api\/property-collectible\/quote|\/api\/property-collectible\/checkout|collectAndSave/, 'normal creation has no second paid collectible funnel');
-assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided creation does not call metered provider routes');
-
+assert.match(confirm, /inspectWorldAtlas/, 'the address is verified against mapped building data');
+assert.match(confirm, /acquirePropertyCollectibleReservation/, 'a confirmed property gets a duplicate-safe reservation');
+assert.match(finalize, /updatePropertyCollectibleReservation/, 'a completed voxel gets a permanent property lock');
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint checks the exact account-owned finished voxel');
+assert.match(mintPrepare, /already been minted|duplicate mint/i, 'mint blocks a second NFT for the same property');
 assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'mint does not reintroduce Meshy');
-assert.match(mintPage, /Mint Later/, 'the mint page keeps minting optional');
+assert.match(mintPage, /Mint Later/, 'the mint page keeps inventory ownership useful without immediate minting');
 
-console.log('VoxelPop creation regression passed: new or saved photo -> one paid unlock -> real 3D voxel-photo review -> one approval -> automatic movable voxel -> automatic Vault save -> optional mint.');
+console.log('House voxel regression passed: photo -> address -> voxel image -> automatic movable 3D voxel -> automatic Inventory save -> optional one-of-one mint.');
