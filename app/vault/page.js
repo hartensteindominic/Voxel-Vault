@@ -1,237 +1,128 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useWalletIdentity } from '../components/WalletIdentity';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
+import { mergePropertyDraftRecords, readPropertyDrafts, replaceLocalPropertyDrafts } from '../../lib/property-drafts';
+import { loadAccountPropertyDrafts } from '../../lib/property-drafts-account';
 import { mergeVoxelRecords, readLocalVoxelRecords, summarizeVoxel, syncLocalVoxelsToAccount } from '../../lib/voxelpop-account';
-import { buildVaultManifest, summarizeVaultManifest } from '../../lib/vault/manifest';
-import UnifiedVaultCanvas from './UnifiedVaultCanvas';
 
-const NFT_ABI = [
-  'event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)',
-  'function ownerOf(uint256 tokenId) view returns (address)',
-  'function tokenURI(uint256 tokenId) view returns (string)',
-];
-const CONTRACT = process.env.NEXT_PUBLIC_VOXEL_NFT_ADDRESS || '';
+const DEMO_PURCHASE_KEY = 'voxel-vault:property-slice-purchases';
 
-function mediaUrl(uri) {
-  if (!uri) return '';
-  if (uri.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
-  if (uri.startsWith('ar://')) return `https://arweave.net/${uri.slice(5)}`;
-  return uri;
+function money(cents) {
+  if (!Number(cents)) return '';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(cents) / 100);
 }
 
-async function readMetadata(uri) {
-  const url = mediaUrl(uri);
-  if (!url) return null;
-  if (url.startsWith('data:application/json')) {
-    try { return JSON.parse(decodeURIComponent(url.split(',')[1])); } catch { return null; }
-  }
+function readDemoProperty() {
+  if (typeof window === 'undefined') return null;
   try {
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) return null;
-    return await response.json();
+    const raw = JSON.parse(window.localStorage.getItem(DEMO_PURCHASE_KEY) || 'null');
+    const purchase = raw?.lastPurchase;
+    if (!purchase?.selectedName) return null;
+    return {
+      id: `demo-slice:${String(purchase.selectedName).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80)}`,
+      type: 'voxel-vault-demo-property-slice',
+      label: purchase.selectedName,
+      demoOnly: true,
+      demoPurchase: purchase,
+    };
   } catch {
     return null;
   }
 }
 
-async function loadOwned(address) {
-  if (!window.ethereum || !CONTRACT) return { mode: 'not-configured', items: [] };
-  const { BrowserProvider, Contract } = await import('ethers');
-  const provider = new BrowserProvider(window.ethereum);
-  const contract = new Contract(CONTRACT, NFT_ABI, provider);
-  const logs = await contract.queryFilter(contract.filters.Transfer(null, address));
-  const ids = [...new Set(logs.map((log) => log.args?.tokenId?.toString()).filter(Boolean))];
-  const items = [];
-
-  for (const tokenId of ids.slice(-100)) {
-    try {
-      const owner = await contract.ownerOf(tokenId);
-      if (owner.toLowerCase() !== address.toLowerCase()) continue;
-      let tokenUri = '';
-      try { tokenUri = await contract.tokenURI(tokenId); } catch {}
-      items.push({ tokenId, tokenUri, metadata: await readMetadata(tokenUri), contract: CONTRACT });
-    } catch {}
-  }
-
-  return { mode: 'on-chain', items: items.reverse() };
+function propertyStatus(property) {
+  if (property.demoOnly) return 'DEMO PROPERTY';
+  if (property?.blockchain?.minted) return 'MINTED';
+  if (property?.visual?.modelUrl || property?.voxelpop?.modelUrl) return '3D VOXEL READY';
+  if (property?.commerce?.status === 'paid') return 'PURCHASED';
+  return 'SAVED PROPERTY';
 }
 
-function readLocalVoxelsWithMints() {
-  const records = readLocalVoxelRecords();
-  if (typeof window === 'undefined') return records;
-  return records.map((record) => {
-    if (record.payload?.mint?.tokenId) return record;
-    try {
-      const mint = JSON.parse(window.localStorage.getItem(`voxelflip:mint:${record.sessionId}`) || 'null');
-      if (!mint?.tokenId) return record;
-      const updatedAt = new Date().toISOString();
-      const payload = { ...record.payload, mint, updatedAt };
-      try { window.localStorage.setItem(`voxelpop:${record.sessionId}`, JSON.stringify(payload)); } catch {}
-      return { ...record, payload, updatedAt };
-    } catch {
-      return record;
-    }
-  });
+function propertyCopy(property) {
+  if (property.demoOnly) return 'Your Test Buy is saved as a demo property reference. Add a house photo to turn the same selected property into a VoxelPop 3D creation.';
+  if (property?.visual?.modelUrl || property?.voxelpop?.modelUrl) return 'This property already has a saved 3D voxel. Open it, rebuild from its reusable photo, or mint the finished digital voxel.';
+  if (property?.commerce?.status === 'paid') return 'This purchased digital property is in your Vault. Use it as the property source, add or reuse its photo, then create the 3D preview and voxel.';
+  return 'Use this saved property as the source for a new photo-matched 3D preview and voxel.';
 }
 
-function userName(user) {
-  return String(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'Google account');
-}
-
-function googleReturnUrl() {
-  return new URL('/vault?auth=google', window.location.origin).toString();
-}
-
-function positivePositions(snapshot) {
-  return (Array.isArray(snapshot?.portfolio) ? snapshot.portfolio : []).filter((position) => Number(position?.amount || 0) > 0);
-}
-
-function emptyReitState(mode = 'signed-out') {
-  return { mode, snapshot: null, error: '', bound: false, setupRequired: false };
+function propertyCreateHref(property) {
+  const params = new URLSearchParams({ source: 'properties', property: String(property.id || '') });
+  return `/property?${params.toString()}`;
 }
 
 export default function VaultPage() {
-  const { address, connected, connect } = useWalletIdentity();
-  const [walletState, setWalletState] = useState({ mode: 'idle', items: [] });
-  const [walletError, setWalletError] = useState('');
+  const [properties, setProperties] = useState([]);
   const [voxelRecords, setVoxelRecords] = useState([]);
   const [session, setSession] = useState(null);
-  const [accountBusy, setAccountBusy] = useState(false);
-  const [accountStatus, setAccountStatus] = useState('');
-  const [accountSynced, setAccountSynced] = useState(false);
-  const accountClient = useRef(null);
-  const [reitState, setReitState] = useState(() => emptyReitState());
+  const [syncing, setSyncing] = useState(false);
+  const [note, setNote] = useState('Your properties and VoxelPop creations live here.');
+  const clientRef = useRef(null);
 
-  const shortWallet = useMemo(() => address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '', [address]);
-  const myVoxels = useMemo(() => voxelRecords.map(summarizeVoxel).filter((voxel) => voxel.image), [voxelRecords]);
-  const reitPositions = useMemo(() => reitState.bound ? positivePositions(reitState.snapshot) : [], [reitState.bound, reitState.snapshot]);
+  const demoProperty = useMemo(() => readDemoProperty(), [properties.length]);
+  const shownProperties = useMemo(() => demoProperty ? [demoProperty, ...properties.filter((item) => item.id !== demoProperty.id)] : properties, [demoProperty, properties]);
+  const creations = useMemo(() => voxelRecords.map(summarizeVoxel).filter((item) => item.image), [voxelRecords]);
 
-  const manifest = useMemo(() => buildVaultManifest({
-    creations: myVoxels,
-    collectibles: walletState.items,
-    reitPositions,
-    creatorSource: accountSynced ? 'google-synced' : 'browser-library',
-    walletAddress: address,
-    provider: reitState.snapshot?.provider || 'Dinari',
-    providerEnvironment: reitState.snapshot?.environment || 'sandbox',
-    providerAccountScope: 'user-bound',
-  }), [myVoxels, walletState.items, reitPositions, accountSynced, address, reitState.snapshot?.provider, reitState.snapshot?.environment]);
-  const summary = useMemo(() => summarizeVaultManifest(manifest), [manifest]);
-
-  async function refreshWallet() {
-    if (!address) {
-      setWalletState({ mode: 'idle', items: [] });
-      return;
-    }
-    setWalletError('');
-    setWalletState({ mode: 'loading', items: [] });
-    try {
-      setWalletState(await loadOwned(address));
-    } catch (error) {
-      setWalletError(error?.message || 'Could not read your on-chain collection.');
-      setWalletState({ mode: 'error', items: [] });
-    }
-  }
-
-  async function refreshReits(accessToken) {
-    if (!accessToken) {
-      setReitState(emptyReitState('signed-out'));
-      return;
-    }
-
-    setReitState((current) => ({ ...current, mode: 'loading', error: '' }));
-    try {
-      const response = await fetch('/api/vault/digital-reits', {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const snapshot = await response.json().catch(() => ({}));
-      if (!response.ok || snapshot?.ok === false) throw new Error(snapshot?.error || 'Could not read your user-bound Digital REIT provider snapshot.');
-      setReitState({
-        mode: 'ready',
-        snapshot,
-        error: '',
-        bound: snapshot?.bound === true,
-        setupRequired: snapshot?.setupRequired === true,
-      });
-    } catch (error) {
-      setReitState({
-        mode: 'error',
-        snapshot: null,
-        error: error?.message || 'Could not read your user-bound Digital REIT provider snapshot.',
-        bound: false,
-        setupRequired: false,
-      });
-    }
+  function refreshLocal() {
+    setProperties(readPropertyDrafts());
+    setVoxelRecords(readLocalVoxelRecords());
   }
 
   useEffect(() => {
-    setVoxelRecords(readLocalVoxelsWithMints());
-  }, []);
-
-  useEffect(() => {
-    refreshWallet();
-  }, [address]);
-
-  useEffect(() => {
-    const refresh = () => refreshWallet();
-    window.addEventListener('voxel-vault:transaction-confirmed', refresh);
-    window.addEventListener('voxel-vault:wallet-updated', refresh);
+    refreshLocal();
+    const refresh = () => refreshLocal();
+    window.addEventListener('focus', refresh);
+    window.addEventListener('storage', refresh);
+    window.addEventListener('voxel-vault:property-draft-saved', refresh);
     return () => {
-      window.removeEventListener('voxel-vault:transaction-confirmed', refresh);
-      window.removeEventListener('voxel-vault:wallet-updated', refresh);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('voxel-vault:property-draft-saved', refresh);
     };
-  }, [address]);
+  }, []);
 
   useEffect(() => {
     let active = true;
     let subscription = null;
 
-    async function apply(client, next) {
+    async function apply(client, nextSession) {
       if (!active) return;
-      setSession(next);
-      const local = readLocalVoxelsWithMints();
-      if (!next?.user) {
-        setAccountSynced(false);
-        setVoxelRecords((current) => mergeVoxelRecords(current, local));
-        setReitState(emptyReitState('signed-out'));
+      setSession(nextSession || null);
+      if (!nextSession?.user) {
+        refreshLocal();
+        setNote('Saved items on this device are shown below. Sign in to sync across devices.');
         return;
       }
 
-      refreshReits(next.access_token || '');
-      setAccountBusy(true);
+      setSyncing(true);
       try {
-        const cloud = await syncLocalVoxelsToAccount(client, next.user);
+        const [cloudProperties, cloudVoxels] = await Promise.all([
+          loadAccountPropertyDrafts(client, nextSession.user).catch(() => []),
+          syncLocalVoxelsToAccount(client, nextSession.user).catch(() => []),
+        ]);
         if (!active) return;
-        setVoxelRecords(mergeVoxelRecords(cloud, readLocalVoxelsWithMints()));
-        setAccountSynced(true);
-        setAccountStatus(`Creator Gallery synced for ${userName(next.user)}.`);
-        if (new URLSearchParams(window.location.search).get('auth') === 'google') {
-          window.history.replaceState({}, '', '/vault#creator-gallery');
-        }
+        const mergedProperties = mergePropertyDraftRecords(cloudProperties, readPropertyDrafts());
+        replaceLocalPropertyDrafts(mergedProperties);
+        setProperties(mergedProperties);
+        setVoxelRecords(mergeVoxelRecords(cloudVoxels, readLocalVoxelRecords()));
+        setNote('Synced. Your property sources and 3D creations are together here.');
       } catch (error) {
-        if (active) {
-          setAccountSynced(false);
-          setAccountStatus(error instanceof Error ? error.message : 'Google connected, but Creator Gallery could not sync.');
-        }
+        if (active) setNote(error instanceof Error ? error.message : 'Account sync is unavailable. Your local Vault still works.');
       } finally {
-        if (active) setAccountBusy(false);
+        if (active) setSyncing(false);
       }
     }
 
     getSupabaseBrowserAsync().then(async (client) => {
       if (!active) return;
-      accountClient.current = client;
-      const { data, error } = await client.auth.getSession();
-      if (error && active) setAccountStatus(error.message);
-      else await apply(client, data.session);
-      const auth = client.auth.onAuthStateChange((_event, next) => { apply(client, next); });
+      clientRef.current = client;
+      const { data } = await client.auth.getSession();
+      await apply(client, data.session || null);
+      const auth = client.auth.onAuthStateChange((_event, next) => apply(client, next));
       subscription = auth.data.subscription;
-    }).catch((error) => {
-      if (active) setAccountStatus(error instanceof Error ? error.message : 'Google account setup is incomplete.');
+    }).catch(() => {
+      if (active) setNote('Account sync is unavailable. Your saved items on this device are still shown.');
     });
 
     return () => {
@@ -240,300 +131,82 @@ export default function VaultPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const refresh = async () => {
-      const local = readLocalVoxelsWithMints();
-      setVoxelRecords((current) => mergeVoxelRecords(current, local));
-      if (session?.user && accountClient.current) {
-        refreshReits(session.access_token || '');
-        try {
-          const cloud = await syncLocalVoxelsToAccount(accountClient.current, session.user);
-          setVoxelRecords(mergeVoxelRecords(cloud, readLocalVoxelsWithMints()));
-          setAccountSynced(true);
-        } catch {}
-      }
-    };
-    window.addEventListener('focus', refresh);
-    window.addEventListener('storage', refresh);
-    return () => {
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('storage', refresh);
-    };
-  }, [session?.user?.id, session?.access_token]);
-
-  async function signInGoogle() {
-    setAccountStatus('');
-    setAccountBusy(true);
+  async function signIn() {
     try {
-      const statusResponse = await fetch('/api/account/status', { cache: 'no-store' });
-      const status = await statusResponse.json().catch(() => ({}));
-      if (!statusResponse.ok || !status?.supabaseConfigured) throw new Error('Google sign-in still needs the Voxel Vault Supabase public configuration.');
-      if (status.googleProviderEnabled !== true) throw new Error('Google sign-in is connected to Supabase, but the Google provider is not enabled yet.');
-      const client = accountClient.current || await getSupabaseBrowserAsync();
-      accountClient.current = client;
-      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: googleReturnUrl() } });
+      const client = clientRef.current || await getSupabaseBrowserAsync();
+      clientRef.current = client;
+      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: new URL('/vault', window.location.origin).toString() } });
       if (error) throw error;
     } catch (error) {
-      setAccountStatus(error instanceof Error ? error.message : 'Could not start Google sign-in.');
-      setAccountBusy(false);
+      setNote(error instanceof Error ? error.message : 'Could not start sign-in.');
     }
   }
 
-  async function signOutGoogle() {
-    setAccountBusy(true);
-    try {
-      const client = accountClient.current || await getSupabaseBrowserAsync();
-      const { error } = await client.auth.signOut();
-      if (error) throw error;
-      setSession(null);
-      setAccountSynced(false);
-      setReitState(emptyReitState('signed-out'));
-      setVoxelRecords(readLocalVoxelsWithMints());
-      setAccountStatus('Signed out of Google. Browser-local creations are still visible on this device; personal provider holdings are hidden.');
-    } catch (error) {
-      setAccountStatus(error instanceof Error ? error.message : 'Could not sign out.');
-    } finally {
-      setAccountBusy(false);
-    }
-  }
+  return <main className="page">
+    <div className="shell">
+      <nav className="top">
+        <Link href="/" className="brand"><span>V</span><b>VOXEL VAULT</b></Link>
+        <div><Link href="/property">Create</Link><Link href="/world">World</Link><Link href="/more">More</Link></div>
+      </nav>
 
-  const personalReitNote = !session?.user
-    ? 'Google sign-in required'
-    : reitState.bound
-      ? `${reitState.snapshot?.provider || 'Dinari'} ${String(reitState.snapshot?.environment || 'sandbox').toUpperCase()} · user bound`
-      : reitState.setupRequired
-        ? 'Binding storage setup required'
-        : 'No provider account bound';
+      <header className="hero">
+        <small>MY VAULT</small>
+        <h1>Your properties.<br/><em>Your voxels.</em></h1>
+        <p>{note}</p>
+        <div className="heroActions">
+          <Link href="/property?source=properties" className="primary">Create from My Properties →</Link>
+          {!session?.user ? <button type="button" onClick={signIn}>Sync with Google</button> : <span className="synced">✓ {syncing ? 'SYNCING' : 'SIGNED IN'}</span>}
+        </div>
+      </header>
 
-  return (
-    <main className="min-h-screen bg-[#05060c] text-white px-4 py-5 md:px-8 md:py-8">
-      <section className="max-w-7xl mx-auto">
-        <nav className="flex items-center justify-between gap-4 flex-wrap">
-          <Link href="/" className="flex items-center gap-2 no-underline text-white font-black tracking-[-.03em]">
-            <span className="w-9 h-9 rounded-xl bg-white text-black grid place-items-center">V</span>
-            Voxel Vault
-          </Link>
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <Link href="/studio" className="rounded-full border border-white/10 px-4 py-2 text-white/75 no-underline">Create 3D</Link>
-            <Link href="/real-estate/reits" className="rounded-full border border-white/10 px-4 py-2 text-white/75 no-underline">Digital REITs</Link>
-            <Link href="/real-estate" className="rounded-full border border-white/10 px-4 py-2 text-white/75 no-underline">Real Property</Link>
-          </div>
-        </nav>
-
-        <header className="pt-16 pb-9 md:pt-24 md:pb-12 max-w-5xl">
-          <div className="text-[10px] tracking-[.28em] font-black text-white/45">MY VAULT · ONE SPATIAL ASSET HOME</div>
-          <h1 className="text-5xl md:text-8xl font-black tracking-[-.075em] leading-[.86] mt-4">Everything you can prove,<br /><span className="text-white/45">in one Vault.</span></h1>
-          <p className="text-base md:text-lg text-white/55 leading-7 max-w-3xl mt-7">
-            Your Creator Gallery, wallet-verified collectibles and user-bound provider positions can share one spatial home—without pretending those asset types are legally the same thing.
-          </p>
-        </header>
-
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-          <TruthStat label="CREATOR GALLERY" value={summary.creations} note={accountSynced ? 'Google-synced + browser' : 'This browser'} />
-          <TruthStat label="WALLET COLLECTION" value={connected ? summary.collectibles : '—'} note={connected ? `${shortWallet} · ownerOf checked` : 'Wallet optional'} />
-          <TruthStat label="DIGITAL REITS" value={session?.user && reitState.mode === 'ready' ? summary.digitalReits : '—'} note={personalReitNote} />
-          <TruthStat label="DIRECT PROPERTY" value="LOCKED" note="No deed claim in My Vault" />
-        </section>
-
-        <UnifiedVaultCanvas entries={manifest} />
-
-        <section className="mt-5 grid md:grid-cols-3 gap-3">
-          <TruthCard title="Creator asset" copy="A paid/3D/minted creation from VoxelPop. It can be yours as a digital asset without being a financial security or property interest." />
-          <TruthCard title="Digital REIT / dShare" copy="A security position appears here only when the signed-in identity has a verified server-side provider-account binding and the provider reports a positive balance. It is not a deed." />
-          <TruthCard title="Direct property" copy="The property wing stays locked until holder identity, legal entity rights, title, compliance and verified property-interest records can be bound correctly." />
-        </section>
-
-        <section id="creator-gallery" className="mt-20 scroll-mt-8">
-          <SectionHeading eyebrow="WING 01 · CREATOR GALLERY" title="Things you made." copy="This wing reads the same My Voxels library used by Studio. Google sync extends that library across devices; it does not create a second asset database." />
-          <div className="flex items-center gap-3 flex-wrap mb-6">
-            {session?.user ? (
-              <>
-                <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-4 py-2 text-xs font-bold">GOOGLE SYNCED · {userName(session.user)}</span>
-                <button onClick={signOutGoogle} disabled={accountBusy} className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 disabled:opacity-40">Sign out</button>
-              </>
-            ) : (
-              <button onClick={signInGoogle} disabled={accountBusy} className="rounded-full bg-white text-black px-5 py-2.5 text-xs font-black disabled:opacity-40">{accountBusy ? 'CONNECTING…' : 'SYNC CREATOR GALLERY WITH GOOGLE'}</button>
-            )}
-            <Link href="/studio" className="rounded-full border border-white/10 px-4 py-2.5 text-xs text-white/75 no-underline">Create another voxel →</Link>
-          </div>
-          {accountStatus ? <div className="mb-5 rounded-2xl border border-white/10 bg-white/[.04] px-4 py-3 text-xs text-white/65">{accountStatus}</div> : null}
-          {myVoxels.length ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {myVoxels.map((voxel) => {
-                const minted = voxel.mint?.tokenId ? voxel.mint : null;
-                const ready = voxel.meshStatus === 'ready';
-                const href = minted ? `/voxelflip/mint?session_id=${encodeURIComponent(voxel.sessionId)}` : `/pack/success?session_id=${encodeURIComponent(voxel.sessionId)}`;
-                return (
-                  <article key={voxel.sessionId} className="overflow-hidden rounded-3xl border border-violet-300/15 bg-violet-300/[.035]">
-                    <img src={voxel.image} alt={voxel.name.replaceAll('-', ' ')} className="w-full aspect-square object-cover bg-black/30" loading="lazy" />
-                    <div className="p-4">
-                      <div className="text-[9px] tracking-[.15em] font-black text-violet-200/60">{minted ? `MINTED · #${minted.tokenId}` : ready ? '3D CREATION' : 'PAID CREATION'}</div>
-                      <h3 className="font-bold text-lg mt-1 capitalize">{voxel.name.replaceAll('-', ' ')}</h3>
-                      <Link href={href} className="inline-flex mt-4 rounded-full bg-white text-black px-4 py-2 text-xs font-black no-underline">Open asset →</Link>
-                    </div>
-                  </article>
-                );
-              })}
+      <section className="section">
+        <div className="sectionHead"><div><small>MY PROPERTIES</small><h2>Pick one. Make it 3D.</h2></div><Link href="/geo/slice">Try $1.99 demo →</Link></div>
+        {shownProperties.length ? <div className="propertyGrid">{shownProperties.map((property) => {
+          const modelReady = Boolean(property?.visual?.modelUrl || property?.voxelpop?.modelUrl);
+          const taskId = String(property?.visual?.modelTaskId || property?.voxelpop?.modelTaskId || '');
+          const creationDraftId = String(property?.voxelpop?.creationDraftId || '');
+          const mintReady = modelReady && taskId.startsWith('local-v1:') && creationDraftId;
+          const collected = property?.commerce?.kind === 'property_voxel_collectible' && property?.commerce?.status === 'paid';
+          return <article className={`propertyCard ${property.demoOnly ? 'demo' : ''}`} key={property.id}>
+            <div className="propertyVisual">
+              {property?.visual?.thumbnailUrl ? <img src={property.visual.thumbnailUrl} alt=""/> : <div className="miniScene"><i/><i/><b/></div>}
+              <span>{propertyStatus(property)}</span>
             </div>
-          ) : (
-            <EmptyState icon="✦" title="Your Creator Gallery is ready." copy="Paid VoxelPop creations from this browser—or your Google-synced account after sign-in—will appear here." href="/studio" action="Create a 3D asset" />
-          )}
-        </section>
-
-        <section id="wallet-collection" className="mt-20 scroll-mt-8">
-          <SectionHeading eyebrow="WING 02 · WALLET COLLECTION" title="Things your wallet can prove." copy="This wing is optional. Voxel Vault checks the configured NFT contract and calls ownerOf before showing a collectible as wallet-owned." />
-          <div className="flex items-center gap-3 flex-wrap mb-6">
-            {!connected ? (
-              <button onClick={connect} className="rounded-full bg-cyan-200 text-slate-950 px-5 py-2.5 text-xs font-black">CONNECT COLLECTION WALLET</button>
-            ) : (
-              <>
-                <span className="rounded-full border border-cyan-200/20 bg-cyan-200/10 px-4 py-2 text-xs font-bold">CONNECTED · {shortWallet}</span>
-                <button onClick={refreshWallet} className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70">Refresh ownership</button>
-              </>
-            )}
-          </div>
-          {walletError ? <div role="alert" className="mb-5 rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-100">{walletError}</div> : null}
-          {walletState.mode === 'loading' ? <LoadingGrid /> : null}
-          {walletState.mode === 'not-configured' ? <EmptyState icon="◇" title="On-chain collection contract is not configured." copy="Voxel Vault will not substitute demos for wallet ownership." /> : null}
-          {!connected ? <EmptyState icon="◇" title="Wallet connection is optional." copy="Connect only if you want the Vault to verify and display collectibles held by that wallet. Your Creator Gallery does not depend on this." /> : null}
-          {walletState.mode === 'on-chain' && !walletState.items.length ? <EmptyState icon="◇" title="No verified Voxel Vault collectibles found." copy="A collectible appears here only after the configured contract reports this connected wallet as its current owner." href="/marketplace" action="Explore Voxel Vault" /> : null}
-          {walletState.mode === 'on-chain' && walletState.items.length ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {walletState.items.map((item) => {
-                const metadata = item.metadata || {};
-                const image = mediaUrl(metadata.image || metadata.image_url || metadata.imageUrl || '');
-                const model = mediaUrl(metadata.animation_url || metadata.model_url || metadata.modelUrl || '');
-                return (
-                  <article key={item.tokenId} className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-cyan-200/[.035]">
-                    <div className="aspect-square bg-black/40 relative overflow-hidden">
-                      {image ? <img src={image} alt={metadata.name || `Digital twin #${item.tokenId}`} className="w-full h-full object-cover" loading="lazy" /> : <div className="w-full h-full grid place-items-center text-6xl">◇</div>}
-                      {model ? <a href={model} target="_blank" rel="noreferrer" className="absolute bottom-3 right-3 rounded-full bg-black/75 border border-white/15 px-3 py-2 text-xs backdrop-blur no-underline text-white">3D ↗</a> : null}
-                    </div>
-                    <div className="p-5">
-                      <div className="text-[9px] tracking-[.16em] font-black text-cyan-100/55">ON-CHAIN OWNER VERIFIED</div>
-                      <h3 className="text-xl font-bold mt-2">{metadata.name || `Voxel #${item.tokenId}`}</h3>
-                      <p className="text-sm text-white/45 mt-1">Token #{item.tokenId}</p>
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        <Link href={`/room?tokenId=${encodeURIComponent(item.tokenId)}`} className="rounded-full bg-white text-black px-4 py-2 text-xs font-black no-underline">Place in Room</Link>
-                        {item.tokenUri ? <a href={mediaUrl(item.tokenUri)} target="_blank" rel="noreferrer" className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 no-underline">Metadata ↗</a> : null}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : null}
-        </section>
-
-        <section id="digital-reits" className="mt-20 scroll-mt-8">
-          <SectionHeading eyebrow="WING 03 · DIGITAL REIT DISTRICT" title="Your provider-bound real-estate exposure." copy="This personal wing is fail-closed. A position appears only after Google/Supabase verifies the Voxel Vault identity, the server finds a verified provider-account binding for that same user, and Dinari reports a positive position from that bound account." />
-          <div className="flex items-center gap-3 flex-wrap mb-6">
-            <span className="rounded-full border border-lime-200/20 bg-lime-200/10 px-4 py-2 text-xs font-bold">
-              {!session?.user
-                ? 'GOOGLE SIGN-IN REQUIRED · PERSONAL HOLDINGS HIDDEN'
-                : reitState.bound
-                  ? `${reitState.snapshot?.provider || 'DINARI'} · ${String(reitState.snapshot?.environment || 'sandbox').toUpperCase()} · USER-BOUND PROVIDER ACCOUNT`
-                  : 'NO VERIFIED USER-BOUND PROVIDER ACCOUNT'}
-            </span>
-            {session?.user ? <button onClick={() => refreshReits(session.access_token || '')} disabled={reitState.mode === 'loading'} className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 disabled:opacity-40">{reitState.mode === 'loading' ? 'REFRESHING…' : 'Refresh personal provider'}</button> : null}
-            <Link href="/real-estate/reits" className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 no-underline">Open Digital REIT pilot →</Link>
-          </div>
-
-          {reitState.error ? <div role="alert" className="mb-5 rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-100">{reitState.error}</div> : null}
-          {Array.isArray(reitState.snapshot?.errors) && reitState.snapshot.errors.length ? <div className="mb-5 rounded-2xl border border-amber-300/20 bg-amber-300/[.06] p-4 text-sm text-amber-100/80">{reitState.snapshot.errors.join(' · ')}</div> : null}
-          {reitState.mode === 'loading' ? <LoadingGrid /> : null}
-
-          {!session?.user ? (
-            <div className="rounded-[28px] border border-dashed border-lime-200/15 bg-lime-200/[.025] p-8 text-center">
-              <div className="text-4xl text-lime-100/45">▥</div>
-              <h3 className="text-xl font-bold mt-3">Sign in before My Vault loads personal securities.</h3>
-              <p className="text-sm leading-6 text-white/45 max-w-xl mx-auto mt-2">The public Digital REIT pilot may show the configured test account, but My Vault will never attribute that global account to you. Sign in so the server can check for your own verified provider binding.</p>
-              <button onClick={signInGoogle} disabled={accountBusy} className="inline-flex mt-5 rounded-full bg-white text-black px-5 py-2.5 text-xs font-black disabled:opacity-40">{accountBusy ? 'CONNECTING…' : 'Sign in with Google'}</button>
-            </div>
-          ) : null}
-
-          {session?.user && reitState.mode === 'ready' && !reitState.bound ? (
-            <EmptyState
-              icon="▥"
-              title="No provider account is bound to this Voxel Vault identity."
-              copy={reitState.setupRequired
-                ? 'Provider identity-binding storage is not installed in Supabase yet. My Vault is deliberately showing zero personal provider holdings until migration 014 is applied and the verified account is bound.'
-                : 'My Vault is deliberately withholding provider holdings rather than displaying the global pilot account as yours. A verified server-side user/provider binding must exist first.'}
-              href="/real-estate/reits"
-              action="Open the sandbox pilot"
-            />
-          ) : null}
-
-          {session?.user && reitState.mode === 'ready' && reitState.bound && reitPositions.length ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {reitPositions.map((position, index) => (
-                <article key={position.stockId || `${position.symbol}-${index}`} className="rounded-3xl border border-lime-200/15 bg-lime-200/[.035] p-5">
-                  <div className="text-[9px] tracking-[.16em] font-black text-lime-100/55">USER-BOUND PROVIDER POSITION</div>
-                  <div className="text-4xl font-black tracking-[-.06em] mt-3">{String(position.symbol || 'REIT').toUpperCase()}</div>
-                  <div className="text-sm text-white/45 mt-1 truncate">{position.name || 'Tokenized real-estate security'}</div>
-                  <div className="mt-6 rounded-2xl bg-black/25 p-4">
-                    <div className="text-[9px] tracking-[.14em] font-black text-white/35">POSITION</div>
-                    <div className="text-xl font-bold mt-1">{Number(position.amount || 0).toFixed(6)} units</div>
-                  </div>
-                  <p className="text-[11px] leading-5 text-white/40 mt-4">Bound provider security position · not a deed · not direct ownership of a specific property.</p>
-                </article>
-              ))}
-            </div>
-          ) : null}
-
-          {session?.user && reitState.mode === 'ready' && reitState.bound && !reitPositions.length ? (
-            <EmptyState icon="▥" title="Your bound provider account reports no positive Digital REIT position yet." copy="The identity link is verified, but Voxel Vault will not light up a REIT building until Dinari actually reports a positive position for that exact bound account." href="/real-estate/reits" action="Open the sandbox pilot" />
-          ) : null}
-        </section>
-
-        <section id="direct-property" className="mt-20 mb-16 scroll-mt-8">
-          <SectionHeading eyebrow="WING 04 · DIRECT PROPERTY" title="Locked until the legal rights are real." copy="A house-shaped object is not enough. This wing will only admit a direct-property interest after Voxel Vault can bind the verified legal/property structure to an eligible holder without confusing a Property Passport with the deed." />
-          <div className="rounded-[32px] border border-amber-200/15 bg-amber-200/[.035] p-7 md:p-10 grid lg:grid-cols-[1.1fr_.9fr] gap-8 items-center">
-            <div>
-              <div className="text-[10px] tracking-[.16em] font-black text-amber-100/55">FAIL-CLOSED PROPERTY GATE</div>
-              <h3 className="text-3xl md:text-5xl font-black tracking-[-.055em] mt-3">No deed-linked position is being claimed here yet.</h3>
-              <p className="text-white/50 leading-7 mt-5 max-w-2xl">The direct-property sequence remains: recorded deed → property entity → executed legal rights → eligible holder → permissioned blockchain record → Property Passport / spatial twin. The visual asset comes after the legal truth, not before it.</p>
-              <div className="flex gap-2 flex-wrap mt-6">
-                <Link href="/real-estate" className="rounded-full bg-white text-black px-5 py-2.5 text-xs font-black no-underline">Explore Real Property pilot</Link>
-                <Link href="/real-estate/launch" className="rounded-full border border-white/10 px-5 py-2.5 text-xs text-white/70 no-underline">View production gates</Link>
+            <div className="propertyBody">
+              <small>{property.demoOnly ? 'TEST BUY · NOT REAL OWNERSHIP' : collected ? 'PURCHASED DIGITAL PROPERTY' : 'PROPERTY SOURCE'}</small>
+              <h3>{property.label || 'Saved property'}</h3>
+              <p>{propertyCopy(property)}</p>
+              {property.demoOnly && property?.demoPurchase?.priceCents ? <div className="priceLine"><b>{money(property.demoPurchase.priceCents)}</b><span>demo credit</span></div> : null}
+              {collected && property?.commerce?.priceCents ? <div className="priceLine"><b>{money(property.commerce.priceCents)}</b><span>{property.commerce.priceLabel || 'digital item'}</span></div> : null}
+              <div className="cardActions">
+                {modelReady && !property.demoOnly ? <Link href={`/vault/property-drafts/${encodeURIComponent(property.id)}`} className="open3d">Open 3D</Link> : null}
+                <Link href={propertyCreateHref(property)} className="make3d">{modelReady ? 'Re-create 3D Voxel' : 'Create 3D Voxel'}</Link>
+                {mintReady ? <Link href={`/property/mint?draftId=${encodeURIComponent(creationDraftId)}&taskId=${encodeURIComponent(taskId)}&name=${encodeURIComponent(property.label || 'VoxelPop Property')}`} className="mint">Mint digital voxel</Link> : null}
               </div>
             </div>
-            <div className="grid gap-2 text-xs">
-              {['Recorded title / closing verified','Property entity + agreements executed','KYC / eligibility and transfer rules satisfied','Accounting / custody / distribution operations approved','Holder-specific legal interest bound','Only then: spatial Property Passport appears as linked'].map((item, index) => (
-                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-black/20 p-3.5">
-                  <span className="w-7 h-7 rounded-full border border-amber-100/20 grid place-items-center font-black text-amber-100/60">{index + 1}</span>
-                  <span className="text-white/60">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <footer className="border-t border-white/10 pt-7 pb-8 flex justify-between gap-6 flex-wrap text-[11px] leading-5 text-white/35">
-          <div><b className="text-white/60">Voxel Vault · My Vault</b><br />One interface, separate legal/source truth for every asset class.</div>
-          <div className="max-w-xl">Personal Digital REIT holdings require a verified user/provider binding and remain read-only here. Direct-property investing, automatic acquisition/reinvestment and mainnet property-token issuance remain outside this unified display until their production gates are satisfied.</div>
-        </footer>
+          </article>;
+        })}</div> : <div className="empty">
+          <div className="emptyIcon">⌂</div><h3>No properties in your Vault yet.</h3><p>Start with a photo or try the demo property selector. Once a property is here, you can use it as the source for the 3D preview → voxel → optional mint flow.</p><Link href="/property">Add my first property →</Link>
+        </div>}
       </section>
-    </main>
-  );
-}
 
-function TruthStat({ label, value, note }) {
-  return <div className="rounded-3xl border border-white/10 bg-white/[.035] p-4 md:p-5"><div className="text-[9px] tracking-[.15em] font-black text-white/35">{label}</div><div className="text-2xl md:text-3xl font-black tracking-[-.05em] mt-2">{value}</div><div className="text-[10px] text-white/35 mt-1 truncate">{note}</div></div>;
-}
+      <section className="section creationsSection">
+        <div className="sectionHead"><div><small>MY 3D CREATIONS</small><h2>Finished digital things.</h2></div><Link href="/studio">Open Studio →</Link></div>
+        {creations.length ? <div className="creationGrid">{creations.slice(0, 12).map((creation) => <article className="creationCard" key={creation.sessionId}>
+          <div className="creationImage"><img src={creation.image} alt=""/><span>{creation.mint?.tokenId ? 'MINTED' : creation.modelUrl ? '3D READY' : 'IMAGE'}</span></div>
+          <div><h3>{creation.name}</h3><p>{creation.mint?.tokenId ? `VoxelFlip #${creation.mint.tokenId}` : creation.modelUrl ? 'Movable 3D model ready' : 'VoxelPop image saved'}</p></div>
+        </article>)}</div> : <div className="smallEmpty">Your non-property VoxelPop creations will appear here. <Link href="/studio">Create one →</Link></div>}
+      </section>
 
-function TruthCard({ title, copy }) {
-  return <article className="rounded-3xl border border-white/10 bg-white/[.025] p-5"><div className="text-sm font-black">{title}</div><p className="text-xs leading-5 text-white/45 mt-2">{copy}</p></article>;
-}
+      <section className="extras">
+        <div><small>OPTIONAL</small><h2>Need the other tools?</h2><p>Wallets, marketplace tools, property verification, investment-provider screens, and owner controls are kept out of the main Vault so your collection stays understandable.</p></div>
+        <Link href="/more">Open More →</Link>
+      </section>
 
-function SectionHeading({ eyebrow, title, copy }) {
-  return <div className="grid lg:grid-cols-[1fr_.8fr] gap-5 items-end mb-7"><div><div className="text-[10px] tracking-[.18em] font-black text-white/35">{eyebrow}</div><h2 className="text-4xl md:text-6xl font-black tracking-[-.065em] leading-[.92] mt-3">{title}</h2></div><p className="text-sm leading-6 text-white/45 lg:pb-1">{copy}</p></div>;
-}
-
-function EmptyState({ icon, title, copy, href, action }) {
-  return <div className="rounded-[28px] border border-dashed border-white/15 bg-white/[.02] p-8 text-center"><div className="text-4xl text-white/45">{icon}</div><h3 className="text-xl font-bold mt-3">{title}</h3><p className="text-sm leading-6 text-white/45 max-w-xl mx-auto mt-2">{copy}</p>{href && action ? <Link href={href} className="inline-flex mt-5 rounded-full bg-white text-black px-5 py-2.5 text-xs font-black no-underline">{action}</Link> : null}</div>;
-}
-
-function LoadingGrid() {
-  return <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((item) => <div key={item} className="h-56 rounded-3xl bg-white/[.04] animate-pulse" />)}</div>;
+      <footer>A VoxelPop creation, demo property, payment, map marker, or NFT is a digital record—not a deed, title, rent right, security, or ownership of the physical property.</footer>
+    </div>
+    <style jsx>{`
+      :global(body){margin:0;background:#fffaf0;color:#25180f;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:12px 12px calc(95px + env(safe-area-inset-bottom));background:radial-gradient(circle at 8% 12%,#efffb3 0,transparent 25%),radial-gradient(circle at 92% 8%,#eee4ff 0,transparent 27%),radial-gradient(circle at 80% 82%,#ffe7b8 0,transparent 24%),#fffaf0}.shell{width:min(1050px,100%);margin:auto}.top{min-height:58px;display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:#281b13;font-size:9px;letter-spacing:.13em}.brand span{width:37px;height:37px;border-radius:13px;display:grid;place-items:center;background:#7138f5;color:#fff;font-size:19px;box-shadow:0 5px 0 #4f20c5}.top>div{display:flex;gap:5px}.top>div a{padding:10px 12px;border:1px solid #e1d8e7;border-radius:999px;background:#ffffffbd;color:#615762;text-decoration:none;font-size:8px;font-weight:950}.hero{text-align:center;padding:62px 0 36px}.hero>small,.sectionHead small,.extras small{font-size:8px;letter-spacing:.16em;color:#7138f5;font-weight:1000}.hero h1{margin:10px 0 15px;font-size:clamp(53px,9vw,92px);line-height:.88;letter-spacing:-.07em}.hero h1 em{font-style:normal;color:#7138f5}.hero p{max-width:680px;margin:auto;color:#81756d;font-size:13px;line-height:1.6}.heroActions{margin:22px auto 0;display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}.heroActions a,.heroActions button{min-height:52px;padding:0 19px;border-radius:17px;border:1px solid #ded5e3;background:#fff;color:#655b65;font:inherit;font-size:10px;font-weight:1000;text-decoration:none;cursor:pointer}.heroActions .primary{background:#7138f5;color:#fff;border-color:#7138f5;box-shadow:0 7px 0 #4d1bc5}.synced{padding:10px 13px;border-radius:999px;background:#edffd0;color:#50701d;font-size:8px;font-weight:1000;letter-spacing:.08em}.section{padding:30px 0;border-top:1px solid #e8dfd6}.sectionHead{display:flex;align-items:end;justify-content:space-between;gap:15px;margin-bottom:14px}.sectionHead h2,.extras h2{font-size:clamp(29px,5vw,48px);letter-spacing:-.055em;margin:5px 0 0}.sectionHead>a{font-size:9px;font-weight:950;color:#694fc0;text-decoration:none}.propertyGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.propertyCard{overflow:hidden;border:1px solid #e1d9e5;border-radius:28px;background:#ffffffdb;box-shadow:0 16px 45px rgba(69,43,94,.07)}.propertyCard.demo{border-style:dashed}.propertyVisual{height:235px;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(201,255,84,.16),transparent 32%),#21172c}.propertyVisual>img{width:100%;height:100%;object-fit:cover}.propertyVisual>span,.creationImage>span{position:absolute;left:14px;top:14px;padding:7px 10px;border-radius:999px;background:#c9ff54;color:#314a09;font-size:7px;font-weight:1000;letter-spacing:.09em}.miniScene{position:absolute;inset:0}.miniScene:before{content:'';position:absolute;left:14%;right:14%;bottom:17%;height:33%;background:#8fce52;transform:perspective(330px) rotateX(62deg);border-radius:16px}.miniScene b{position:absolute;left:35%;right:35%;bottom:31%;height:34%;background:#f0c78f}.miniScene b:before{content:'';position:absolute;left:-12%;right:-12%;top:-18%;height:24%;background:#7552c0;transform:skewY(-8deg)}.miniScene i{position:absolute;z-index:2;bottom:38%;width:8%;height:13%;background:#9edee2}.miniScene i:first-child{left:40%}.miniScene i:nth-child(2){right:40%}.propertyBody{padding:19px}.propertyBody>small{font-size:7px;color:#7c5be0;font-weight:1000;letter-spacing:.11em}.propertyBody h3{font-size:27px;letter-spacing:-.045em;margin:7px 0 8px}.propertyBody p{margin:0;color:#7d727a;font-size:10px;line-height:1.55}.priceLine{margin-top:12px;padding:10px 11px;border-radius:13px;background:#f2ffe0;display:flex;align-items:center;justify-content:space-between;color:#526a2e}.priceLine b{font-size:15px}.priceLine span{font-size:8px;font-weight:900}.cardActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:15px}.cardActions a{min-height:47px;border-radius:14px;display:grid;place-items:center;text-align:center;text-decoration:none;font-size:8px;font-weight:1000;padding:4px 7px}.make3d{background:#7138f5;color:#fff;box-shadow:0 5px 0 #4d1bc5}.open3d{border:1px solid #ded6e4;background:#fff;color:#665c69}.mint{grid-column:1/-1;background:#21172c;color:#fff}.empty{padding:34px;border:1px dashed #d9ccdf;border-radius:28px;background:#ffffffa8;text-align:center}.emptyIcon{width:70px;height:70px;border-radius:23px;margin:auto;display:grid;place-items:center;background:#c9ff54;font-size:30px}.empty h3{font-size:24px;margin:14px 0 7px}.empty p{max-width:600px;margin:auto;color:#81756d;font-size:11px;line-height:1.6}.empty a{display:inline-grid;place-items:center;margin-top:15px;padding:14px 18px;border-radius:15px;background:#7138f5;color:#fff;text-decoration:none;font-size:9px;font-weight:1000}.creationsSection{padding-bottom:40px}.creationGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.creationCard{overflow:hidden;border:1px solid #e3dbe7;border-radius:20px;background:#fff}.creationImage{height:165px;position:relative;background:#21172c}.creationImage img{width:100%;height:100%;object-fit:cover}.creationCard>div:last-child{padding:13px}.creationCard h3{margin:0;font-size:17px}.creationCard p{margin:4px 0 0;color:#827883;font-size:8px}.smallEmpty{padding:22px;border-radius:20px;background:#ffffffb0;color:#756b73;font-size:10px}.smallEmpty a{color:#7138f5;font-weight:900}.extras{margin-top:8px;padding:26px;border-radius:28px;background:#21172c;color:#fff;display:grid;grid-template-columns:1fr auto;align-items:center;gap:20px}.extras small{color:#c9ff54}.extras h2{margin-top:6px}.extras p{max-width:670px;margin:8px 0 0;color:#bfb4c9;font-size:10px;line-height:1.6}.extras>a{min-width:145px;min-height:50px;border-radius:15px;background:#c9ff54;color:#294300;text-decoration:none;display:grid;place-items:center;font-size:9px;font-weight:1000}footer{padding:22px 4px 8px;color:#9d938b;font-size:8px;line-height:1.6;text-align:center}@media(max-width:720px){.hero{padding-top:44px}.hero h1{font-size:58px}.propertyGrid,.creationGrid{grid-template-columns:1fr}.sectionHead{align-items:flex-start}.propertyVisual{height:215px}.extras{grid-template-columns:1fr}.extras>a{width:100%}}@media(max-width:480px){.page{padding-left:9px;padding-right:9px}.top>div a{padding:9px 10px}.top>div a:last-child{display:none}.heroActions{display:grid}.heroActions>*{width:100%;box-sizing:border-box}.cardActions{grid-template-columns:1fr}.mint{grid-column:auto}}
+    `}</style>
+  </main>;
 }
