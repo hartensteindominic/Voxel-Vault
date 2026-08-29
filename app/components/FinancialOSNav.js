@@ -38,7 +38,7 @@ export default function FinancialOSNav() {
 
   return <>
     <div className={styles.spacer} aria-hidden="true" />
-    <nav className={styles.nav} aria-label="Voxel Vault primary navigation" style={{ gridTemplateColumns: `repeat(${DOCK.length}, minmax(0, 1fr))` }}>
+    <nav className={styles.nav} aria-label="VoxelPop primary navigation" style={{ gridTemplateColumns: `repeat(${DOCK.length}, minmax(0, 1fr))` }}>
       {DOCK.map((item) => {
         const selected = item.id === active;
         const voxelPop = item.id === 'create';

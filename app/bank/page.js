@@ -1,9 +1,10 @@
 import BankClient from './BankClient';
 import './bank.css';
+import './galactic.css';
 
 export const metadata = {
-  title: 'Galactic Trust — Digital Banking',
-  description: 'A premium prototype banking experience with accounts, transfers, activity, and controllable digital cards.',
+  title: 'Galactic Trust — Digital banking',
+  description: 'Galactic Trust is the Voxel Vault banking prototype with digital cards, balances, transfers, transaction history, and card controls.',
 };
 
 export default function BankPage() {
