@@ -1,9 +1,4 @@
 :root {
-  --vv-accent: #9ff5df;
-  --vv-accent-soft: rgba(159, 245, 223, .12);
-  --vv-border: rgba(171, 235, 212, .16);
-  --vv-focus: rgba(159, 245, 223, .92);
-  --vv-radius-control: 14px;
   --vv-tap-min: 44px;
 }
 
@@ -44,12 +39,12 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--vv-focus);
+  outline: 3px solid rgba(111, 61, 244, .34);
   outline-offset: 3px;
 }
 
 ::selection {
-  background: rgba(159, 245, 223, .24);
+  background: rgba(111, 61, 244, .16);
 }
 
 @media (pointer: coarse) {
