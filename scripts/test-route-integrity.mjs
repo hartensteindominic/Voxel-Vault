@@ -39,6 +39,8 @@ for(const required of [
  'app/admin/neural-core/list/page.js',
  'app/admin/neural-core/setup/page.js',
  'app/admin/neural-core/whatsapp/page.js',
+ 'app/api/image-to-3d/route.js',
+ 'app/api/cron/catalog-3d/route.js',
  'app/api/voxelflip/trader/route.ts',
  'app/api/voxelflip/factory/route.ts',
  'app/api/admin/neural-core/route.ts',
@@ -114,6 +116,17 @@ if(/eth_sendTransaction|eth_signTypedData|personal_sign|signTypedData\s*\(/.test
 const adminAuth=fs.readFileSync(path.join(root,'lib/neural-core-auth.ts'),'utf8');
 if(!adminAuth.includes('NEURAL_CORE_ADMIN_EMAILS')&&!adminAuth.includes('NEURAL_CORE_ADMIN_USER_IDS'))failures.push('Neural Core admin auth has no explicit allowlist.');
 
+const catalogWorker=fs.readFileSync(path.join(root,'app/api/image-to-3d/route.js'),'utf8');
+if(!catalogWorker.includes('process.env.CRON_SECRET'))failures.push('Catalog Meshy worker must require CRON_SECRET.');
+if((catalogWorker.match(/if \(!authorized\(request\)\)/g)||[]).length<2)failures.push('Catalog Meshy worker must authenticate both POST and GET.');
+if(!catalogWorker.includes('REAL_WORLD_CATALOG')||!catalogWorker.includes('trustedCatalogItem'))failures.push('Catalog Meshy worker must bind generation to the trusted repository catalog.');
+if(/requestedImageUrl|body\?\.imageUrl/.test(catalogWorker))failures.push('Catalog Meshy worker may not accept an arbitrary caller-supplied image URL.');
+const catalogCron=fs.readFileSync(path.join(root,'app/api/cron/catalog-3d/route.js'),'utf8');
+if(!catalogCron.includes('process.env.CRON_SECRET'))failures.push('Catalog cron must require CRON_SECRET.');
+if(/user-agent|vercel-cron/i.test(catalogCron))failures.push('Catalog cron may not trust a spoofable User-Agent.');
+if(!/authorization:\s*authHeader/.test(catalogCron)||!/headers:\s*internalHeaders/.test(catalogCron))failures.push('Catalog cron must forward authorization to internal Meshy worker calls.');
+if(!/JSON\.stringify\(\{ itemId: item\.id/.test(catalogCron))failures.push('Catalog cron must pass trusted catalog item ids rather than whole caller-shaped item objects.');
+
 const sitemap=fs.readFileSync(path.join(root,'app/sitemap.js'),'utf8');
 if(sitemap.includes("'/marketplace'")||sitemap.includes('CATALOG_SIZE'))failures.push('Sitemap still advertises the legacy marketplace/catalog instead of the VoxelPop launch surface.');
 if(sitemap.includes('/admin/neural-core'))failures.push('Private Neural Core route must not appear in the sitemap.');
@@ -127,4 +140,4 @@ if(failures.length){
  for(const failure of failures)console.error(`- ${failure}`);
  process.exit(1);
 }
-console.log('Route integrity passed: no duplicate route handlers, critical VoxelFlip/Neural Core/WhatsApp routes exist, the production deployment is pinned, admin auth, ownership, webhook signatures and private database controls are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
+console.log('Route integrity passed: no duplicate route handlers, critical VoxelPop/VoxelFlip/catalog/Neural Core/WhatsApp routes exist, the production deployment is pinned, admin and catalog worker auth, ownership, webhook signatures and private database controls are present, automatic signing/buying/listing remain disabled, and private admin routes stay out of indexing.');
