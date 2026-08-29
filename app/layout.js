@@ -16,7 +16,6 @@ export const metadata = {
   title: { default: TITLE, template: '%s | Voxel Vault' },
   description: DESCRIPTION,
   keywords: ['house photo to 3D', 'voxel house creator', '3D house photo', 'VoxelPop', 'voxel creator', 'Voxel Vault'],
-  alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
