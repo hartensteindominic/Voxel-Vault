@@ -3,12 +3,14 @@ import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import { readCatalog3DByTask } from '../../../lib/catalog3dStore';
 import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
+import { verifyPropertyGenerationRecoveryTaskId } from '../../../lib/property-generation-task';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-image';
+const THREE_D_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const ALLOWED_RIGHTS_BASES = new Set(['user-owned', 'open-licensed', 'licensed-derivative']);
 const BLOCKED_REFERENCE_HOSTS = /(^|\.)(google\.com|googleusercontent\.com|gstatic\.com|googleapis\.com|maps\.googleapis\.com|streetviewpixels-pa\.googleapis\.com|zillow\.com|zillowstatic\.com|redfin\.com|cdn-redfin\.com|apartments\.com)$/i;
 
@@ -54,16 +56,48 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-async function generated3DReference(userId: string, draftIdRaw: unknown, sourceTaskIdRaw: unknown) {
+async function recoveredGenerated3DReference(apiKey: string, userId: string, sourceTaskId: string) {
+  const providerTaskId = verifyPropertyGenerationRecoveryTaskId(apiKey, userId, sourceTaskId);
+  if (!providerTaskId) return null;
+
+  const response = await fetch(`${THREE_D_ENDPOINT}/${encodeURIComponent(providerTaskId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  });
+  const task = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(task?.task_error?.message || task?.message || task?.error || 'The first 3D build could not be verified.');
+
+  const status = clean(task?.status || '', 80).toUpperCase();
+  const modelUrl = clean(task?.model_urls?.glb, 2200);
+  if (status !== 'SUCCEEDED' || !isHttpUrl(modelUrl)) {
+    throw new Error('Finish the first 3D build before making the voxel.');
+  }
+
+  const thumbnailUrl = clean(task?.alpha_thumbnail_url || task?.thumbnail_url, 2200);
+  if (!isHttpUrl(thumbnailUrl)) {
+    throw new Error('The first 3D build finished without a usable preview render. Retry the 3D build before voxelizing it.');
+  }
+  return thumbnailUrl;
+}
+
+async function generated3DReference(apiKey: string, userId: string, draftIdRaw: unknown, sourceTaskIdRaw: unknown) {
   const draftId = normalizePropertyDraftId(draftIdRaw);
-  const sourceTaskId = clean(sourceTaskIdRaw, 260);
+  const sourceTaskId = clean(sourceTaskIdRaw, 420);
   if (!sourceTaskId) throw new Error('Finish the first 3D build before the voxel style pass.');
   const saved = await readCatalog3DByTask(sourceTaskId);
   const expectedItemId = propertyDraftItemId(userId, draftId, 'source');
-  if (!saved || saved.item_id !== expectedItemId) throw new Error('That first 3D build does not belong to this signed-in creation.');
-  const sourceReady = Boolean(saved.model_storage_path || saved.model_url);
-  const thumbnailUrl = clean(saved.thumbnail_url, 2200);
-  if (!sourceReady) throw new Error('Finish the first 3D build before making the voxel.');
+
+  let thumbnailUrl = '';
+  if (saved) {
+    if (saved.item_id !== expectedItemId) throw new Error('That first 3D build does not belong to this signed-in creation.');
+    const sourceReady = Boolean(saved.model_storage_path || saved.model_url);
+    thumbnailUrl = clean(saved.thumbnail_url, 2200);
+    if (!sourceReady) throw new Error('Finish the first 3D build before making the voxel.');
+  } else {
+    thumbnailUrl = await recoveredGenerated3DReference(apiKey, userId, sourceTaskId) || '';
+    if (!thumbnailUrl) throw new Error('That first 3D build does not belong to this signed-in creation.');
+  }
+
   if (!isHttpUrl(thumbnailUrl)) throw new Error('The first 3D build finished without a usable preview render. Retry the 3D build before voxelizing it.');
   return [{
     url: thumbnailUrl,
@@ -86,7 +120,7 @@ export async function POST(request: Request) {
     const address = clean(body?.address, 220);
     const atlasId = clean(body?.atlasId, 180);
     const references = draftId
-      ? await generated3DReference(auth.user.id, draftId, body?.source3dTaskId)
+      ? await generated3DReference(apiKey, auth.user.id, draftId, body?.source3dTaskId)
       : validateReferences(body?.references);
     if (!draftId && (!address || !atlasId)) return privateJson({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
     if (!references.length) return privateJson({ ok: false, error: 'A rights-cleared visual reference is required before making the voxel.' }, { status: 400 });
