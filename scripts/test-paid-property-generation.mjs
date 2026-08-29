@@ -81,13 +81,18 @@ assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-
 assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
 assert.match(viewer, /keepBestComponent/, 'voxel extraction keeps the strongest connected building region');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells become empty space');
-assert.match(viewer, /if \(recipe\.depths\[index\] <= 0\) continue/, 'interactive voxel viewer does not instantiate background voxels');
+assert.match(viewer, /const totalVoxels = recipe\.depths\.reduce/, 'movable voxel allocates only real stacked cube volume');
+assert.match(viewer, /if \(!depth\) continue/, 'interactive voxel viewer does not instantiate background voxels');
+assert.match(viewer, /for \(let layer = 0; layer < depth; layer \+= 1\)/, 'movable 3D voxel builds discrete cube layers instead of stretched depth prisms');
+assert.match(viewer, /new THREE\.BoxGeometry\(cubeSize, cubeSize, cubeSize\)/, 'movable model uses true cube geometry in all three axes');
 assert.match(viewer, /sourceImageUrl/, 'voxel sampling uses the original property photo');
 assert.match(viewer, /InstancedMesh/, 'local movable voxel is real WebGL geometry');
 assert.doesNotMatch(viewer, /backingGeometry/, 'the old square backing slab must stay removed');
 
 assert.match(localVoxel, /const MAX_SIDE = 32/, 'saved local recipe accepts the higher-detail 32-cell model');
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF preserves the empty background');
+assert.match(localVoxel, /for \(let layer = 0; layer < depth; layer \+= 1\)/, 'saved glTF persists the movable voxel as stacked cubes');
+assert.match(localVoxel, /VoxelPop stacked voxel volume v2/, 'saved model identifies the stacked-cube volume format');
 assert.match(localVoxel, /silhouette-aware voxel recipe/, 'saved record documents the silhouette-aware model');
 assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt from the compact recipe');
 assert.match(localStore, /saveCatalog3D/, 'local record persistence has a resilient shared-catalog fallback when the table is unavailable');
@@ -109,4 +114,4 @@ assert.match(mintPage, /Mint your voxel\./, 'mint UI centers the digital voxel a
 assert.match(mintPage, /Mint Later/, 'mint UI keeps minting optional');
 assert.match(mintPage, /The NFT represents the finished digital VoxelPop voxel only/, 'mint UI clearly distinguishes the digital voxel from real-estate title');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> high-resolution source-plane 3D voxel-photo review -> explicit approval -> separate higher-detail local movable voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> high-resolution source-plane 3D voxel-photo review -> explicit approval -> separate stacked-cube movable 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with no Meshy credits, hidden second paywall, or physical-property claim.');
