@@ -27,11 +27,6 @@ const advancedTools = [
 export default function MorePage() {
   return <main className={styles.page}>
     <div className={styles.shell}>
-      <nav className={styles.top}>
-        <Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link>
-        <div className={styles.navLinks}><Link href="/property">Create</Link><Link href="/world">World</Link><Link href="/vault">Vault</Link></div>
-      </nav>
-
       <section className={styles.hero}>
         <small>MORE</small>
         <h1>More tools.<br/><em>Less confusion.</em></h1>
