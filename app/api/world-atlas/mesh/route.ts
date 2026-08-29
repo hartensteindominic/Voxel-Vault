@@ -62,12 +62,39 @@ function rawTaskId(taskId: string) {
   return String(taskId || '').replace(/^world-multi:/, '');
 }
 
-async function displayUrlFor(saved: any) {
-  if (saved?.model_storage_path) {
-    const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
-    if (signed) return signed;
+async function modelUrlLoads(url: string) {
+  if (!isHttpUrl(url)) return false;
+  try {
+    const response = await fetch(url, {
+      headers: { Range: 'bytes=0-0' },
+      cache: 'no-store',
+    });
+    return response.ok || response.status === 206;
+  } catch {
+    return false;
   }
-  return saved?.model_url || null;
+}
+
+async function cachedModelUrl(saved: any) {
+  if (!saved?.model_storage_path) return null;
+  const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
+  if (!signed) return null;
+  return (await modelUrlLoads(signed)) ? signed : null;
+}
+
+async function displayUrlFor(saved: any) {
+  return (await cachedModelUrl(saved)) || saved?.model_url || null;
+}
+
+function decorateDisplayModelUrl(displayModelUrl: string | null, saved: any) {
+  if (!displayModelUrl) return null;
+  const metadata = new URLSearchParams();
+  const thumbnailUrl = String(saved?.thumbnail_url || '').trim();
+  const taskId = String(saved?.task_id || '').trim();
+  if (thumbnailUrl) metadata.set('vvPreview', thumbnailUrl);
+  if (taskId) metadata.set('vvRepair', `/api/world-atlas/mesh?taskId=${encodeURIComponent(taskId)}&repair=1`);
+  const suffix = metadata.toString();
+  return suffix ? `${displayModelUrl.split('#')[0]}#${suffix}` : displayModelUrl;
 }
 
 function safeMeshState(saved: any, displayModelUrl: string | null = null) {
@@ -76,7 +103,7 @@ function safeMeshState(saved: any, displayModelUrl: string | null = null) {
     taskId: saved?.task_id || null,
     status: saved?.status || 'NOT_STARTED',
     progress: Number(saved?.progress || 0),
-    displayModelUrl,
+    displayModelUrl: decorateDisplayModelUrl(displayModelUrl, saved),
     modelStored: Boolean(saved?.model_storage_path),
     thumbnailUrl: saved?.thumbnail_url || null,
     error: saved?.error || null,
@@ -177,6 +204,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const atlasIdRaw = url.searchParams.get('atlasId') || '';
   const taskId = url.searchParams.get('taskId') || '';
+  const repairCache = url.searchParams.get('repair') === '1';
 
   if (atlasIdRaw && !taskId) {
     try {
@@ -207,8 +235,16 @@ export async function GET(request: Request) {
     const thumbnailUrl = data?.thumbnail_url || null;
     const saved = await readCatalog3DByTask(taskId);
     let modelStoragePath = saved?.model_storage_path || null;
+    let cachedPlaybackUrl = repairCache ? null : await cachedModelUrl(saved);
 
-    if (providerModelUrl && saved?.item_id && !modelStoragePath) modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+    if (providerModelUrl && saved?.item_id && (!cachedPlaybackUrl || repairCache)) {
+      const repairedPath = await persistModelBinary(saved.item_id, providerModelUrl);
+      if (repairedPath) {
+        modelStoragePath = repairedPath;
+        cachedPlaybackUrl = await cachedModelUrl({ ...saved, model_storage_path: repairedPath });
+      }
+    }
+
     let updated = saved;
     if (saved?.item_id) {
       updated = await saveCatalog3D(saved.item_id, {
@@ -224,24 +260,24 @@ export async function GET(request: Request) {
       }) || saved;
     }
 
+    const finalRow = {
+      ...(updated || {}),
+      task_id: taskId,
+      status,
+      progress: providerModelUrl ? 100 : progress,
+      model_storage_path: modelStoragePath,
+      model_url: providerModelUrl || updated?.model_url || null,
+      thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
+      error: data?.task_error?.message || null,
+    };
+    const displayModelUrl = cachedPlaybackUrl || providerModelUrl || finalRow.model_url || null;
+
     return NextResponse.json({
       configured: true,
       exists: true,
       aiModel: WORLD_ATLAS_MESH_POLICY.aiModel,
-      ...safeMeshState({
-        ...(updated || {}),
-        task_id: taskId,
-        status,
-        progress: providerModelUrl ? 100 : progress,
-        model_storage_path: modelStoragePath,
-        model_url: providerModelUrl || updated?.model_url || null,
-        thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
-        error: data?.task_error?.message || null,
-      }, await displayUrlFor({
-        ...(updated || {}),
-        model_storage_path: modelStoragePath,
-        model_url: providerModelUrl || updated?.model_url || null,
-      })),
+      cacheRepaired: repairCache && Boolean(modelStoragePath),
+      ...safeMeshState(finalRow, displayModelUrl),
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'World-atlas Meshy status request failed.' }, { status: 500 });
