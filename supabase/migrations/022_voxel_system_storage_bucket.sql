@@ -7,6 +7,3 @@ values ('voxel-system', 'voxel-system', false, 78643200)
 on conflict (id) do update
 set public = false,
     file_size_limit = greatest(coalesce(storage.buckets.file_size_limit, 0), excluded.file_size_limit);
-
-comment on table storage.buckets is
-  'Supabase Storage buckets. Voxel Vault keeps voxel-system private and serves temporary signed URLs from server-authorized flows.';
