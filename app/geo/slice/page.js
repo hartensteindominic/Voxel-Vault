@@ -14,6 +14,7 @@ function money(cents){return new Intl.NumberFormat('en-US',{style:'currency',cur
 function referenceMoney(value){const n=Number(value||0);return Number.isFinite(n)?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n):'$0'}
 function percent(value){const n=Number(value||0);if(!Number.isFinite(n))return'0%';return n>0&&n<0.0001?`${n.toExponential(3)}%`:`${n.toFixed(6)}%`}
 function indexLabel(value){const n=Number(value||0);return Number.isFinite(n)?`${n.toFixed(2)}×`:'—'}
+function unitLabelFor(count){return Number(count)===1?'1 demo slice':`${Number(count)||0} demo slices`}
 
 export default function PropertySlicePage(){
   const {address,connected,connect}=useWalletIdentity();
@@ -24,14 +25,15 @@ export default function PropertySlicePage(){
   const [moneyInputs,setMoneyInputs]=useState({usd:'12.40',crypto:'0',nft:'0',property:'0'});
   const [moneyResult,setMoneyResult]=useState(null);
   const [moneyBusy,setMoneyBusy]=useState(false);
-  const [message,setMessage]=useState('Sandbox only · no real money or property rights move here.');
+  const [message,setMessage]=useState('Sandbox mode · demo USD auto-refills when needed. No real funds or property rights move here.');
   const shortWallet=useMemo(()=>address?`${address.slice(0,6)}…${address.slice(-4)}`:'',[address]);
   const selected=Number(slice.selectedPrice||0);const benchmark=Number(slice.benchmarkPrice||0);const amount=Number(slice.amount||0);
   const benchmarkWeight=sliceResult?.relativePropertyPriceIndex??(benchmark>0?selected/benchmark:0);
   const adjustedCents=sliceResult?.adjustedTestPriceCents??(benchmark>0?Math.max(1,Math.round(toCents(slice.amount)*(selected/benchmark))):toCents(slice.amount));
   const slicePercent=sliceResult?.hypotheticalPercent??(benchmark>0?(amount/benchmark)*100:0);
+  const needsDemoTopUp=adjustedCents>purchase.demoUsdCents;
   const demoUsdDisplay=money(purchase.demoUsdCents);
-  const unitLabel=purchase.demoUnits===1?'1 demo slice':`${purchase.demoUnits} demo slices`;
+  const unitLabel=unitLabelFor(purchase.demoUnits);
 
   useEffect(()=>{try{
     const saved=JSON.parse(window.localStorage.getItem(SLICE_KEY)||'null');if(saved?.slice)setSlice(saved.slice);if(saved?.result)setSliceResult(saved.result);
@@ -59,7 +61,17 @@ export default function PropertySlicePage(){
       const d=await r.json().catch(()=>({}));if(!r.ok||!d?.ok)throw new Error(d?.error||'Could not complete the sandbox purchase.');
       const result=d.result;
       const nextUsd=(result.balances.demoUsdAfterCents/100).toFixed(2);
-      const nextPurchase={demoUsdCents:result.balances.demoUsdAfterCents,demoUnits:result.purchase.demoUnitsAfter,lastPurchase:{selectedName:result.purchase.selectedName,priceCents:result.purchase.debitDemoUsdCents,percent:result.purchase.hypotheticalPercentPerUnit,boughtAt:new Date().toISOString()}};
+      const nextPurchase={
+        demoUsdCents:result.balances.demoUsdAfterCents,
+        demoUnits:result.purchase.demoUnitsAfter,
+        lastPurchase:{
+          selectedName:result.purchase.selectedName,
+          priceCents:result.purchase.debitDemoUsdCents,
+          percent:result.purchase.hypotheticalPercentPerUnit,
+          boughtAt:new Date().toISOString(),
+          autoTopUpCents:Number(result.balances.demoUsdAutoTopUpCents||0),
+        },
+      };
       const nextMoneyInputs={...moneyInputs,usd:nextUsd};
       setSliceResult(result.slice);setPurchase(nextPurchase);setMoneyInputs(nextMoneyInputs);setMoneyResult(null);
       try{
@@ -68,11 +80,12 @@ export default function PropertySlicePage(){
         window.localStorage.setItem(PURCHASE_KEY,JSON.stringify(nextPurchase));
         window.localStorage.setItem(MONEY_KEY,JSON.stringify({inputs:nextMoneyInputs,result:null,savedAt}));
       }catch{}
-      setMessage(`${money(result.purchase.debitDemoUsdCents)} demo purchase complete · ${unitLabelFor(result.purchase.demoUnitsAfter)} in your sandbox Vault · no real funds, deed, equity, security, or NFT moved.`);
+      const refill=Number(result.balances.demoUsdAutoTopUpCents||0)>0?` Sandbox auto-refilled ${money(result.balances.demoUsdAutoTopUpCents)} demo USD first.`:'';
+      setMessage(`${money(result.purchase.debitDemoUsdCents)} demo purchase complete · ${unitLabelFor(result.purchase.demoUnitsAfter)} saved.${refill} No real funds, deed, equity, security, or NFT moved.`);
     }catch(e){setMessage(e instanceof Error?e.message:'Could not complete the sandbox purchase.')}finally{setSliceBusy(false)}
   }
 
-  async function previewMoney(event){event?.preventDefault?.();setMoneyBusy(true);try{const r=await fetch('/api/geo/property-slice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'conversion_preview',settledUsdCents:purchase.demoUsdCents,estimatedCryptoValueCents:toCents(moneyInputs.crypto),estimatedNftValueCents:toCents(moneyInputs.nft),propertyGoalCents:toCents(moneyInputs.property)})});const d=await r.json().catch(()=>({}));if(!r.ok||!d?.ok)throw new Error(d?.error||'Could not update Vault preview.');setMoneyResult(d.result);try{const savedAt=new Date().toISOString();window.localStorage.setItem(PURCHASE_KEY,JSON.stringify(purchase));window.localStorage.setItem(MONEY_KEY,JSON.stringify({inputs:{...moneyInputs,usd:(purchase.demoUsdCents/100).toFixed(2)},result:d.result,savedAt}))}catch{}setMessage('Vault preview saved · only settled/provider-confirmed USD can become spendable in a live version; crypto/NFT numbers remain estimates until a provider settles them.')}catch(e){setMessage(e instanceof Error?e.message:'Could not update Vault preview.')}finally{setMoneyBusy(false)}}
+  async function previewMoney(event){event?.preventDefault?.();setMoneyBusy(true);try{const r=await fetch('/api/geo/property-slice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'conversion_preview',settledUsdCents:purchase.demoUsdCents,estimatedCryptoValueCents:toCents(moneyInputs.crypto),estimatedNftValueCents:toCents(moneyInputs.nft),propertyGoalCents:toCents(moneyInputs.property)})});const d=await r.json().catch(()=>({}));if(!r.ok||!d?.ok)throw new Error(d?.error||'Could not update Vault preview.');setMoneyResult(d.result);try{const savedAt=new Date().toISOString();window.localStorage.setItem(PURCHASE_KEY,JSON.stringify(purchase));window.localStorage.setItem(MONEY_KEY,JSON.stringify({inputs:{...moneyInputs,usd:(purchase.demoUsdCents/100).toFixed(2)},result:d.result,savedAt}))}catch{}setMessage('Vault preview saved · crypto and NFT amounts remain estimates until a real provider settles them.')}catch(e){setMessage(e instanceof Error?e.message:'Could not update Vault preview.')}finally{setMoneyBusy(false)}}
 
   return <main className={styles.page}><div className={styles.phone}>
     <header className={styles.topbar}>
@@ -80,20 +93,20 @@ export default function PropertySlicePage(){
       <button className={styles.avatarButton} type="button" onClick={connect} aria-label={connected?`Wallet ${shortWallet}`:'Connect wallet'}><PixelAvatar/><i className={connected?styles.online:styles.offline}/></button>
     </header>
 
-    <section className={styles.heading}><span>PROPERTY · USD · CRYPTO · NFT</span><h1>Your $1.99 property world</h1><p>Set your anchor property to $1.99. Every other sandbox property scales by its reference value, so the comparison stays proportional.</p></section>
+    <section className={styles.heading}><span>PROPERTY · USD · CRYPTO · NFT</span><h1>Your $1.99 property world</h1><p>Start tiny. Compare properties, test a slice, and keep Property, USD, Crypto and NFTs organized in one VoxelPop-style Vault.</p></section>
 
     <form onSubmit={testBuy} className={styles.sliceForm}>
       <section className={styles.heroCard}>
         <div className={styles.sceneSide}>
-          <div className={styles.demoPill}>DEMO USD · {demoUsdDisplay}</div>
+          <div className={styles.demoPill}>{needsDemoTopUp?'AUTO-FUND DEMO':'DEMO USD'} · {demoUsdDisplay}</div>
           <VoxelScene/>
           <div className={styles.sceneCaption}><b>{slice.selectedName||'Selected property'}</b><span>{referenceMoney(slice.selectedPrice)} reference value</span></div>
         </div>
         <div className={styles.buySide}>
           <small>SANDBOX SLICE PRICE</small>
           <div className={styles.heroPrice}>{money(adjustedCents)}</div>
-          <button className={styles.buyButton} disabled={sliceBusy||adjustedCents>purchase.demoUsdCents}><span className={styles.bag}>✚</span>{sliceBusy?'Buying…':adjustedCents>purchase.demoUsdCents?'Demo USD too low':'Test Buy'}</button>
-          <div className={styles.sandbox}>Your anchor stays {money(toCents(slice.amount))} · demo purchase only</div>
+          <button className={styles.buyButton} disabled={sliceBusy}><span className={styles.bag}>✚</span>{sliceBusy?'Buying…':'Test Buy'}</button>
+          <div className={styles.sandbox}>{needsDemoTopUp?'Demo USD refills automatically · ':''}anchor {money(toCents(slice.amount))}</div>
         </div>
       </section>
 
@@ -118,7 +131,7 @@ export default function PropertySlicePage(){
       </div></details>
     </form>
 
-    <div className={styles.sectionLabel}><span>ONE VAULT</span><b>Property + money + wallet, without mixing what each asset legally is</b></div>
+    <div className={styles.sectionLabel}><span>ONE VAULT</span><b>Property + money + wallet, organized without pretending they are the same thing</b></div>
     <section className={styles.assetGrid}>
       <AssetCard kind="property" art={<MiniHouse/>} label="Property" value={purchase.demoUnits?unitLabel:'Ready to test'}/>
       <AssetCard kind="usd" art={<CashStack/>} label="USD" value={`Demo ${demoUsdDisplay}`}/>
@@ -131,7 +144,7 @@ export default function PropertySlicePage(){
       <div className={styles.activityValue}><small>VAULT TOTAL</small><strong>{unitLabel}</strong><span>{demoUsdDisplay} demo USD left</span></div>
     </section>:null}
 
-    <section className={styles.convertCard}><div><span>NFT UTILITY</span><h2>Make the NFT useful</h2><p>Keep the 3D asset, optionally mint it, sell through a supported market, then route settled proceeds to crypto or USD. Estimated value is never shown as cash before settlement.</p></div><div className={styles.convertFlow}>
+    <section className={styles.convertCard}><div><span>NFT UTILITY</span><h2>Make the NFT useful</h2><p>Create or hold the asset, optionally mint it, sell through a supported market, then route settled proceeds to crypto or USD. Estimated value never becomes cash before settlement.</p></div><div className={styles.convertFlow}>
       <Flow art={<NftFrame/>} label="NFT"/><span>→</span><Flow art={<MarketStall/>} label="Market"/><span>→</span><Flow art={<CashStack/>} label="USD"/><span>→</span><Flow art={<MiniHouse/>} label="Property"/>
     </div></section>
 
@@ -148,7 +161,6 @@ export default function PropertySlicePage(){
   </div></main>
 }
 
-function unitLabelFor(count){return Number(count)===1?'1 demo slice':`${Number(count)||0} demo slices`}
 function AssetCard({kind,art,label,value,onClick}){const Tag=onClick?'button':'div';return <Tag type={onClick?'button':undefined} onClick={onClick} className={`${styles.assetCard} ${styles[kind]}`}><div className={styles.assetArt}>{art}</div><b>{label}</b><small>{value}</small></Tag>}
 function Flow({art,label}){return <div className={styles.flow}><div>{art}</div><b>{label}</b></div>}
 function VoxelLock(){return <span className={styles.voxelLock}><i/><b>+</b></span>}
