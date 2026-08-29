@@ -10,20 +10,34 @@ const SAMPLE = '/voxelpop/demo-house.svg';
 export default function HomeProductPreview() {
   const [stage, setStage] = useState('preview');
   const [voxelReady, setVoxelReady] = useState(false);
+  const previewStage = stage === 'preview';
+
   return <div className={styles.card}>
     <div className={styles.topline}>
-      <div><small>REAL PRODUCT VIEWER</small><b>{stage === 'preview' ? '3D voxel photo' : 'Movable 3D voxel'}</b></div>
-      <span className={styles.price}>$4.99</span>
+      <div className={styles.sampleLabel}>
+        <span className={styles.liveDot}/>
+        <div><small>INTERACTIVE SAMPLE</small><b>{previewStage ? '3D Voxel Photo' : 'Movable 3D Voxel'}</b></div>
+      </div>
+      <span className={styles.stagePill}>{previewStage ? 'STEP 1' : 'STEP 2'}</span>
     </div>
-    <div className={styles.viewer} aria-label={stage === 'preview' ? 'Interactive 3D voxel photo preview' : 'Interactive movable 3D voxel sample'}>
-      {stage === 'preview'
+
+    <div className={styles.viewer} aria-label={previewStage ? 'Interactive 3D Voxel Photo sample' : 'Interactive movable 3D voxel sample'}>
+      {previewStage
         ? <PhotoReliefModelViewer imageUrl={SAMPLE}/>
         : <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE} onReady={() => setVoxelReady(true)}/>}
     </div>
-    <div className={styles.controls} role="group" aria-label="Choose VoxelPop sample stage">
-      <button type="button" className={stage === 'preview' ? styles.active : ''} aria-pressed={stage === 'preview'} onClick={() => setStage('preview')}><span>1</span>3D voxel photo</button>
-      <button type="button" className={stage === 'voxel' ? styles.active : ''} aria-pressed={stage === 'voxel'} onClick={() => setStage('voxel')}><span>2</span>{stage === 'voxel' && !voxelReady ? 'Building voxel…' : 'Movable voxel'}</button>
+
+    <div className={styles.controls} role="group" aria-label="Choose which VoxelPop result to preview">
+      <button type="button" className={previewStage ? styles.active : ''} aria-pressed={previewStage} onClick={() => setStage('preview')}>
+        <span>01</span><span className={styles.controlCopy}><small>FIRST</small><b>Voxel Photo</b></span>
+      </button>
+      <button type="button" className={!previewStage ? styles.active : ''} aria-pressed={!previewStage} onClick={() => setStage('voxel')}>
+        <span>02</span><span className={styles.controlCopy}><small>AFTER APPROVAL</small><b>{!previewStage && !voxelReady ? 'Building…' : 'Movable Voxel'}</b></span>
+      </button>
     </div>
-    <p>{stage === 'preview' ? 'First: VoxelPop turns your house photo into a block-by-block 3D voxel photo you can inspect and approve.' : 'Second: approve the voxel photo, then build the separate movable 3D voxel model.'}</p>
+
+    <p>{previewStage
+      ? 'Rotate the Voxel Photo and check that the visible house matches your source before continuing.'
+      : 'This is the separate movable 3D model. Save it to Vault; minting stays optional.'}</p>
   </div>;
 }
