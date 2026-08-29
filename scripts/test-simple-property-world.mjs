@@ -9,6 +9,7 @@ const propertyRoute = read('app/property/page.js');
 const property = read('app/property/PropertyJourneyExact.js');
 const propertyCss = read('app/property/property.module.css');
 const photoPreview = read('app/property/PhotoReliefModelViewer.js');
+const pictureRenderer = read('app/api/property-3d-picture/route.ts');
 const localViewer = read('app/property/LocalVoxelModelViewer.js');
 const propertyMap = read('app/property/PropertyWorldMap.js');
 const paidVerify = read('app/api/property-photo-upload/route.ts');
@@ -40,11 +41,12 @@ assert.match(propertyRoute, /PropertyJourneyExact/, '/property must use the stri
 assert.match(home, /Upload a picture\./, 'home describes the photo-first journey');
 assert.match(home, /START → SIGN IN \+ UPLOAD PHOTO/, 'home truthfully exposes the account gate before the photo picker');
 assert.match(home, /One VoxelPop creation costs \$4\.99/, 'home clearly discloses the creation price');
-assert.match(home, /source photo stays on your device/i, 'home explains the device-local source photo boundary');
-assert.match(home, /without Meshy credits/i, 'home makes the no-Meshy dependency explicit');
-assert.match(home, /3D preview[\s\S]*voxel[\s\S]*Mint/i, 'home states the required preview -> voxel -> mint order');
+assert.match(home, /Original not saved by Voxel Vault/i, 'home gives a concise source-photo storage boundary');
+assert.match(home, /sent transiently to the configured image-generation provider/i, 'home discloses reference-image transmission for the VoxelPop render');
+assert.match(home, /VOXELPOP 3D HOUSE/, 'home describes the generated house-image stage');
+assert.match(home, /3D VOXEL/, 'home describes the later voxel stage separately');
 assert.match(home, /Optional Collect later is a separate digital-item purchase/i, 'home may describe the separate optional collectible product');
-assert.match(home, /no wallet is required to create/i, 'wallet must not block core creation');
+assert.match(home, /No wallet is required to create/i, 'wallet must not block core creation');
 assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank status');
 assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
@@ -68,17 +70,30 @@ assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Make 3D Picture/, 'paid
 assert.match(property, /You see and approve the 3D picture before VoxelPop creates the separate voxel/, 'one payment preserves the picture-before-voxel order');
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
-assert.match(property, /PhotoReliefModelViewer/, 'recognizable 3D photo preview is a first-class stage');
-assert.match(photoPreview, /new THREE\.Texture\(image\)/, 'first 3D preview uses the actual uploaded photo texture');
-assert.match(photoPreview, /PlaneGeometry\(photoWidth, photoHeight, 1, 1\)/, 'the visible source photo stays on an undistorted flat surface');
-assert.match(photoPreview, /BoxGeometry\(photoWidth \+ 0\.18, photoHeight \+ 0\.18, depth/, 'real 3D depth comes from a physical backing instead of pixel warping');
-assert.doesNotMatch(photoPreview, /getImageData|luminance\(|positions\.setZ|setZ\(/, 'first preview must not reshape source pixels from brightness or edges');
-assert.match(photoPreview, /targetY = clamp/, '3D picture rotation stays deliberately bounded so unseen sides are not invented');
+assert.match(property, /PhotoReliefModelViewer/, 'the generated VoxelPop house picture remains a first-class approval stage');
+assert.match(photoPreview, /\/api\/property-3d-picture/, 'Step 3 calls the actual paid VoxelPop house-image generator');
+assert.match(photoPreview, /prepareReference/, 'Step 3 converts the house photo into a bounded generation reference');
+assert.match(photoPreview, /VOXELPOP 3D HOUSE/, 'Step 3 labels the output as a VoxelPop 3D house render');
+assert.match(photoPreview, /ORIGINAL REFERENCE/, 'the original house remains visible beside the generated result for comparison');
+assert.match(photoPreview, /Regenerate 3D/, 'the picture editor can regenerate before approval');
+assert.doesNotMatch(photoPreview, /new THREE\.Texture|PlaneGeometry|BoxGeometry|setZ\(/, 'Step 3 must not regress to a fake 3D photo slab or brightness relief');
 assert.match(property, /Looks good → Create 3D Voxel/, 'user explicitly approves the 3D picture before voxelization');
-assert.match(property, /createVoxelPoster/, 'VoxelPop voxel image is built only after preview approval');
+assert.match(property, /createVoxelPoster/, 'the transition prepares a local loading poster only after preview approval');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive voxel is a separate later stage');
+
+assert.match(pictureRenderer, /paidPropertyGenerationReceipt/, 'new 3D house pictures require a verified paid creation');
+assert.match(pictureRenderer, /verifySavedPaidDraft/, 'already-paid saved properties can generate without a second charge');
+assert.match(pictureRenderer, /gpt-image-2/, 'primary house rendering uses a true image generation/edit model');
+assert.match(pictureRenderer, /\/v1\/images\/edits/, 'primary house rendering is conditioned on the reference image');
+assert.match(pictureRenderer, /reference_image_urls: \[reference\]/, 'fallback house rendering is also conditioned on the reference');
+assert.match(pictureRenderer, /Preserve every clearly visible identity cue/, 'generation prompt protects visible property identity');
+assert.match(pictureRenderer, /Do not add a floor, move windows, invent a garage/, 'generation prompt blocks common house-genericization errors');
+assert.match(pictureRenderer, /sourceStoredByVoxelVault: false/, 'the original image is not durably written to Voxel Vault generation storage');
+
 assert.match(localViewer, /const GRID = 32/, 'building voxel uses the higher-detail 32-cell local grid');
-assert.match(localViewer, /COLOR_STEP = 12/, 'building voxel keeps finer source-photo color detail');
+assert.match(localViewer, /COLOR_STEP = 12/, 'building voxel keeps finer generated-render color detail');
+assert.match(localViewer, /GLOBAL_RENDER_KEY/, 'voxel stage receives the approved generated VoxelPop house render');
+assert.match(localViewer, /approvedRender \|\| sourceImageUrl \|\| imageUrl/, 'approved generated render has priority over the raw photo when voxelizing');
 assert.match(localViewer, /keepBestComponent/, 'building extraction keeps the strongest connected property region');
 assert.match(localViewer, /rawMask/, 'building/background separation is part of the local voxel viewer');
 assert.match(localViewer, /if \(!mask\[index\]\) return 0/, 'background becomes empty space');
@@ -88,9 +103,9 @@ assert.match(localVoxel, /const MAX_SIDE = 32/, 'server accepts the higher-detai
 assert.match(localVoxel, /propertyDraftItemId\(auth\.user\.id, draftId, 'voxel'\)/, 'finished local voxel remains account/draft bound');
 assert.match(localVoxel, /model\/gltf\+json/, 'compact local recipe can reopen as glTF');
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'reopened glTF preserves the silhouette');
-assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto|createBucket|storage\.from/i, 'generation checkout cannot call Meshy or private Storage');
-assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot call Meshy or private Storage');
-assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided maker must not call metered Meshy routes');
+assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|meshyCreditsSufficient|stagePaidPropertyPhoto|createBucket|storage\.from/i, 'generation checkout cannot depend on image-provider credits or private Storage');
+assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume only verifies entitlement and cannot upload the source');
+assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided maker does not use the obsolete metered property generation routes');
 
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel auto-saves to Vault before minting');
 assert.match(property, /Mint Now/, 'finished voxel has a simple primary Mint Now action');
@@ -100,7 +115,7 @@ assert.match(vault, /directMintHref/, 'Vault can recover the direct mint route f
 assert.match(vault, /MINT · OPTIONAL/, 'Mint Later remains actionable from the Vault card');
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint preparation verifies ownership of the finished local voxel');
 assert.match(mintPrepare, /propertyVoxelVoucherUsed/, 'mint preparation prevents duplicate one-time voucher use');
-assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'property mint does not require Meshy');
+assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'property mint does not require the image-generation provider');
 assert.match(mintConfirm, /verifyPropertyVoxelMint/, 'mint confirmation verifies the Base result');
 assert.match(mintMetadata, /animation_url/, 'NFT metadata exposes the finished local 3D model');
 assert.match(mintMetadata, /digital collectible only/i, 'NFT metadata states its digital-only legal meaning');
@@ -152,4 +167,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable photo-faithful 3D picture -> explicit approval -> separate higher-detail 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> generated VoxelPop/NFT-house 3D picture -> explicit approval -> voxel built from the approved render -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
