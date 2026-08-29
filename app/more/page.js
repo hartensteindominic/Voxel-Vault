@@ -1,51 +1,82 @@
 import Link from 'next/link';
-import { APP_SECTIONS } from '../../lib/product-map';
 import styles from './more.module.css';
 
 export const metadata = {
   title: 'More · Voxel Vault',
-  description: 'A clear directory for Voxel Vault live, sandbox, provider-gated and owner tools.',
+  description: 'Optional Voxel Vault tools, kept separate from the main Create, World, and Vault flow.',
 };
+
+const digitalTools = [
+  { href: '/studio', icon: '+', title: 'Voxel Studio', copy: 'Create other 3D voxel assets that are not property-based.', badge: 'CREATE' },
+  { href: '/marketplace', icon: '▦', title: 'Marketplace', copy: 'Browse digital assets and explicit checkout flows.', badge: 'SHOP' },
+  { href: '/capture', icon: '◉', title: 'Capture', copy: 'Bring a real object or image into a digital-asset workflow.', badge: 'SCAN' },
+  { href: '/room', icon: '◇', title: 'My Room', copy: 'Arrange confirmed digital collectibles in a personal 3D space.', badge: 'COLLECT' },
+  { href: '/ai-licensing', icon: 'AI', title: 'AI Licensing', copy: 'Manage reviewed AI-use licensing for eligible digital assets.', badge: 'LICENSE' },
+  { href: '/discover', icon: '✦', title: 'Discover', copy: 'Browse public Voxel Vault experiences and digital creations.', badge: 'BROWSE' },
+];
+
+const advancedTools = [
+  { href: '/real-estate/reits', title: 'Real-estate investments', copy: 'Provider-backed securities only when an approved provider and eligible offering are actually active.' },
+  { href: '/real-estate/acquire', title: 'Direct property path', copy: 'Ordinary diligence, financing, closing, and title steps. A token is never the deed.' },
+  { href: '/vault/properties/claim', title: 'Property verification', copy: 'Verify evidence and optional Property Passport records without claiming title.' },
+  { href: '/vault/rentals', title: 'Lease records', copy: 'Verified lease and payment records only when supporting evidence exists.' },
+  { href: '/vault/income', title: 'Income records', copy: 'Provider-observed payment history without inventing returns or spendable balances.' },
+  { href: '/admin/integrations', title: 'Owner integrations', copy: 'Provider and infrastructure readiness controls for the site owner.' },
+];
 
 export default function MorePage() {
   return <main className={styles.page}>
     <div className={styles.shell}>
-      <header className={styles.top}>
-        <Link className={styles.brand} href="/">VOXEL VAULT</Link>
-        <span>LIVE · SANDBOX · PROVIDER-GATED</span>
-      </header>
+      <nav className={styles.top}>
+        <Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link>
+        <div className={styles.navLinks}><Link href="/property">Create</Link><Link href="/world">World</Link><Link href="/vault">Vault</Link></div>
+      </nav>
 
       <section className={styles.hero}>
-        <small>EVERYTHING ELSE, ORGANIZED</small>
-        <h1>Know what each feature actually is.</h1>
-        <p>The main app is Create → World → Vault. This directory keeps map tools, digital assets, sandbox experiments, regulated/provider-dependent features, and owner controls in separate groups.</p>
-        <div className={styles.heroActions}>
-          <Link href="/property">CREATE PROPERTY</Link>
-          <Link href="/world">OPEN MY WORLD</Link>
-          <Link href="/vault">OPEN MY VAULT</Link>
+        <small>MORE</small>
+        <h1>More tools.<br/><em>Less confusion.</em></h1>
+        <p>Create, World, and Vault are the main app. Everything on this page is optional, experimental, provider-dependent, or advanced.</p>
+      </section>
+
+      <section className={styles.coreCard}>
+        <div className={styles.coreCopy}>
+          <small>YOUR PROPERTY FLOW</small>
+          <h2>Bought or saved a property?</h2>
+          <p>Open My Properties, choose the one you already have, add or reuse its photo, then go through <b>3D preview → approve → 3D voxel → optional mint</b>.</p>
+          <div className={styles.coreActions}>
+            <Link className={styles.primary} href="/property?source=properties">Create from My Properties →</Link>
+            <Link href="/vault">Open My Vault</Link>
+          </div>
+        </div>
+        <div className={styles.flowVisual} aria-label="Property creation flow">
+          <span>PROPERTY</span><i>→</i><span>PHOTO</span><i>→</i><span>3D</span><i>→</i><span>VOXEL</span><i>→</i><span>MINT</span>
         </div>
       </section>
 
-      {APP_SECTIONS.map((section) => <section className={styles.section} key={section.id}>
-        <div className={styles.sectionHead}>
-          <small>{section.eyebrow}</small>
-          <h2>{section.title}</h2>
-          <p>{section.description}</p>
+      <section className={styles.quickSection}>
+        <div className={styles.sectionHead}><small>PROPERTY + WORLD</small><h2>The useful extras.</h2><p>These are the property tools most people are likely to use.</p></div>
+        <div className={styles.quickGrid}>
+          <Link className={styles.quickCard} href="/geo/slice"><div className={styles.icon}>¢</div><span className={styles.badge}>DEMO</span><h3>$1.99 Property Sandbox</h3><p>Test a tiny hypothetical property slice with demo credit. Your selected demo property can then be used as a source in Create.</p><b>Try demo →</b></Link>
+          <Link className={styles.quickCard} href="/world"><div className={styles.icon}>◎</div><span className={styles.badge}>MAP</span><h3>World</h3><p>See saved VoxelPop creations against source-backed places and building footprints.</p><b>Open World →</b></Link>
+          <Link className={styles.quickCard} href="/geo"><div className={styles.icon}>⌖</div><span className={styles.badge}>EVIDENCE</span><h3>Property details</h3><p>Inspect one real place with map, building, parcel, and evidence context.</p><b>Open details →</b></Link>
         </div>
-        <div className={styles.grid}>
-          {section.items.map((item) => <Link className={styles.card} href={item.href} key={item.id}>
-            <div className={styles.cardTop}><span className={styles.icon}>{item.icon}</span><span className={styles.badge}>{item.badge}</span></div>
-            <h3>{item.label}</h3>
-            <p>{item.description}</p>
-            <span className={styles.open}>OPEN →</span>
-          </Link>)}
-        </div>
-      </section>)}
+      </section>
 
-      <div className={styles.note}>
-        <b>ONE SIMPLE RULE</b>
-        <span>A digital asset, map record, wallet balance, payment record, security, lease and property deed are different things. Voxel Vault may show them in one interface, but it never treats them as legally or financially interchangeable.</span>
-      </div>
+      <section className={styles.section}>
+        <div className={styles.sectionHead}><small>DIGITAL TOOLS</small><h2>Other things you can make and collect.</h2><p>Useful digital features stay available without crowding your property Vault.</p></div>
+        <div className={styles.grid}>{digitalTools.map((item) => <Link className={styles.card} href={item.href} key={item.href}>
+          <div className={styles.cardTop}><span className={styles.icon}>{item.icon}</span><span className={styles.badge}>{item.badge}</span></div>
+          <h3>{item.title}</h3><p>{item.copy}</p><b>Open →</b>
+        </Link>)}</div>
+      </section>
+
+      <details className={styles.advanced}>
+        <summary><span><small>ADVANCED + PROVIDER-GATED</small><b>Financial, legal, and owner tools</b></span><i>+</i></summary>
+        <p className={styles.advancedIntro}>These screens are intentionally outside the normal customer journey. A demo, NFT, investment security, lease record, and property deed are different things.</p>
+        <div className={styles.advancedGrid}>{advancedTools.map((item) => <Link href={item.href} key={item.href}><b>{item.title}</b><span>{item.copy}</span><i>OPEN →</i></Link>)}</div>
+      </details>
+
+      <footer className={styles.note}><b>SIMPLE RULE</b><span>A VoxelPop model or NFT can represent a digital creation. It does not automatically create deed/title, rent, occupancy, investment, or appreciation rights in a physical property.</span></footer>
     </div>
   </main>;
 }
