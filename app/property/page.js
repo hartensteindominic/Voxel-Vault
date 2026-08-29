@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import ProductTopNav from '../components/ProductTopNav';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
+import PropertyIdentityGate from './PropertyIdentityGate';
 import PropertyJourneySimple from './PropertyJourneySimple';
 
 function cleanOAuthParams() {
@@ -46,6 +47,8 @@ export default function PropertyJourneyPage() {
   return <>
     <OAuthRecovery/>
     <ProductTopNav/>
-    <div id="voxelpop-journey"><PropertyJourneySimple/></div>
+    <PropertyIdentityGate>
+      <div id="voxelpop-journey"><PropertyJourneySimple/></div>
+    </PropertyIdentityGate>
   </>;
 }
