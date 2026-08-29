@@ -47,24 +47,29 @@ const footer = read('app/components/ConsumerFooter.js');
 const system = read('app/ui-system.css');
 const demo = read('app/demo/page.js');
 const property = read('app/property/PropertyJourneyExact.js');
+const propertyPage = read('app/property/page.js');
 
 must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proof.');
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
-must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/VOXELPOP OUTPUT/.test(home) && /3D voxel photo/i.test(home) && /Movable 3D voxel/.test(home) && /Optional NFT/.test(home), 'Homepage must explain the real voxel-photo, movable-voxel and optional-NFT outputs without restoring dense product clutter.');
+must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must remain the secondary proof action.');
+must(/ONE SIMPLE FLOW/.test(home) && /Photo → approve → done\./.test(home), 'Homepage must keep the condensed one-flow explanation.');
+must(/Saved automatically/.test(home) && /Mint optional/.test(home), 'Homepage must keep automatic-save and optional-mint facts visible.');
 must(/VoxelPop is a digital creation product\./.test(home) && /does not create ownership[\s\S]*physical property/i.test(home), 'Homepage must keep the digital-only physical-property boundary visible.');
 must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
 
-must(/Create · \$4\.99[\s\S]*Vault[\s\S]*World/.test(topNav), 'Desktop product nav must keep Create, Vault, and World in the focused product order.');
-must(!/href: '\/more', label: 'More'/.test(topNav), 'Advanced More tools must stay out of the primary VoxelPop header.');
+must(/Create · \$4\.99[\s\S]*Vault/.test(topNav), 'Primary product nav must keep only Create and Vault as the focused choices.');
+must(!/label: 'World'/.test(topNav) && !/className=\{styles\.demo\}/.test(topNav), 'World and Demo must stay out of the primary header.');
 must(/focusedFunnel/.test(topNav) && /mobileDocked/.test(topNav) && /isOrganizedUserRoute/.test(topNav), 'Shared top nav must distinguish the focused Home/Create funnel from routes owned by the mobile dock.');
 must(/\.mobileDocked \.links\{display:none\}/.test(topCss), 'Organized mobile routes must let the bottom dock own navigation instead of duplicating header links.');
-must(/\.focusedFunnel \.links a:nth-child\(2\)\{display:inline-flex\}/.test(topCss) && /\.focusedFunnel \.links \.demo\{display:none\}/.test(topCss), 'Focused Home/Create mobile header must keep Create + Vault visible without a duplicate Demo control.');
 must(/pathname === '\/' \|\| pathname === '\/property'/.test(dock), 'Home and the paid creator must suppress the duplicate bottom dock.');
-must(/SIMPLE_PROPERTY_DOCK\.filter\(\(item\) => item\.id !== 'more'\)/.test(dock), 'Simple secondary routes must keep the condensed dock without More.');
+must(/const DOCK = \[[\s\S]*id: 'home'[\s\S]*id: 'create'[\s\S]*id: 'vault'/.test(dock), 'Mobile dock must be condensed to Home, VoxelPop, and Vault.');
+must(!/id: 'world'/.test(dock) && !/id: 'more'/.test(dock), 'World and More must not compete in the primary mobile dock.');
 must(/@media\(max-width:720px\)/.test(dockCss) && /\.nav\{display:none\}/.test(dockCss), 'Bottom dock must be mobile-only.');
 must(/FinancialOSNav\.module\.css/.test(dock), 'Bottom dock must use responsive stylesheet rather than always-on inline chrome.');
+
+must(/SimpleJourneyPresentation/.test(propertyPage), 'Property creator page must apply the one-action presentation layer.');
+must(/data-vv-hide-duplicate/.test(propertyPage) && /Done · Open Vault/.test(propertyPage), 'Creator must hide duplicate actions and make Vault the default finished action.');
 
 must(!/fontSize:\s*7\.8/.test(footer), 'Shared footer must not use unreadable 7.8px legal text.');
 must(/\/demo/.test(footer) && /\/privacy/.test(footer) && /\/about/.test(footer), 'Shared footer must cover demo and trust surfaces.');
@@ -117,5 +122,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real high-fidelity 3D voxel-photo proof, concise VoxelPop value messaging, focused Home/Create navigation, condensed secondary mobile dock, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real 3D proof, one clear homepage flow, Create/Vault primary navigation, compact Home/VoxelPop/Vault mobile dock, one-action creator presentation, readable trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
