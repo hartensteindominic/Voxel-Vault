@@ -108,6 +108,14 @@ export async function POST(request: Request) {
     }
 
     const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
+    const rightsConfirmed = receipt.session?.metadata?.rights_confirmed === 'true';
+    if (!rightsConfirmed) {
+      return privateJson({
+        ok: false,
+        error: 'Confirm that you took this photo or have permission to use it.',
+      }, { status: 400 });
+    }
+
     const draftId = receipt.draftId;
     const digest = receipt.digest;
     const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
