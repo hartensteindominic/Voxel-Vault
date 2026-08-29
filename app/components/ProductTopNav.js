@@ -8,6 +8,7 @@ import styles from './ProductTopNav.module.css';
 const ITEMS = [
   { href: '/property', label: 'Create' },
   { href: '/vault', label: 'Inventory' },
+  { href: '/bank', label: 'Galactic Trust' },
 ];
 
 function activeFor(pathname, href) {
