@@ -514,7 +514,7 @@ export default function PropertyJourneyExact() {
         setRightsConfirmed(true);
         setPreviewReady(false);
         setPreviewApproved(false);
-        setMessage('Payment verified. Loading the recognizable 3D photo preview first.');
+        setMessage('Payment verified. Loading your 3D picture first.');
         setBusy('');
       } catch (error) {
         if (active) {
@@ -544,12 +544,12 @@ export default function PropertyJourneyExact() {
         setCreationUnlocked(true);
         setPreviewReady(false);
         setPreviewApproved(false);
-        setMessage('Payment already verified. Loading the 3D photo preview—no second charge.');
+        setMessage('Payment already verified. Loading the 3D picture—no second charge.');
         setBusy('');
         return;
       }
       setMessage(cachedOnDevice
-        ? `Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D preview before any voxel is built.`
+        ? `Opening secure ${CREATION_PRICE_LABEL} checkout. After payment, you will see the 3D picture before any voxel is built.`
         : `Opening secure ${CREATION_PRICE_LABEL} checkout. Your browser could not keep the photo through checkout, so after payment you may need to choose the same photo once. You will not be charged again.`);
       const form = new FormData();
       form.append('draftId', draftId);
@@ -568,13 +568,13 @@ export default function PropertyJourneyExact() {
     if (!pendingPhoto || !previewReady) return;
     setPreviewApproved(true);
     setBusy('voxel-image');
-    setMessage('3D preview approved. Now creating the separate VoxelPop voxel version…');
+    setMessage('3D picture approved. Creating your separate movable VoxelPop voxel…');
     try {
       const poster = await createVoxelPoster(pendingPhoto);
       setVoxelPoster(poster);
       setFinal3d({ status: 'IN_PROGRESS', progress: 55, modelUrl: null, taskId: null });
       setBusy('voxel-3d');
-      setMessage('VOXEL · Building the movable block model from the same house photo.');
+      setMessage('Creating the 3D voxel from the same approved house photo…');
     } catch (error) {
       setPreviewApproved(false);
       setBusy('');
@@ -596,8 +596,100 @@ export default function PropertyJourneyExact() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.taskId || !data?.modelUrl) throw new Error(data?.error || 'The local voxel could not be linked to your account.');
+
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: data.modelUrl, taskId: data.taskId });
-      setMessage('Voxel 3D ready. You can mint this digital voxel now, or add its real address to My World.');
+
+      const now = new Date().toISOString();
+      const existing = isSavedPropertyDraft(selectedProperty) ? selectedProperty : null;
+      const finishedDraft = {
+        ...(existing || {}),
+        schemaVersion: existing?.schemaVersion || 1,
+        type: 'voxel-vault-property-3d-draft',
+        id: existing?.id || `voxelpop:${draftId}`,
+        label: existing?.label || 'My VoxelPop Property',
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+        state: 'saved',
+        fidelity: 'photo-approved-local-voxel',
+        geometryKind: existing?.geometryKind || 'digital-only',
+        coordinates: existing?.coordinates || { latitude: null, longitude: null },
+        geometry: existing?.geometry || null,
+        propertyIdentity: existing?.propertyIdentity || { atlasId: null, parcelId: null, pin: null, sbl: null },
+        evidence: existing?.evidence || {
+          exactParcelLinkedBuilding: false,
+          sourceBackedBuilding: false,
+          authoritativeParcelBoundary: false,
+          calibratedStories: null,
+          calibratedVisualHeightMeters: null,
+          openStreetPhotoCount: 0,
+          reconstructionReferenceCount: 0,
+          mapAuthority: null,
+          mapLicense: null,
+          mapSourceUrl: null,
+          listingProvider: null,
+        },
+        visual: {
+          ...(existing?.visual || {}),
+          modelUrl: data.modelUrl,
+          modelTaskId: data.taskId,
+          renderMode: 'voxelpop-local-3d',
+        },
+        voxelpop: {
+          ...(existing?.voxelpop || {}),
+          paidCreation: true,
+          priceCents: existing?.voxelpop?.priceCents || CREATION_PRICE_CENTS,
+          engine: 'voxelpop-local-webgl-v2',
+          sourcePhotoStoredByVoxelVault: false,
+          sourcePhotoRetainedOnDevice: true,
+          previewApproved: true,
+          photoMatchedFront: true,
+          mappedFootprintUsed: Boolean(existing?.geometry),
+          creationDraftId: draftId,
+          modelTaskId: data.taskId,
+          modelUrl: data.modelUrl,
+        },
+        blockchain: {
+          ...(existing?.blockchain || {}),
+          minted: Boolean(existing?.blockchain?.minted),
+          optional: true,
+          optionalAfterCreation: true,
+          tokenId: existing?.blockchain?.tokenId || null,
+          network: existing?.blockchain?.network || null,
+        },
+        world: {
+          ...(existing?.world || {}),
+          public: false,
+          publishedAt: null,
+          publicLabel: 'VoxelPop Property',
+        },
+        legal: {
+          ...(existing?.legal || {}),
+          titleVerified: Boolean(existing?.legal?.titleVerified),
+          ownershipRightsCreatedByDraft: false,
+          ownershipRightsCreatedByMint: false,
+          note: 'This saved VoxelPop 3D is a digital creation only. Saving or minting it does not transfer deed/title, investment, rent, occupancy, or guaranteed-value rights.',
+        },
+      };
+
+      const localSaved = savePropertyDraft(finishedDraft);
+      setSelectedProperty(localSaved);
+      setSavedDraft(localSaved);
+      if (pendingPhoto) await saveDevicePhoto(propertyPhotoKey(localSaved.id), pendingPhoto).catch(() => {});
+
+      let synced = false;
+      try {
+        const client = clientRef.current || await getSupabaseBrowserAsync();
+        clientRef.current = client;
+        if (session?.user) {
+          await savePropertyDraftToAccount(client, session.user, localSaved);
+          synced = true;
+          await refreshPropertyChoices(client, session.user);
+        }
+      } catch {}
+
+      setMessage(synced
+        ? 'Your 3D voxel is ready and saved to Vault. Mint it now or keep it for later.'
+        : 'Your 3D voxel is ready and saved on this device. Mint it now or later; account sync can retry from Vault.');
     } catch (error) {
       setFinal3d({ status: 'LOCAL_ONLY', progress: 100, modelUrl: null, taskId: null });
       setMessage(`${String(error?.message || error || 'The voxel is visible on this device, but account registration failed.')} Retry registration before minting.`);
@@ -605,7 +697,7 @@ export default function PropertyJourneyExact() {
       registeringRef.current = false;
       setBusy('');
     }
-  }, [draftId, session?.access_token]);
+  }, [draftId, session?.access_token, session?.user, selectedProperty, pendingPhoto, refreshPropertyChoices]);
 
   const handleLocal3DReady = useCallback((recipe) => {
     setLocalRecipe(recipe);
@@ -628,7 +720,6 @@ export default function PropertyJourneyExact() {
       setBuilding(selected);
       setAtlasBuildings(Array.isArray(atlas?.buildings) ? atlas.buildings : []);
       setMappedAddress(value);
-      setSavedDraft(null);
       setMessage(selected.geometry
         ? 'Matched. The finished voxel is now paired with the source-backed building footprint.'
         : 'Location matched. Exact source-backed footprint was unavailable, so only the verified location reference is used.');
@@ -642,15 +733,23 @@ export default function PropertyJourneyExact() {
   async function saveToMyWorld() {
     if (!building || !mappedAddress || !localReady) return;
     setBusy('save');
-    setMessage('Saving this finished voxel and reusable property photo to My World…');
+    setMessage('Adding this saved voxel to My World…');
     try {
-      const existing = isSavedPropertyDraft(selectedProperty) ? selectedProperty : null;
-      const base = existing || buildPropertyDraft({ building, fallbackLabel: mappedAddress, focusAuthority: clean(building?.source?.authority) });
-      if (!base) throw new Error('This mapped property does not have enough location identity to save.');
+      const existing = isSavedPropertyDraft(selectedProperty) ? selectedProperty : savedDraft;
+      const mappedBase = buildPropertyDraft({ building, fallbackLabel: mappedAddress, focusAuthority: clean(building?.source?.authority) });
+      if (!mappedBase) throw new Error('This mapped property does not have enough location identity to save.');
+      const base = existing || mappedBase;
       const draft = {
         ...base,
-        label: base.label || mappedAddress,
+        id: existing?.id || mappedBase.id,
+        label: mappedAddress || base.label,
         state: 'saved',
+        fidelity: base.fidelity === 'photo-approved-local-voxel' ? mappedBase.fidelity : base.fidelity,
+        geometryKind: mappedBase.geometryKind,
+        coordinates: mappedBase.coordinates,
+        geometry: mappedBase.geometry,
+        propertyIdentity: { ...(base.propertyIdentity || {}), ...(mappedBase.propertyIdentity || {}) },
+        evidence: { ...(base.evidence || {}), ...(mappedBase.evidence || {}) },
         visual: { ...(base.visual || {}), modelUrl: final3d.modelUrl, modelTaskId: final3d.taskId, renderMode: 'voxelpop-local-3d' },
         voxelpop: {
           ...(base.voxelpop || {}),
@@ -667,10 +766,10 @@ export default function PropertyJourneyExact() {
           modelUrl: final3d.modelUrl,
         },
         world: { ...(base.world || {}), public: false, publishedAt: null, publicLabel: 'VoxelPop Property' },
-        blockchain: { ...(base.blockchain || {}), minted: Boolean(base?.blockchain?.minted), optionalAfterCreation: true },
+        blockchain: { ...(base.blockchain || {}), minted: Boolean(base?.blockchain?.minted), optional: true, optionalAfterCreation: true },
       };
       const localSaved = savePropertyDraft(draft);
-      await saveDevicePhoto(propertyPhotoKey(localSaved.id), pendingPhoto);
+      if (pendingPhoto) await saveDevicePhoto(propertyPhotoKey(localSaved.id), pendingPhoto).catch(() => {});
       let synced = false;
       try {
         const client = clientRef.current || await getSupabaseBrowserAsync();
@@ -684,10 +783,10 @@ export default function PropertyJourneyExact() {
       setSelectedProperty(localSaved);
       setSavedDraft(localSaved);
       setMessage(synced
-        ? 'Saved to My World and your Vault account. This property photo can now be reused on this device.'
-        : 'Saved to My World on this device. This property photo can be reused here; account sync can retry later.');
+        ? 'Added to My World and synced to your Vault account.'
+        : 'Added to My World on this device. Account sync can retry later.');
     } catch (error) {
-      setMessage(String(error?.message || error || 'This voxel could not be saved to My World yet.'));
+      setMessage(String(error?.message || error || 'This voxel could not be added to My World yet.'));
     } finally {
       setBusy('');
     }
@@ -758,7 +857,7 @@ export default function PropertyJourneyExact() {
 
       {stage === 1 ? <>
         <p className={styles.bigPrompt}>Choose a clear house photo.</p>
-        <p className={styles.flowHint}>Use a new image or reuse the image from My Properties → 3D preview → approve → 3D voxel → optional mint.</p>
+        <p className={styles.flowHint}>Photo → $4.99 → 3D picture → 3D voxel → mint now or save for later.</p>
         <div className={styles.choicePanel}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <button className={sourceMode === 'photo' ? styles.primaryPurple : styles.primaryTeal} style={{minHeight:50,boxShadow:'none',fontSize:14}} type="button" onClick={() => setSourceMode('photo')}>Upload / Photos</button>
@@ -778,76 +877,81 @@ export default function PropertyJourneyExact() {
           <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : selectedProperty ? 'Add photo to this property' : 'Choose photo'}</button>
         </>}
         {selectedProperty && !pendingPhoto ? <button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Add photo to {selectedProperty.label || 'this property'}</button> : null}
-        <p className={styles.truth}>New saved property photos stay private and reusable on this device. Older properties may need the image added once because the previous flow removed its temporary copy. Demo property slices remain clearly labeled as demo-only.</p>
+        <p className={styles.truth}>Your source photo stays private on this device for this creation flow. Demo property slices remain demo-only.</p>
       </> : null}
 
       {stage === 2 ? <>
-        <p className={styles.bigPrompt}>{paidSessionId ? 'Use this photo. See the 3D first.' : 'Pay once. See the 3D first.'}</p>
-        <p className={styles.stepCopy}>The $4.99 creation unlocks the 3D preview and the voxel build. The voxel does not start until after you see and approve the preview. {paidSessionId ? 'This saved property creation is already paid, so there is no second creation charge.' : ''}</p>
-        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>{selectedProperty ? 'REUSABLE PROPERTY PHOTO · DEVICE ONLY' : 'YOUR ACTUAL HOUSE PHOTO · DEVICE ONLY'}</span></div>
+        <p className={styles.bigPrompt}>{paidSessionId ? 'See the 3D picture.' : 'Pay $4.99. See the 3D picture.'}</p>
+        <p className={styles.stepCopy}>You see and approve the 3D picture before VoxelPop creates the separate voxel. {paidSessionId ? 'This creation is already paid, so there is no second creation charge.' : ''}</p>
+        <div className={styles.heroCard}><img src={pendingPreview} alt="Selected property reference"/><span className={styles.badge}>{selectedProperty ? 'REUSABLE PROPERTY PHOTO · DEVICE ONLY' : 'YOUR HOUSE PHOTO · DEVICE ONLY'}</span></div>
         <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : paidSessionId ? 'Make 3D Preview · already paid' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Preview`}</button>
+          <button className={styles.primaryPurple} type="button" onClick={payAndCreate} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening checkout…' : paidSessionId ? 'Make 3D Picture · already paid' : `Pay ${CREATION_PRICE_LABEL} & Make 3D Picture`}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another photo</button>
         </div>
-        <p className={styles.truth}>The $4.99 payment buys the digital creation only. It does not buy the physical house, deed/title, rent, occupancy, investment rights, or guaranteed value.</p>
+        <p className={styles.truth}>The $4.99 payment buys one digital VoxelPop creation. It does not buy the physical property or any deed, rent, occupancy, investment, or guaranteed-value rights.</p>
       </> : null}
 
       {stage === 3 ? <>
-        <p className={styles.bigPrompt}>This is the 3D picture first.</p>
-        <p className={styles.stepCopy}>It uses the real photo as the textured front surface, so windows, doors, siding, roofline, and visible details stay tied to what you actually uploaded. Drag gently to see the 3D relief.</p>
+        <p className={styles.bigPrompt}>{previewReady ? '3D picture ready.' : 'Creating your 3D picture.'}</p>
+        <p className={styles.stepCopy}>Review the recognizable textured house first. The voxel is not created until you approve this step.</p>
         {!pendingPreview ? <section className={styles.donePanel}><b>PAYMENT VERIFIED</b><span>Choose the same photo again. You will not be charged again.</span><button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Choose photo again</button></section> : <>
           <div className={styles.heroCard}>
             <PhotoReliefModelViewer imageUrl={pendingPreview} onReady={() => setPreviewReady(true)}/>
-            <span className={styles.badge}>3D PHOTO PREVIEW · VOXEL NOT BUILT YET</span>
+            <span className={styles.badge}>3D PICTURE · VOXEL NOT BUILT YET</span>
             {!previewReady ? <div className={styles.buildPulse}/> : null}
           </div>
           <div className={styles.choicePanel}>
-            <b>{previewReady ? 'Does this look like the house in your photo?' : 'Building the recognizable 3D preview…'}</b>
-            <button className={styles.primaryPurple} type="button" onClick={approvePreviewAndBuildVoxel} disabled={!previewReady || busy === 'voxel-image'}>{busy === 'voxel-image' ? 'Starting voxel…' : 'Looks right → Build the 3D Voxel'}</button>
+            <b>{previewReady ? 'Does this look like the house in your photo?' : 'Building the recognizable 3D picture…'}</b>
+            <button className={styles.primaryPurple} type="button" onClick={approvePreviewAndBuildVoxel} disabled={!previewReady || busy === 'voxel-image'}>{busy === 'voxel-image' ? 'Starting voxel…' : 'Looks good → Create 3D Voxel'}</button>
             <button className={styles.textButton} type="button" onClick={choosePhoto}>Use a different photo · no second charge</button>
           </div>
         </>}
-        <p className={styles.truth}>This stage intentionally shows the source-faithful front first. VoxelPop does not pretend one photo proves the exact geometry of the hidden sides or back.</p>
+        <p className={styles.truth}>The visible front stays tied to your source photo. One photo cannot prove hidden sides, the back, or exact dimensions.</p>
       </> : null}
 
       {stage === 4 ? <>
-        <p className={styles.bigPrompt}>Now build the 3D voxel.</p>
-        <p className={styles.stepCopy}>This is a separate conversion step. The voxel renderer samples the same approved house photo instead of inventing a random generic building.</p>
+        <p className={styles.bigPrompt}>Create the 3D voxel.</p>
+        <p className={styles.stepCopy}>VoxelPop now converts the same approved house image into the separate movable voxel version.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster} onReady={handleLocal3DReady}/>
-          <span className={styles.badge}>{final3d.status === 'LOCAL_ONLY' ? 'VOXEL VISIBLE · REGISTRATION NEEDS RETRY' : 'BUILDING PHOTO-MATCHED 3D VOXEL'}</span>
+          <span className={styles.badge}>{final3d.status === 'LOCAL_ONLY' ? 'VOXEL VISIBLE · SAVE NEEDS RETRY' : 'CREATING PHOTO-MATCHED 3D VOXEL'}</span>
           {!localReady ? <div className={styles.buildPulse}/> : null}
         </div>
-        {final3d.status === 'LOCAL_ONLY' && localRecipe ? <button className={styles.primaryPurple} type="button" onClick={() => registerVoxel(localRecipe)} disabled={busy === 'register'}>{busy === 'register' ? 'Registering…' : 'Retry voxel registration'}</button> : <div className={styles.autoPanel}><b>3D PREVIEW APPROVED → VOXEL</b><span>The original photo stays on this device. No Meshy credits are used for this local voxel build.</span></div>}
+        {final3d.status === 'LOCAL_ONLY' && localRecipe ? <button className={styles.primaryPurple} type="button" onClick={() => registerVoxel(localRecipe)} disabled={busy === 'register'}>{busy === 'register' ? 'Saving voxel…' : 'Retry saving voxel'}</button> : <div className={styles.autoPanel}><b>3D PICTURE APPROVED → 3D VOXEL</b><span>Your source photo remains on this device. No Meshy credits are used for this local voxel build.</span></div>}
       </> : null}
 
       {stage === 5 ? <>
-        <p className={styles.bigPrompt}>Voxel ready. Mint is next.</p>
-        <p className={styles.stepCopy}>You have already seen the photo-faithful 3D preview and then created the voxel version. Minting is now a separate wallet action for the finished digital voxel.</p>
+        <div className={styles.autoPanel}><b>✓ PAID · $4.99 COMPLETE</b><span>3D picture approved · 3D voxel created · saved to Vault</span></div>
+        <p className={styles.bigPrompt}>Your voxel is ready.</p>
+        <p className={styles.stepCopy}>Mint it now, or keep the finished digital voxel in your Vault and mint it later.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster}/>
-          <span className={styles.badge}>FINAL 3D VOXEL · READY TO MINT</span>
+          <span className={styles.badge}>FINAL 3D VOXEL · SAVED</span>
         </div>
         <div className={styles.choicePanel}>
-          <a className={styles.primaryLink} href={mintHref}>Mint this digital voxel →</a>
-          <span style={{fontSize:11,color:'#7b7068',lineHeight:1.5}}>Your wallet opens only now. You approve the Base transaction yourself; Voxel Vault does not auto-sign or auto-spend.</span>
+          <a className={styles.primaryLink} href={mintHref}>Mint Now</a>
+          <a className={styles.secondaryLink} href="/vault/property-drafts">Mint Later · Saved to Vault</a>
+          <span>Minting is optional. Your wallet is only requested if you choose Mint Now.</span>
         </div>
 
-        <form className={styles.searchForm} onSubmit={mapBuilding}>
-          <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Optional: property address for My World" aria-label="Property address" autoComplete="street-address"/>
-          <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Also match this voxel to the real map'}</button>
-        </form>
-        {building ? <>
-          <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>{building?.geometry ? 'SOURCE-BACKED BUILDING FOOTPRINT' : 'VERIFIED LOCATION REFERENCE'}</span></div>
-          <section className={styles.donePanel}>
-            <b>{mappedAddress}</b>
-            <span>Map context is separate from the voxel image and from NFT ownership.</span>
-            <button className={styles.primaryTeal} type="button" onClick={saveToMyWorld} disabled={busy === 'save'}>{busy === 'save' ? 'Saving…' : savedDraft ? 'Saved to My World ✓' : 'Save to My World'}</button>
-            {savedDraft ? <a className={styles.secondaryLink} href="/world">View My World</a> : null}
-          </section>
-        </> : null}
-        <p className={styles.truth}>Minting creates a digital NFT for the finished voxel. It does not create or transfer deed/title, occupancy, rent, fractional investment, appreciation, or other rights in the physical property.</p>
+        <details className={styles.optionalDetails}>
+          <summary>Optional · add this voxel to My World</summary>
+          <form className={styles.searchForm} onSubmit={mapBuilding}>
+            <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/>
+            <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Match address to map'}</button>
+          </form>
+          {building ? <>
+            <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>{building?.geometry ? 'SOURCE-BACKED BUILDING FOOTPRINT' : 'VERIFIED LOCATION REFERENCE'}</span></div>
+            <section className={styles.donePanel}>
+              <b>{mappedAddress}</b>
+              <span>Map context is separate from the voxel and from NFT ownership.</span>
+              <button className={styles.primaryTeal} type="button" onClick={saveToMyWorld} disabled={busy === 'save'}>{busy === 'save' ? 'Adding…' : savedDraft?.geometry ? 'Added to My World ✓' : 'Add to My World'}</button>
+              {savedDraft?.geometry ? <a className={styles.secondaryLink} href="/world">View My World</a> : null}
+            </section>
+          </> : null}
+        </details>
+        <p className={styles.truth}>Minting creates an NFT for the finished digital voxel only. It does not create or transfer deed/title, rent, occupancy, investment, appreciation, or other rights in the physical property.</p>
       </> : null}
 
       {stage > 1 ? <button className={styles.change} type="button" onClick={resetCreation}>Start over with another property or photo</button> : null}
