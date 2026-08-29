@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   return <main className={styles.page}><ProductTopNav/><div className={styles.shell}>
     <header className={styles.hero}><small>PRIVACY</small><h1>Your photo starts<br/>on your device.</h1><p>Voxel Vault is designed so the property source photo used by the current VoxelPop creation flow stays on the user’s device rather than becoming a public property-photo database.</p></header>
     <section className={styles.card}>
-      <div className={styles.notice}><strong>Current product boundary:</strong> the normal $4.99 property creation flow uses local browser processing for the 3D preview and voxel creation and does not require Meshy credits.</div>
+      <div className={styles.notice}><strong>Current product boundary:</strong> the normal $4.99 property creation flow uses local browser processing for the 3D voxel photo and movable voxel and does not require Meshy credits.</div>
       <h2>Property photos</h2>
       <p>The current VoxelPop property flow processes the selected source image in the browser. When supported by the browser, Voxel Vault may keep a private copy in on-device browser storage so the same paid creation can resume after checkout. If that local cache is unavailable, the user may be asked to choose the same photo again. The source photo is not intentionally published in NFT metadata.</p>
       <h2>Accounts</h2>
