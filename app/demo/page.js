@@ -16,9 +16,9 @@ export default function DemoPage() {
     <ProductTopNav/>
     <div className={styles.shell}>
       <header className={styles.hero}>
-        <small>FREE SAMPLE</small>
+        <small>FREE SAMPLE · NO LOGIN · NO PAYMENT</small>
         <h1>Photo in.<br/><em>Voxel out.</em></h1>
-        <p>One photo becomes a 3D voxel photo, then a movable voxel you can rotate.</p>
+        <p>Built-in demo artwork shows how one photo becomes a 3D voxel photo, then a movable voxel you can rotate.</p>
       </header>
 
       <section className={styles.demoCard}>
@@ -29,7 +29,7 @@ export default function DemoPage() {
 
         <div className={styles.viewerSide}>
           <div className={styles.viewerHead}>
-            <div><small>{stage === 'preview' ? '3D VOXEL PHOTO' : 'MOVABLE VOXEL'}</small><h2>{stage === 'preview' ? 'Match the photo.' : 'Rotate it.'}</h2></div>
+            <div><small>{stage === 'preview' ? '3D VOXEL PHOTO' : 'MOVABLE 3D VOXEL'}</small><h2>{stage === 'preview' ? 'Match the photo.' : 'Rotate it.'}</h2></div>
             <div className={styles.switcher} role="tablist" aria-label="Demo stage">
               <button type="button" role="tab" aria-selected={stage === 'preview'} className={stage === 'preview' ? styles.active : ''} onClick={() => setStage('preview')}>Voxel photo</button>
               <button type="button" role="tab" aria-selected={stage === 'voxel'} className={stage === 'voxel' ? styles.active : ''} onClick={() => setStage('voxel')}>Movable</button>
@@ -44,6 +44,10 @@ export default function DemoPage() {
             ? 'Colored blocks from the photo — drag to inspect depth.'
             : voxelReady ? 'Same photo, movable 3D voxel. Drag to rotate.' : 'Building movable voxel…'}</div>
         </div>
+      </section>
+
+      <section className={styles.flow}>
+        <div><small>BUILT-IN DEMO ARTWORK</small><h2>One-photo truth.</h2><p>A single photo guides the visible likeness. It is not a fake reconstruction of unseen walls and cannot prove hidden sides.</p></div>
       </section>
 
       <section className={styles.flow}>
