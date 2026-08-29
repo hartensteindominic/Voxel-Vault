@@ -14,12 +14,13 @@ const money = new Intl.NumberFormat('en-US', {
 });
 
 const demoProperties = [
-  { id: 'anchor', label: 'My property', estimatedValue: 250000, icon: '🏠' },
+  { id: 'starter', label: 'Starter home', estimatedValue: 250000, icon: '🏠' },
   { id: 'small', label: 'Small home', estimatedValue: 125000, icon: '🏡' },
   { id: 'large', label: 'Large home', estimatedValue: 500000, icon: '🏘️' },
   { id: 'mixed', label: 'City building', estimatedValue: 1250000, icon: '🏢' },
 ];
 
+const referenceProperty = demoProperties[0];
 const storageKey = 'voxelvault:unified-property-wallet:v1';
 
 function defaultState() {
@@ -36,9 +37,7 @@ function safeState(value) {
 }
 
 export default function UnifiedVault() {
-  const [referenceValue, setReferenceValue] = useState(250000);
-  const [selectedId, setSelectedId] = useState('anchor');
-  const [selectedValue, setSelectedValue] = useState(250000);
+  const [selectedId, setSelectedId] = useState(referenceProperty.id);
   const [mintLater, setMintLater] = useState(false);
   const [wallet, setWallet] = useState(defaultState);
   const [loaded, setLoaded] = useState(false);
@@ -57,36 +56,24 @@ export default function UnifiedVault() {
     try { localStorage.setItem(storageKey, JSON.stringify(wallet)); } catch {}
   }, [loaded, wallet]);
 
-  const quote = useMemo(() => quoteDigitalPropertyUnit({
-    referencePropertyValue: referenceValue,
-    propertyValue: selectedValue,
-    baselineCents: DIGITAL_PROPERTY_BASELINE_CENTS,
-  }), [referenceValue, selectedValue]);
-
   const propertyRows = useMemo(() => demoProperties.map(property => ({
     ...property,
     quote: quoteDigitalPropertyUnit({
-      referencePropertyValue: referenceValue,
-      propertyValue: property.id === 'anchor' ? referenceValue : property.estimatedValue,
+      referencePropertyValue: referenceProperty.estimatedValue,
+      propertyValue: property.estimatedValue,
       baselineCents: DIGITAL_PROPERTY_BASELINE_CENTS,
     }),
-  })), [referenceValue]);
+  })), []);
 
-  const selectedProperty = demoProperties.find(item => item.id === selectedId) || demoProperties[0];
+  const selectedProperty = propertyRows.find(item => item.id === selectedId) || propertyRows[0];
+  const quote = selectedProperty.quote;
   const latestUnit = wallet.units.at(-1) || null;
   const portfolioCents = wallet.units.reduce((sum, unit) => sum + Number(unit.purchasePriceCents || 0), 0);
   const totalDemoValueCents = wallet.usdCents + Math.round(wallet.usdc * 100) + portfolioCents;
 
   function chooseProperty(property) {
     setSelectedId(property.id);
-    setSelectedValue(property.id === 'anchor' ? referenceValue : property.estimatedValue);
     setStatus('');
-  }
-
-  function updateReference(raw) {
-    const next = Math.max(1, Number(raw || 0));
-    setReferenceValue(next);
-    if (selectedId === 'anchor') setSelectedValue(next);
   }
 
   function testBuy() {
@@ -98,10 +85,11 @@ export default function UnifiedVault() {
 
     const unit = {
       id: crypto.randomUUID(),
-      propertyId: selectedId,
+      propertyId: selectedProperty.id,
       label: selectedProperty.label,
-      propertyValue: selectedValue,
-      referenceValue,
+      propertyValue: selectedProperty.estimatedValue,
+      referenceValue: referenceProperty.estimatedValue,
+      pricingSource: 'demo-property-data',
       purchasePriceCents: quote.priceCents,
       mintPreference: mintLater ? 'mint-later' : 'offchain',
       acquiredAt: new Date().toISOString(),
@@ -128,6 +116,8 @@ export default function UnifiedVault() {
 
   function resetDemo() {
     setWallet(defaultState());
+    setSelectedId(referenceProperty.id);
+    setMintLater(false);
     setStatus('Sandbox reset to $25.00.');
   }
 
@@ -140,25 +130,8 @@ export default function UnifiedVault() {
           <div className={styles.stepHead}>
             <span>1</span>
             <div>
-              <h2>Enter your property value.</h2>
-              <p>This makes <b>your</b> digital property cost $1.99.</p>
-            </div>
-          </div>
-
-          <label className={styles.referenceField}>
-            <span>My property is worth about</span>
-            <div><b>$</b><input inputMode="decimal" type="number" min="1" step="1000" value={referenceValue} onChange={event => updateReference(event.target.value)} /></div>
-          </label>
-        </div>
-
-        <div className={styles.stepDivider} />
-
-        <div className={styles.stepBlock}>
-          <div className={styles.stepHead}>
-            <span>2</span>
-            <div>
-              <h2>Pick one to test-buy.</h2>
-              <p>Prices change relative to your property.</p>
+              <h2>Pick a property.</h2>
+              <p>Voxel Vault handles the property data and digital price automatically.</p>
             </div>
           </div>
 
@@ -167,21 +140,23 @@ export default function UnifiedVault() {
               <button key={property.id} type="button" className={selectedId === property.id ? styles.propertyActive : ''} onClick={() => chooseProperty(property)}>
                 <span className={styles.propertyIcon}>{property.icon}</span>
                 <b>{property.label}</b>
-                <strong>{property.quote.ready ? money.format(property.quote.priceCents / 100) : '—'}</strong>
+                <strong>{property.quote.ready ? money.format(property.quote.priceCents / 100) : 'PRICE UNAVAILABLE'}</strong>
                 {selectedId === property.id && <small>SELECTED</small>}
               </button>
             ))}
           </div>
+
+          <small className={styles.micro}>You never type what a property is worth. This demo uses sample property values; the live version should use source-backed property data and show “Price unavailable” when that data is missing.</small>
         </div>
 
         <div className={styles.stepDivider} />
 
         <div className={styles.stepBlock}>
           <div className={styles.stepHead}>
-            <span>3</span>
+            <span>2</span>
             <div>
-              <h2>Buy the digital property.</h2>
-              <p>You are buying a demo digital unit, not the physical house.</p>
+              <h2>Buy its digital version.</h2>
+              <p>That’s the only action you need to take.</p>
             </div>
           </div>
 
@@ -207,8 +182,8 @@ export default function UnifiedVault() {
 
       {!latestUnit && (
         <section className={styles.afterCard}>
-          <span>THEN WHAT?</span>
-          <p>After you tap Buy, the property appears in your Vault. Then you can test selling it back to <b>USD</b> or <b>USDC</b>.</p>
+          <span>HOW PRICING WORKS</span>
+          <p>The demo uses the Starter home as the <b>$1.99 reference</b> and automatically scales the other digital-property prices. In the real property search flow, Voxel Vault should pull the reference value from trustworthy property data — not from you.</p>
         </section>
       )}
 
@@ -216,12 +191,12 @@ export default function UnifiedVault() {
         <section className={styles.successCard}>
           <div className={styles.successTop}>
             <span className={styles.doneMark}>✓</span>
-            <div><small>STEP 4 · DONE</small><h2>It’s in your Vault.</h2></div>
+            <div><small>STEP 3 · DONE</small><h2>It’s in your Vault.</h2></div>
           </div>
 
           <div className={styles.ownedProperty}>
             <span>◇</span>
-            <div><small>LATEST PROPERTY</small><b>{latestUnit.label}</b><p>{money.format(Number(latestUnit.purchasePriceCents || 0) / 100)} demo value</p></div>
+            <div><small>LATEST PROPERTY</small><b>{latestUnit.label}</b><p>{money.format(Number(latestUnit.purchasePriceCents || 0) / 100)} demo digital value</p></div>
           </div>
 
           <div className={styles.vaultBalance}>
@@ -231,7 +206,7 @@ export default function UnifiedVault() {
             <div><small>TOTAL</small><b>{money.format(totalDemoValueCents / 100)}</b></div>
           </div>
 
-          <p className={styles.nextPrompt}>Want to see how conversion would feel?</p>
+          <p className={styles.nextPrompt}>Now you can test what selling it would feel like.</p>
           <div className={styles.convertButtons}>
             <button type="button" onClick={() => simulateConversion('USD')}>SELL → USD</button>
             <button type="button" onClick={() => simulateConversion('USDC')}>SELL → USDC</button>
@@ -242,6 +217,7 @@ export default function UnifiedVault() {
       <details className={styles.advanced}>
         <summary>Advanced details</summary>
         <div>
+          <p><b>Pricing:</b> users should never self-report the property value. A live relative price should only use trustworthy source-backed property data; otherwise pricing stays unavailable.</p>
           <p><b>NFT:</b> optional. The digital asset can exist without minting.</p>
           <p><b>USD:</b> live deposits/withdrawals would need a regulated financial partner.</p>
           <p><b>Crypto:</b> live custody/exchange would need an authorized provider.</p>
