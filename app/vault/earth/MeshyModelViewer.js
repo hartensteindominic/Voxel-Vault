@@ -8,9 +8,18 @@ function modelPresentation(modelUrl) {
   try {
     const url = new URL(raw, typeof window !== 'undefined' ? window.location.href : 'https://voxelvault.local');
     const metadata = new URLSearchParams(url.hash.replace(/^#/, ''));
-    const previewImageUrl = String(metadata.get('vvPreview') || '').trim();
+    let previewImageUrl = String(metadata.get('vvPreview') || '').trim();
     url.hash = '';
     const assetUrl = raw.startsWith('/') ? `${url.pathname}${url.search}` : url.toString();
+
+    // Signed property model links can also serve the provider's rendered
+    // thumbnail. This gives every Property/Vault viewer an image-first stage
+    // without changing every caller or exposing the original uploaded photo.
+    if (!previewImageUrl && url.pathname === '/api/property-voxel-model') {
+      const preview = new URL(url.toString());
+      preview.searchParams.set('preview', '1');
+      previewImageUrl = raw.startsWith('/') ? `${preview.pathname}${preview.search}` : preview.toString();
+    }
     return { assetUrl, previewImageUrl };
   } catch {
     return { assetUrl: raw, previewImageUrl: '' };
