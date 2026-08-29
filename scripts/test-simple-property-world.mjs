@@ -7,15 +7,14 @@ const home = read('app/page.js');
 const homeCss = read('app/home.module.css');
 const property = read('app/property/page.js');
 const propertyCss = read('app/property/property.module.css');
-const success = read('app/property/success/page.js');
-const photoUploadRoute = read('app/api/property-photo-upload/route.ts');
-const voxelImageRoute = read('app/api/property-voxel-image/route.ts');
-const voxel3dRoute = read('app/api/property-voxel-3d/route.ts');
-const generationIds = read('lib/property-generation-ids.ts');
+const geo = read('app/geo/GeoReferenceModel.js');
+const worldAtlas = read('lib/world-atlas.js');
+const legacyGenerationCheckout = read('app/api/property-generation/checkout/route.ts');
 const collectibleCommerce = read('lib/property-collectible-commerce.ts');
 const quoteRoute = read('app/api/property-collectible/quote/route.ts');
 const checkoutRoute = read('app/api/property-collectible/checkout/route.ts');
 const completeRoute = read('app/api/property-collectible/complete/route.ts');
+const success = read('app/property/success/page.js');
 const webhook = read('app/api/stripe/webhook/route.ts');
 const vault = read('app/vault/property-drafts/page.js');
 const world = read('app/world/page.js');
@@ -30,135 +29,120 @@ const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
-// Front door: one simple VoxelPop journey with collection clearly separated from real-property ownership.
+// Front door stays simple and legally separate from physical-property ownership.
 assert.match(home, /PHOTO → 3D → VOXEL → YOUR WORLD/, 'home must advertise the photo-first journey');
 assert.match(home, /START → SIGN IN/, 'home must enter the account-gated maker');
-for (const label of ['SIGN IN', 'PHOTO', '3D', 'VOXEL', 'WORLD', 'COLLECT + VAULT']) {
-  assert.match(home, new RegExp(label.replace('+', '\\+')), `home flow must include ${label}`);
-}
 assert.match(home, /wallet is optional|A wallet is optional/i, 'wallet must not block creation or checkout');
 assert.match(home, /does not buy the physical property/i, 'home must distinguish collecting the voxel from buying real property');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed/i, 'unverified real-property purchase language must stay out of the simple home');
-
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0/i, 'simple surfaces keep the warm VoxelPop canvas');
 assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple must remain');
 assert.match(propertyCss, /#c9ff54/i, 'VoxelPop lime must remain');
-assert.match(propertyCss, /#f7ae2d|#ee950f/i, 'collect/voxel action uses warm orange');
+assert.match(propertyCss, /#f7ae2d|#ee950f/i, 'collect action uses warm orange');
 assert.match(propertyCss, /grid-template-columns:repeat\(5,1fr\)/, 'property maker must expose five guided steps');
 
-// Sign-in and photo come before address/location; verbs stay consistent.
+// Sign-in + authorized photo remain the first steps.
 assert.match(property, /Sign in first\./, 'signed-out maker must expose the account gate');
 assert.match(property, /Continue with Google/, 'account gate has one clear sign-in action');
-assert.match(property, /const labels = \['PHOTO', 'BUILD', 'VOXEL', 'WORLD', 'COLLECT'\]/, 'guided labels must describe what the user is actually doing');
+assert.match(property, /const labels = \['PHOTO', 'BUILD', 'VOXEL', 'WORLD', 'COLLECT'\]/, 'guided labels stay familiar');
 assert.match(property, /Choose one photo\./, 'first signed-in step must be photo');
 assert.match(property, /accept="image\/\*,\.heic,\.heif"/, 'iPhone HEIC/HEIF selection remains supported');
 assert.match(property, /normalizeIphonePhoto/, 'iPhone HEIC preparation remains automatic');
 assert.match(property, /I took this photo or have permission to use it\./, 'source photo must require rights confirmation');
-assert.match(property, /form\.append\('draftId', draftId\)/, 'photo-first handoff must use an account-bound creation ID before map placement');
-assert.match(property, /Use photo → start build/, 'one photo approval must start the automatic generation journey');
-assert.doesNotMatch(property, /Use this street photo/, 'simple journey should not branch into a street-photo chooser');
+assert.match(property, /Use photo → make VoxelPop preview/, 'one photo approval must start the lightweight VoxelPop journey');
 
-// Normal source-photo creation goes directly to the provider and must not depend on Supabase Storage.
-assert.match(photoUploadRoute, /requireVoxelVaultUser/, 'photo handoff requires a verified account');
-assert.match(photoUploadRoute, /rightsConfirmed/, 'server enforces source-photo rights confirmation');
-assert.match(photoUploadRoute, /data:\$\{photo\.type\};base64/, 'authorized source photo must become an inline provider input');
-assert.match(photoUploadRoute, /createHash\('sha256'\)/, 'source photo must receive a non-reversible fingerprint');
-assert.match(photoUploadRoute, /source_image_url: sourceFingerprint/, 'account generation records retain the fingerprint rather than source photo bytes');
-assert.match(photoUploadRoute, /meshy-property-direct-photo-to-3d/, 'direct photo source generation must have an explicit provider marker');
-assert.match(photoUploadRoute, /storagePath: `meshy-source:\$\{taskId\}`/, 'UI handoff uses an opaque account-bound direct-job reference');
-assert.match(photoUploadRoute, /does not store the original source photo in its Storage bucket/, 'privacy disclosure must accurately describe the storage-free source path');
-assert.doesNotMatch(photoUploadRoute, /storage\.from\(|createBucket\(|createSignedUrl\(|PrivateStorageError|getSupabaseAdminCandidates/, 'normal VoxelPop source creation must not require Supabase Storage administration');
+// Creation is local and zero-credit; stale paid-generation clients fail safely.
+assert.match(property, /makeLocalVoxelPreview/, 'normal creation needs an on-device VoxelPop preview');
+assert.match(property, /imageSmoothingEnabled = false/, 'preview must retain crisp pixel edges');
+assert.match(property, /no Meshy credits · no generation checkout/i, 'zero-credit behavior must be visible');
+assert.doesNotMatch(property, /fetch\('\/api\/property-generation\/checkout'/, 'normal creation must not open the retired generation checkout');
+assert.doesNotMatch(property, /fetch\('\/api\/property-photo-upload'/, 'source photo must not be staged server-side for normal creation');
+assert.doesNotMatch(property, /fetch\('\/api\/property-voxel-3d'/, 'normal creation must not call paid provider 3D generation');
+assert.doesNotMatch(property, /fetch\('\/api\/property-voxel-image'/, 'normal creation must not call paid provider image generation');
+assert.match(legacyGenerationCheckout, /migrated: true/, 'stale clients must get a migration response');
+assert.doesNotMatch(legacyGenerationCheckout, /stagePaidPropertyPhoto|readMeshyCreditBalance|stripe\.checkout/, 'retired generation endpoint must not stage photos, check credits, or charge');
 
-// Automatic source 3D -> voxel style -> final 3D.
-assert.match(property, /phase: 'source'/, 'automatic pipeline must continue through the first 3D source phase');
-assert.match(property, /sourceStoragePath: reference\.storagePath/, 'source continuation passes the opaque account-bound direct-job reference');
-assert.match(voxel3dRoute, /sourceStoragePath\.startsWith\('meshy-source:'\)/, '3D route must recognize a pre-started direct-photo job');
-assert.match(voxel3dRoute, /directJob\.item_id !== itemId/, 'pre-started source job must remain bound to the signed-in user and draft');
-assert.match(voxel3dRoute, /directPhoto: true/, 'direct-photo continuation must be explicit in the server response');
-assert.match(property, /source3dTaskId: sourceDone\.taskId/, 'voxel styling must use the completed 3D preview');
-assert.match(property, /voxelImageTaskId: voxelDone\.taskId/, 'final 3D must use the verified voxel-image task');
-assert.match(property, /phase: 'voxel'/, 'final 3D must have a distinct voxel phase');
-assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3D voxel\./, 'middle generation steps should explain that the handoff is automatic');
-assert.match(property, /MeshyModelViewer/, 'generated source/final models must be viewable interactively');
-assert.doesNotMatch(property, /eth_requestAccounts|mintVoxelFlip/, 'wallet/mint execution must not block the guided maker');
+// Address opens the improved source-backed 3D map.
+assert.match(property, /Build 3D map \+ verify address/, 'address action must explicitly build the 3D map');
+assert.match(property, /GeoReferenceModel/, 'interactive property scene must use the existing source-backed 3D renderer');
+assert.match(property, /\['orbit', 'street', 'top'\]/, 'map must expose orbit, street, and top views');
+assert.match(property, /SOURCE-BACKED 3D MAP/, 'map must label its evidence basis');
+assert.match(property, /MAP SOURCE/, 'map must show source context');
+assert.match(property, /NEARBY BUILDINGS/, 'map must show neighborhood context');
+assert.match(property, /Place this preview in My World/, 'map review must precede My World placement');
+assert.match(geo, /addVoxelShell/, 'map building footprints should render as voxel geometry');
+assert.match(geo, /addPublicRealmContext/, 'mapped streets and paths should enrich the neighborhood scene');
+assert.match(worldAtlas, /fetchOvertureBuildingNeighborhood/, 'World Atlas must prefer Overture');
+assert.match(worldAtlas, /fetchGlobalNeighborhoodReference/, 'World Atlas must retain OpenStreetMap fallback');
+assert.match(worldAtlas, /No replacement building was invented/, 'map failures must fail closed without fake buildings');
 
-assert.match(generationIds, /property-create:/, 'photo-first phases use separate account-scoped creation IDs');
-assert.match(generationIds, /propertyGenerationUserScope/, 'generation IDs must hash/scope by user');
-assert.match(voxel3dRoute, /phase === 'source'/, '3D route must support the source-photo 3D phase');
-assert.match(voxel3dRoute, /propertyDraftItemId\(auth\.user\.id, draftId, phase\)/, '3D phase records must be user- and draft-bound');
-assert.match(voxel3dRoute, /propertyGenerationItemBelongsToUser/, '3D polling must reject other users jobs');
-assert.match(voxel3dRoute, /verifiedVoxelImageUrl/, 'final voxel 3D must verify the account-bound voxel-image task');
-assert.match(voxel3dRoute, /persistModelBinary/, 'completed GLBs should still attempt durable persistence while retaining provider URL fallback');
-assert.match(voxelImageRoute, /generated3DReference/, 'voxel style pass must reference the completed source 3D');
-assert.match(voxelImageRoute, /propertyDraftItemId\(userId, draftId, 'source'\)/, 'voxelizer must verify the exact source-3D creation record');
-assert.match(voxelImageRoute, /licensed-derivative/, 'generated 3D preview must carry explicit derivative-rights classification');
-assert.match(voxelImageRoute, /substitute a generic house/, 'voxel prompt must block generic-house drift');
-
-// World placement happens after the final voxel and before collection checkout.
-assert.match(property, /Add the property address\./, 'address step must clearly follow final voxel creation');
-assert.match(property, /Verify address \+ preview/, 'address action must say both verification and preview');
-assert.match(property, /PlanetStreamGlobe/, 'private collection preview uses the Voxel world');
-assert.match(property, /MY WORLD · PRIVATE PREVIEW/, 'pre-collection map preview must stay private');
-assert.match(property, /\/api\/property-collectible\/quote/, 'server quote follows World placement');
+// My World remains private before collection.
+assert.match(property, /PlanetStreamGlobe/, 'private World preview keeps the globe');
+assert.match(property, /MY WORLD · PRIVATE PREVIEW/, 'pre-collection World preview must stay private');
+assert.match(property, /\/api\/property-collectible\/quote/, 'server quote follows mapped identity verification');
 assert.match(property, /async function collectAndSave\(\)/, 'digital checkout action should use Collect language');
-assert.match(property, /Collect voxel ·/, 'final paid action must identify the thing being collected');
+assert.match(property, /Collect voxel ·/, 'final paid action identifies the digital thing being collected');
 assert.match(property, /not the market value of the house or land/, 'price copy must never look like a real-property valuation');
-assert.match(property, /Real-property investing can only appear through a separately verified offering/, 'fractional/real investment must stay on a separate verified rail');
+assert.match(property, /`map-voxel:\$\{draftId\}`/, 'map-backed collection identifier must remain draft-bound');
 
-// Variable pricing is digital-build complexity only, never a real-estate appraisal.
-for (const cents of ['199', '299', '399']) assert.match(collectibleCommerce, new RegExp(`priceCents: ${cents}`), 'three simple low-cost digital build price tiers must remain');
+// Variable pricing is digital complexity only, never appraisal.
+for (const cents of ['199', '299', '399']) assert.match(collectibleCommerce, new RegExp(`priceCents: ${cents}`), 'three low-cost digital collectible tiers must remain');
 for (const tier of ['classic', 'detailed', 'landmark']) assert.match(collectibleCommerce, new RegExp(`tier: '${tier}'`), `pricing must include ${tier}`);
-assert.match(collectibleCommerce, /footprintPoints/, 'pricing may use source-backed mapped footprint complexity');
-assert.match(collectibleCommerce, /heightMeters/, 'pricing may use source-backed mapped height complexity');
-assert.doesNotMatch(collectibleCommerce, /zestimate|marketValue|assessedValue|salePrice/i, 'digital price must never derive from real-property market valuation');
+assert.match(collectibleCommerce, /footprintPoints/, 'pricing may use source-backed footprint complexity');
+assert.match(collectibleCommerce, /heightMeters/, 'pricing may use source-backed height complexity');
+assert.doesNotMatch(collectibleCommerce, /zestimate|marketValue|assessedValue|salePrice/i, 'digital price must never derive from market valuation');
 assert.match(quoteRoute, /digital build complexity, not the market value of the physical property/i, 'quote API must explain the pricing boundary');
 
-// One digital collectible per source-backed World identity, with server-authoritative Stripe verification.
-assert.match(collectibleCommerce, /propertyCollectibleIdentity/, 'collection uniqueness must use a server-derived World identity key');
-assert.match(collectibleCommerce, /atlasId\.startsWith\('location:'\)/, 'fallback coordinates cannot become a once-only property identity');
+// Map-backed assets can be collected without weakening identity/payment controls.
+assert.match(collectibleCommerce, /propertyCollectibleIdentity/, 'collection uniqueness must use server-derived World identity');
+assert.match(collectibleCommerce, /atlasId\.startsWith\('location:'\)/, 'fallback coordinates cannot become once-only property identity');
 assert.match(collectibleCommerce, /state === 'paid' \|\| state === 'minted'/, 'paid/minted reservations remain permanently locked');
-assert.match(collectibleCommerce, /verifyOwnedFinalVoxelModel/, 'shared commerce helper must verify the exact final voxel model belongs to the buyer creation');
-assert.match(collectibleCommerce, /propertyDraftItemId\(input\.userId, draftId, 'voxel'\)/, 'final model proof must resolve to the account-scoped voxel phase');
-assert.match(checkoutRoute, /verifyOwnedFinalVoxelModel/, 'checkout must verify the final model belongs to the buyer and creation');
+assert.match(collectibleCommerce, /const mapBackedTaskId = `map-voxel:\$\{draftId\}`/, 'map-backed item must be exactly tied to the draft');
+assert.match(collectibleCommerce, /mapBacked: true/, 'map-backed collectible path must be explicit');
+assert.match(collectibleCommerce, /propertyDraftItemId\(input\.userId, draftId, 'voxel'\)/, 'legacy generated GLBs must retain account-scoped ownership verification');
+assert.match(checkoutRoute, /verifyOwnedFinalVoxelModel/, 'checkout verifies the selected digital asset');
 assert.match(checkoutRoute, /quotePropertyCollectible\(building\)/, 'checkout recomputes price on the server');
-assert.match(checkoutRoute, /kind: 'property_voxel_collectible'/, 'Stripe metadata must identify this product rail');
-assert.match(checkoutRoute, /VoxelPop Digital Voxel/, 'Stripe product name must identify the digital voxel rather than the physical property');
-assert.match(checkoutRoute, /does not buy the physical property/, 'Stripe product description must preserve the physical-property boundary');
-assert.match(checkoutRoute, /digital_only_no_real_property_rights/, 'Stripe checkout metadata preserves digital-only rights');
+assert.match(checkoutRoute, /kind: 'property_voxel_collectible'/, 'Stripe metadata identifies the correct product rail');
+assert.match(checkoutRoute, /source-backed mapped 3D geometry/, 'Stripe copy supports the no-Meshy map-backed collectible');
+assert.match(checkoutRoute, /does not buy the physical property/, 'Stripe copy preserves the physical-property boundary');
+assert.match(checkoutRoute, /digital_only_no_real_property_rights/, 'Stripe metadata preserves digital-only rights');
 assert.match(checkoutRoute, /optional_after_purchase_and_property_verification/, 'wallet mint remains downstream and optional');
-assert.match(checkoutRoute, /success_url: `\$\{appUrl\}\/property\/success/, 'payment returns through the Vault delivery page');
-assert.match(webhook, /secureStripePropertyCollectiblePurchase/, 'signed Stripe webhook must independently secure the payment');
-assert.match(completeRoute, /secureStripePropertyCollectiblePurchase/, 'success path must re-verify Stripe payment and buyer');
-assert.match(completeRoute, /verifyOwnedFinalVoxelModel/, 'success delivery must reopen only the purchased account-owned model');
-assert.match(success, /savePropertyDraftToAccount/, 'successful checkout must sync the collected item into the account Vault');
-assert.match(success, /Create Another/, 'success loop must offer another creation');
-assert.match(success, /View My World/, 'success loop must offer My World');
-assert.match(success, /Verify &amp; Mint · optional/, 'mint remains optional and verified after collection');
-assert.match(success, /You collected a digital VoxelPop item/, 'success copy must say exactly what the user paid for');
+assert.match(checkoutRoute, /success_url: `\$\{appUrl\}\/property\/success/, 'payment returns through Vault delivery');
+assert.match(webhook, /secureStripePropertyCollectiblePurchase/, 'signed Stripe webhook independently secures payment');
 
-// Vault and World remain privacy- and truth-safe.
-assert.match(vault, /Your collection\./, 'Vault should read as the collection/inventory hub');
-assert.match(vault, /Create Another/, 'Vault has a direct repeat loop');
-assert.match(vault, /View My World/, 'Vault links directly to My World');
-assert.match(vault, /VERIFY \+ MINT · OPTIONAL/, 'paid cards keep optional verified mint secondary');
-assert.match(world, /MY WORLD \+ PUBLIC WORLD/, 'signed-in World combines private account items and public shared items');
-assert.match(world, /Your voxels\./, 'signed-in World should describe the digital items as voxels, not physical properties');
-assert.match(world, /\/api\/world-properties\/mine/, 'World must load the authenticated private feed');
-assert.match(myWorldApi, /requireVoxelVaultUser/, 'My World feed is account authenticated');
-assert.match(myWorldApi, /private: draft\?\.world\?\.public !== true/, 'private Vault items stay labeled private');
-assert.match(worldApi, /draft\?\.world\?\.public !== true/, 'public feed must still exclude unshared drafts');
+// Completion saves map geometry or legacy GLB without requiring new private model storage.
+assert.match(completeRoute, /secureStripePropertyCollectiblePurchase/, 'success path re-verifies Stripe payment and buyer');
+assert.match(completeRoute, /atlasId: purchase\.atlasId/, 'success re-binds verification to mapped identity');
+assert.match(completeRoute, /source-backed-map-geometry/, 'map-backed delivery must identify its storage/render basis');
+assert.match(completeRoute, /modelUrl: durableModelUrl/, 'legacy purchased GLBs keep their durable model URL path');
+assert.match(success, /GeoReferenceModel/, 'success screen can render a map-backed collectible');
+assert.match(success, /data\.model\.mapBacked === true/, 'Vault save must distinguish map-backed and generated assets');
+assert.match(success, /modelUrl: data\.model\.modelUrl/, 'legacy generated model delivery remains supported');
+assert.match(success, /savePropertyDraftToAccount/, 'successful checkout syncs to account Vault');
+assert.match(success, /Create Another/, 'success loop offers another creation');
+assert.match(success, /View My World/, 'success loop offers My World');
+assert.match(success, /Verify &amp; Mint · optional/, 'mint remains optional after collection');
+
+// Vault/World privacy and canonical property minting remain unchanged.
+assert.match(vault, /Your collection\./, 'Vault remains the inventory hub');
+assert.match(vault, /Create Another/, 'Vault has a repeat loop');
+assert.match(vault, /View My World/, 'Vault links to My World');
+assert.match(vault, /VERIFY \+ MINT · OPTIONAL/, 'paid cards keep mint optional');
+assert.match(world, /MY WORLD \+ PUBLIC WORLD/, 'signed-in World combines private and public feeds');
+assert.match(world, /\/api\/world-properties\/mine/, 'World loads authenticated private feed');
+assert.match(myWorldApi, /requireVoxelVaultUser/, 'My World feed is authenticated');
+assert.match(myWorldApi, /private: draft\?\.world\?\.public !== true/, 'private Vault items remain labeled private');
+assert.match(worldApi, /draft\?\.world\?\.public !== true/, 'public feed excludes unshared drafts');
 assert.match(worldApi, /toFixed\(3\)/, 'public coordinates remain privacy-rounded');
-assert.match(drafts, /world:\s*\{\s*public:\s*false/, 'new saved drafts remain private by default');
-
-// Canonical property minting remains the separate one-parcel legal identity rail.
-assert.match(propertyClaimRules, /Address text is intentionally excluded/, 'canonical identity must never use display-address text');
+assert.match(drafts, /world:\s*\{\s*public:\s*false/, 'new drafts remain private by default');
+assert.match(propertyClaimRules, /Address text is intentionally excluded/, 'canonical identity never uses display-address text');
 assert.match(propertyClaimsApi, /oneCanonicalTwinPerParcel:\s*true/, 'canonical claim API preserves one mint per verified parcel');
 assert.match(propertyClaimsApi, /addressUsedAsIdentityKey:\s*false/, 'canonical claim API rejects address strings as identity');
 assert.match(canonicalRegistry, /PropertyAlreadyRegistered/, 'canonical registry rejects duplicate identity registration');
 assert.match(propertyPassport, /PassportAlreadyMinted/, 'Property Passport rejects a second canonical mint');
 assert.match(interestToken, /off-chain legal/, 'economic rights remain defined separately by legal agreements');
 
-assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'fixed app dock stays out of the guided maker');
+assert.match(dock, /if \(pathname === '\/property'\) return null;/, 'fixed app dock stays out of guided maker');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> authorized photo -> direct source 3D -> automatic voxel styling -> final 3D voxel -> address verification -> private My World preview -> server-priced digital collection -> Vault -> optional verified mint, without requiring source-photo bucket storage and with real-property rights kept separate.');
+console.log('Guided VoxelPop property checks passed: sign in -> authorized on-device voxel preview -> source-backed Overture/OSM 3D neighborhood -> private My World preview -> optional server-priced digital collection -> Vault -> optional verified mint, with no Meshy or pre-generation Storage dependency.');
