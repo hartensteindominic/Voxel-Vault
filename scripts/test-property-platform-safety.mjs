@@ -116,9 +116,9 @@ requireMarkers(distribution, 'distribution vault', [
 // while the front door must still preserve price clarity, optional minting and
 // the digital-only physical-property rights boundary.
 requireMarkers(root, 'simple root homepage', [
-  'VOXELPOP · PHOTO → 3D → VOXEL → NFT',
+  'VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL → NFT',
   'Start VoxelPop · $4.99',
-  '3D preview',
+  '3D voxel photo',
   'Movable 3D voxel',
   'NFT optional',
   'No wallet until mint',
