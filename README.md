@@ -1,86 +1,130 @@
 # Voxel Vault
 
-Voxel Vault is a 3D property and digital-asset app.
+**Turn an authorized house photo into a 3D preview, approve it, create a movable VoxelPop voxel, save it to World/Vault, and optionally mint the finished digital voxel.**
 
-The current property product lets a signed-in user:
+- Production: **https://voxelvault.io**
+- Public no-login sample: **https://voxelvault.io/demo**
+- Core creator: **https://voxelvault.io/property**
 
-- choose a property photo they took or have permission to use;
-- pay **$4.99** for one VoxelPop digital creation;
-- keep the source photo on the device instead of uploading it for generation;
-- build the VoxelPop image and movable 3D model locally without Meshy credits;
-- map the address into source-backed 3D context;
-- place the digital property in My World;
-- optionally buy an eligible mapped **digital VoxelPop collectible** through a separate checkout;
-- organize digital assets and separately verified positions in My Vault.
+![Synthetic VoxelPop property demo](public/demo/property-house.svg)
+
+> The sample above is synthetic. It is not a customer upload or a real property.
+
+## What ships to users now
+
+### Core consumer flow
+
+```text
+PUBLIC SAMPLE (no login)
+  -> SIGN IN
+  -> AUTHORIZED PROPERTY PHOTO
+  -> $4.99 DIGITAL CREATION CHECKOUT
+  -> 3D PREVIEW
+  -> USER REVIEW / APPROVAL
+  -> MOVABLE VOXEL 3D
+  -> WORLD + VAULT
+  -> OPTIONAL MINT
+```
+
+The current Property flow is designed so that:
+
+- one **$4.99** payment buys one digital VoxelPop property creation;
+- the user sees the 3D preview before continuing to the separate voxel stage;
+- the normal property creator keeps the source photo on-device through checkout/creation;
+- normal property creation does **not** require Meshy credits;
+- source-backed map/building data is a separate place-data layer;
+- Vault/account sync problems must not turn a successful local creation into a dead end;
+- minting is optional and comes after the digital voxel is ready.
+
+A single photo can guide the visible appearance. It is **not** treated as a survey, architectural measurement, guaranteed full physical replica, title record, ownership record, or property valuation.
 
 ## Four product states
 
 | State | Meaning |
 | --- | --- |
 | **$4.99 DIGITAL** | One paid VoxelPop digital creation. No physical-property rights. |
-| **DEMO** | Sandbox only. Fake demo credit is not money and creates no property rights. |
-| **PARTNER** | A financial/investment action is live only through the required approved provider, eligibility, settlement, and verification path. |
-| **TITLE** | Real-property ownership changes only through normal closing and recorded title. |
+| **DEMO** | Sandbox/sample only. Demo credit is not money and creates no property rights. |
+| **PARTNER** | A financial/investment action can be live only through the required approved provider, eligibility, settlement, disclosure and verification path. |
+| **TITLE** | Real-property ownership changes only through ordinary closing and recorded title. |
 
-## Current VoxelPop property flow
+**Digital model ≠ map evidence ≠ wallet/NFT record ≠ deed/title.**
+
+## Main routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Focused VoxelPop product landing page |
+| `/demo` | Public synthetic interactive 3D sample; no login or payment |
+| `/property` | Paid property-photo → 3D preview → voxel journey |
+| `/world` | Private/public saved voxel locations and source-backed map context |
+| `/vault` | Saved properties, purchased digital twins, 3D creations and optional mint paths |
+| `/more` | Optional digital tools plus explicitly separated advanced/provider-gated tools |
+| `/about` | Product explanation and public support path |
+| `/privacy` | Current privacy architecture |
+| `/terms` | Current digital-creation and rights boundaries |
+
+## Tech stack
+
+- **Next.js 16 / React 19** — application shell and server routes
+- **Three.js** — interactive local voxel and map/world rendering
+- **Stripe** — explicit paid creation and other checkout flows
+- **Supabase** — authentication and account-linked persistence
+- **ethers / Hardhat** — optional blockchain/testnet infrastructure
+- **Vercel** — production deployment
+
+## Architecture at a glance
 
 ```text
-SIGN IN
-  -> AUTHORIZED PHOTO
-  -> $4.99 DIGITAL CREATION CHECKOUT
-  -> PAID SESSION VERIFIED
-  -> LOCAL VOXEL IMAGE + MOVABLE 3D
-  -> SOURCE-BACKED PROPERTY MAP
-  -> MY WORLD
-  -> OPTIONAL SEPARATE DIGITAL COLLECTIBLE CHECKOUT
-  -> VAULT
-  -> OPTIONAL SEPARATE VERIFY + MINT FLOW
+Authorized photo
+   |
+   | browser/device-local creation path
+   v
+3D preview  --->  movable local voxel
+                       |
+                       +----> account/Vault record
+                       |
+Address  ---> map/geocoding/source-backed building context
+                       |
+                       +----> My World
+                       |
+                       +----> optional wallet/mint action
+
+Separate advanced rails:
+provider-backed investments / money movement / real-property title
 ```
 
-The source photo remains device-local during creation. The local VoxelPop engine does not require Meshy credits. A verified paid session may resume the same creation without a second creation charge.
-
-The local visual model and mapped property record are different evidence layers. One photo is not treated as a survey, complete physical replica, title record, ownership record, or property valuation.
-
-## What the $4.99 purchase buys
-
-The **$4.99 payment buys one digital VoxelPop creation** built by Voxel Vault's local generation engine.
-
-It does not buy the physical house or land, deed/title ownership, property equity, rent or occupancy rights, a fractional real-estate investment, or guaranteed appreciation/income.
-
-After the creation is mapped to an eligible source-backed building, the user may be offered a **separate optional collectible checkout**. That second purchase is also a digital asset only and does not create physical-property rights.
+The visual model and the mapped place are intentionally different evidence layers. The app should never infer physical ownership from a photo, map footprint, payment, voxel, NFT, wallet connection, or Property Passport alone.
 
 ## $1.99 Property Sandbox
 
-The `$1.99 Property Sandbox` uses free fake demo credit and proportional property math. Demo credit can be refilled for testing; it is not cash, a deposit, or a payment method.
+The `$1.99 Property Sandbox` uses refillable fake demo credit and proportional comparison math. Demo credit is not cash, a deposit, a payment method, an investment account, or equity.
 
-The sandbox does not transfer customer money, reserve real property, purchase a security, create equity, mint a real-estate security, or create deed, rent, or occupancy rights.
-
-A real small-dollar property investment can replace the sandbox only if an actual verified offering supports the exact amount and all required provider, eligibility, settlement, disclosure, custody, and position-verification steps are live.
+The sandbox does not transfer customer money, reserve real property, purchase a security, create equity, mint a real-estate security, or create deed, rent, occupancy, or appreciation rights.
 
 ## Real estate and money features
 
-- **Property investments** — fail closed unless an approved provider supports the exact offering, user, eligibility, transaction, settlement, and verification path.
+- **Property investments** — fail closed unless an approved provider supports the exact offering, user, eligibility, transaction, settlement and verification path.
 - **Income** — only observed/provider-reported payments should be shown as actual income.
-- **Direct ownership** — requires ordinary diligence, closing, and recorded title.
-- **Crypto / USD rails** — require the appropriate wallet, banking/payment, exchange, custody, and compliance providers before customer money movement becomes live.
+- **Direct ownership** — requires normal diligence, closing and recorded title.
+- **Crypto / USD rails** — require the appropriate wallet, banking/payment, exchange, custody and compliance providers before customer money movement becomes live.
 
 Voxel Vault is **not itself a bank, broker, exchange, custodian, escrow service, or deed registry**.
 
-## Blockchain pilot
+## Privacy posture
 
-The repository contains testnet-oriented smart-contract infrastructure for research and controlled pilots. That infrastructure does not make live real-estate investing available.
+The core property flow is designed around a device-local source photo. Stripe handles payment processing; Supabase supports sign-in/account sync; map services may process a user-entered address when the user asks to map a property. Optional wallet, blockchain, AI, marketplace or provider-gated routes can use additional third parties and remain separate from the normal Property creation path.
 
-A blockchain token does not replace a county deed or the ordinary land-title system. Any future token-linked property or security rights would come from the actual legal instrument, offering, entity records, and applicable provider/compliance structure—not from the token alone.
+Never commit private keys, passwords, payment-card data, identity documents, bank information, tenant PII, private deeds/leases, account tokens or private closing documents to this public repository or token metadata.
 
 ## Safety posture
 
-- Paid VoxelPop creation is explicitly a digital-creation purchase.
-- Optional digital property collection is a separate, digital-only purchase.
-- The $1.99 sandbox remains fake demo credit only.
+- Paid VoxelPop creation is explicitly a **digital-creation purchase**.
+- The public demo uses synthetic content.
+- The $1.99 sandbox is fake demo credit only.
 - Map evidence is not converted into an ownership claim.
-- Wallet holdings, provider positions, property title, and digital collectibles remain separate records.
-- Live investing stays disabled unless the exact provider/legal gates are satisfied.
-- No private keys, investor identity documents, bank information, tenant PII, confidential deeds/leases, or private closing documents belong in the public repository or token metadata.
+- Wallet holdings, provider positions, property title and digital collectibles remain separate records.
+- Public minting and regulated features remain fail-closed unless their specific requirements are met.
+- A blockchain token does not replace a county deed or ordinary land-title system.
 
 ## Local verification
 
@@ -90,5 +134,11 @@ npm run test:property-platform
 npm run test:simple-property-world
 npm run build
 ```
+
+## Contributing / public bug reports
+
+Use GitHub Issues for reproducible public bugs and product feedback. **Do not** include passwords, private keys, payment details, identity documents, deeds, leases, private account tokens or other sensitive information in a public issue.
+
+This repository does not currently publish a software license. A license should be chosen intentionally before presenting the repository as an open-source project.
 
 For regulated-pilot architecture and launch gates, see `docs/REAL_ESTATE_PILOT.md`, `docs/UNIFIED_PROPERTY_MONEY_VAULT.md`, and the legal-review documentation under `docs/`.
