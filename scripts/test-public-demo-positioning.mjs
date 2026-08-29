@@ -17,10 +17,10 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /Try the sample · no login/, 'home must show product value before Google sign-in');
+assert.match(home, /Try 3D sample · no login/, 'home must show product value before Google sign-in');
 assert.match(home, /href="\/demo"/, 'home must link to the public product sample');
-assert.match(home, /Create my VoxelPop · \$4\.99/, 'home must keep the paid creation price visible');
-assert.match(home, /3D voxel photo[\s\S]*movable 3D voxel/i, 'home must preserve voxel-photo-before-model positioning');
+assert.match(home, /Start VoxelPop · \$4\.99/, 'home must keep the paid creation price visible');
+assert.match(home, /3D preview[\s\S]*movable 3D voxel/i, 'home must preserve 3D-review-before-model positioning');
 assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product preview instead of decorative art');
 assert.match(homePreview, /PhotoReliefModelViewer/, 'home product proof must use the production voxel-photo viewer');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production local voxel viewer');
