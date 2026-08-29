@@ -108,12 +108,16 @@ function SimpleJourneyPresentation() {
     if (!root) return undefined;
 
     const simplify = () => {
+      for (const control of Array.from(root.querySelectorAll('[role="button"]'))) {
+        const text = String(control.textContent || '').trim();
+        if (text.includes('Choose a property photo')) control.setAttribute('data-vv-hide-duplicate', 'true');
+      }
+
       const actions = Array.from(root.querySelectorAll('button, a'));
       for (const action of actions) {
         const text = String(action.textContent || '').trim();
         if (!text) continue;
 
-        if (text === 'Choose photo') action.setAttribute('data-vv-hide-duplicate', 'true');
         if (text === 'Upload / Photos' || text === 'My Properties') action.setAttribute('data-vv-compact-choice', 'true');
 
         if (
