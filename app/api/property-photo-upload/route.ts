@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import { saveCatalog3D } from '../../../lib/catalog3dStore';
 import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
+import {
+  createPropertyGenerationRecoveryTaskId,
+  propertyGenerationCanonicalTaskId,
+} from '../../../lib/property-generation-task';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -14,10 +18,6 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function clean(value: unknown, max = 240) {
   return String(value || '').trim().slice(0, max);
-}
-
-function taskKey(raw: string) {
-  return raw.startsWith('property-voxel:task:') ? raw : `property-voxel:task:${raw}`;
 }
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
@@ -84,10 +84,10 @@ export async function POST(request: Request) {
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
-    const taskId = taskKey(providerTaskId);
+    const canonicalTaskId = propertyGenerationCanonicalTaskId(providerTaskId);
     const sourceFingerprint = `inline-photo:${digest}`;
     const saved = await saveCatalog3D(itemId, {
-      task_id: taskId,
+      task_id: canonicalTaskId,
       source_image_url: sourceFingerprint,
       source_image_urls: [sourceFingerprint],
       provider: 'meshy-property-direct-photo-to-3d',
@@ -101,9 +101,12 @@ export async function POST(request: Request) {
       completed_at: null,
       error: null,
     });
-    if (!saved?.task_id) {
-      throw new Error('VoxelPop started the 3D job, but the account generation record could not be saved. Please try again shortly.');
-    }
+
+    // Do not orphan a provider job just because the account catalog table or
+    // private metadata bucket is temporarily unavailable. A signed recovery ID
+    // is scoped to this account and can be verified statelessly by later routes.
+    const taskId = saved?.task_id
+      || createPropertyGenerationRecoveryTaskId(apiKey, auth.user.id, providerTaskId);
 
     const uploadedAt = new Date().toISOString();
     return privateJson({
@@ -121,10 +124,13 @@ export async function POST(request: Request) {
       },
       source3d: {
         taskId,
-        status: saved.status || 'PENDING',
-        progress: Number(saved.progress || 0),
+        status: saved?.status || 'PENDING',
+        progress: Number(saved?.progress || 0),
       },
-      privacy: 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.',
+      recoveryMode: !saved?.task_id,
+      privacy: saved?.task_id
+        ? 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.'
+        : 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider. Account job storage was temporarily unavailable, so Voxel Vault returned a signed account-bound recovery task reference and retained no copy of the original photo.',
     });
   } catch (error) {
     return privateJson({
