@@ -47,13 +47,16 @@ const footer = read('app/components/ConsumerFooter.js');
 const system = read('app/ui-system.css');
 const demo = read('app/demo/page.js');
 const property = read('app/property/PropertyJourneyExact.js');
+const propertyCss = read('app/property/property.module.css');
 
 must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proof.');
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
 must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
-must(/WHAT'S INCLUDED \/ WHAT'S NOT/.test(home), 'Dense legal/purchase detail must stay in progressive disclosure.');
-must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual preview and voxel viewers.');
+must(/GOOD TO KNOW/.test(home), 'Dense legal and purchase detail must stay in progressive disclosure.');
+must(/One photo\. Three clear steps\./.test(home), 'Homepage must keep the core journey understandable at a glance.');
+must(/REVIEW 3D VOXEL PHOTO/.test(home) && /CREATE MOVABLE VOXEL/.test(home), 'Homepage must distinguish the voxel-photo review from the later movable model.');
+must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
 
 must(/Create[\s\S]*World[\s\S]*Vault[\s\S]*More/.test(topNav), 'Desktop product nav must mirror the core product map.');
 must(/isOrganizedUserRoute/.test(topNav) && /mobileDocked/.test(topNav), 'Shared top nav must know when the mobile bottom dock owns core navigation.');
@@ -67,8 +70,12 @@ must(/\.vvConsumerFooterTruth\{[^}]*font-size:10\.5px/.test(system), 'Shared leg
 must(/\[role="button"\]:focus-visible/.test(system), 'Custom interactive controls must receive visible keyboard focus.');
 must(/prefers-reduced-motion:reduce/.test(system), 'UI system must respect reduced motion.');
 
+must(/aspect-ratio:4\/3/.test(propertyCss), 'House and voxel review cards should remain landscape-oriented instead of reverting to an oversized portrait card.');
+must(!/box-shadow:0 6px 0 var\(--purple-dark\)/.test(propertyCss), 'Core Create buttons should not regress to exaggerated toy-like extruded shadows.');
+
 must(/ProductTopNav/.test(demo), 'Public demo must use shared product chrome.');
 must(/role="tablist"/.test(demo) && /aria-selected/.test(demo), 'Public demo stage switcher must expose tab semantics.');
+must(/3D VOXEL PHOTO/.test(demo) && /MOVABLE VOXEL/.test(demo), 'Public demo must use the same product language as Create.');
 for (const file of ['app/privacy/page.js','app/terms/page.js','app/about/page.js']) {
   const source = read(file);
   must(/ProductTopNav/.test(source), `${file}: trust surface must use shared product chrome`);
@@ -112,5 +119,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real 3D proof, one desktop/mobile navigation map, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real 3D voxel proof, one desktop/mobile navigation map, clean Create hierarchy, readable trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
