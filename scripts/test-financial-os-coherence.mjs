@@ -72,18 +72,18 @@ assert.match(commandCenter, /never automatically spends money, mints an NFT, or 
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain pure navigation and never execute side effects');
 
 // The consumer Home is intentionally concise: product proof, one paid CTA,
-// one no-login sample, the actual photo -> 3D -> voxel -> optional NFT order,
+// one no-login sample, the actual photo -> 3D voxel photo -> movable voxel -> optional NFT order,
 // and a visible digital-only rights boundary. Advanced property/financial tooling stays off it.
-assert.match(rootHome, /VOXELPOP · PHOTO → 3D → VOXEL → NFT/, 'root Home must state the centered product sequence');
+assert.match(rootHome, /VOXELPOP · PHOTO → 3D VOXEL PHOTO → VOXEL → NFT/, 'root Home must state the centered product sequence');
 assert.match(rootHome, /Start VoxelPop · \$4\.99/, 'root Home must keep one clear paid creation CTA and price');
-assert.match(rootHome, /Try 3D sample · no login/, 'root Home must expose a no-login product sample');
+assert.match(rootHome, /Try voxel sample · no login/, 'root Home must expose a no-login product sample');
 assert.match(rootHome, /href="\/demo"/, 'root Home must link to the public sample');
 assert.match(rootHome, /href="\/property"/, 'root Home must route creation into the maker');
-assert.match(rootHome, /3D preview[\s\S]*movable 3D voxel/i, 'root Home must keep the 3D review before the separate movable model');
+assert.match(rootHome, /3D voxel photo[\s\S]*movable 3D voxel/i, 'root Home must keep the voxel-photo review before the separate movable model');
 assert.match(rootHome, /NFT optional/, 'minting must remain explicitly downstream and optional');
 assert.match(rootHome, /No wallet until mint/, 'wallet must remain outside the creation flow until optional minting');
 assert.match(rootHome, /VOXELPOP OUTPUT/, 'root Home must explain the useful outputs without restoring dense product clutter');
-assert.match(rootHome, /3D preview/, 'root Home must name the intermediate 3D review output');
+assert.match(rootHome, /3D voxel photo/i, 'root Home must name the intermediate 3D voxel-photo output');
 assert.match(rootHome, /Movable 3D voxel/, 'root Home must name the separate final interactive model');
 assert.match(rootHome, /Optional NFT/, 'root Home must name minting as an optional output');
 assert.match(rootHome, /VoxelPop is a digital creation product\./, 'root Home must identify the product as digital');
@@ -158,4 +158,4 @@ assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodia
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault checks passed: focused photo -> $4.99 -> 3D review -> movable voxel -> Vault/optional mint, with optional extras, sandbox boundaries, and fail-closed advanced rails kept distinct.');
+console.log('Voxel Vault checks passed: focused photo -> $4.99 -> high-fidelity 3D voxel photo -> approval -> movable voxel -> Vault/optional mint, with optional extras, sandbox boundaries, and fail-closed advanced rails kept distinct.');
