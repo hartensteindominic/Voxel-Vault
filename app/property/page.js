@@ -300,8 +300,9 @@ export default function PropertyJourneyPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || !data?.reference?.storagePath) throw new Error(data?.error || '3D build could not start.');
       setSourceReference(data.reference);
-      setPendingPhoto(null);
-      setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
+      // Keep the local photo File + object URL alive for the rest of this creation.
+      // It becomes the visible fallback until each generated 3D canvas really renders,
+      // and it also gives the user a recoverable source if the provider model needs a retry.
       setSource3d(empty3d());
       setVoxelJob(emptyImage());
       setVoxelImage('');
@@ -424,7 +425,7 @@ export default function PropertyJourneyPage() {
     </section></main>;
   }
 
-  const displaySource = pendingPreview || sourceReference?.url || '';
+  const displaySource = pendingPreview || sourceReference?.url || source3d?.thumbnailUrl || final3d?.thumbnailUrl || '';
   const pipelineRunning = busy === 'pipeline' || ['source3d', 'voxel-image', 'voxel-3d'].includes(pipelinePhase);
 
   return <main className={styles.page}>
@@ -450,26 +451,26 @@ export default function PropertyJourneyPage() {
 
       {step === 2 ? <>
         <p className={styles.bigPrompt}>Building the first 3D.</p>
-        <p className={styles.stepCopy}>VoxelPop is making a 3D interpretation from your authorized photo. When it finishes, the voxel step starts automatically.</p>
-        <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
-        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>No extra button. First 3D → VoxelPop look → final 3D voxel.</span></div>
+        <p className={styles.stepCopy}>VoxelPop is making a 3D interpretation from your authorized photo. Your photo stays visible until the 3D canvas has actually loaded.</p>
+        <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl} fallbackImageUrl={displaySource}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
+        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>Image first → first 3D → VoxelPop image → final movable 3D.</span></div>
       </> : null}
 
       {step === 3 ? <>
         <p className={styles.bigPrompt}>{pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
-        <p className={styles.stepCopy}>The VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.</p>
+        <p className={styles.stepCopy}>The VoxelPop image stays visible while the final movable 3D loads, so a slow or retried GLB never leaves an empty card.</p>
         <div className={styles.heroCard}>
-          {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl}/> : voxelImage ? <img src={voxelImage} alt="VoxelPop property rendering"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : null}
+          {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl} fallbackImageUrl={voxelImage || displaySource}/> : voxelImage ? <img src={voxelImage} alt="VoxelPop property rendering"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl} fallbackImageUrl={displaySource}/> : null}
           <span className={styles.badge}>{pipelinePhase === 'voxel-3d' ? `FINAL 3D VOXEL · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL LOOK · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
           {pipelineRunning ? <div className={styles.buildPulse}/> : null}
         </div>
-        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>Keep this page open while the current build finishes.</span></div>}
+        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>The image remains on screen until the 3D viewer confirms it rendered.</span></div>}
       </> : null}
 
       {step === 4 ? <>
         <p className={styles.bigPrompt}>Add the property address.</p>
         <p className={styles.stepCopy}>Enter the address for the property shown in your photo. We use it to place this digital representation on the map and check its mapped identity.</p>
-        <div className={styles.heroCard}><MeshyModelViewer modelUrl={final3d.modelUrl}/><span className={styles.badge}>VOXEL READY</span></div>
+        <div className={styles.heroCard}><MeshyModelViewer modelUrl={final3d.modelUrl} fallbackImageUrl={voxelImage || displaySource}/><span className={styles.badge}>VOXEL READY</span></div>
         <form className={styles.searchForm} onSubmit={placeOnWorld}><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/><button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Checking address…' : 'Verify address + preview'}</button></form>
         <small className={styles.mapNote}>The address helps locate the reference. It is not proof of ownership, title, property value, or an investment offering.</small>
       </> : null}
@@ -478,7 +479,7 @@ export default function PropertyJourneyPage() {
         <p className={styles.bigPrompt}>Your World preview.</p>
         <p className={styles.stepCopy}>This preview is private to your account. It is not published publicly unless you choose to share it later from Vault.</p>
         <div className={styles.worldCard}><PlanetStreamGlobe listings={worldListing} selectedId="my-voxel-preview" simpleMode/><span className={styles.worldBadge}>MY WORLD · PRIVATE PREVIEW</span></div>
-        <div className={styles.miniModel}><MeshyModelViewer modelUrl={final3d.modelUrl}/></div>
+        <div className={styles.miniModel}><MeshyModelViewer modelUrl={final3d.modelUrl} fallbackImageUrl={voxelImage || displaySource}/></div>
         <div className={styles.priceCard}>
           <div><small>DIGITAL VOXEL</small><b>{quote?.label || 'World preview'}</b><span>{mappedAddress}</span></div>
           <strong>{quote ? dollars(quote.priceCents) : '—'}</strong>
