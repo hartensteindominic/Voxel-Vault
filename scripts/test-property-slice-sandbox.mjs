@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_PROPERTY_SLICE_CENTS,
   buildPropertySliceSandbox,
+  buildSandboxPropertyPurchase,
   buildUnifiedAssetConversionPreview,
 } from '../lib/real-estate/property-slice-sandbox.js';
 
@@ -49,6 +50,39 @@ assert.equal(halfPrice.relativePropertyPriceIndex, 0.5);
 const halfPriceIdealCents = 199 * 0.5;
 assert.ok(Math.abs(halfPrice.adjustedTestPriceCents - halfPriceIdealCents) <= 0.5);
 assert.ok(Math.abs(halfPrice.benchmarkEquivalentCents - 199) <= 1);
+
+const purchase = buildSandboxPropertyPurchase({
+  selectedName: 'Test home',
+  amountCents: 199,
+  propertyReferencePriceCents: 10_000_000,
+  benchmarkReferencePriceCents: 10_000_000,
+  demoUsdBalanceCents: 1_240,
+  existingDemoUnits: 2,
+});
+assert.equal(purchase.mode, 'sandbox_property_slice_purchase');
+assert.equal(purchase.purchase.selectedName, 'Test home');
+assert.equal(purchase.purchase.debitDemoUsdCents, 199);
+assert.equal(purchase.purchase.demoUnitsAdded, 1);
+assert.equal(purchase.purchase.demoUnitsAfter, 3);
+assert.equal(purchase.balances.demoUsdBeforeCents, 1_240);
+assert.equal(purchase.balances.demoUsdAfterCents, 1_041);
+assert.equal(purchase.legalEffects.transfersRealFunds, false);
+assert.equal(purchase.legalEffects.createsBankDeposit, false);
+assert.equal(purchase.legalEffects.executesCryptoTrade, false);
+assert.equal(purchase.legalEffects.cashesOutNft, false);
+assert.equal(purchase.legalEffects.purchasesSecurity, false);
+assert.equal(purchase.legalEffects.createsDeedOwnership, false);
+assert.equal(purchase.legalEffects.createsLlcInterest, false);
+assert.equal(purchase.legalEffects.mintsNft, false);
+assert.equal(purchase.legalEffects.mintsRealEstateSecurity, false);
+assert.equal(purchase.legalEffects.reservesProperty, false);
+assert.throws(() => buildSandboxPropertyPurchase({
+  amountCents: 199,
+  propertyReferencePriceCents: 10_000_000,
+  benchmarkReferencePriceCents: 10_000_000,
+  demoUsdBalanceCents: 198,
+  existingDemoUnits: 0,
+}), /Not enough demo USD/);
 
 const unified = buildUnifiedAssetConversionPreview({
   settledUsdCents: 500,
