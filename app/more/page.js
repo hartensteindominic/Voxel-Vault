@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import { APP_SECTIONS } from '../../lib/product-map';
+import { APP_SECTIONS, PRODUCT_STATUS } from '../../lib/product-map';
 import styles from './more.module.css';
 
 export const metadata = {
-  title: 'More',
-  description: 'The organized directory for Voxel Vault products, tools, ownership workflows and owner operations.',
+  title: 'Product Status',
+  description: 'A clear directory of what is live, demo-only, provider-gated, or dependent on recorded title in Voxel Vault.',
 };
 
 export default function MorePage() {
@@ -12,19 +12,36 @@ export default function MorePage() {
     <div className={styles.shell}>
       <header className={styles.top}>
         <Link className={styles.brand} href="/">VOXEL VAULT</Link>
-        <span>ONE APP · CLEARLY ORGANIZED</span>
+        <span>PRODUCT STATUS</span>
       </header>
 
       <section className={styles.hero}>
-        <small>EVERYTHING, WITHOUT THE CLUTTER</small>
-        <h1>One Vault.<br/>Clear places for everything.</h1>
-        <p>Voxel Vault now separates the main jobs instead of making every screen explain the whole company. Explore real places, create 3D assets, manage your Vault, use provider-backed money tools, and keep operator controls in their own advanced area.</p>
+        <small>EVERYTHING, CLEARLY LABELED</small>
+        <h1>Know what works now.<br/>Know what does not.</h1>
+        <p>Voxel Vault keeps digital creation, property data, demo tools, provider-backed finance, and real-property ownership in one interface without pretending they are the same thing.</p>
         <div className={styles.heroActions}>
-          <Link href="/vault/earth">EXPLORE EARTH</Link>
-          <Link href="/studio">CREATE 3D</Link>
-          <Link href="/vault">OPEN MY VAULT</Link>
+          <Link href="/property">CREATE A VOXEL</Link>
+          <Link href="/world">OPEN WORLD</Link>
+          <Link href="/vault">OPEN VAULT</Link>
         </div>
       </section>
+
+      <div className={styles.note}>
+        <b>{PRODUCT_STATUS.liveDigital.label}</b>
+        <span>{PRODUCT_STATUS.liveDigital.description}</span>
+      </div>
+      <div className={styles.note}>
+        <b>{PRODUCT_STATUS.demo.label}</b>
+        <span>{PRODUCT_STATUS.demo.description}</span>
+      </div>
+      <div className={styles.note}>
+        <b>{PRODUCT_STATUS.partner.label}</b>
+        <span>{PRODUCT_STATUS.partner.description}</span>
+      </div>
+      <div className={styles.note}>
+        <b>{PRODUCT_STATUS.title.label}</b>
+        <span>{PRODUCT_STATUS.title.description}</span>
+      </div>
 
       {APP_SECTIONS.map((section) => <section className={styles.section} key={section.id}>
         <div className={styles.sectionHead}>
@@ -43,8 +60,8 @@ export default function MorePage() {
       </section>)}
 
       <div className={styles.note}>
-        <b>PRODUCT TRUTH RULE</b>
-        <span>Map data, AI models, creator assets, securities, wallet holdings, income records and real-property title are intentionally separate data layers. Organizing them into one app does not make them legally equivalent.</span>
+        <b>ONE RULE</b>
+        <span>A photo, 3D model, map marker, payment, NFT, wallet connection, or Property Passport never becomes a deed just because it appears in the same app. Each claim keeps its real source of authority.</span>
       </div>
     </div>
   </main>;
