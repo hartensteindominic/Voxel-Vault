@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import ProductTopNav from '../components/ProductTopNav';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import HouseVoxelMintFlow from './HouseVoxelMintFlow';
+import VoxelMakerSubscriptionGate from './VoxelMakerSubscriptionGate';
 
 function cleanOAuthParams() {
   const url = new URL(window.location.href);
@@ -46,6 +47,8 @@ export default function PropertyJourneyPage() {
   return <>
     <OAuthRecovery/>
     <ProductTopNav/>
-    <HouseVoxelMintFlow/>
+    <VoxelMakerSubscriptionGate>
+      <HouseVoxelMintFlow/>
+    </VoxelMakerSubscriptionGate>
   </>;
 }

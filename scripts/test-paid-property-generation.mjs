@@ -100,6 +100,6 @@ assert.match(mintConfirm, /markPropertyCollectibleMinted/, 'verified mint uses t
 assert.match(mintState, /state: 'minted'/, 'verified mint permanently records the minted property state');
 assert.match(mintConfirm, /onePropertyOneMint: true/, 'mint confirmation records the one-property-one-mint result');
 assert.match(mintMetadata, /animation_url/, 'NFT metadata points to the finished 3D model');
-assert.match(mintPage, /Mint Later/, 'mint page still lets the user leave without minting');
+assert.match(mintPage, /Keep in inventory/, 'mint page still lets the user leave without minting');
 
 console.log('Legacy paid VoxelPop compatibility passed alongside the live no-checkout house flow: the old paid component remains internally coherent, while /property uses photo -> address -> voxel image -> automatic 3D voxel -> Inventory -> optional one-time mint.');
