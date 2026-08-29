@@ -70,3 +70,4 @@ const malformed = buildVaultManifest({
 assert.equal(malformed.length, 0, 'malformed or unheld assets must fail closed instead of entering My Vault');
 
 console.log('Unified Vault checks passed: creator, wallet and user-bound provider assets keep separate provenance/truth labels; only positive provider positions become spatial holdings; direct-property claims are never inferred.');
+await import('./test-purchased-twin-voxel.mjs');

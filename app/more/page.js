@@ -35,16 +35,17 @@ export default function MorePage() {
       <section className={styles.hero}>
         <small>MORE</small>
         <h1>More tools.<br/><em>Less confusion.</em></h1>
-        <p>Create, World, and Vault are the main app. Everything on this page is optional, experimental, provider-dependent, or advanced.</p>
+        <p><b>Know what each feature actually is.</b> Create → World → Vault is the main app. Everything on this page is optional, experimental, provider-dependent, or advanced.</p>
       </section>
 
       <section className={styles.coreCard}>
         <div className={styles.coreCopy}>
           <small>YOUR PROPERTY FLOW</small>
           <h2>Bought or saved a property?</h2>
-          <p>Open My Properties, choose the one you already have, add or reuse its photo, then go through <b>3D preview → approve → 3D voxel → optional mint</b>.</p>
+          <p>Open My Properties or a purchased Digital Twin, choose the one you already have, add or reuse its photo when needed, then go through <b>3D preview → approve → 3D voxel → optional mint</b>.</p>
           <div className={styles.coreActions}>
             <Link className={styles.primary} href="/property?source=properties">Create from My Properties →</Link>
+            <Link href="/vault#purchased-twins">My purchased twins →</Link>
             <Link href="/vault">Open My Vault</Link>
           </div>
         </div>
@@ -57,6 +58,7 @@ export default function MorePage() {
         <div className={styles.sectionHead}><small>PROPERTY + WORLD</small><h2>The useful extras.</h2><p>These are the property tools most people are likely to use.</p></div>
         <div className={styles.quickGrid}>
           <Link className={styles.quickCard} href="/geo/slice"><div className={styles.icon}>¢</div><span className={styles.badge}>DEMO</span><h3>$1.99 Property Sandbox</h3><p>Test a tiny hypothetical property slice with demo credit. Your selected demo property can then be used as a source in Create.</p><b>Try demo →</b></Link>
+          <Link className={styles.quickCard} href="/vault#purchased-twins"><div className={styles.icon}>⌂</div><span className={styles.badge}>BOUGHT</span><h3>My purchased twins</h3><p>Open a Digital Twin already secured to your account and turn an eligible purchase into its included custom 3D voxel.</p><b>Open purchases →</b></Link>
           <Link className={styles.quickCard} href="/world"><div className={styles.icon}>◎</div><span className={styles.badge}>MAP</span><h3>World</h3><p>See saved VoxelPop creations against source-backed places and building footprints.</p><b>Open World →</b></Link>
           <Link className={styles.quickCard} href="/geo"><div className={styles.icon}>⌖</div><span className={styles.badge}>EVIDENCE</span><h3>Property details</h3><p>Inspect one real place with map, building, parcel, and evidence context.</p><b>Open details →</b></Link>
         </div>
