@@ -1,13 +1,33 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { DIGITAL_ESTATES, STRIPE_MAX_USD_CENTS } from '../lib/digital-estates.js';
+import {
+  DIGITAL_ESTATE_ANCHOR_PRICE_CENTS,
+  DIGITAL_ESTATE_ANCHOR_SQFT,
+  DIGITAL_ESTATE_PRICING_MODEL,
+  DIGITAL_ESTATES,
+  STRIPE_MAX_USD_CENTS,
+  formatUsdCents,
+  relativeDigitalEstateIndexBps,
+  relativeDigitalEstatePriceCents,
+} from '../lib/digital-estates.js';
 
-assert.ok(DIGITAL_ESTATES.length >= 5, 'Legacy Digital Estate catalog must remain internally valid while Earth Properties becomes primary.');
+assert.ok(DIGITAL_ESTATES.length >= 6, 'The relative-price Digital Property catalog must keep a useful first district.');
 assert.equal(new Set(DIGITAL_ESTATES.map((estate) => estate.id)).size, DIGITAL_ESTATES.length, 'Estate IDs must be unique.');
+const anchor = DIGITAL_ESTATES.find((estate) => estate.pricingAnchor === true);
+assert.ok(anchor, 'Exactly one founder pricing anchor must be present.');
+assert.equal(DIGITAL_ESTATES.filter((estate) => estate.pricingAnchor === true).length, 1, 'The relative-price catalog must have one unambiguous founder anchor.');
+assert.equal(anchor.purchasePriceCents, 199, 'The founder reference digital property must cost exactly $1.99.');
+assert.equal(anchor.sqft, DIGITAL_ESTATE_ANCHOR_SQFT, 'The founder anchor must use the reviewed 2,016 modeled square-foot baseline.');
+assert.equal(anchor.relativeIndexBps, 10_000, 'The founder anchor index must be exactly 1.00x.');
+assert.equal(formatUsdCents(DIGITAL_ESTATE_ANCHOR_PRICE_CENTS), '$1.99', 'Small digital-property prices must retain cents in the UI.');
 for (const estate of DIGITAL_ESTATES) {
-  assert.equal(estate.purchasePriceCents, estate.referenceValueCents, `${estate.id} must keep matching its reviewed legacy reference pricing.`);
+  assert.equal(estate.pricingModel, DIGITAL_ESTATE_PRICING_MODEL, `${estate.id} must use the disclosed relative pricing model.`);
+  assert.equal(estate.anchorPriceCents, DIGITAL_ESTATE_ANCHOR_PRICE_CENTS, `${estate.id} must point to the same $1.99 anchor.`);
+  assert.equal(estate.relativeIndexBps, relativeDigitalEstateIndexBps(estate.sqft), `${estate.id} must derive its relative index from modeled size.`);
+  assert.equal(estate.purchasePriceCents, relativeDigitalEstatePriceCents(estate.sqft), `${estate.id} must derive its server price from the public formula.`);
   assert.ok(Number.isInteger(estate.purchasePriceCents) && estate.purchasePriceCents > 0, `${estate.id} must have a valid server price.`);
   assert.ok(estate.purchasePriceCents <= STRIPE_MAX_USD_CENTS, `${estate.id} must stay within the hosted USD rail limit.`);
+  assert.equal('referenceValueCents' in estate, false, `${estate.id} must not relabel a creative collectible price as a real-property reference value.`);
 }
 
 const earth = fs.readFileSync(new URL('../lib/earth-properties.ts', import.meta.url), 'utf8');
@@ -36,8 +56,13 @@ assert.match(earthPage, /Physical-market value and digital twin resale value rem
 assert.match(earthPage, /REALITY ≠ TITLE ≠ INVESTMENT/, 'photorealistic visualization must not be conflated with legal rights.');
 assert.match(earthPage, /PropertyEvidencePanel/, 'visual evidence must remain its own layer rather than silently verifying ownership.');
 
-const estatesRedirect = fs.readFileSync(new URL('../app/vault/estates/page.js', import.meta.url), 'utf8');
-assert.match(estatesRedirect, /redirect\('\/vault\/earth'\)/, 'The primary Estates route must now lead to real Earth properties.');
+const estatesMarket = fs.readFileSync(new URL('../app/vault/estates/page.js', import.meta.url), 'utf8');
+assert.match(estatesMarket, /DIGITAL PROPERTY MARKET/, 'The Digital Estates route must expose the testable marketplace again.');
+assert.match(estatesMarket, /formatUsdCents\(DIGITAL_ESTATE_ANCHOR_PRICE_CENTS\)/, 'The market hero must display the server catalog anchor rather than a duplicated client price.');
+assert.match(estatesMarket, /pricingBasis/, 'Every selected property must disclose how its relative price was calculated.');
+assert.match(estatesMarket, /I understand this is digital-only/, 'A real purchase must require a plain-language digital-only acknowledgement.');
+assert.match(estatesMarket, /body: JSON\.stringify\(\{ estateId: selected\.id \}\)/, 'USD checkout must submit only the estate identity, never a browser price or wallet requirement.');
+assert.doesNotMatch(estatesMarket, /redirect\('\/vault\/earth'\)/, 'The Digital Property market must no longer disappear behind the Earth explorer.');
 
 const checkout = fs.readFileSync(new URL('../app/api/digital-estates/checkout/route.ts', import.meta.url), 'utf8');
 assert.match(checkout, /getDigitalEstate\(body\?\.estateId\)/, 'Checkout must load price from the server catalog.');
@@ -47,6 +72,9 @@ assert.doesNotMatch(checkout, /body\?\.wallet|Connect a valid EVM wallet before 
 assert.match(checkout, /customer_email: user\.email/, 'Hosted checkout must use the signed-in account email.');
 assert.match(checkout, /receipt_email: user\.email/, 'Stripe PaymentIntent must explicitly send the receipt to the signed-in email.');
 assert.match(checkout, /walletRequiredForCheckout: false/, 'Checkout response must explicitly describe walletless purchase support.');
+assert.match(checkout, /pricing_model: estate\.pricingModel/, 'Checkout metadata must bind the disclosed pricing-model version.');
+assert.match(checkout, /anchor_price_cents: String\(estate\.anchorPriceCents\)/, 'Checkout metadata must bind the $1.99 anchor price.');
+assert.match(checkout, /relative_index_bps: String\(estate\.relativeIndexBps\)/, 'Checkout metadata must bind the selected property index.');
 assert.match(checkout, /acquireDigitalEstateReservation\(\{ estateId: estate\.id, buyerId: user\.id, source: 'stripe' \}\)/, 'Fiat ownership reservation must bind to the account first.');
 assert.doesNotMatch(checkout, /digitalEstateMintReady/, 'Mint readiness must never block buying.');
 assert.doesNotMatch(checkout, /payment_method_types\s*:/, 'Hosted Checkout should keep dynamic eligible payment methods.');
@@ -61,6 +89,9 @@ assert.match(reservation, /Digital estate wallet binding changed concurrently/, 
 const purchase = fs.readFileSync(new URL('../lib/digital-estate-purchases.ts', import.meta.url), 'utf8');
 assert.match(purchase, /session\.payment_status !== 'paid'/, 'Stripe purchase security must require paid state.');
 assert.match(purchase, /Number\(session\.amount_total\) !== estate\.purchasePriceCents/, 'Stripe purchase security must verify exact amount.');
+assert.match(purchase, /session\.metadata\?\.pricing_model/, 'Stripe purchase verification must reject a different pricing-model version.');
+assert.match(purchase, /session\.metadata\?\.anchor_price_cents/, 'Stripe purchase verification must recheck the anchor price.');
+assert.match(purchase, /session\.metadata\?\.relative_index_bps/, 'Stripe purchase verification must recheck the property index.');
 assert.match(purchase, /expectedBuyerId && buyerId !== expectedBuyerId/, 'Stripe purchase security must remain account-bound.');
 assert.match(purchase, /const wallet = walletRaw && ADDRESS_RE\.test\(walletRaw\) \? getAddress\(walletRaw\) : ''/, 'Stripe purchase verification must allow no pre-bound wallet.');
 assert.match(purchase, /reservation\.buyerId !== buyerId/, 'Stripe ownership must match the reservation account.');
@@ -101,4 +132,4 @@ assert.match(docs, /BRIDGE_ACCESS_TOKEN=/);
 assert.match(docs, /real-property acquisition still requires/i);
 assert.match(docs, /resale value are separate/i);
 
-console.log('Earth Properties + account-first Digital Twin safety checks passed.');
+console.log('Earth Properties + $1.99 relative-price account-first Digital Property safety checks passed.');
