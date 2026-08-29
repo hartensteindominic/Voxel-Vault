@@ -17,48 +17,47 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /ONE PHOTO → ONE VOXEL/, 'home must communicate the product immediately');
-assert.match(home, /Create mine · \$4\.99/, 'home must keep one clear paid creation CTA and price');
-assert.match(home, /3D voxel photo/i, 'home must preserve the voxel-photo review in the short product story');
-assert.match(home, /Your movable voxel is built and saved\./, 'home must make the automatic final result clear');
-assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product result instead of decorative art');
+assert.match(home, /HOUSE PHOTO → VOXEL → 3D · \$4\.99/, 'home must communicate the product immediately');
+assert.match(home, /Create house voxel · \$4\.99/, 'home must keep one clear paid creation CTA and price');
+assert.match(home, /Upload a house\. Confirm the address\. Get a voxel image, then a mintable 3D voxel\./, 'home must state the requested sequence plainly');
+assert.match(home, /Saved to your Voxel Vault · mint when you want/, 'home must make the automatic final result and optional mint clear');
+assert.match(home, /HomeProductPreview/, 'home hero must show an interactive product result instead of decorative art');
 assert.doesNotMatch(home, /secondaryAction|Try voxel sample · no login/, 'home must not add a competing hero action');
-assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production movable-voxel viewer');
+assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use an interactive voxel viewer');
 assert.doesNotMatch(homePreview, /PhotoReliefModelViewer/, 'home proof must not force users through a stage switcher before creating');
-assert.match(homePreview, /3D voxel photo review/, 'home proof must disclose the intermediate review even while showing the final result');
 assert.match(homePreview, /MOVABLE 3D VOXEL/, 'home proof must identify the interactive final result');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
-assert.match(home, /About/, 'home footer must expose About/contact information');
 
-assert.match(photoViewer, /getImageData\(0, 0, columns, rows\)/, 'voxel-photo stage must sample visible source-image colors');
-assert.match(photoViewer, /new THREE\.InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
-assert.match(photoViewer, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage must use real block geometry');
-assert.match(photoViewer, /const columns = compact \? 52 : 64/, 'voxel-photo review must keep enough source detail for roofs, doors and windows to remain recognizable');
-assert.match(photoViewer, /const baseDepth = 0\.10/, 'voxel-photo geometry must stay shallow enough to preserve the photographed likeness');
-assert.match(photoViewer, /edge \* 0\.055/, 'voxel depth may respond gently to visible image structure without turning into a thick relief');
-assert.doesNotMatch(photoViewer, /backingGeometry|plinthGeometry/, 'the voxel photo must be the geometry itself, not a backed picture or display plaque');
-assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo preview must keep the original source visible for comparison');
-assert.match(photoViewer, /HIGH-FIDELITY PHOTO MATCH/, 'viewer must identify the source-faithful output as a likeness review');
-assert.match(photoViewer, /targetY = clamp\(targetY \+ dx \* 0\.0034, -0\.28, 0\.28\)/, 'single-photo rotation must stay tightly bounded around the known front view');
-assert.match(photoViewer, /ArrowLeft|ArrowRight/, '3D voxel photo must support keyboard inspection as well as drag input');
-assert.match(photoViewerStyles, /focus-visible/, '3D viewer must keep a visible keyboard focus treatment');
-assert.match(photoViewerStyles, /width:132px/, 'desktop likeness review must keep a large original-photo comparison card');
+// The public sample can keep the deterministic local voxel comparison as an
+// explanation of the visual concept. The paid creator now uses the provider
+// voxel-image -> final-GLB path and is tested separately.
+assert.match(photoViewer, /getImageData\(0, 0, columns, rows\)/, 'sample voxel-photo stage must sample visible source-image colors');
+assert.match(photoViewer, /new THREE\.InstancedMesh/, 'sample voxel-photo stage must render actual voxel instances');
+assert.match(photoViewer, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'sample voxel-photo stage must use real block geometry');
+assert.match(photoViewer, /const columns = compact \? 52 : 64/, 'sample review must retain recognizable detail');
+assert.match(photoViewer, /const baseDepth = 0\.10/, 'sample geometry must stay shallow enough to preserve photographed likeness');
+assert.match(photoViewer, /edge \* 0\.055/, 'sample depth may respond gently to visible image structure');
+assert.doesNotMatch(photoViewer, /backingGeometry|plinthGeometry/, 'sample voxel photo must be geometry rather than a display plaque');
+assert.match(photoViewer, /ORIGINAL PHOTO/, 'sample comparison must keep the original source visible');
+assert.match(photoViewer, /HIGH-FIDELITY PHOTO MATCH/, 'sample viewer must identify the source-faithful output');
+assert.match(photoViewer, /targetY = clamp\(targetY \+ dx \* 0\.0034, -0\.28, 0\.28\)/, 'single-photo sample rotation must stay bounded around the known view');
+assert.match(photoViewer, /ArrowLeft|ArrowRight/, 'sample 3D voxel photo must support keyboard inspection');
+assert.match(photoViewerStyles, /focus-visible/, 'sample 3D viewer must keep visible keyboard focus');
+assert.match(photoViewerStyles, /width:132px/, 'desktop sample must keep a useful original-photo comparison card');
 
-assert.match(demo, /FREE SAMPLE · NO LOGIN · NO PAYMENT/, 'demo route must remain public and free to inspect even though it is no longer a competing hero CTA');
+assert.match(demo, /FREE SAMPLE · NO LOGIN · NO PAYMENT/, 'demo route must remain public and free to inspect');
 assert.match(demo, /built-in demo artwork/i, 'demo must identify its built-in artwork');
-assert.match(demo, /3D VOXEL PHOTO/, 'demo must present the intermediate voxel-photo state');
+assert.match(demo, /3D VOXEL PHOTO/, 'demo may present the explanatory voxel-photo state');
 assert.match(demo, /MOVABLE 3D VOXEL/, 'demo must present the separate movable voxel state');
 assert.match(demo, /not a fake reconstruction of unseen walls/i, 'demo must explain the single-photo reconstruction boundary');
 assert.match(demo, /cannot prove hidden sides/i, 'demo must state what a single photo cannot establish');
 assert.doesNotMatch(demo, /getSupabaseBrowserAsync|signInWithOAuth|checkout\.sessions|\/api\/property-generation\/checkout/, 'public demo must not hide an auth or payment gate');
 
 assert.match(layout, /Turn a House Photo into a 3D Voxel/, 'site metadata must use the focused current promise');
-assert.match(layout, /3D voxel photo/, 'metadata must describe the shipping voxel-photo product');
 assert.doesNotMatch(layout, /real estate digital twin|NFT vault/i, 'metadata must not revive broad legacy positioning');
 assert.match(og, /house photo into a movable 3D voxel/i, 'social preview must show the current product story');
-assert.match(og, /3D VOXEL PHOTO/, 'social preview steps must name the voxel-photo stage');
-assert.match(og, /MOVABLE VOXEL/, 'social preview steps must name the movable-voxel stage');
+assert.match(og, /MOVABLE VOXEL/, 'social preview steps must name the movable-voxel result');
 
 for (const page of [privacy, terms, about]) {
   assert.match(page, /Voxel Vault|VOXEL VAULT/, 'trust pages must identify Voxel Vault');
@@ -76,5 +75,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: one-action homepage, real final voxel proof, explicit 3D voxel-photo approval in the creator/demo, high-fidelity source-matched cube geometry, corrected trust pages, and current social preview remain aligned.');
+console.log('Public VoxelPop positioning checks passed: one-action homepage, explicit house-photo -> address -> voxel -> 3D story, interactive proof, free public sample, corrected trust pages, and current social preview remain aligned.');
 await import('./test-public-surface-coherence.mjs');
