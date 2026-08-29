@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ConsumerTopNav from '../components/ConsumerTopNav';
 import styles from '../legal-page.module.css';
 
 export const metadata = {
@@ -7,8 +8,9 @@ export const metadata = {
 };
 
 export default function AboutPage() {
-  return <main className={styles.page}><div className={styles.shell}>
-    <nav className={styles.top}><Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link><div><Link href="/demo">Public demo</Link><Link href="/property">Create</Link></div></nav>
+  return <main className={styles.page}>
+    <ConsumerTopNav/>
+    <div className={styles.shell}>
     <header className={styles.hero}><small>ABOUT VOXEL VAULT</small><h1>One photo.<br/>One digital voxel.</h1><p>Voxel Vault is building VoxelPop: a privacy-conscious property-photo workflow that lets a user inspect a recognizable 3D preview, approve it, and then create a movable voxel version.</p></header>
     <section className={styles.card}>
       <h2>What the public product is</h2>
