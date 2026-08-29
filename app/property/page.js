@@ -9,6 +9,7 @@ import styles from './property.module.css';
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 const empty3d = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, thumbnailUrl: null, taskId: null });
 const emptyImage = () => ({ status: 'NOT_STARTED', progress: 0, imageUrl: null, taskId: null, taskToken: null });
+const CREATION_PRICE_LABEL = '$4.99';
 
 function clean(value) { return String(value || '').trim(); }
 function terminal(value) {
@@ -97,6 +98,7 @@ export default function PropertyJourneyPage() {
   const clientRef = useRef(null);
   const uploadInputRef = useRef(null);
   const pipelineRef = useRef(0);
+  const checkoutHandledRef = useRef('');
 
   const finalReady = Boolean(final3d?.modelUrl);
   const sourceReady = Boolean(source3d?.modelUrl);
@@ -154,6 +156,74 @@ export default function PropertyJourneyPage() {
     return () => { active = false; subscription?.unsubscribe?.(); };
   }, []);
 
+  useEffect(() => {
+    if (!session?.access_token || typeof window === 'undefined') return undefined;
+    const params = new URLSearchParams(window.location.search);
+    const canceled = params.get('generation_checkout') === 'cancelled';
+    const canceledDraftId = clean(params.get('draftId'));
+    if (canceled && canceledDraftId) {
+      const cancelKey = `cancel:${canceledDraftId}`;
+      if (checkoutHandledRef.current === cancelKey) return undefined;
+      checkoutHandledRef.current = cancelKey;
+      setBusy('');
+      setMessage('Checkout canceled. No paid 3D generation was started.');
+      fetch(`/api/property-generation/checkout?draftId=${encodeURIComponent(canceledDraftId)}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      }).catch(() => {});
+      window.history.replaceState({}, '', '/property');
+      return undefined;
+    }
+
+    const generationSessionId = clean(params.get('generation_session'));
+    if (!generationSessionId || checkoutHandledRef.current === generationSessionId) return undefined;
+    checkoutHandledRef.current = generationSessionId;
+    let active = true;
+    const iteration = ++pipelineRef.current;
+    setBusy('payment-return');
+    setMessage('Payment received. Starting your VoxelPop 3D creation…');
+
+    (async () => {
+      try {
+        const form = new FormData();
+        form.append('generationSessionId', generationSessionId);
+        const response = await fetch('/api/property-photo-upload', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: form,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok || !data?.reference?.storagePath) {
+          throw new Error(data?.error || 'Your paid 3D creation could not start.');
+        }
+        if (!active) return;
+        setDraftId(data.draftId);
+        setSourceReference(data.reference);
+        setPendingPhoto(null);
+        setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
+        setRightsConfirmed(false);
+        setSource3d(data.source3d || empty3d());
+        setVoxelJob(emptyImage());
+        setVoxelImage('');
+        setFinal3d(empty3d());
+        setBuilding(null);
+        setMappedAddress('');
+        setQuote(null);
+        setAvailability('');
+        window.history.replaceState({}, '', '/property');
+        await runAutomaticBuild(data.reference, iteration);
+      } catch (error) {
+        if (active && iteration === pipelineRef.current) {
+          setBusy('');
+          setPipelinePhase('photo');
+          setMessage(String(error?.message || error || 'Your paid VoxelPop creation could not start.'));
+        }
+      }
+    })();
+
+    return () => { active = false; };
+  }, [session?.access_token]);
+
   function authHeaders(extra = {}) {
     return { Authorization: `Bearer ${session?.access_token || ''}`, ...extra };
   }
@@ -191,7 +261,7 @@ export default function PropertyJourneyPage() {
       setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return URL.createObjectURL(photo); });
       setPendingPhoto(photo);
       setRightsConfirmed(false);
-      setMessage('Photo ready. Confirm you can use it, then VoxelPop starts the build automatically.');
+      setMessage(`Photo ready. Confirm you can use it, then pay ${CREATION_PRICE_LABEL} to create the complete 3D voxel.`);
     } catch (error) {
       setMessage(String(error?.message || error || 'This photo could not be prepared.'));
     } finally { setBusy(''); }
@@ -232,6 +302,8 @@ export default function PropertyJourneyPage() {
   }
 
   async function runAutomaticBuild(reference, iteration) {
+    const activeDraftId = reference?.draftId || draftId;
+    if (!activeDraftId) throw new Error('The paid VoxelPop creation ID is missing.');
     setBusy('pipeline');
     let finalCheckpoint = null;
     try {
@@ -240,7 +312,7 @@ export default function PropertyJourneyPage() {
       const sourceResponse = await fetch('/api/property-voxel-3d', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ draftId, phase: 'source', sourceStoragePath: reference.storagePath }),
+        body: JSON.stringify({ draftId: activeDraftId, phase: 'source', sourceStoragePath: reference.storagePath }),
       });
       const sourceStart = await sourceResponse.json().catch(() => ({}));
       if (!sourceResponse.ok || !sourceStart?.ok || !sourceStart?.taskId) throw new Error(sourceStart?.error || 'The first 3D build could not start.');
@@ -252,7 +324,7 @@ export default function PropertyJourneyPage() {
       const imageResponse = await fetch('/api/property-voxel-image', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ draftId, source3dTaskId: sourceDone.taskId }),
+        body: JSON.stringify({ draftId: activeDraftId, source3dTaskId: sourceDone.taskId }),
       });
       const imageStart = await imageResponse.json().catch(() => ({}));
       if (!imageResponse.ok || !imageStart?.ok || !imageStart?.taskId || !imageStart?.taskToken) throw new Error(imageStart?.error || 'Voxel style pass could not start.');
@@ -267,7 +339,7 @@ export default function PropertyJourneyPage() {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          draftId,
+          draftId: activeDraftId,
           phase: 'voxel',
           voxelImageTaskId: voxelDone.taskId,
           voxelImageTaskToken: voxelDone.taskToken,
@@ -284,7 +356,7 @@ export default function PropertyJourneyPage() {
       const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
       setFinal3d(finalDone);
       setPipelinePhase('world');
-      setMessage('Your voxel is ready. Add the property address to place the reference on My World.');
+      setMessage('Your paid voxel is ready. Add the property address to place the reference on My World.');
     } catch (error) {
       if (iteration === pipelineRef.current) {
         setMessage(String(error?.message || error || 'The automatic build stopped.'));
@@ -298,33 +370,20 @@ export default function PropertyJourneyPage() {
   async function usePhotoAndBuild() {
     if (!pendingPhoto || !session?.access_token || !draftId) return;
     if (!rightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
-    const iteration = ++pipelineRef.current;
-    setBusy('upload');
-    setMessage('Starting your private 3D build…');
+    setBusy('generation-checkout');
+    setMessage(`Securing your photo and opening ${CREATION_PRICE_LABEL} checkout…`);
     try {
       const form = new FormData();
       form.append('photo', pendingPhoto);
       form.append('draftId', draftId);
       form.append('rightsConfirmed', 'true');
-      const response = await fetch('/api/property-photo-upload', { method: 'POST', headers: authHeaders(), body: form });
+      const response = await fetch('/api/property-generation/checkout', { method: 'POST', headers: authHeaders(), body: form });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok || !data?.reference?.storagePath) throw new Error(data?.error || '3D build could not start.');
-      setSourceReference(data.reference);
-      setPendingPhoto(null);
-      setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
-      setSource3d(empty3d());
-      setVoxelJob(emptyImage());
-      setVoxelImage('');
-      setFinal3d(empty3d());
-      setBuilding(null);
-      setMappedAddress('');
-      setQuote(null);
-      setAvailability('');
-      await runAutomaticBuild(data.reference, iteration);
+      if (!response.ok || !data?.ok || !data?.url) throw new Error(data?.error || 'Secure 3D creation checkout could not open.');
+      window.location.assign(data.url);
     } catch (error) {
-      if (iteration === pipelineRef.current) setMessage(String(error?.message || error || 'Could not start this creation.'));
-    } finally {
-      if (iteration === pipelineRef.current && busy !== 'pipeline') setBusy('');
+      setMessage(String(error?.message || error || 'Secure 3D creation checkout could not open.'));
+      setBusy('');
     }
   }
 
@@ -356,7 +415,7 @@ export default function PropertyJourneyPage() {
       const finalDone = finalStart.modelUrl ? finalStart : await poll3D(finalStart.taskId, setFinal3d, iteration, 'Building your final VoxelPop 3D');
       setFinal3d(finalDone);
       setPipelinePhase('world');
-      setMessage('Your voxel is ready. Add the property address to place the reference on My World.');
+      setMessage('Your paid voxel is ready. Add the property address to place the reference on My World.');
     } catch (error) {
       if (iteration === pipelineRef.current) {
         const text = String(error?.message || error || 'Final voxel 3D could not resume.');
@@ -489,22 +548,23 @@ export default function PropertyJourneyPage() {
       <p className={styles.stageLabel}>STEP {step} OF 5 · {labels[step - 1]}</p>
 
       {step === 1 ? <>
-        <p className={styles.bigPrompt}>{pendingPhoto ? 'Use this photo?' : 'Choose one photo.'}</p>
-        <p className={styles.flowHint}>Photo → first 3D → VoxelPop → final 3D voxel → address → My World → collect to Vault.</p>
+        <p className={styles.bigPrompt}>{pendingPhoto ? 'Ready to voxel it?' : 'Choose one photo.'}</p>
+        <p className={styles.flowHint}>Photo → {CREATION_PRICE_LABEL} checkout → first 3D → VoxelPop image → final movable 3D → My World.</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
         {displaySource ? <div className={styles.heroCard}><img src={displaySource} alt="Selected property reference"/><span className={styles.badge}>YOUR PHOTO</span></div> : <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>iPhone photos supported</span></div>}
         {pendingPhoto ? <div className={styles.choicePanel}>
           <label className={styles.rightsCheck}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)}/><span>I took this photo or have permission to use it.</span></label>
-          <button className={styles.primaryPurple} type="button" onClick={usePhotoAndBuild} disabled={!rightsConfirmed || busy === 'upload'}>{busy === 'upload' ? 'Starting 3D…' : 'Use photo → start build'}</button>
+          <span>One-time creation · {CREATION_PRICE_LABEL} · secure Stripe checkout · wallet not required.</span>
+          <button className={styles.primaryPurple} type="button" onClick={usePhotoAndBuild} disabled={!rightsConfirmed || busy === 'generation-checkout'}>{busy === 'generation-checkout' ? 'Opening $4.99 checkout…' : 'Pay $4.99 · Use photo → start build'}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Choose another</button>
         </div> : <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>}
-        <p className={styles.truth}>The photo guides visible appearance only. One photo cannot verify unseen sides, roof details, exact dimensions, or legal property facts. Voxel Vault does not need to retain the original source photo in its Storage bucket for this build.</p>
+        <p className={styles.truth}>The {CREATION_PRICE_LABEL} charge is for one digital VoxelPop creation, including the generated 3D stages; it does not buy or value the physical property. The authorized photo is staged privately for checkout, then removed from that staging area when the paid provider handoff starts. One photo still cannot verify unseen sides, roof details, exact dimensions, or legal property facts.</p>
       </> : null}
 
       {step === 2 ? <>
         <p className={styles.bigPrompt}>Building the first 3D.</p>
-        <p className={styles.stepCopy}>VoxelPop is making a 3D interpretation from your authorized photo. When it finishes, the voxel step starts automatically.</p>
-        <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
+        <p className={styles.stepCopy}>Payment is verified. VoxelPop is making a 3D interpretation from your authorized photo. When it finishes, the voxel step starts automatically.</p>
+        <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>PAID 3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
         <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>No extra button. First 3D → VoxelPop look → final 3D voxel.</span></div>
       </> : null}
 
@@ -541,7 +601,7 @@ export default function PropertyJourneyPage() {
           {quote && availability !== 'SOLD' ? <button className={styles.primaryOrange} type="button" onClick={collectAndSave} disabled={busy === 'checkout'}>{busy === 'checkout' ? 'Opening secure checkout…' : `Collect voxel · ${dollars(quote.priceCents)}`}</button> : null}
           <button className={styles.textButton} type="button" onClick={() => { setBuilding(null); setMappedAddress(''); setQuote(null); setAvailability(''); setMessage('Enter the correct property address.'); }}>Change address</button>
         </div>
-        <p className={styles.truth}>This checkout collects the generated digital VoxelPop item only. The address, map, payment, or optional later mint does not create deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property. Real-property investing can only appear through a separately verified offering.</p>
+        <p className={styles.truth}>The {CREATION_PRICE_LABEL} generation payment covers creating the digital VoxelPop model. Any later collection price shown here is a separate digital-collectible purchase and is not the market value of the physical property. Neither payment nor optional minting creates deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property. Real-property investing can only appear through a separately verified offering.</p>
       </> : null}
 
       {step > 1 && !pipelineRunning ? <button className={styles.change} type="button" onClick={resetCreation}>Start over with another photo</button> : null}
