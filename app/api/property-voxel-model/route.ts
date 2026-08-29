@@ -58,8 +58,12 @@ export async function GET(request: Request) {
     }
 
     if (wantsPreview) {
-      let thumbnailUrl = clean(saved?.thumbnail_url, 2400);
-      if (!thumbnailUrl) {
+      // Prefer the saved Meshy render, but provider thumbnail URLs can expire.
+      // If it no longer loads, refresh the already-completed task for the current
+      // render URL. This never starts a new generation.
+      const savedThumbnailUrl = clean(saved?.thumbnail_url, 2400);
+      let preview = savedThumbnailUrl ? await fetchBytes(savedThumbnailUrl) : null;
+      if (!preview) {
         const refreshed = await providerTask(apiKey, providerTaskId);
         if (!refreshed.response.ok) {
           return NextResponse.json({
@@ -67,10 +71,10 @@ export async function GET(request: Request) {
             error: refreshed.task?.task_error?.message || refreshed.task?.message || refreshed.task?.error || 'The 3D provider could not refresh this preview.',
           }, { status: refreshed.response.status });
         }
-        thumbnailUrl = clean(refreshed.task?.alpha_thumbnail_url || refreshed.task?.thumbnail_url, 2400);
+        const freshThumbnailUrl = clean(refreshed.task?.alpha_thumbnail_url || refreshed.task?.thumbnail_url, 2400);
+        if (!freshThumbnailUrl) return NextResponse.json({ ok: false, error: 'The rendered 3D image is not ready yet.' }, { status: 409 });
+        preview = await fetchBytes(freshThumbnailUrl);
       }
-      if (!thumbnailUrl) return NextResponse.json({ ok: false, error: 'The rendered 3D image is not ready yet.' }, { status: 409 });
-      const preview = await fetchBytes(thumbnailUrl);
       if (!preview) return NextResponse.json({ ok: false, error: 'The rendered 3D image could not be loaded.' }, { status: 502 });
       return binaryResponse(preview, 'image/webp');
     }
