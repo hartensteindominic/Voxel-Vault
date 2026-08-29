@@ -1,275 +1,231 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import styles from './PhotoReliefModelViewer.module.css';
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+const DEVICE_DB = 'voxelpop-property-device-v1';
+const DEVICE_STORE = 'pending-photos';
+const CONTEXT_PREFIX = 'voxel-vault:property-generation-context:';
+const GLOBAL_RENDER_KEY = '__VOXELPOP_PROPERTY_RENDER__';
+
+function clean(value) {
+  return String(value || '').trim();
+}
+
+function openDeviceDb() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') return reject(new Error('Private on-device photo storage is unavailable.'));
+    const request = indexedDB.open(DEVICE_DB, 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Private photo storage could not open.'));
+  });
+}
+
+async function digestBytes(bytes) {
+  if (!globalThis.crypto?.subtle) return '';
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+async function currentDraftContext(imageUrl) {
+  const sourceResponse = await fetch(imageUrl);
+  const sourceBlob = await sourceResponse.blob();
+  const sourceBytes = await sourceBlob.arrayBuffer();
+  const sourceDigest = await digestBytes(sourceBytes);
+
+  const db = await openDeviceDb();
+  const records = await new Promise((resolve, reject) => {
+    const request = db.transaction(DEVICE_STORE, 'readonly').objectStore(DEVICE_STORE).getAll();
+    request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+    request.onerror = () => reject(request.error || new Error('Private photo storage could not be read.'));
+  });
+  db.close();
+
+  const candidates = [];
+  for (const record of records) {
+    if (!record?.draftId || !record?.bytes) continue;
+    const contextKey = `${CONTEXT_PREFIX}${record.draftId}`;
+    const rawContext = window.localStorage.getItem(contextKey);
+    if (!rawContext) continue;
+    let matches = false;
+    if (sourceDigest) {
+      try { matches = await digestBytes(record.bytes) === sourceDigest; } catch {}
+    } else {
+      matches = Number(record.bytes?.byteLength || 0) === Number(sourceBytes.byteLength || 0)
+        && clean(record.type) === clean(sourceBlob.type);
+    }
+    if (!matches) continue;
+    try {
+      candidates.push({
+        draftId: clean(record.draftId),
+        savedAt: Number(record.savedAt || 0),
+        context: JSON.parse(rawContext || 'null'),
+      });
+    } catch {}
+  }
+
+  candidates.sort((a, b) => b.savedAt - a.savedAt);
+  const current = candidates[0] || null;
+  if (!current?.draftId) throw new Error('VoxelPop could not reconnect this photo to its paid creation. Return to the photo step and continue again.');
+  return current;
+}
+
+async function prepareReference(imageUrl) {
+  const image = new Image();
+  image.decoding = 'async';
+  image.src = imageUrl;
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = () => reject(new Error('The selected house photo could not be prepared for the VoxelPop render.'));
+  });
+
+  const maxEdge = 1536;
+  const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+  const width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+  const height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('This browser cannot prepare the house reference for generation.');
+  context.drawImage(image, 0, 0, width, height);
+
+  const qualities = [0.9, 0.82, 0.74, 0.66];
+  for (const quality of qualities) {
+    const data = canvas.toDataURL('image/jpeg', quality);
+    if (data.length <= 4_000_000) return data;
+  }
+  throw new Error('This house photo is still too large for the 3D picture renderer. Try a screenshot or smaller image.');
+}
+
+async function paidGenerationProof(context) {
+  const params = new URLSearchParams(window.location.search);
+  const stripeSession = clean(params.get('generation_session'));
+  if (stripeSession) return stripeSession;
+  if (context?.selectedProperty?.voxelpop?.paidCreation === true) return 'saved-property';
+  throw new Error('VoxelPop could not verify the paid creation for this 3D picture.');
 }
 
 export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
-  const mountRef = useRef(null);
   const callbackRef = useRef(onReady);
+  const requestRef = useRef(0);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('loading');
+  const [renderUrl, setRenderUrl] = useState('');
+  const [provider, setProvider] = useState('');
   callbackRef.current = onReady;
 
   useEffect(() => {
-    if (!imageUrl || !mountRef.current) return undefined;
+    if (!imageUrl) return undefined;
     let dead = false;
-    let cleanup = () => {};
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     setError('');
     setStatus('loading');
+    setRenderUrl('');
+    setProvider('');
+    if (typeof window !== 'undefined') window[GLOBAL_RENDER_KEY] = '';
 
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = imageUrl;
-    image.onload = async () => {
+    (async () => {
       try {
-        const THREE = await import('three');
-        if (dead || !mountRef.current) return;
-        const mount = mountRef.current;
-        const initialWidth = Math.max(280, mount.clientWidth || 360);
-        const initialHeight = Math.max(280, mount.clientHeight || 360);
-        const compact = initialWidth < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
-        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+        const [draft, reference, client] = await Promise.all([
+          currentDraftContext(imageUrl),
+          prepareReference(imageUrl),
+          getSupabaseBrowserAsync(),
+        ]);
+        if (dead || requestRef.current !== requestId) return;
+        const { data } = await client.auth.getSession();
+        const token = clean(data?.session?.access_token);
+        if (!token) throw new Error('Sign in again before generating the VoxelPop 3D picture.');
+        const generationSessionId = await paidGenerationProof(draft.context);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.25 : 1.7));
-        renderer.setSize(initialWidth, initialHeight);
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.04;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.setClearColor(0x000000, 0);
-        renderer.domElement.style.touchAction = 'none';
-        renderer.domElement.tabIndex = 0;
-        renderer.domElement.setAttribute('aria-label', 'Interactive photo-faithful 3D preview. Drag or use the arrow keys to inspect the depth.');
-        mount.innerHTML = '';
-        mount.appendChild(renderer.domElement);
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(31, initialWidth / initialHeight, 0.1, 80);
-        const objectGroup = new THREE.Group();
-        scene.add(objectGroup);
-
-        const hemisphere = new THREE.HemisphereLight(0xfffcf3, 0x1b1220, 2.25);
-        scene.add(hemisphere);
-        const key = new THREE.DirectionalLight(0xfff7eb, 3.2);
-        key.position.set(4.5, 5.5, 6.5);
-        key.castShadow = true;
-        key.shadow.mapSize.set(compact ? 512 : 1024, compact ? 512 : 1024);
-        key.shadow.camera.near = 0.5;
-        key.shadow.camera.far = 24;
-        key.shadow.camera.left = -8;
-        key.shadow.camera.right = 8;
-        key.shadow.camera.top = 8;
-        key.shadow.camera.bottom = -8;
-        scene.add(key);
-        const fill = new THREE.DirectionalLight(0xded5ff, 1.25);
-        fill.position.set(-4.5, 1.8, 4);
-        scene.add(fill);
-        const rim = new THREE.DirectionalLight(0xe8ffc0, 0.85);
-        rim.position.set(1.5, 4, -3);
-        scene.add(rim);
-
-        const ratio = Math.max(0.32, Math.min(3.2, (image.naturalWidth || 1) / (image.naturalHeight || 1)));
-        const maxWidth = compact ? 4.8 : 5.45;
-        const maxHeight = compact ? 3.8 : 4.25;
-        let photoWidth = maxWidth;
-        let photoHeight = photoWidth / ratio;
-        if (photoHeight > maxHeight) {
-          photoHeight = maxHeight;
-          photoWidth = photoHeight * ratio;
+        const response = await fetch('/api/property-3d-picture', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            draftId: draft.draftId,
+            generationSessionId,
+            reference,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok || !payload?.image) {
+          throw new Error(payload?.error || 'The VoxelPop 3D house renderer did not return an image.');
         }
-        const depth = clamp(Math.min(photoWidth, photoHeight) * 0.085, 0.22, 0.38);
-
-        const texture = new THREE.Texture(image);
-        texture.needsUpdate = true;
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
-        texture.minFilter = THREE.LinearMipmapLinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-
-        const frameGeometry = new THREE.BoxGeometry(photoWidth + 0.18, photoHeight + 0.18, depth, 1, 1, 1);
-        const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x1a111f, roughness: 0.62, metalness: 0.08 });
-        const frame = new THREE.Mesh(frameGeometry, frameMaterial);
-        frame.castShadow = true;
-        frame.receiveShadow = true;
-        objectGroup.add(frame);
-
-        const photoGeometry = new THREE.PlaneGeometry(photoWidth, photoHeight, 1, 1);
-        const photoMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide, toneMapped: false });
-        const photo = new THREE.Mesh(photoGeometry, photoMaterial);
-        photo.position.z = depth / 2 + 0.012;
-        photo.castShadow = true;
-        objectGroup.add(photo);
-
-        const edgeGeometry = new THREE.EdgesGeometry(frameGeometry, 24);
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.19 });
-        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        objectGroup.add(edges);
-
-        const groundGeometry = new THREE.PlaneGeometry(Math.max(8, photoWidth * 1.8), 6);
-        const groundMaterial = new THREE.ShadowMaterial({ color: 0x000000, transparent: true, opacity: compact ? 0.16 : 0.23 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.set(0, -photoHeight / 2 - 0.5, 0.25);
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        const fitCamera = (width, height) => {
-          camera.aspect = width / height;
-          camera.updateProjectionMatrix();
-          const verticalFov = THREE.MathUtils.degToRad(camera.fov);
-          const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
-          const distanceForHeight = (photoHeight * 0.62) / Math.tan(verticalFov / 2);
-          const distanceForWidth = (photoWidth * 0.62) / Math.tan(Math.max(0.12, horizontalFov / 2));
-          const distance = Math.max(distanceForHeight, distanceForWidth, 5.2) + 0.65;
-          camera.position.set(0, 0.18, distance);
-          camera.lookAt(0, -0.05, 0);
-        };
-        fitCamera(initialWidth, initialHeight);
-
-        let targetX = -0.035;
-        let targetY = 0.09;
-        let pointerId = null;
-        let lastX = 0;
-        let lastY = 0;
-        let frameId = 0;
-
-        const renderOnce = () => renderer.render(scene, camera);
-        const applyReducedMotionRotation = () => {
-          if (!reducedMotion) return;
-          objectGroup.rotation.x = targetX;
-          objectGroup.rotation.y = targetY;
-          renderOnce();
-        };
-        const down = (event) => {
-          pointerId = event.pointerId;
-          lastX = event.clientX;
-          lastY = event.clientY;
-          renderer.domElement.setPointerCapture?.(event.pointerId);
-        };
-        const move = (event) => {
-          if (pointerId !== event.pointerId) return;
-          const dx = event.clientX - lastX;
-          const dy = event.clientY - lastY;
-          lastX = event.clientX;
-          lastY = event.clientY;
-          targetY = clamp(targetY + dx * 0.0048, -0.36, 0.36);
-          targetX = clamp(targetX + dy * 0.0035, -0.14, 0.14);
-          applyReducedMotionRotation();
-        };
-        const up = (event) => {
-          if (pointerId === event.pointerId) {
-            renderer.domElement.releasePointerCapture?.(event.pointerId);
-            pointerId = null;
-          }
-        };
-        const keydown = (event) => {
-          let handled = true;
-          if (event.key === 'ArrowLeft') targetY = clamp(targetY - 0.055, -0.36, 0.36);
-          else if (event.key === 'ArrowRight') targetY = clamp(targetY + 0.055, -0.36, 0.36);
-          else if (event.key === 'ArrowUp') targetX = clamp(targetX - 0.04, -0.14, 0.14);
-          else if (event.key === 'ArrowDown') targetX = clamp(targetX + 0.04, -0.14, 0.14);
-          else handled = false;
-          if (handled) {
-            event.preventDefault();
-            applyReducedMotionRotation();
-          }
-        };
-        renderer.domElement.addEventListener('pointerdown', down);
-        renderer.domElement.addEventListener('pointermove', move);
-        renderer.domElement.addEventListener('pointerup', up);
-        renderer.domElement.addEventListener('pointercancel', up);
-        renderer.domElement.addEventListener('keydown', keydown);
-
-        objectGroup.rotation.set(targetX, targetY, 0);
-        if (reducedMotion) {
-          renderOnce();
-        } else {
-          const render = () => {
-            if (dead) return;
-            objectGroup.rotation.x += (targetX - objectGroup.rotation.x) * 0.085;
-            objectGroup.rotation.y += (targetY - objectGroup.rotation.y) * 0.085;
-            renderer.render(scene, camera);
-            frameId = requestAnimationFrame(render);
-          };
-          render();
-        }
-
-        const resize = () => {
-          if (dead || !mountRef.current) return;
-          const nextWidth = Math.max(280, mountRef.current.clientWidth || initialWidth);
-          const nextHeight = Math.max(280, mountRef.current.clientHeight || initialHeight);
-          renderer.setSize(nextWidth, nextHeight);
-          fitCamera(nextWidth, nextHeight);
-          if (reducedMotion) renderOnce();
-        };
-        const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
-        observer?.observe(mount);
-
-        if (!dead) {
-          setStatus('ready');
-          callbackRef.current?.();
-        }
-
-        cleanup = () => {
-          if (frameId) cancelAnimationFrame(frameId);
-          observer?.disconnect();
-          renderer.domElement.removeEventListener('pointerdown', down);
-          renderer.domElement.removeEventListener('pointermove', move);
-          renderer.domElement.removeEventListener('pointerup', up);
-          renderer.domElement.removeEventListener('pointercancel', up);
-          renderer.domElement.removeEventListener('keydown', keydown);
-          photoGeometry.dispose();
-          photoMaterial.dispose();
-          texture.dispose();
-          edgeGeometry.dispose();
-          edgeMaterial.dispose();
-          frameGeometry.dispose();
-          frameMaterial.dispose();
-          groundGeometry.dispose();
-          groundMaterial.dispose();
-          renderer.dispose();
-          renderer.forceContextLoss?.();
-          if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
-        };
-      } catch (previewError) {
-        if (!dead) {
+        if (dead || requestRef.current !== requestId) return;
+        window[GLOBAL_RENDER_KEY] = payload.image;
+        window.dispatchEvent(new CustomEvent('voxelpop-property-render-ready', { detail: { image: payload.image, draftId: draft.draftId } }));
+        setRenderUrl(payload.image);
+        setProvider(clean(payload.provider));
+        setStatus('ready');
+        callbackRef.current?.(payload.image);
+      } catch (generationError) {
+        if (!dead && requestRef.current === requestId) {
           setStatus('error');
-          setError(String(previewError?.message || previewError || 'The 3D photo preview could not open.'));
+          setError(String(generationError?.message || generationError || 'The VoxelPop 3D house picture could not be generated.'));
         }
       }
-    };
-    image.onerror = () => {
-      if (!dead) {
-        setStatus('error');
-        setError('The selected photo could not be opened for the 3D preview.');
-      }
-    };
+    })();
 
-    return () => {
-      dead = true;
-      image.onload = null;
-      image.onerror = null;
-      cleanup();
-    };
+    return () => { dead = true; };
   }, [imageUrl]);
 
-  return <div className={`viewerShell ${styles.shell}`}>
-    <div ref={mountRef} className={styles.canvasMount}/>
-    {status === 'loading' ? <div className={styles.loading}><span>PREPARING PHOTO-FAITHFUL 3D…</span></div> : null}
-    {!error ? <>
-      <div className={styles.qualityBadge} aria-hidden="true"><span>PHOTO-FAITHFUL 3D</span><b>NO WARPING</b></div>
-      <div className={styles.hint} aria-hidden="true">DRAG TO INSPECT DEPTH</div>
-      <div className={styles.sourceCard} aria-hidden="true"><img src={imageUrl} alt=""/><span>ORIGINAL REFERENCE</span></div>
+  function regenerate() {
+    requestRef.current += 1;
+    setStatus('loading');
+    setRenderUrl('');
+    setError('');
+    if (typeof window !== 'undefined') window[GLOBAL_RENDER_KEY] = '';
+    // Re-mount the generation effect without changing the source image URL.
+    const source = imageUrl;
+    Promise.resolve().then(async () => {
+      try {
+        const [draft, reference, client] = await Promise.all([
+          currentDraftContext(source),
+          prepareReference(source),
+          getSupabaseBrowserAsync(),
+        ]);
+        const { data } = await client.auth.getSession();
+        const token = clean(data?.session?.access_token);
+        if (!token) throw new Error('Sign in again before regenerating this VoxelPop house.');
+        const generationSessionId = await paidGenerationProof(draft.context);
+        const response = await fetch('/api/property-3d-picture', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftId: draft.draftId, generationSessionId, reference }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok || !payload?.image) throw new Error(payload?.error || 'Regeneration failed.');
+        window[GLOBAL_RENDER_KEY] = payload.image;
+        window.dispatchEvent(new CustomEvent('voxelpop-property-render-ready', { detail: { image: payload.image, draftId: draft.draftId } }));
+        setRenderUrl(payload.image);
+        setProvider(clean(payload.provider));
+        setStatus('ready');
+        callbackRef.current?.(payload.image);
+      } catch (generationError) {
+        setStatus('error');
+        setError(String(generationError?.message || generationError || 'The VoxelPop house could not be regenerated.'));
+      }
+    });
+  }
+
+  return <div className={`viewerShell ${styles.shell}`} style={{background:'radial-gradient(circle at 50% 18%,#fffdf7 0,#efe8ff 48%,#ded1f7 100%)'}}>
+    {renderUrl ? <img src={renderUrl} alt="Generated VoxelPop 3D house render" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',padding:12}}/> : <img src={imageUrl} alt="Original property reference" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',opacity:status === 'loading' ? .42 : 1}}/>}
+    {status === 'loading' ? <div className={styles.loading}><span>GENERATING VOXELPOP 3D HOUSE…</span></div> : null}
+    {status === 'ready' ? <>
+      <div className={styles.qualityBadge} aria-hidden="true"><span>VOXELPOP 3D HOUSE</span><b>AI RENDER · PHOTO REFERENCED</b></div>
+      <div className={styles.sourceCard}><img src={imageUrl} alt="Original house reference"/><span>ORIGINAL REFERENCE</span></div>
+      <button type="button" onClick={regenerate} style={{position:'absolute',right:12,bottom:12,zIndex:8,minHeight:42,padding:'0 13px',borderRadius:999,border:'1px solid rgba(28,18,35,.15)',background:'rgba(255,250,240,.94)',color:'#24162f',fontWeight:900,fontSize:11,cursor:'pointer'}}>Regenerate 3D</button>
+      <div className={styles.hint} aria-hidden="true">{provider ? `GENERATED · ${provider.replaceAll('-', ' ').toUpperCase()}` : 'GENERATED FROM YOUR HOUSE PHOTO'}</div>
     </> : null}
     {error ? <div className={styles.error} role="status">
       <img src={imageUrl} alt="Original property reference"/>
-      <p>{error} The original reference is still shown so the property is never replaced by a misleading render.</p>
+      <p>{error}</p>
+      <button type="button" onClick={regenerate} style={{minHeight:44,padding:'0 14px',borderRadius:999,border:0,background:'#7138f5',color:'#fff',fontWeight:900}}>Try 3D render again</button>
     </div> : null}
   </div>;
 }
