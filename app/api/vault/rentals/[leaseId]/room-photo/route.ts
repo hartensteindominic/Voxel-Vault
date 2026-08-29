@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { requireVoxelVaultUser } from '../../../../../../../lib/user-auth';
-import { canTenantUseProperty } from '../../../../../../../lib/real-estate/property-rental';
+import { requireVoxelVaultUser } from '../../../../../../lib/user-auth';
+import { canTenantUseProperty } from '../../../../../../lib/real-estate/property-rental';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
