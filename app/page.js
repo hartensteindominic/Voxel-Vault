@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import styles from './home.module.css';
 
+export const metadata = { alternates: { canonical: '/' } };
+
 // One public promise: authorized house photo -> $4.99 digital VoxelPop creation.
 // Visitors can inspect a built-in no-login demo before account/payment friction.
 // Paid creation remains account-bound and preserves preview -> approval -> voxel -> optional mint.
