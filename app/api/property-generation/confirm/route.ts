@@ -49,17 +49,18 @@ export async function POST(request: Request) {
       }, { status: 402 });
     }
 
-    const alreadyCounted = await hasVoxelMakerGeneration(auth.user.id, draftId);
-    const usedThisMonth = await countVoxelMakerGenerations(auth.user.id);
-    if (!alreadyCounted && usedThisMonth >= entitlement.plan.monthlyVoxels) {
+    const periodStart = entitlement.record?.currentPeriodStart || null;
+    const alreadyCounted = await hasVoxelMakerGeneration(auth.user.id, draftId, periodStart);
+    const usedThisPeriod = await countVoxelMakerGenerations(auth.user.id, periodStart);
+    if (!alreadyCounted && usedThisPeriod >= entitlement.plan.monthlyVoxels) {
       return privateJson({
         ok: false,
         code: 'VOXEL_MAKER_MONTHLY_LIMIT_REACHED',
         monthlyLimitReached: true,
         plan: entitlement.plan.id,
-        used: usedThisMonth,
+        used: usedThisPeriod,
         limit: entitlement.plan.monthlyVoxels,
-        error: `You have used all ${entitlement.plan.monthlyVoxels} Voxel Maker creations included in your ${entitlement.plan.name} plan this month.`,
+        error: `You have used all ${entitlement.plan.monthlyVoxels} Voxel Maker creations included in your ${entitlement.plan.name} billing period.`,
       }, { status: 429 });
     }
 
@@ -126,8 +127,9 @@ export async function POST(request: Request) {
       next: 'voxel-image',
       subscription: {
         plan: entitlement.plan.id,
-        used: alreadyCounted ? usedThisMonth : usedThisMonth + 1,
+        used: alreadyCounted ? usedThisPeriod : usedThisPeriod + 1,
         limit: entitlement.plan.monthlyVoxels,
+        currentPeriodEnd: entitlement.record?.currentPeriodEnd || null,
       },
     });
   } catch (error) {
