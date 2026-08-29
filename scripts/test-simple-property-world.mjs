@@ -7,6 +7,9 @@ const world = fs.readFileSync(new URL('../app/world/page.js', import.meta.url), 
 const worldApi = fs.readFileSync(new URL('../app/api/world-properties/route.ts', import.meta.url), 'utf8');
 const globe = fs.readFileSync(new URL('../app/vault/earth/PlanetStreamGlobe.js', import.meta.url), 'utf8');
 const drafts = fs.readFileSync(new URL('../lib/property-drafts.js', import.meta.url), 'utf8');
+const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
+const dock = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
+const command = fs.readFileSync(new URL('../app/components/AppCommandCenter.js', import.meta.url), 'utf8');
 
 assert.match(home, /Add a property\./, 'home must lead with one property action');
 assert.match(home, /name="q"/, 'home must have one address input');
@@ -24,8 +27,10 @@ assert.match(property, /VERIFY → MINT/, 'mint must stay downstream of rights v
 assert.match(property, /SHOW ON WORLD/, 'property must have one explicit public-share action');
 assert.match(property, /fractionRail\?\.liveExecutionReady === true/, 'fractional execution must be gated by a verified live rail');
 assert.match(property, /No verified fractional offering is connected to this exact property yet/, 'unavailable fractional purchases must fail closed in plain language');
-assert.match(property, /if \(exactSale\?\.sourceUrl\)/, 'full purchase must require an exact authorized sale source');
+assert.match(property, /if \(exactSale\?\.sourceUrl\)/, 'full purchase must require an authorized sale source');
 assert.match(property, /not currently tied to an authorized sale listing/, 'unlisted full-property purchase must fail closed');
+assert.match(property, /resolvedQuery/, 'saved property identity must stay tied to the address that actually resolved');
+assert.match(property, /NO BUILDING INVENTED/, 'land and location-only properties must not receive a fake building');
 assert.match(property, /savePropertyDraft/, '3D property saving must not depend on purchase execution');
 assert.match(property, /setPropertyDraftWorldVisibility/, 'public World sharing must be explicit');
 assert.match(property, /A 3D model or mint is digital provenance, not a deed/, 'simple UI must preserve deed/mint truth');
@@ -52,4 +57,13 @@ assert.match(globe, /BoxGeometry/, 'community property markers must include a vo
 assert.match(globe, /ConeGeometry/, 'community property markers must include a simple roof');
 assert.match(globe, /PUBLIC 3D PROPERTY WORLD/, 'simple globe mode must use consumer-facing copy');
 
-console.log('Ultra-simple property flow checks passed: add one property, gated piece/whole purchase, verify-before-mint, Vault storage, opt-in public World, privacy-rounded geography, and voxel-house globe markers.');
+assert.match(productMap, /SIMPLE_PROPERTY_DOCK/, 'simple property routes must have their own dock');
+assert.match(productMap, /label: 'Home'/, 'simple dock must include Home');
+assert.match(productMap, /label: 'Add'/, 'simple dock must include Add');
+assert.match(productMap, /label: 'Vault'/, 'simple dock must include Vault');
+assert.match(productMap, /label: 'World'/, 'simple dock must include World');
+assert.match(productMap, /isSimplePropertyRoute/, 'simple consumer routes must be explicitly classified');
+assert.match(dock, /simple \? SIMPLE_PROPERTY_DOCK : APP_DOCK/, 'consumer routes must render the four-item dock instead of the legacy five-product dock');
+assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from Home/Add/Vault/World');
+
+console.log('Ultra-simple property flow checks passed: one address, gated piece/whole purchase, verify-before-mint, simple Vault, opt-in public World, privacy-rounded geography, voxel-house globe markers, and a four-button iPhone dock.');
