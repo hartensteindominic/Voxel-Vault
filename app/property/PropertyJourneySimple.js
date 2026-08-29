@@ -218,9 +218,11 @@ export default function PropertyJourneySimple() {
   const checkoutHandledRef = useRef('');
 
   const localReady = final3d?.status === 'SUCCEEDED';
+  const mintReady = localReady && Boolean(final3d?.modelUrl) && String(final3d?.taskId || '').startsWith('local-v1:');
   const mapped = Boolean(building && mappedAddress);
   const step = savedDraft ? 5 : mapped ? 4 : paidSessionId ? 3 : pendingPhoto ? 2 : 1;
-  const labels = ['PHOTO', 'PAY', '3D PICTURE → VOXEL', 'MAP', 'MINT'];
+  const labels = ['PHOTO', 'PAY', '3D PICTURE → VOXEL', 'MAP · OPTIONAL', 'MINT'];
+  const immediateMintHref = mintReady ? `/property/mint?${new URLSearchParams({ draftId, taskId: final3d.taskId }).toString()}` : '';
 
   useEffect(() => {
     let active = true;
@@ -426,10 +428,10 @@ export default function PropertyJourneySimple() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'The local 3D voxel could not be linked to your Vault.');
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: data.modelUrl || null, taskId: data.taskId || null });
-      setMessage('Your 3D voxel is ready. Inspect it now, then enter the address to match it to the real mapped building before saving and optional minting.');
+      setMessage('Your 3D voxel is ready. Inspect it now. You can mint this exact voxel next, or optionally add the address for map context and My World.');
     } catch (error) {
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: null, taskId: `local-device:${draftId}` });
-      setMessage('Your 3D voxel is ready on this device. Enter the address to continue; Vault syncing can retry later. Minting stays unavailable until the reviewed voxel is synced.');
+      setMessage('Your 3D voxel is ready on this device. You can continue to the map, but minting waits until the reviewed voxel is synced to your account.');
     } finally {
       setBusy('');
     }
@@ -453,8 +455,8 @@ export default function PropertyJourneySimple() {
       setMappedAddress(value);
       setSavedDraft(null);
       setMessage(selected.geometry
-        ? 'Matched. The map now uses the source-backed building footprint. Save the reviewed voxel to My World, then mint it only if you want the digital NFT.'
-        : 'Location matched. A source-backed footprint was not available, so the map is showing the verified location reference. Save first; mint remains optional.');
+        ? 'Matched. The map now uses the source-backed building footprint. Save the reviewed voxel to My World; minting remains a separate optional action.'
+        : 'Location matched. A source-backed footprint was not available, so the map is showing the verified location reference. Save the voxel to My World; minting remains optional.');
     } catch (error) {
       setMessage(String(error?.message || error || 'The property map could not be built.'));
     } finally {
@@ -504,7 +506,7 @@ export default function PropertyJourneySimple() {
       await removeDevicePhoto(draftId);
       if (typeof window !== 'undefined') window.history.replaceState({}, '', '/property');
       setMessage(synced
-        ? 'Saved. Your reviewed 3D voxel is in My World and your Vault. Mint is the optional final step.'
+        ? 'Saved. Your reviewed 3D voxel is in My World and your Vault. Mint remains optional.'
         : 'Saved to My World on this device. Account sync can retry from Vault later; minting waits for the account-synced voxel.');
     } catch (error) {
       setMessage(String(error?.message || error || 'This 3D property could not be saved yet.'));
@@ -559,7 +561,7 @@ export default function PropertyJourneySimple() {
         <p className={styles.bigPrompt}>Sign in first.</p>
         <p className={styles.signinCopy}>One account keeps your paid creations, Vault, My World items, and optional mint connected.</p>
         <button className={styles.primaryPurple} type="button" onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'Opening sign-in…' : 'Continue with Google'}</button>
-        <small>A wallet is not needed to create the 3D. It is only needed if you choose to mint at the end.</small>
+        <small>A wallet is not needed to create the 3D. It is only needed if you choose to mint after seeing the voxel.</small>
       </section>
       <p className={styles.message}>{message}</p>
     </section></main>;
@@ -575,7 +577,7 @@ export default function PropertyJourneySimple() {
 
       {step === 1 ? <>
         <p className={styles.bigPrompt}>Choose the building photo.</p>
-        <p className={styles.flowHint}>One photo → pay $4.99 → review 3D picture → create 3D voxel → map → optional mint.</p>
+        <p className={styles.flowHint}>One photo → pay $4.99 → review 3D picture → create 3D voxel → mint if you want → optional map/save.</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
         <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>iPhone photos supported</span></div>
         <button className={styles.primaryPurple} type="button" onClick={choosePhoto} disabled={busy === 'prepare'}>{busy === 'prepare' ? 'Preparing photo…' : 'Choose photo'}</button>
@@ -598,7 +600,7 @@ export default function PropertyJourneySimple() {
       {step === 3 ? <>
         <p className={styles.bigPrompt}>{localReady ? 'Your 3D voxel is ready.' : 'Review the 3D picture.'}</p>
         <p className={styles.stepCopy}>{localReady
-          ? 'Drag and inspect the voxel you chose to build. If it looks right, add the address below so it can be matched to the real mapped footprint before saving and optional minting.'
+          ? 'Drag and inspect the voxel you chose to build. If it looks right, mint this exact digital voxel next. The address/map is optional and does not change the voxel you approved.'
           : 'First VoxelPop shows the higher-fidelity 3D picture without the old square crop. Only after you approve that picture does it build the movable voxel.'}</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
         {!pendingPhoto && !voxelPoster ? <section className={styles.donePanel}>
@@ -613,22 +615,27 @@ export default function PropertyJourneySimple() {
           {busy === 'local-build' ? <div className={styles.buildPulse}/> : null}
         </div> : null}
         {paidSessionId && pendingPhoto && !voxelPoster && busy !== 'local-build' ? <button className={styles.primaryPurple} type="button" onClick={payAndCreate}>Create 3D Picture · already paid</button> : null}
-        {localReady ? <form className={styles.searchForm} onSubmit={mapBuilding}>
-          <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/>
-          <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Match voxel to this building'}</button>
-        </form> : <div className={styles.autoPanel}><b>PAY ONCE · REVIEW PICTURE · BUILD VOXEL</b><span>No Meshy credits. No automatic mint. You choose when the voxel is created.</span></div>}
-        <p className={styles.truth}>The photo helps the visible front appearance. The address adds source-backed map footprint/location data. One photo cannot verify unseen sides, roof planes, or exact dimensions.</p>
+        {mintReady ? <a className={styles.primaryLink} href={immediateMintHref}>Mint this 3D voxel · optional</a> : null}
+        {localReady ? <>
+          <p className={styles.flowHint}>OPTIONAL MAP · Add the real address only if you also want source-backed location context and My World placement.</p>
+          <form className={styles.searchForm} onSubmit={mapBuilding}>
+            <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address · optional" aria-label="Property address" autoComplete="street-address"/>
+            <button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Matching building…' : 'Add address & map'}</button>
+          </form>
+        </> : <div className={styles.autoPanel}><b>PAY ONCE · REVIEW PICTURE · BUILD VOXEL</b><span>No Meshy credits. No automatic mint. You choose when the voxel is created.</span></div>}
+        <p className={styles.truth}>The photo helps the visible front appearance. One photo cannot verify unseen sides, roof planes, or exact dimensions. Minting records the digital voxel only; it does not create rights in the physical property.</p>
       </> : null}
 
       {step === 4 ? <>
         <p className={styles.bigPrompt}>Matched to the real map.</p>
-        <p className={styles.stepCopy}>The purple/lime building is your selected property inside its nearby mapped neighborhood. Save the reviewed voxel to My World; minting is the next optional step.</p>
+        <p className={styles.stepCopy}>The purple/lime building is your selected property inside its nearby mapped neighborhood. Save the reviewed voxel to My World. Minting remains separate and optional.</p>
         <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>{building?.geometry ? 'SOURCE-BACKED BUILDING FOOTPRINT' : 'VERIFIED LOCATION REFERENCE'}</span></div>
         {voxelPoster ? <div className={`${styles.miniModel} ${styles.voxelMini}`}><img src={voxelPoster} alt="Reviewed VoxelPop 3D picture"/></div> : null}
         <section className={styles.donePanel}>
           <b>{mappedAddress}</b>
           <span>{building?.geometry ? 'Building footprint matched from map data.' : 'Location matched; exact building footprint was not available from the map source.'}</span>
           <button className={styles.primaryTeal} type="button" onClick={saveToMyWorld} disabled={busy === 'save'}>{busy === 'save' ? 'Saving…' : 'Save voxel to My World'}</button>
+          {mintReady ? <a className={styles.primaryLink} href={immediateMintHref}>Mint this 3D voxel · optional</a> : null}
           <button className={styles.textButton} type="button" onClick={changeAddress}>Use a different address</button>
         </section>
         <p className={styles.truth}>Saving is included in the $4.99 creation. No second payment is required. My World is a digital 3D collection, not a land-title registry.</p>
@@ -636,12 +643,12 @@ export default function PropertyJourneySimple() {
 
       {step === 5 ? <>
         <p className={styles.bigPrompt}>Voxel saved. Mint it if you want.</p>
-        <p className={styles.stepCopy}>You already saw the 3D picture and approved the movable voxel. The digital creation is saved; minting is now the optional final step.</p>
+        <p className={styles.stepCopy}>You already saw the 3D picture and approved the movable voxel. The digital creation is saved; minting is the optional final blockchain step.</p>
         <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>MY WORLD · VOXEL SAVED</span></div>
         <section className={styles.donePanel}>
           <div className={styles.doneMark}>✓</div>
           <b>{savedDraft?.label || mappedAddress}</b>
-          <span>3D picture reviewed · voxel created · map matched · saved. Mint only if you want this digital voxel in your wallet.</span>
+          <span>3D picture reviewed · voxel created · map context saved. Mint only if you want this digital voxel in your wallet.</span>
           {savedDraft?.voxelpop?.modelUrl && String(savedDraft?.voxelpop?.modelTaskId || '').startsWith('local-v1:') ? <a className={styles.primaryLink} href={`/vault/property-drafts/${encodeURIComponent(savedDraft.id)}/mint`}>Mint this 3D voxel · optional</a> : null}
           <a className={styles.secondaryLink} href="/world">View My World</a>
           <a className={styles.secondaryLink} href={`/vault/property-drafts/${encodeURIComponent(savedDraft?.id || '')}`}>Open saved voxel</a>
