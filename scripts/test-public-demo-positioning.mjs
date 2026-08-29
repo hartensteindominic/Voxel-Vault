@@ -17,15 +17,15 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /Try 3D sample · no login/, 'home must show product value before Google sign-in');
+assert.match(home, /Try voxel sample · no login/, 'home must show product value before Google sign-in');
 assert.match(home, /href="\/demo"/, 'home must link to the public product sample');
 assert.match(home, /Start VoxelPop · \$4\.99/, 'home must keep the paid creation price visible');
-assert.match(home, /3D preview[\s\S]*movable 3D voxel/i, 'home must preserve preview-before-model positioning');
+assert.match(home, /3D voxel photo[\s\S]*movable 3D voxel/i, 'home must preserve voxel-photo-before-movable-model positioning');
 assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product preview instead of decorative art');
 assert.match(homePreview, /PhotoReliefModelViewer/, 'home product proof must use the production voxel-photo viewer');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production local voxel viewer');
 assert.match(homePreview, /House photo/, 'home preview must expose the source-photo state');
-assert.match(homePreview, /3D preview/, 'home preview must name the intermediate preview state');
+assert.match(homePreview, /3D voxel photo/, 'home preview must name the intermediate voxel-photo state');
 assert.match(homePreview, /Movable 3D voxel/, 'home preview must name the final movable-model state');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
@@ -76,5 +76,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: sample-first product proof, high-fidelity source-matched 3D voxel geometry without a backing or plaque, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
+console.log('Public VoxelPop positioning checks passed: explicit 3D voxel-photo approval, high-fidelity source-matched cube geometry without a backing or plaque, separate stacked movable voxel, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
 await import('./test-public-surface-coherence.mjs');
