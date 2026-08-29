@@ -2,6 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+function retryUrl(modelUrl, attempt) {
+  if (!modelUrl || attempt <= 0) return modelUrl;
+  try {
+    const url = new URL(modelUrl, window.location.href);
+    url.searchParams.set('previewRetry', String(attempt));
+    return url.toString();
+  } catch {
+    return modelUrl;
+  }
+}
+
 export default function MeshyModelViewer({ modelUrl }) {
   const mountRef = useRef(null);
   const [error, setError] = useState('');
@@ -71,11 +82,9 @@ export default function MeshyModelViewer({ modelUrl }) {
 
       const loader = new loaderModule.GLTFLoader();
       let model = null;
-      let loadAttempt = 0;
-      const loadModel = () => {
-        const separator = String(modelUrl).includes('?') ? '&' : '?';
-        const url = loadAttempt === 0 ? modelUrl : `${modelUrl}${separator}vv_reload=${Date.now()}`;
-        loader.load(url, (gltf) => {
+      let loadRetryTimer = 0;
+      const loadModel = (attempt = 0) => {
+        loader.load(retryUrl(modelUrl, attempt), (gltf) => {
           if (dead) return;
           model = gltf.scene;
           model.traverse((object) => {
@@ -101,15 +110,14 @@ export default function MeshyModelViewer({ modelUrl }) {
           setError('');
         }, undefined, () => {
           if (dead) return;
-          if (loadAttempt < 1) {
-            loadAttempt += 1;
-            setError('');
+          if (attempt < 3) {
             setLoading(true);
-            window.setTimeout(loadModel, 350);
+            setError('');
+            loadRetryTimer = window.setTimeout(() => loadModel(attempt + 1), 1200 * (attempt + 1));
             return;
           }
           setLoading(false);
-          setError('The 3D preview could not be loaded. Refresh the creation to request a fresh Meshy model link.');
+          setError('The 3D preview could not be loaded. The 3D job is still recoverable; use Try build again if it does not recover.');
         });
       };
       loadModel();
@@ -207,6 +215,7 @@ export default function MeshyModelViewer({ modelUrl }) {
 
       cleanup = () => {
         cancelAnimationFrame(frame);
+        window.clearTimeout(loadRetryTimer);
         observer?.disconnect();
         document.removeEventListener('visibilitychange', visibility);
         window.removeEventListener('resize', resize);

@@ -2,7 +2,6 @@ import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import {
-  createModelSignedUrl,
   persistModelBinary,
   readCatalog3D,
   readCatalog3DByTask,
@@ -21,6 +20,7 @@ import {
   propertyGenerationProviderTaskId,
   verifyPropertyGenerationRecoveryTaskId,
 } from '../../../lib/property-generation-task';
+import { propertyGenerationModelUrl } from '../../../lib/property-generation-model';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -58,16 +58,10 @@ function voxelImageTaskToken(apiKey: string, userId: string, taskId: string) {
   return createHmac('sha256', apiKey).update(`property-voxel-image-v1:${userId}:${taskId}`).digest('hex');
 }
 
-async function displayUrlFor(saved: any) {
-  // Active property generations should display Meshy's current provider URL first.
-  // The persisted private GLB remains the durable fallback for later sessions,
-  // but a stale/missing cache object must never hide a still-valid live model.
-  if (isHttpUrl(saved?.model_url)) return saved.model_url;
-  if (saved?.model_storage_path) {
-    const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
-    if (signed) return signed;
-  }
-  return null;
+function displayUrlFor(saved: any, apiKey: string) {
+  const taskId = clean(saved?.task_id, 420);
+  if (!taskId || !(saved?.model_storage_path || saved?.model_url)) return null;
+  return propertyGenerationModelUrl(apiKey, taskId);
 }
 
 function publicState(saved: any, displayModelUrl: string | null = null) {
@@ -148,7 +142,7 @@ export async function POST(request: Request) {
               ok: true,
               reused: true,
               directPhoto: true,
-              ...publicState(directJob, await displayUrlFor(directJob)),
+              ...publicState(directJob, displayUrlFor(directJob, apiKey)),
             });
           }
 
@@ -181,7 +175,7 @@ export async function POST(request: Request) {
     const existing = await readCatalog3D(itemId);
     const sameSourceImage = clean(existing?.source_image_url, 2200) === imageUrl;
     if (sameSourceImage && (existing?.model_url || existing?.model_storage_path)) {
-      return privateJson({ ok: true, reused: true, ...publicState(existing, await displayUrlFor(existing)), progress: 100 });
+      return privateJson({ ok: true, reused: true, ...publicState(existing, displayUrlFor(existing, apiKey)), progress: 100 });
     }
     if (sameSourceImage && existing?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(existing.status || '').toUpperCase())) {
       return privateJson({ ok: true, reused: true, ...publicState(existing) });
@@ -247,6 +241,7 @@ export async function GET(request: Request) {
   const phaseRaw = url.searchParams.get('phase') || '';
   const taskId = clean(url.searchParams.get('taskId'), 420);
   const resumeCached = url.searchParams.get('resume') === '1';
+  const apiKey = process.env.MESHY_API_KEY?.trim();
 
   try {
     if ((atlasIdRaw || draftIdRaw) && !taskId) {
@@ -263,11 +258,10 @@ export async function GET(request: Request) {
       }
       const saved = await readCatalog3D(itemId);
       if (!saved) return privateJson({ ok: true, exists: false, cachedResumeAvailable: false, status: 'NOT_STARTED', progress: 0, modelUrl: null });
-      return privateJson({ ok: true, exists: true, cachedResumeAvailable: true, ...publicState(saved, await displayUrlFor(saved)) });
+      return privateJson({ ok: true, exists: true, cachedResumeAvailable: true, ...publicState(saved, apiKey ? displayUrlFor(saved, apiKey) : null) });
     }
 
     if (!taskId) return privateJson({ ok: false, error: 'draftId, atlasId, or taskId is required.' }, { status: 400 });
-    const apiKey = process.env.MESHY_API_KEY?.trim();
     if (!apiKey) return privateJson({ ok: false, error: 'Property 3D generation is not configured on this deployment.' }, { status: 503 });
 
     const stored = await readCatalog3DByTask(taskId);
@@ -314,7 +308,12 @@ export async function GET(request: Request) {
         thumbnail_url: thumbnailUrl,
         error: data?.task_error?.message || null,
       };
-      return privateJson({ ok: true, exists: true, recoveryMode: true, ...publicState(finalRow, providerModelUrl) });
+      return privateJson({
+        ok: true,
+        exists: true,
+        recoveryMode: true,
+        ...publicState(finalRow, providerModelUrl ? propertyGenerationModelUrl(apiKey, taskId) : null),
+      });
     }
 
     let modelStoragePath = saved?.model_storage_path || null;
@@ -342,7 +341,7 @@ export async function GET(request: Request) {
       thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
       error: data?.task_error?.message || null,
     };
-    return privateJson({ ok: true, exists: true, ...publicState(finalRow, await displayUrlFor(finalRow)) });
+    return privateJson({ ok: true, exists: true, ...publicState(finalRow, displayUrlFor(finalRow, apiKey)) });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property 3D status failed.' }, { status: 500 });
   }
