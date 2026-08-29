@@ -6,6 +6,8 @@ const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), '
 const staticIndex = read('index.html');
 const staticSitemap = read('sitemap.xml');
 const staticRobots = read('robots.txt');
+const staticPrivacy = read('privacy.html');
+const staticTerms = read('terms.html');
 const appSitemap = read('app/sitemap.js');
 const appRobots = read('app/robots.js');
 const layout = read('app/layout.js');
@@ -20,6 +22,17 @@ for (const [name, source] of [
   ['static robots', staticRobots],
 ]) {
   assert.match(source, /https:\/\/www\.voxelvault\.io/, `${name} must point to the canonical Voxel Vault domain.`);
+  assert.doesNotMatch(source, /Ad-Revenue|voxel-vault\.vercel\.app|VoxelForge/, `${name} must not preserve an obsolete public identity.`);
+}
+
+for (const [name, source, path] of [
+  ['static privacy', staticPrivacy, '/privacy'],
+  ['static terms', staticTerms, '/terms'],
+]) {
+  const url = `https://www.voxelvault.io${path}`;
+  assert.ok(source.includes(`rel="canonical" href="${url}"`), `${name} must canonicalize to the live policy route.`);
+  assert.ok(source.includes(`window.location.replace('${url}')`), `${name} must redirect to the live policy route.`);
+  assert.match(source, /name="robots" content="noindex,follow"/, `${name} must not compete with the live policy in search results.`);
   assert.doesNotMatch(source, /Ad-Revenue|voxel-vault\.vercel\.app|VoxelForge/, `${name} must not preserve an obsolete public identity.`);
 }
 
@@ -44,4 +57,4 @@ for (const [name, source] of [['checkout', checkout], ['secure checkout', secure
 assert.match(productMap, /Authorized photo → \$4\.99 textured 3D preview → approval → movable voxel → optional World\/map\/mint\./, 'Canonical product-map copy must preserve preview-before-voxel ordering.');
 assert.match(productMap, /included voxel for eligible purchases/, 'Product-map Digital Twin copy must preserve the purchased-twin voxel entitlement.');
 
-console.log('Public-surface coherence passed: canonical domain, sitemap/robots, checkout fallbacks, canonical scoping, and preview-before-voxel positioning are aligned.');
+console.log('Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and preview-before-voxel positioning are aligned.');
