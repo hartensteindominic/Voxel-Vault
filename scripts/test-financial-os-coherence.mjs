@@ -19,7 +19,7 @@ for (const label of ['Home', 'Explore', 'Create', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `global product dock should include ${label}`);
 }
 assert.match(productMap, /SIMPLE_PROPERTY_DOCK/, 'simple property product should have a dedicated consumer dock');
-for (const label of ['Home', 'Create', '$1.99', 'Vault', 'World']) {
+for (const label of ['Home', 'Create', '$1.99', 'Vault', 'Rented', 'World']) {
   assert.ok(productMap.includes(`label: '${label}'`), `simple property dock should include ${label}`);
 }
 assert.match(productMap, /APP_SECTIONS/);
@@ -56,7 +56,7 @@ assert.match(commandCenter, /APP_DOCK, APP_SECTIONS/, 'command center should ind
 assert.match(commandCenter, /metaKey \|\| event\.ctrlKey/, 'command center should support desktop keyboard invocation');
 assert.match(commandCenter, /event\.key === '\/'/, 'command center should support fast slash invocation outside text fields');
 assert.match(commandCenter, /safe-area-inset-bottom/, 'command center trigger must respect iPhone safe area');
-assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from the simple Home, Create, $1.99, Vault and World routes');
+assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search must disappear from the simple Home, Create, $1.99, Vault, Rented and World routes');
 assert.match(commandCenter, /Search is navigation only\. It never executes trades, mints, Meshy generations or property actions\./, 'command center must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
