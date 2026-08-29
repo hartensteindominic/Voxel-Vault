@@ -1,0 +1,27 @@
+:root{
+  --vv-purple:#6f3df4;
+  --vv-purple-700:#5120cf;
+  --vv-purple-100:#eee8ff;
+  --vv-lime:#c9ff54;
+  --vv-bg:#fffaf0;
+  --vv-surface:#fffdf8;
+  --vv-ink:#211725;
+  --vv-text:#5f5663;
+  --vv-muted:#766e79;
+  --vv-border:#e2dbe6;
+  --vv-radius-sm:12px;
+  --vv-radius-md:18px;
+  --vv-radius-lg:26px;
+  --vv-shadow-1:0 8px 24px rgba(74,54,86,.07);
+  --vv-shadow-2:0 18px 48px rgba(74,54,86,.12);
+  --vv-shadow-3:0 28px 72px rgba(55,38,68,.18);
+  --vv-focus:0 0 0 4px rgba(111,61,244,.22);
+}
+*{box-sizing:border-box}
+html{background:var(--vv-bg);color:var(--vv-ink);text-rendering:optimizeLegibility}
+body{margin:0;background:var(--vv-bg);color:var(--vv-ink)}
+button,input,select,textarea{font:inherit}
+a,button{-webkit-tap-highlight-color:transparent}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(111,61,244,.34);outline-offset:3px}
+::selection{background:var(--vv-purple-100);color:var(--vv-ink)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
