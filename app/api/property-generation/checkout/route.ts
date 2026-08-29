@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
@@ -38,15 +39,22 @@ export async function POST(request: Request) {
 
   try {
     const form = await request.formData();
+    const photo = form.get('photo');
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
+    if (!(photo instanceof File)) return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
     if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+    if (photo.size <= 0 || photo.size > 8 * 1024 * 1024) return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
 
+    // Read the source once to bind Stripe to the exact photo, but do not write it
+    // to Supabase or any other Voxel Vault storage. The browser keeps its own
+    // private IndexedDB copy until Stripe returns.
+    const bytes = Buffer.from(await photo.arrayBuffer());
     const prepared = preparePropertyGenerationCheckoutPhoto({
       draftId: form.get('draftId'),
-      digest: form.get('sourceSha256'),
-      contentType: form.get('sourceContentType'),
-      fileName: form.get('sourceName'),
-      sizeBytes: form.get('sourceSizeBytes'),
+      digest: createHash('sha256').update(bytes).digest('hex'),
+      contentType: photo.type,
+      fileName: photo.name,
+      sizeBytes: bytes.length,
     });
 
     // This is a read-only provider balance check. It does not start a Meshy task
