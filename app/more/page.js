@@ -41,11 +41,11 @@ export default function MorePage() {
       <section className={styles.coreCard}>
         <div className={styles.coreCopy}>
           <small>CORE PROPERTY FLOW</small>
-          <h2>Want to keep creating?</h2>
-          <p>Use a new property photo or reuse one you already saved. The main sequence stays <b>photo → 3D preview → approve → voxel → optional mint</b>.</p>
+          <h2>Bought or saved a property?</h2>
+          <p>Use a new property photo or reuse one you already saved, then continue through <b>3D preview → approve → 3D voxel → optional mint</b>.</p>
           <div className={styles.coreActions}>
-            <Link className={styles.primary} href="/property">Create a VoxelPop →</Link>
-            <Link href="/property?source=properties">Use My Properties →</Link>
+            <Link className={styles.primary} href="/property?source=properties">Create from My Properties →</Link>
+            <Link href="/property">Use a new photo →</Link>
             <Link href="/vault">Open My Vault</Link>
           </div>
         </div>
@@ -74,9 +74,11 @@ export default function MorePage() {
 
       <details className={styles.advanced}>
         <summary><span><small>ADVANCED + PROVIDER-GATED</small><b>Financial, legal, and owner tools</b></span><i>+</i></summary>
-        <p className={styles.advancedIntro}>A demo, NFT, investment security, lease record, bank product, and property deed are different things. These screens intentionally stay outside the normal customer journey.</p>
+        <p className={styles.advancedIntro}>A demo, NFT, investment security, lease record, and property deed are different things. Banking and other regulated products are separate provider-backed rails too. These screens intentionally stay outside the normal customer journey.</p>
         <div className={styles.advancedGrid}>{advancedTools.map((item) => <Link href={item.href} key={item.href}><b>{item.title}</b><span>{item.copy}</span><i>OPEN →</i></Link>)}</div>
       </details>
+
+      <footer className={styles.note}><b>SIMPLE RULE</b><span>A VoxelPop model or NFT can represent a digital creation. It does not automatically create deed/title, rent, occupancy, investment, or appreciation rights in a physical property.</span></footer>
     </div>
   </main>;
 }
