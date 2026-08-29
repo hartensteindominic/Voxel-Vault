@@ -28,6 +28,7 @@ jobs:
       - run: npm run test:collection
       - run: npm run test:commerce
       - run: npm run test:routes
+      - run: npm run test:ui-system
       - run: npm run test:rewards
       - run: npm run test:universal
       - run: npm run test:media

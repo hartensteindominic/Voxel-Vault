@@ -15,8 +15,8 @@ export default function Home() {
           <h1>See your house.<br/><em>Then voxelize it.</em></h1>
           <p className={styles.lead}>Try the real 3D interaction first. When you create your own, VoxelPop shows a textured 3D preview from your photo before it builds the separate movable voxel.</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/demo">Try 3D demo</Link>
-            <Link className={styles.secondaryAction} href="/property">Create yours · $4.99</Link>
+            <Link className={styles.primaryAction} href="/property">Create yours · $4.99</Link>
+            <Link className={styles.secondaryAction} href="/demo">Try 3D demo</Link>
           </div>
           <div className={styles.trustRow} aria-label="VoxelPop creation facts">
             <span>No login for demo</span><span>Photo stays on device</span><span>No Meshy credits</span>

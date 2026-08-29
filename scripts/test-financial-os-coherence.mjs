@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const nav = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
+const navCss = fs.readFileSync(new URL('../app/components/FinancialOSNav.module.css', import.meta.url), 'utf8');
 const commandCenter = fs.readFileSync(new URL('../app/components/AppCommandCenter.js', import.meta.url), 'utf8');
 const homeCapabilities = fs.readFileSync(new URL('../app/components/HomeCapabilityStrip.js', import.meta.url), 'utf8');
 const capabilitiesApi = fs.readFileSync(new URL('../app/api/world-atlas/capabilities/route.ts', import.meta.url), 'utf8');
@@ -41,7 +42,9 @@ assert.match(nav, /SIMPLE_PROPERTY_DOCK/);
 assert.match(nav, /Voxel Vault primary navigation/);
 assert.match(nav, /isOrganizedUserRoute/);
 assert.match(nav, /isSimplePropertyRoute/);
-assert.match(nav, /safe-area-inset-bottom/);
+assert.match(nav, /FinancialOSNav\.module\.css/, 'consumer dock should use its responsive stylesheet');
+assert.match(navCss, /safe-area-inset-bottom/, 'consumer dock must respect the iPhone safe area');
+assert.match(navCss, /@media\(max-width:720px\)/, 'consumer dock must stay mobile-only when desktop top navigation is present');
 assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should not be restricted to finance-only routes');
 assert.match(layout, /FinancialOSNav/);
 assert.match(layout, /AppCommandCenter/);
