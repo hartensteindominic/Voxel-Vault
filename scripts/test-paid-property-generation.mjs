@@ -79,7 +79,7 @@ assert.match(viewer, /const GRID = 32/, 'photo-matched building uses the higher-
 assert.match(viewer, /COLOR_STEP = 12/, 'photo-matched voxel keeps finer facade color differences');
 assert.match(viewer, /keepBestComponent/, 'voxel extraction keeps the strongest connected building region');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells become empty space');
-assert.match(viewer, /if \(recipe\.depths\[index\] <= 0\) continue/, 'interactive voxel viewer does not instantiate background voxels');
+assert.match(viewer, /if \(!depth\) continue/, 'interactive stacked voxel viewer does not instantiate background voxels');
 assert.match(viewer, /sourceImageUrl/, 'voxel sampling uses the original property photo');
 assert.match(viewer, /InstancedMesh/, 'local movable voxel is real WebGL geometry');
 assert.doesNotMatch(viewer, /backingGeometry/, 'the old square backing slab must stay removed');
