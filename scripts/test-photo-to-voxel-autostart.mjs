@@ -49,6 +49,6 @@ assert.match(finalize, /updatePropertyCollectibleReservation/, 'a completed voxe
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint checks the exact account-owned finished voxel');
 assert.match(mintPrepare, /already been minted|duplicate mint/i, 'mint blocks a second NFT for the same property');
 assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'mint does not reintroduce Meshy');
-assert.match(mintPage, /Mint Later/, 'the mint page keeps inventory ownership useful without immediate minting');
+assert.match(mintPage, /Keep in inventory/, 'the mint page keeps inventory ownership useful without immediate minting');
 
 console.log('House voxel regression passed: photo -> address -> voxel image -> automatic movable 3D voxel -> automatic Inventory save -> optional one-of-one mint.');
