@@ -29,10 +29,10 @@ export default function HomeProductPreview() {
 
     <div className={styles.controls} role="group" aria-label="Choose which VoxelPop result to preview">
       <button type="button" className={previewStage ? styles.active : ''} aria-pressed={previewStage} onClick={() => setStage('preview')}>
-        <span>01</span><div><small>FIRST</small><b>Voxel Photo</b></div>
+        <span>01</span><span className={styles.controlCopy}><small>FIRST</small><b>Voxel Photo</b></span>
       </button>
       <button type="button" className={!previewStage ? styles.active : ''} aria-pressed={!previewStage} onClick={() => setStage('voxel')}>
-        <span>02</span><div><small>AFTER APPROVAL</small><b>{!previewStage && !voxelReady ? 'Building…' : 'Movable Voxel'}</b></div>
+        <span>02</span><span className={styles.controlCopy}><small>AFTER APPROVAL</small><b>{!previewStage && !voxelReady ? 'Building…' : 'Movable Voxel'}</b></span>
       </button>
     </div>
 
