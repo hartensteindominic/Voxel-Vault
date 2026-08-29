@@ -37,7 +37,8 @@ export async function GET(request: Request) {
       draftId: purchase.draftId,
       modelTaskId: purchase.modelTaskId,
     });
-    const durableModelUrl = propertyCollectibleModelAccessPath(purchase.identityKey, purchase.modelTaskId);
+    const localPreview = verifiedModel.localPreview === true;
+    const durableModelUrl = localPreview ? null : propertyCollectibleModelAccessPath(purchase.identityKey, purchase.modelTaskId);
 
     let building: any = {
       atlasId: purchase.atlasId,
@@ -48,10 +49,12 @@ export async function GET(request: Request) {
       height: null,
       source: null,
     };
+    let reference: any = null;
     try {
       const atlas = await inspectWorldAtlas({ address: purchase.address, radiusMeters: 180 });
       const resolved = atlas?.ok ? findMappedBuilding(atlas, purchase.atlasId) : null;
       if (resolved) building = resolved;
+      if (atlas?.ok) reference = atlas.reference || null;
     } catch {}
 
     return NextResponse.json({
@@ -71,12 +74,16 @@ export async function GET(request: Request) {
         purchasedAt: purchase.processedAt,
       },
       building,
+      reference,
       model: {
+        kind: localPreview ? 'source-backed-local-map-voxel' : 'generated-3d-glb',
         taskId: purchase.modelTaskId,
         itemId: verifiedModel.savedModel.item_id,
         modelUrl: durableModelUrl,
         thumbnailUrl: verifiedModel.savedModel.thumbnail_url || null,
-        storage: verifiedModel.savedModel.model_storage_path ? 'private-persisted-glb' : 'provider-fallback',
+        storage: localPreview
+          ? 'local-source-backed-map-render'
+          : verifiedModel.savedModel.model_storage_path ? 'private-persisted-glb' : 'provider-fallback',
       },
       next: {
         vault: '/vault/property-drafts',
@@ -84,7 +91,9 @@ export async function GET(request: Request) {
         world: '/world',
         verifyAndMint: '/vault/properties/claim',
       },
-      disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. Its Vault model link re-issues short-lived access to the private persisted GLB instead of storing an expiring URL. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
+      disclosure: localPreview
+        ? 'Payment secured one digital VoxelPop map collectible for this source-backed mapped building identity. The 3D view is rendered locally from map geometry and does not use Meshy or claim a photorealistic reconstruction. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights.'
+        : 'Payment secured one digital VoxelPop collectible for this mapped World building identity. Its Vault model link re-issues short-lived access to the private persisted GLB instead of storing an expiring URL. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     const friendly = propertyCollectiblePaymentErrorMessage(error);

@@ -24,6 +24,14 @@ export function propertyDraftItemId(userId: string, draftId: string, phase: Prop
   return `property-create:${propertyGenerationUserScope(userId)}:${normalizePropertyDraftId(draftId)}:${phase}`;
 }
 
+export function propertyLocalPreviewTaskId(userId: string, draftIdRaw: unknown) {
+  return `atlas-map:${propertyGenerationUserScope(userId)}:${normalizePropertyDraftId(draftIdRaw)}`;
+}
+
+export function propertyLocalPreviewTaskBelongsToUser(userId: string, draftIdRaw: unknown, taskIdRaw: unknown) {
+  return String(taskIdRaw || '') === propertyLocalPreviewTaskId(userId, draftIdRaw);
+}
+
 export function propertyDraftItemPrefix(userId: string) {
   return `property-create:${propertyGenerationUserScope(userId)}:`;
 }

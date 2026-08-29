@@ -2,7 +2,11 @@ import type Stripe from 'stripe';
 import { createHash } from 'node:crypto';
 import { getSupabaseAdmin } from './supabase-admin';
 import { createModelSignedUrl, readCatalog3DByTask } from './catalog3dStore';
-import { normalizePropertyDraftId, propertyDraftItemId } from './property-generation-ids';
+import {
+  normalizePropertyDraftId,
+  propertyDraftItemId,
+  propertyLocalPreviewTaskBelongsToUser,
+} from './property-generation-ids';
 
 const PROVIDER = 'property-collectible-reservation';
 const HOLD_MINUTES = 35;
@@ -97,6 +101,26 @@ export async function verifyOwnedFinalVoxelModel(input: { userId: string; draftI
   const draftId = normalizePropertyDraftId(input.draftId);
   const modelTaskId = clean(input.modelTaskId, 260);
   if (!modelTaskId) throw new Error('Finish the final voxel 3D before checkout.');
+
+  if (propertyLocalPreviewTaskBelongsToUser(input.userId, draftId, modelTaskId)) {
+    return {
+      draftId,
+      modelTaskId,
+      localPreview: true,
+      savedModel: {
+        item_id: propertyDraftItemId(input.userId, draftId, 'voxel'),
+        task_id: modelTaskId,
+        provider: 'world-atlas-local',
+        status: 'COMPLETED',
+        progress: 100,
+        model_url: null,
+        model_storage_path: null,
+        thumbnail_url: null,
+      },
+      modelUrl: null,
+    };
+  }
+
   const savedModel = await readCatalog3DByTask(modelTaskId);
   const expectedItemId = propertyDraftItemId(input.userId, draftId, 'voxel');
   if (!savedModel?.item_id || savedModel.item_id !== expectedItemId) {
@@ -106,7 +130,7 @@ export async function verifyOwnedFinalVoxelModel(input: { userId: string; draftI
   const modelUrl = savedModel.model_storage_path
     ? await createModelSignedUrl(savedModel.model_storage_path, 60 * 60)
     : savedModel.model_url;
-  return { draftId, modelTaskId, savedModel, modelUrl: modelUrl || savedModel.model_url || null };
+  return { draftId, modelTaskId, savedModel, modelUrl: modelUrl || savedModel.model_url || null, localPreview: false };
 }
 
 function encode(value: Omit<PropertyCollectibleReservation, 'identityKey' | 'processedAt'>) {
