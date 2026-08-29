@@ -23,7 +23,7 @@
     "test:hyperreal-voxel": "node scripts/test-hyperreal-voxel-building.mjs",
     "test:buffalo-reference": "node scripts/test-buffalo-property-reference.mjs",
     "test:property-draft-funnel": "node scripts/test-property-draft-funnel.mjs",
-    "test:simple-property-world": "node scripts/test-simple-property-world.mjs && node scripts/test-photo-to-voxel-autostart.mjs && node scripts/test-property-collectible-model-access.mjs && node scripts/test-meshy-polycount-limit.mjs && node scripts/test-catalog3d-generation-record-compat.mjs",
+    "test:simple-property-world": "node scripts/test-simple-property-world.mjs && node scripts/test-photo-to-voxel-autostart.mjs && node scripts/test-property-collectible-model-access.mjs && node scripts/test-meshy-polycount-limit.mjs && node scripts/test-catalog3d-generation-record-compat.mjs && node scripts/test-paid-property-generation.mjs",
     "test:property-platform": "node scripts/test-property-platform-safety.mjs && node scripts/test-erie-county-spatial-intake.mjs && node scripts/test-fractional-property-bridge.mjs && node scripts/test-algorand-position-verifier.mjs && node scripts/test-geo-property-onboarding.mjs && node scripts/test-geo-finish-polish.mjs && node scripts/test-geo-map-context.mjs && node scripts/test-geo-map-explorer.mjs && node scripts/test-buffalo-property-reference.mjs && node scripts/test-financial-os-coherence.mjs && node scripts/test-hyperreal-voxel-building.mjs && npm run test:property-draft-funnel && npm run test:simple-property-world",
     "test:property-twin": "node scripts/test-property-twin-truth.mjs",
     "test:first-real-erie-parcel": "node scripts/test-first-real-erie-parcel-live.mjs",
