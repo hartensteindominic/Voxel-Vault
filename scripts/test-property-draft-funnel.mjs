@@ -12,6 +12,8 @@ assert.match(drafts, /optional:\s*true/, 'blockchain minting must remain optiona
 assert.match(drafts, /ownershipRightsCreatedByDraft:\s*false/, 'saving a 3D draft must never create property rights');
 assert.match(drafts, /ownershipRightsCreatedByMint:\s*false/, 'minting a digital model must never be represented as creating real-property rights');
 assert.match(drafts, /MAX_DRAFTS = 24/, 'browser draft storage must stay bounded for mobile devices');
+assert.match(drafts, /overflowIds = allIds\.slice\(MAX_DRAFTS\)/, 'storage overflow must be identified, not merely hidden from the index');
+assert.match(drafts, /removeItem\(propertyDraftStorageKey\(stale\)\)/, 'overflow property records must be removed from browser storage');
 assert.match(drafts, /localStorage\.setItem\(propertyDraftStorageKey/, '3D drafts must be savable without a wallet');
 
 assert.match(truth, /PROPERTY → 3D VOXEL MAKER/, 'Earth evidence must expose the 3D-first maker funnel');
@@ -35,4 +37,4 @@ assert.match(vaultPage, /Saving this model does not create deed\/title/, 'saved 
 assert.match(earthPage, /PropertyTruthStack/, 'the 3D-first funnel must remain mounted in the main Earth property experience');
 assert.match(earthPage, /automatic|MESHY|Meshy/i, 'Earth must keep its existing controlled high-fidelity reconstruction layer');
 
-console.log('3D-first property funnel checks passed: every source-backed property can exist as an offchain draft first, saving is wallet-free, verification stays separate, and minting remains optional.');
+console.log('3D-first property funnel checks passed: every source-backed property can exist as an offchain draft first, saving is wallet-free, storage stays bounded, verification stays separate, and minting remains optional.');
