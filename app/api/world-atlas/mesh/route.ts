@@ -84,6 +84,88 @@ function safeMeshState(saved: any, displayModelUrl: string | null = null) {
   };
 }
 
+async function recoverCachedDisplay(saved: any) {
+  if (!saved) return { saved, displayModelUrl: null, recovered: false };
+
+  if (saved?.model_storage_path) {
+    const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
+    if (signed) return { saved, displayModelUrl: signed, recovered: false };
+  }
+
+  let updated = saved;
+  let modelStoragePath: string | null = null;
+  let providerModelUrl = saved?.model_url || null;
+
+  if (saved?.item_id && providerModelUrl) {
+    modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+    if (modelStoragePath) {
+      updated = await saveCatalog3D(saved.item_id, {
+        ...saved,
+        model_storage_path: modelStoragePath,
+        error: null,
+      }) || { ...saved, model_storage_path: modelStoragePath, error: null };
+      const signed = await createModelSignedUrl(modelStoragePath, 60 * 60);
+      if (signed) return { saved: updated, displayModelUrl: signed, recovered: true };
+    }
+  }
+
+  const apiKey = process.env.MESHY_API_KEY?.trim();
+  if (!saved?.task_id || !apiKey) {
+    return { saved: updated, displayModelUrl: await displayUrlFor(updated), recovered: false };
+  }
+
+  try {
+    const response = await fetch(`${ENDPOINT}/${encodeURIComponent(rawTaskId(saved.task_id))}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { saved: updated, displayModelUrl: await displayUrlFor(updated), recovered: false };
+
+    const refreshedModelUrl = data?.model_urls?.glb || providerModelUrl || null;
+    const refreshedThumbnailUrl = data?.thumbnail_url || saved?.thumbnail_url || null;
+    const refreshedStatus = String(data?.status || saved?.status || 'PENDING');
+    const refreshedProgress = Number(data?.progress ?? saved?.progress ?? 0);
+    let refreshedStoragePath = modelStoragePath || null;
+
+    if (saved?.item_id && refreshedModelUrl) {
+      refreshedStoragePath = await persistModelBinary(saved.item_id, refreshedModelUrl) || refreshedStoragePath;
+      updated = await saveCatalog3D(saved.item_id, {
+        ...saved,
+        task_id: saved.task_id,
+        provider: saved.provider || `meshy-world-atlas:${WORLD_ATLAS_MESH_POLICY.aiModel}`,
+        status: refreshedStatus,
+        progress: refreshedModelUrl ? 100 : refreshedProgress,
+        model_url: refreshedModelUrl,
+        model_storage_path: refreshedStoragePath,
+        thumbnail_url: refreshedThumbnailUrl,
+        completed_at: refreshedModelUrl ? (saved.completed_at || new Date().toISOString()) : saved.completed_at || null,
+        error: data?.task_error?.message || null,
+      }) || {
+        ...saved,
+        status: refreshedStatus,
+        progress: refreshedModelUrl ? 100 : refreshedProgress,
+        model_url: refreshedModelUrl,
+        model_storage_path: refreshedStoragePath,
+        thumbnail_url: refreshedThumbnailUrl,
+        error: data?.task_error?.message || null,
+      };
+    }
+
+    return {
+      saved: updated,
+      displayModelUrl: await displayUrlFor({
+        ...updated,
+        model_url: refreshedModelUrl || updated?.model_url || null,
+        model_storage_path: refreshedStoragePath || updated?.model_storage_path || null,
+      }),
+      recovered: Boolean(refreshedModelUrl || refreshedStoragePath),
+    };
+  } catch {
+    return { saved: updated, displayModelUrl: await displayUrlFor(updated), recovered: false };
+  }
+}
+
 export async function POST(request: Request) {
   const admin = await requireVoxelVaultAdmin(request);
   if (admin.ok === false) return NextResponse.json({ configured: false, error: admin.error }, { status: admin.status });
@@ -99,7 +181,8 @@ export async function POST(request: Request) {
     if (!forceRestart) {
       const saved = await readCatalog3D(itemId);
       if (saved?.model_url || saved?.model_storage_path) {
-        return NextResponse.json({ configured: true, reused: true, ...safeMeshState(saved, await displayUrlFor(saved)), progress: 100 });
+        const recovered = await recoverCachedDisplay(saved);
+        return NextResponse.json({ configured: true, reused: true, recovered: recovered.recovered, ...safeMeshState(recovered.saved, recovered.displayModelUrl), progress: 100 });
       }
       if (saved?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(saved.status || '').toUpperCase())) {
         return NextResponse.json({ configured: true, reused: true, ...safeMeshState(saved) });
@@ -183,7 +266,8 @@ export async function GET(request: Request) {
       const atlasId = cleanAtlasId(atlasIdRaw);
       const saved = await readCatalog3D(`world-atlas:${atlasId}`);
       if (!saved) return NextResponse.json({ configured: true, exists: false, status: 'NOT_STARTED', progress: 0, displayModelUrl: null, meshPolicy: WORLD_ATLAS_MESH_POLICY });
-      return NextResponse.json({ configured: true, exists: true, ...safeMeshState(saved, await displayUrlFor(saved)) });
+      const recovered = await recoverCachedDisplay(saved);
+      return NextResponse.json({ configured: true, exists: true, recovered: recovered.recovered, ...safeMeshState(recovered.saved, recovered.displayModelUrl) });
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to read cached world model.' }, { status: 400 });
     }
