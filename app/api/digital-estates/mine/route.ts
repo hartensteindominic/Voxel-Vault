@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { DIGITAL_ESTATES } from '../../../../lib/digital-estates';
 import { isDigitalEstateMinted } from '../../../../lib/digital-estate-mint';
 import { readDigitalEstateReservation } from '../../../../lib/digital-estate-reservations';
+import { readCatalog3D } from '../../../../lib/catalog3dStore';
+import { propertyDraftItemId } from '../../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
 
@@ -29,6 +31,17 @@ export async function GET(request: Request) {
       try { minted = await isDigitalEstateMinted(estate.id); }
       catch (error) { console.warn('Digital Estate onchain status unavailable', estate.id, error); }
 
+      let voxel: any = null;
+      try { voxel = await readCatalog3D(propertyDraftItemId(user.id, `estate-${estate.id}`, 'voxel')); }
+      catch (error) { console.warn('Purchased Digital Twin voxel lookup unavailable', estate.id, error); }
+      const voxelReady = Boolean(
+        voxel
+        && voxel.provider === 'voxelpop-local-webgl-v1'
+        && String(voxel.status || '').toUpperCase() === 'SUCCEEDED'
+        && String(voxel.task_id || '').startsWith('local-v1:')
+        && voxel.model_url
+      );
+
       owned.push({
         estate,
         state: reservation.state,
@@ -38,6 +51,11 @@ export async function GET(request: Request) {
         minted,
         ownershipSecured: true,
         mintOptional: true,
+        voxelIncluded: true,
+        voxelReady,
+        voxelTaskId: voxelReady ? voxel.task_id : null,
+        voxelModelUrl: voxelReady ? voxel.model_url : null,
+        voxelDraftId: `estate-${estate.id}`,
       });
     }
 
