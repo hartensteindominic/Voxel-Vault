@@ -445,7 +445,7 @@ export default function PlanetStreamGlobe({
         lastRender = time;
         root.rotation.x += (targetX - root.rotation.x) * 0.075;
         root.rotation.y += (targetY - root.rotation.y) * 0.075;
-        if (!reducedMotion && !lastFocusedKey && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
+        if (!simpleMode && !reducedMotion && !lastFocusedKey && activePointers.size === 0 && Math.abs(targetY - root.rotation.y) < 0.002) targetY += 0.00018;
         renderer.render(scene, camera);
       };
 
@@ -463,6 +463,7 @@ export default function PlanetStreamGlobe({
         updateMarkers,
         focusSelected() { return focusSelected(dataRef.current, true); },
         reset() {
+          if (simpleMode && focusSelected(dataRef.current, true)) return;
           lastFocusedKey = '';
           targetX = 0.18;
           targetY = -0.42;
