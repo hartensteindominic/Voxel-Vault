@@ -6,6 +6,7 @@ import { getWallet } from '../../../lib/blockchain';
 import { tenantVoxelOwnershipMessage } from '../../../lib/real-estate/property-rental';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 import { loadAccountVoxels, summarizeVoxel } from '../../../lib/voxelpop-account';
+import RentalDecoratorPreview from './RentalDecoratorPreview';
 import RentalRoomPanel from './RentalRoomPanel';
 import styles from './rentals.module.css';
 
@@ -214,6 +215,8 @@ export default function RentalsPage() {
         <p>A property appears here only after a real rental agreement is verified. Uploading or minting a house does not make you its tenant.</p>
         <Link className={styles.linkButton} href="/property">Explore a property</Link>
       </section> : null}
+
+      {authReady && !leases.length && busy !== 'load' ? <RentalDecoratorPreview/> : null}
 
       <div className={styles.leaseList}>
         {leases.map((lease) => {
