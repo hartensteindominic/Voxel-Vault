@@ -30,7 +30,7 @@ const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
 // Front door stays simple and legally separate from physical-property ownership.
-assert.match(home, /PHOTO → 3D → VOXEL → YOUR WORLD/, 'home must advertise the photo-first journey');
+assert.match(home, /PHOTO → VOXEL PREVIEW → 3D MAP → WORLD/, 'home must advertise the actual zero-credit photo-first journey');
 assert.match(home, /START → SIGN IN/, 'home must enter the account-gated maker');
 assert.match(home, /wallet is optional|A wallet is optional/i, 'wallet must not block creation or checkout');
 assert.match(home, /does not buy the physical property/i, 'home must distinguish collecting the voxel from buying real property');
