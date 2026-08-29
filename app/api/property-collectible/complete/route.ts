@@ -32,12 +32,6 @@ export async function GET(request: Request) {
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const purchase = await secureStripePropertyCollectiblePurchase({ session, expectedBuyerId: auth.user.id });
-    const verifiedModel = await verifyOwnedFinalVoxelModel({
-      userId: auth.user.id,
-      draftId: purchase.draftId,
-      modelTaskId: purchase.modelTaskId,
-    });
-    const durableModelUrl = propertyCollectibleModelAccessPath(purchase.identityKey, purchase.modelTaskId);
 
     let building: any = {
       atlasId: purchase.atlasId,
@@ -54,6 +48,32 @@ export async function GET(request: Request) {
       if (resolved) building = resolved;
     } catch {}
 
+    let model: any;
+    if (purchase.representationKind === 'map-voxel') {
+      model = {
+        kind: 'map-voxel',
+        taskId: null,
+        itemId: null,
+        modelUrl: null,
+        thumbnailUrl: null,
+        storage: 'source-backed-map-representation',
+      };
+    } else {
+      const verifiedModel = await verifyOwnedFinalVoxelModel({
+        userId: auth.user.id,
+        draftId: purchase.draftId,
+        modelTaskId: purchase.modelTaskId,
+      });
+      model = {
+        kind: 'generated-3d',
+        taskId: purchase.modelTaskId,
+        itemId: verifiedModel.savedModel.item_id,
+        modelUrl: propertyCollectibleModelAccessPath(purchase.identityKey, purchase.modelTaskId),
+        thumbnailUrl: verifiedModel.savedModel.thumbnail_url || null,
+        storage: verifiedModel.savedModel.model_storage_path ? 'private-persisted-glb' : 'provider-fallback',
+      };
+    }
+
     return NextResponse.json({
       ok: true,
       paid: true,
@@ -62,7 +82,8 @@ export async function GET(request: Request) {
         atlasId: purchase.atlasId,
         address: purchase.address,
         draftId: purchase.draftId,
-        modelTaskId: purchase.modelTaskId,
+        representationKind: purchase.representationKind,
+        modelTaskId: purchase.modelTaskId || null,
         priceCents: purchase.priceCents,
         priceTier: purchase.priceTier,
         priceLabel: purchase.priceLabel,
@@ -71,20 +92,16 @@ export async function GET(request: Request) {
         purchasedAt: purchase.processedAt,
       },
       building,
-      model: {
-        taskId: purchase.modelTaskId,
-        itemId: verifiedModel.savedModel.item_id,
-        modelUrl: durableModelUrl,
-        thumbnailUrl: verifiedModel.savedModel.thumbnail_url || null,
-        storage: verifiedModel.savedModel.model_storage_path ? 'private-persisted-glb' : 'provider-fallback',
-      },
+      model,
       next: {
         vault: '/vault/property-drafts',
         createAnother: '/property',
         world: '/world',
         verifyAndMint: '/vault/properties/claim',
       },
-      disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. Its Vault model link re-issues short-lived access to the private persisted GLB instead of storing an expiring URL. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
+      disclosure: purchase.representationKind === 'map-voxel'
+        ? 'Payment secured one source-backed digital Map Voxel for this mapped World building identity. It uses the mapped representation and does not require a Meshy GLB or private generated-model storage. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.'
+        : 'Payment secured one generated digital VoxelPop collectible for this mapped World building identity. Its Vault model link re-issues short-lived access to the private persisted GLB instead of storing an expiring URL. It does not transfer real property or create deed/title, rent, occupancy, investment or appreciation rights. Minting is optional and canonical property minting remains downstream of parcel verification.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     const friendly = propertyCollectiblePaymentErrorMessage(error);
