@@ -17,16 +17,19 @@ const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
 
-assert.match(home, /ONE PHOTO → ONE VOXEL/, 'home must communicate the product immediately');
-assert.match(home, /Create mine · \$4\.99/, 'home must keep one clear paid creation CTA and price');
-assert.match(home, /3D voxel photo/i, 'home must preserve the voxel-photo review in the short product story');
-assert.match(home, /Your movable voxel is built and saved\./, 'home must make the automatic final result clear');
+assert.match(home, /HOUSE PHOTO → VOXEL → MINT/, 'home must communicate the complete house flow immediately');
+assert.match(home, /Create house voxel/, 'home must keep one clear creation CTA');
+assert.match(home, /confirm the address/i, 'home must include the property confirmation step');
+assert.match(home, /Saved to Inventory/i, 'home must make the automatic saved result clear');
+assert.doesNotMatch(home, /Create mine · \$4\.99|Create · \$4\.99/, 'home must not insert checkout copy into the condensed creator');
 assert.match(home, /HomeProductPreview/, 'home hero must show the real interactive product result instead of decorative art');
 assert.doesNotMatch(home, /secondaryAction|Try voxel sample · no login/, 'home must not add a competing hero action');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production movable-voxel viewer');
 assert.doesNotMatch(homePreview, /PhotoReliefModelViewer/, 'home proof must not force users through a stage switcher before creating');
-assert.match(homePreview, /3D voxel photo review/, 'home proof must disclose the intermediate review even while showing the final result');
+assert.match(homePreview, />Address</, 'home proof must disclose address confirmation');
+assert.match(homePreview, />Inventory</, 'home proof must disclose where the finished voxel is saved');
 assert.match(homePreview, /MOVABLE 3D VOXEL/, 'home proof must identify the interactive final result');
+assert.doesNotMatch(homePreview, /\$4\.99/, 'home proof must not show stale checkout pricing');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
 assert.match(home, /About/, 'home footer must expose About/contact information');
@@ -34,7 +37,7 @@ assert.match(home, /About/, 'home footer must expose About/contact information')
 assert.match(photoViewer, /getImageData\(0, 0, columns, rows\)/, 'voxel-photo stage must sample visible source-image colors');
 assert.match(photoViewer, /new THREE\.InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
 assert.match(photoViewer, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage must use real block geometry');
-assert.match(photoViewer, /const columns = compact \? 52 : 64/, 'voxel-photo review must keep enough source detail for roofs, doors and windows to remain recognizable');
+assert.match(photoViewer, /const columns = compact \? 52 : 64/, 'voxel-photo stage must keep enough source detail for roofs, doors and windows to remain recognizable');
 assert.match(photoViewer, /const baseDepth = 0\.10/, 'voxel-photo geometry must stay shallow enough to preserve the photographed likeness');
 assert.match(photoViewer, /edge \* 0\.055/, 'voxel depth may respond gently to visible image structure without turning into a thick relief');
 assert.doesNotMatch(photoViewer, /backingGeometry|plinthGeometry/, 'the voxel photo must be the geometry itself, not a backed picture or display plaque');
@@ -54,7 +57,7 @@ assert.match(demo, /cannot prove hidden sides/i, 'demo must state what a single 
 assert.doesNotMatch(demo, /getSupabaseBrowserAsync|signInWithOAuth|checkout\.sessions|\/api\/property-generation\/checkout/, 'public demo must not hide an auth or payment gate');
 
 assert.match(layout, /Turn a House Photo into a 3D Voxel/, 'site metadata must use the focused current promise');
-assert.match(layout, /3D voxel photo/, 'metadata must describe the shipping voxel-photo product');
+assert.match(layout, /3D voxel photo/, 'metadata must describe the voxel-photo product');
 assert.doesNotMatch(layout, /real estate digital twin|NFT vault/i, 'metadata must not revive broad legacy positioning');
 assert.match(og, /house photo into a movable 3D voxel/i, 'social preview must show the current product story');
 assert.match(og, /3D VOXEL PHOTO/, 'social preview steps must name the voxel-photo stage');
@@ -67,7 +70,7 @@ for (const page of [privacy, terms, about]) {
 assert.doesNotMatch(legacyPrivacy, /ToolMint/, 'root privacy HTML must no longer expose ToolMint');
 assert.doesNotMatch(legacyTerms, /ToolMint/, 'root terms HTML must no longer expose ToolMint');
 assert.match(privacy, /source photo/i, 'privacy page must explain source-photo handling');
-assert.match(terms, /\$4\.99 DIGITAL/, 'terms must state what the creation purchase means');
+assert.match(terms, /\$4\.99 DIGITAL/, 'terms must retain the existing paid-product disclosure until commercial terms are revised separately');
 assert.match(about, /Contact and feedback/, 'about page must provide a real feedback/contact route');
 
 assert.match(readme, /What this repo currently ships/, 'README must lead with the shipping product');
@@ -76,5 +79,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: one-action homepage, real final voxel proof, explicit 3D voxel-photo approval in the creator/demo, high-fidelity source-matched cube geometry, corrected trust pages, and current social preview remain aligned.');
+console.log('Public Voxel Vault positioning checks passed: one-action house creator, real final voxel proof, address confirmation, high-fidelity voxel geometry, Inventory persistence, optional minting, and current trust surfaces remain aligned.');
 await import('./test-public-surface-coherence.mjs');
