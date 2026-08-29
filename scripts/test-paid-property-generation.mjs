@@ -11,6 +11,7 @@ const localVoxel = read('app/api/property-local-voxel/route.ts');
 const localStore = read('lib/local-voxel-store.js');
 const payment = read('lib/property-generation-payment.ts');
 const viewer = read('app/property/LocalVoxelModelViewer.js');
+const mintPrepare = read('app/api/property-local-voxel/nft/prepare/route.ts');
 
 assert.match(route, /PropertyJourneySimple/, 'the /property route must use the simplified paid journey');
 assert.match(payment, /PROPERTY_VOXEL_GENERATION_PRICE_CENTS = 499/, 'server-authoritative VoxelPop creation price must stay $4.99');
@@ -36,31 +37,40 @@ assert.match(property, /CREATION_PRICE_LABEL = '\$4\.99'/, 'maker shows the $4.9
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'the authorized photo persists across Stripe on the same device');
 assert.match(property, /await saveDevicePhoto\(draftId, pendingPhoto\)/, 'photo is retained on-device before checkout');
 assert.match(property, /\/api\/property-generation\/checkout/, 'photo approval opens paid generation checkout');
-assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Create 3D/, 'primary CTA clearly says payment immediately creates 3D');
-assert.match(property, /The \$4\.99 purchase includes this VoxelPop 3D creation and saving it to My World/, 'one payment must include the useful creation journey');
-assert.match(property, /no second collection payment required just to continue/i, 'the guided journey must not introduce a second paywall');
+assert.match(property, /Pay \$\{CREATION_PRICE_LABEL\} & Create 3D Picture/, 'primary CTA clearly says the paid output is the review picture first');
+assert.match(property, /The \$4\.99 purchase includes the 3D picture review, the movable VoxelPop voxel, mapping, and saving to My World/, 'one payment includes the useful creation journey');
+assert.match(property, /The voxel is not built until you review the picture and choose to continue/i, 'payment must not silently skip the review stage');
+assert.match(property, /Saving is included in the \$4\.99 creation\. No second payment is required/i, 'the guided journey must not introduce a second creation paywall');
 assert.match(property, /generation_session/, 'maker resumes a successful paid creation after Stripe');
 assert.match(property, /form\.append\('generationSessionId', generationSessionId\)/, 'Stripe return passes the session into the payment verifier');
 assert.match(property, /you will not be charged again/i, 'missing local photo recovery must never charge twice');
-assert.match(property, /createVoxelPoster/, 'the VoxelPop image is generated locally');
-assert.match(property, /LocalVoxelModelViewer/, 'the paid flow uses the local interactive 3D viewer');
-assert.match(property, /\/api\/property-local-voxel/, 'local model recipe is account-linked after rendering');
+assert.match(property, /createVoxelPoster/, 'the VoxelPop 3D picture is created locally');
+assert.match(property, /LocalVoxelModelViewer/, 'the paid flow uses the local interactive voxel viewer after review');
+assert.match(property, /\/api\/property-local-voxel/, 'reviewed local model recipe is account-linked after rendering');
 assert.match(property, /saveToMyWorld/, 'post-map continuation saves directly to My World');
+assert.match(property, /Mint this 3D voxel · optional/, 'minting is a separate optional final step rather than a second creation purchase');
 assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndSave|Collect voxel ·/, 'guided creation must not demand a second collectible checkout');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided paid property creation must not call metered Meshy endpoints');
 assert.doesNotMatch(property, /insufficient funds|needs credits|add Meshy credits/i, 'guided UI must not expose provider-credit dead ends');
 
-assert.match(viewer, /const GRID = 24/, 'photo-matched building uses a higher-detail local grid');
+assert.match(viewer, /const GRID_WIDTH = 32/, 'photo-matched building keeps more horizontal facade detail');
+assert.match(viewer, /const GRID_HEIGHT = 24/, 'local grid stays bounded for mobile performance');
+assert.match(viewer, /const previewUrl = imageUrl \|\| sourceImageUrl/, 'generated 3D picture is shown before the voxel');
+assert.match(viewer, /Create 3D Voxel from this picture/, 'user must explicitly approve voxelization after seeing the picture');
 assert.match(viewer, /if \(!mask\[index\]\) return 0/, 'background cells must become empty space');
 assert.match(viewer, /if \(recipe\.depths\[index\] <= 0\) continue/, 'interactive viewer must not instantiate background voxels');
-assert.match(viewer, /sourceImageUrl/, '3D sampling can use the original property photo instead of the stylized poster');
-assert.match(viewer, /InstancedMesh/, 'local 3D is real WebGL voxel geometry');
+assert.match(viewer, /sourceImageUrl/, '3D sampling uses the original property photo rather than only the styled review picture');
+assert.match(viewer, /InstancedMesh/, 'local voxel is real WebGL geometry');
 assert.doesNotMatch(viewer, /backingGeometry/, 'the old square backing slab must stay removed');
 
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF must preserve the empty background too');
-assert.match(localVoxel, /silhouette-aware voxel recipe/, 'saved record documents the silhouette-aware model');
+assert.match(localVoxel, /reviewed facade voxel recipe/, 'saved record documents the review-first model');
 assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt from the compact recipe');
 assert.match(localStore, /Deliberately table-only/, 'local record persistence deliberately avoids Storage');
 assert.doesNotMatch(localStore, /createBucket|storage\.from/, 'local record persistence must not touch a Storage bucket');
 
-console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> photo-matched local 3D -> address/map -> save to My World, with no second creation paywall, Meshy credits, or checkout bucket.');
+assert.match(mintPrepare, /requireVoxelVaultUser/, 'optional mint preparation remains account-authenticated');
+assert.match(mintPrepare, /readCatalog3DByTask/, 'optional mint uses the exact persisted local voxel');
+assert.match(mintPrepare, /does not represent the deed or physical-property rights/i, 'digital NFT mint cannot be presented as physical property ownership');
+
+console.log('Paid VoxelPop property regression passed: sign in -> photo -> one $4.99 payment -> visible 3D picture review -> explicit photo-matched local voxel -> address/map -> save to My World -> optional mint, with no second creation paywall, Meshy credits, or checkout bucket.');
