@@ -73,7 +73,7 @@ export default function Home() {
         <div className={styles.step}><span>+</span><div><p>HOW VOXELPOP PROPERTY WORKS</p><h2>PHOTO → $4.99 → LOCAL 3D → MAP → WORLD</h2><span>Your source photo stays on the device. After payment is verified, Voxel Vault builds the voxel locally, then you add the address for source-backed 3D map context.</span></div></div>
         <Link className={styles.startButton} href="/property">START → SIGN IN</Link>
         <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>$4.99</b><i>→</i><b>VOXEL 3D</b><i>→</i><b>WORLD</b><i>→</i><b>OPTIONAL COLLECT</b></div>
-        <small>The creation fee is $4.99. No Meshy credits are used. A wallet is optional. If you later choose to collect an eligible mapped digital voxel, that is a separate digital-collectible checkout.</small>
+        <small>Nothing is uploaded, generated, or charged before sign-in. The creation fee is $4.99. No Meshy credits are used. A wallet is optional. If you later choose to collect an eligible mapped digital voxel, that is a separate digital-collectible checkout.</small>
       </section>
 
       <section className={styles.quickLinks}>
@@ -84,7 +84,7 @@ export default function Home() {
       </section>
 
       <footer className={styles.footer}>
-        <span>Voxel Vault is a digital property and asset interface. It is not itself a bank, broker, exchange, custodian, escrow service, or deed registry. Features that require those regulated or legal roles stay provider- or title-gated until the exact required rails exist.</span>
+        <span>Voxel Vault is a digital property and asset interface. It is not itself a bank, broker, exchange, custodian, escrow service, or deed registry. A 3D model, payment, map marker, Property Passport, or NFT is not a deed. Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist. Features that require regulated or legal roles stay provider- or title-gated until the exact required rails exist.</span>
         <Link href="/more">Product status</Link>
       </footer>
     </div>
