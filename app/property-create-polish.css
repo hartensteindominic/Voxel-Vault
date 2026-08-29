@@ -57,8 +57,8 @@ main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):before{c
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):before{content:"5"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(1):after{content:"PHOTO"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(2):after{content:"PAY"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"3D PIC"}
-main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"VOXEL"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(3):after{content:"VOXEL PHOTO"}
+main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(4):after{content:"3D VOXEL"}
 main:has([aria-label^="Step "]) [aria-label^="Step "]>span:nth-child(5):after{content:"MINT"}
 
 main:has([aria-label="Step 2 of 5"]) [aria-label="Step 2 of 5"]>span:nth-child(1),
@@ -111,7 +111,7 @@ main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
   letter-spacing:.1em;
 }
 
-/* Stage 3 is a deliberate approval gate before voxelization. */
+/* Stage 3 is the explicit voxel-photo approval gate before the movable model. */
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell){
   outline:2px solid rgba(113,56,245,.24);
   outline-offset:3px;
@@ -119,7 +119,7 @@ main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell){
 }
 
 main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
-  content:"REVIEW BEFORE VOXEL";
+  content:"REVIEW VOXEL PHOTO";
   position:absolute;
   z-index:10;
   top:13px;
@@ -140,7 +140,7 @@ main:has([aria-label="Step 3 of 5"]) div:has(> .viewerShell):before{
   pointer-events:none;
 }
 
-/* The viewer already contains the source image. Enlarge it for an actual phone-size comparison. */
+/* The viewer contains the source thumbnail for a direct likeness check. */
 main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){
   right:14px;
   bottom:14px;
@@ -174,7 +174,7 @@ main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img)>span{
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{
     font-size:7px;
-    letter-spacing:.025em;
+    letter-spacing:.015em;
   }
   main:has([aria-label^="Step "]) [aria-label^="Step "]+p{
     margin-bottom:16px;
@@ -196,6 +196,6 @@ main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img)>span{
 @media(max-width:380px){
   main:has([aria-label^="Step "]) [aria-label^="Step "]{gap:4px}
   main:has([aria-label^="Step "]) [aria-label^="Step "]>span{height:51px;border-radius:12px}
-  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{font-size:6.5px}
+  main:has([aria-label^="Step "]) [aria-label^="Step "]>span:after{font-size:6.2px}
   main:has([aria-label="Step 3 of 5"]) div[aria-hidden="true"]:has(>img){width:98px}
 }
