@@ -7,6 +7,12 @@ import {
   propertyCollectibleIdentity,
   releasePropertyCollectibleReservation,
 } from '../../../../lib/property-collectible-commerce';
+import {
+  countVoxelMakerGenerations,
+  getVoxelMakerEntitlement,
+  hasVoxelMakerGeneration,
+  registerVoxelMakerGeneration,
+} from '../../../../lib/voxel-maker-subscriptions';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -32,6 +38,30 @@ export async function POST(request: Request) {
     const draftId = normalizePropertyDraftId(clean(body?.draftId, 100));
     const address = clean(body?.address, 220);
     if (!address) return privateJson({ ok: false, error: 'Enter the house address to confirm this property.' }, { status: 400 });
+
+    const entitlement = await getVoxelMakerEntitlement(auth.user.id);
+    if (!entitlement.active || !entitlement.plan) {
+      return privateJson({
+        ok: false,
+        code: 'VOXEL_MAKER_SUBSCRIPTION_REQUIRED',
+        subscriptionRequired: true,
+        error: 'Choose a Voxel Maker plan before creating a new house voxel.',
+      }, { status: 402 });
+    }
+
+    const alreadyCounted = await hasVoxelMakerGeneration(auth.user.id, draftId);
+    const usedThisMonth = await countVoxelMakerGenerations(auth.user.id);
+    if (!alreadyCounted && usedThisMonth >= entitlement.plan.monthlyVoxels) {
+      return privateJson({
+        ok: false,
+        code: 'VOXEL_MAKER_MONTHLY_LIMIT_REACHED',
+        monthlyLimitReached: true,
+        plan: entitlement.plan.id,
+        used: usedThisMonth,
+        limit: entitlement.plan.monthlyVoxels,
+        error: `You have used all ${entitlement.plan.monthlyVoxels} Voxel Maker creations included in your ${entitlement.plan.name} plan this month.`,
+      }, { status: 429 });
+    }
 
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
     const selectedBuilding = atlas?.selectedBuilding || null;
@@ -77,6 +107,15 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, reserved: true, ownedByYou: true, error: 'You already started this property in another Voxel Vault creation. Finish that one or wait for the temporary hold to expire.' }, { status: 409 });
     }
 
+    if (!alreadyCounted) {
+      await registerVoxelMakerGeneration({
+        userId: auth.user.id,
+        draftId,
+        planId: entitlement.plan.id,
+        address: canonicalAddress,
+      });
+    }
+
     return privateJson({
       ok: true,
       confirmed: true,
@@ -85,6 +124,11 @@ export async function POST(request: Request) {
       address: canonicalAddress,
       onePropertyOneMint: true,
       next: 'voxel-image',
+      subscription: {
+        plan: entitlement.plan.id,
+        used: alreadyCounted ? usedThisMonth : usedThisMonth + 1,
+        limit: entitlement.plan.monthlyVoxels,
+      },
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'The property address could not be confirmed.' }, { status: 500 });
