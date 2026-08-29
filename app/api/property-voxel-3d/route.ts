@@ -79,10 +79,11 @@ export async function POST(request: Request) {
 
     const itemId = itemIdFor(atlasId);
     const existing = await readCatalog3D(itemId);
-    if (existing?.model_url || existing?.model_storage_path) {
+    const sameSourceImage = clean(existing?.source_image_url, 2200) === imageUrl;
+    if (sameSourceImage && (existing?.model_url || existing?.model_storage_path)) {
       return NextResponse.json({ ok: true, reused: true, ...publicState(existing, await displayUrlFor(existing)), progress: 100 });
     }
-    if (existing?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(existing.status || '').toUpperCase())) {
+    if (sameSourceImage && existing?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(existing.status || '').toUpperCase())) {
       return NextResponse.json({ ok: true, reused: true, ...publicState(existing) });
     }
 
@@ -123,7 +124,7 @@ export async function POST(request: Request) {
       error: null,
     });
 
-    return NextResponse.json({ ok: true, reused: false, ...publicState(saved || { item_id: itemId, task_id: taskId, status: 'PENDING' }) });
+    return NextResponse.json({ ok: true, reused: false, sourceChanged: Boolean(existing && !sameSourceImage), ...publicState(saved || { item_id: itemId, task_id: taskId, status: 'PENDING' }) });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Property 3D generation failed.' }, { status: 400 });
   }
