@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const fee = platformFee(asset.price_cents);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxel-vault.vercel.app';
+    const appUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: user.email || undefined,
