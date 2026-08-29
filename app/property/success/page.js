@@ -3,9 +3,22 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import MeshyModelViewer from '../../vault/earth/MeshyModelViewer';
+import PlanetStreamGlobe from '../../vault/earth/PlanetStreamGlobe';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 import { buildPropertyDraft, savePropertyDraft } from '../../../lib/property-drafts';
 import { savePropertyDraftToAccount } from '../../../lib/property-drafts-account';
+
+function buildingHeightMeters(building) {
+  if (typeof building?.height === 'number') return Number(building.height || 0);
+  const value = Number(
+    building?.height?.referenceHeightMeters
+    ?? building?.height?.heightMeters
+    ?? building?.height?.estimatedHeightMeters
+    ?? building?.tags?.height
+    ?? (Number(building?.tags?.['building:levels'] || 0) * 3),
+  );
+  return Number.isFinite(value) ? value : 0;
+}
 
 export default function PropertyPurchaseSuccessPage() {
   const [authReady, setAuthReady] = useState(false);
@@ -56,7 +69,8 @@ export default function PropertyPurchaseSuccessPage() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data?.ok || data?.purchase?.paid !== true || !data?.building || !data?.model?.modelUrl) {
+        const mapVoxel = data?.model?.kind === 'map-voxel';
+        if (!response.ok || !data?.ok || data?.purchase?.paid !== true || !data?.building || (!mapVoxel && !data?.model?.modelUrl)) {
           throw new Error(data?.error || 'Collection could not be verified yet.');
         }
         if (!active) return;
@@ -68,10 +82,19 @@ export default function PropertyPurchaseSuccessPage() {
         const next = {
           ...base,
           label: data.purchase.address || base.label,
-          fidelity: 'photo-to-3d-to-voxel-collectible',
+          fidelity: mapVoxel ? 'source-backed-map-voxel-collectible' : 'photo-to-3d-to-voxel-collectible',
           state: 'paid-digital-collectible',
-          visual: {
+          visual: mapVoxel ? {
             ...(base.visual || {}),
+            representationKind: 'map-voxel',
+            mapVoxel: true,
+            geometryKind: data.building?.geometry ? 'source-backed-building' : 'location-reference',
+            modelUrl: null,
+            modelTaskId: null,
+            thumbnailUrl: null,
+          } : {
+            ...(base.visual || {}),
+            representationKind: 'generated-3d',
             modelUrl: data.model.modelUrl,
             modelTaskId: data.model.taskId,
             thumbnailUrl: data.model.thumbnailUrl || null,
@@ -79,6 +102,7 @@ export default function PropertyPurchaseSuccessPage() {
           commerce: {
             kind: 'property_voxel_collectible',
             status: 'paid',
+            representationKind: data.purchase.representationKind || (mapVoxel ? 'map-voxel' : 'generated-3d'),
             purchasedAt: now,
             identityKey: data.purchase.identityKey,
             mappedAtlasId: data.purchase.atlasId,
@@ -110,7 +134,7 @@ export default function PropertyPurchaseSuccessPage() {
         await savePropertyDraftToAccount(client, session.user, savedDraft);
         if (!active) return;
         setSaved(true);
-        setMessage('Collected and saved to your Vault.');
+        setMessage(mapVoxel ? 'Map Voxel collected and saved to your Vault.' : 'Collected and saved to your Vault.');
       } catch (error) {
         deliveredRef.current = '';
         if (active) setMessage(String(error?.message || error || 'Vault delivery failed.'));
@@ -128,6 +152,22 @@ export default function PropertyPurchaseSuccessPage() {
     } catch (error) { setMessage(String(error?.message || error || 'Could not sign in.')); }
   }
 
+  const mapVoxel = result?.model?.kind === 'map-voxel';
+  const mapListings = result?.building ? [{
+    id: 'collected-map-voxel',
+    kind: 'community-property',
+    label: result.purchase?.address || 'YOUR MAP VOXEL',
+    latitude: Number(result.building.latitude),
+    longitude: Number(result.building.longitude),
+    heightMeters: buildingHeightMeters(result.building),
+    geometry: result.building.geometry || null,
+    geometryKind: result.building.geometry ? 'source-backed-building' : 'location-reference',
+    fidelity: 'source-backed-map-voxel',
+    mapVoxel: true,
+    minted: false,
+    rightsVerified: false,
+  }] : [];
+
   if (!authReady) return <main className="page"><section className="card"><div className="pop">V</div><h1>Finishing your voxel…</h1><p>{message}</p></section><style jsx>{styles}</style></main>;
   if (!session?.user) return <main className="page"><section className="card"><div className="pop">V</div><small>YOUR PAYMENT IS SAFE</small><h1>Sign back in.</h1><p>Use the same Google account from checkout so Voxel Vault can verify the payment and save the voxel to the correct Vault.</p><button onClick={signIn}>Continue with Google</button><p className="status">{message}</p></section><style jsx>{styles}</style></main>;
 
@@ -137,8 +177,8 @@ export default function PropertyPurchaseSuccessPage() {
       <small>VOXELPOP · COLLECTED</small>
       <h1>{saved ? 'It’s in your Vault.' : 'Finishing your voxel…'}</h1>
       <p className="status">{message}</p>
-      {result?.model?.modelUrl ? <div className="viewer"><MeshyModelViewer modelUrl={result.model.modelUrl}/><span>YOUR DIGITAL VOXEL</span></div> : <div className="loading">Verifying payment → restoring map identity → saving your Vault item</div>}
-      {result?.purchase ? <div className="receipt"><div><small>DIGITAL VOXEL</small><b>{result.purchase.priceLabel}</b></div><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(result.purchase.priceCents || 0)/100)}</strong></div> : null}
+      {mapVoxel && mapListings.length ? <div className="viewer"><PlanetStreamGlobe listings={mapListings} selectedId="collected-map-voxel" simpleMode/><span>YOUR MAP VOXEL</span></div> : result?.model?.modelUrl ? <div className="viewer"><MeshyModelViewer modelUrl={result.model.modelUrl}/><span>YOUR DIGITAL VOXEL</span></div> : <div className="loading">Verifying payment → restoring map identity → saving your Vault item</div>}
+      {result?.purchase ? <div className="receipt"><div><small>{mapVoxel ? 'DIGITAL MAP VOXEL' : 'DIGITAL VOXEL'}</small><b>{result.purchase.priceLabel}</b></div><strong>{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(result.purchase.priceCents || 0)/100)}</strong></div> : null}
       {saved ? <div className="actions"><Link className="primary" href="/property">+ Create Another</Link><Link className="world" href="/world">View My World</Link><Link className="mint" href="/vault/properties/claim">Verify &amp; Mint · optional</Link><Link className="vault" href="/vault/property-drafts">Open My Vault</Link></div> : null}
       <p className="truth">You collected a digital VoxelPop item. The address, map, payment, or optional later mint does not create deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property.</p>
     </section>
