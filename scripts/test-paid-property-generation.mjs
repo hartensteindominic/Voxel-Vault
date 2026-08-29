@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const route = read('app/property/page.js');
+const liveProperty = read('app/property/PropertyStudioFlow.js');
 const property = read('app/property/PropertyJourneySimple.js');
 const photoPreview = read('app/property/PhotoReliefModelViewer.js');
 const checkout = read('app/api/property-generation/checkout/route.ts');
@@ -19,8 +20,10 @@ const mintMetadata = read('app/api/property-voxel-nft/metadata/route.ts');
 const mintPage = read('app/property/mint/page.js');
 const vault = read('app/vault/property-drafts/page.js');
 
-assert.match(route, /HouseVoxelMintFlow/, 'the live /property route must use the condensed no-checkout house creator');
+assert.match(route, /PropertyStudioFlow/, 'the live /property route must use the guided no-checkout property studio');
 assert.doesNotMatch(route, /from '\.\/PropertyJourneySimple'/, 'the legacy paid creator must not be wired into the live /property route');
+assert.match(liveProperty, /Build the 3D voxel/, 'the live creator keeps the requested page-by-page preview approval');
+assert.match(liveProperty, /Mint this voxel/, 'the live creator finishes with optional minting after Inventory save');
 assert.match(property, /const PRICE = '\$4\.99'/, 'legacy paid creator keeps its historical $4.99 contract while it remains available for compatibility');
 assert.match(property, /const labels = \['PHOTO', 'REVIEW', 'BUILD', 'DONE'\]/, 'legacy paid creator remains condensed to four user-facing stages');
 assert.match(property, /Sign in once\./, 'legacy creator keeps one account gate');
@@ -100,6 +103,6 @@ assert.match(mintConfirm, /markPropertyCollectibleMinted/, 'verified mint uses t
 assert.match(mintState, /state: 'minted'/, 'verified mint permanently records the minted property state');
 assert.match(mintConfirm, /onePropertyOneMint: true/, 'mint confirmation records the one-property-one-mint result');
 assert.match(mintMetadata, /animation_url/, 'NFT metadata points to the finished 3D model');
-assert.match(mintPage, /Keep in inventory/, 'mint page still lets the user leave without minting');
+assert.match(mintPage, /Keep in Inventory/i, 'mint page still lets the user leave without minting');
 
-console.log('Legacy paid VoxelPop compatibility passed alongside the live no-checkout house flow: the old paid component remains internally coherent, while /property uses photo -> address -> voxel image -> automatic 3D voxel -> Inventory -> optional one-time mint.');
+console.log('Legacy paid VoxelPop compatibility passed alongside the live guided property studio: the old paid component remains internally coherent, while /property uses photo -> address -> voxel preview -> explicit 3D build -> Inventory -> optional one-time mint.');
