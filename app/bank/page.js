@@ -1,9 +1,10 @@
 import BankClient from './BankClient';
 import './bank.css';
+import './bank-expanded.css';
 
 export const metadata = {
-  title: 'Voxel Bank Sandbox — Digital Cards',
-  description: 'A sandbox banking interface for simulated balances, digital card controls, and demo transfers. No real funds move and no payment card is issued.',
+  title: 'Voxel Bank Sandbox — Digital Banking',
+  description: 'A full sandbox banking interface for simulated accounts, digital card controls, bills, goals, security, activity, and demo transfers. No real funds move and no payment card is issued.',
 };
 
 export default function BankPage() {
