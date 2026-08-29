@@ -23,7 +23,7 @@ export default function Home() {
           <h1>Build it.<br/><em>Keep it in your Vault.</em></h1>
           <p className={styles.lead}>A cute spatial home for your voxel creations, digital property, NFTs, connected crypto and provider-backed USD tools—without making the complicated parts feel complicated.</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/property">+ CREATE A VOXEL</Link>
+            <Link className={styles.primaryAction} href="/property">START → SIGN IN + CREATE</Link>
             <Link className={styles.secondaryAction} href="/world">EXPLORE MY WORLD</Link>
           </div>
           <p className={styles.heroFine}>Create first. Minting and wallet connection stay optional. Real money and real-property rights only appear when the required provider and legal rails are actually available.</p>
@@ -54,7 +54,7 @@ export default function Home() {
 
       <section className={styles.creationCard}>
         <div className={styles.step}><span>+</span><div><p>VOXELPOP CREATOR</p><h2>One photo. One adorable 3D asset.</h2><span>See the image first, then the interactive 3D. Save it to your World and Vault. If a paid 3D provider is unavailable, completed work should remain visible instead of disappearing.</span></div></div>
-        <Link className={styles.startButton} href="/property">CREATE MY FIRST VOXEL →</Link>
+        <Link className={styles.startButton} href="/property">START → SIGN IN + CREATE MY VOXEL</Link>
         <div className={styles.microFlow}><b>PHOTO</b><i>→</i><b>PREVIEW</b><i>→</i><b>3D</b><i>→</i><b>WORLD</b><i>→</i><b>VAULT</b><i>→</i><b>OPTIONAL MINT</b></div>
         <small>Generation, checkout, minting and wallet actions remain explicit. Nothing should silently spend credits or move money.</small>
       </section>
