@@ -1,13 +1,18 @@
 const MAX_EDGE = 1600;
 const PROBE_SIZE = 32;
 
+function isLocalUrl(url) {
+  const value = String(url || '');
+  return value.startsWith('data:') || value.startsWith('blob:') || value.startsWith('/') || value.startsWith('./');
+}
+
 /**
  * Loads an image URL into a canvas raster, preferring createImageBitmap
- * (works for blob: URLs and same-origin assets) and falling back to
+ * (works for blob: and data: URLs and same-origin assets) and falling back to
  * HTMLImageElement + decode(). Caps the longest edge at MAX_EDGE for
  * performance, then probes a corner for near-black or empty pixels.
  *
- * @param {string} url - Any URL including blob: object URLs.
+ * @param {string} url - Any URL including blob: / data: object URLs.
  * @returns {Promise<{canvas: HTMLCanvasElement, width: number, height: number}>}
  * @throws {Error} If the image cannot be loaded or appears empty/black.
  */
@@ -15,19 +20,31 @@ export async function rasterizeImageUrl(url) {
   let bitmap = null;
 
   try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    bitmap = await createImageBitmap(blob);
+    if (typeof createImageBitmap === 'function') {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      bitmap = await createImageBitmap(blob);
+    }
   } catch {
+    bitmap = null;
+  }
+
+  if (!bitmap) {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = url;
-    await img.decode();
+    // Never set crossOrigin for data:/blob:/relative paths — it can block decoding.
+    if (!isLocalUrl(url)) img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('The photo could not be opened for the 3D voxel photo.'));
+      img.src = url;
+    });
+    try { await img.decode?.(); } catch {}
     bitmap = img;
   }
 
-  const srcW = bitmap.width || bitmap.naturalWidth || 960;
-  const srcH = bitmap.height || bitmap.naturalHeight || 640;
+  const srcW = Math.max(2, bitmap.width || bitmap.naturalWidth || 960);
+  const srcH = Math.max(2, bitmap.height || bitmap.naturalHeight || 640);
   const scale = Math.min(1, MAX_EDGE / Math.max(srcW, srcH));
   const rasterW = Math.max(2, Math.round(srcW * scale));
   const rasterH = Math.max(2, Math.round(srcH * scale));
