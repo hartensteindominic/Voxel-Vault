@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
+import VoxelPopHouseRenderPreview from './VoxelPopHouseRenderPreview';
 import styles from './PhotoReliefModelViewer.module.css';
 
 const DEVICE_DB = 'voxelpop-property-device-v1';
@@ -198,15 +199,13 @@ export default function VoxelPopHouseImageGenerator({ imageUrl, onReady }) {
     }
   }
 
+  if (status === 'ready' && renderUrl) {
+    return <VoxelPopHouseRenderPreview generatedImage={renderUrl} referenceImage={imageUrl} provider={provider} onRegenerate={regenerate}/>;
+  }
+
   return <div className={`viewerShell ${styles.shell}`} style={{background:'radial-gradient(circle at 50% 18%,#fffdf7 0,#efe8ff 48%,#ded1f7 100%)'}}>
-    {renderUrl ? <img src={renderUrl} alt="Generated VoxelPop 3D house render" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',padding:12}}/> : <img src={imageUrl} alt="Original property reference" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',opacity:status === 'loading' ? .42 : 1}}/>}
+    <img src={imageUrl} alt="Original property reference" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',opacity:status === 'loading' ? .42 : 1}}/>
     {status === 'loading' ? <div className={styles.loading}><span>GENERATING VOXELPOP 3D HOUSE…</span></div> : null}
-    {status === 'ready' ? <>
-      <div className={styles.qualityBadge} aria-hidden="true"><span>VOXELPOP 3D HOUSE</span><b>AI RENDER · PHOTO REFERENCED</b></div>
-      <div className={styles.sourceCard}><img src={imageUrl} alt="Original house reference"/><span>ORIGINAL REFERENCE</span></div>
-      <button type="button" onClick={regenerate} style={{position:'absolute',right:12,bottom:12,zIndex:8,minHeight:42,padding:'0 13px',borderRadius:999,border:'1px solid rgba(28,18,35,.15)',background:'rgba(255,250,240,.94)',color:'#24162f',fontWeight:900,fontSize:11,cursor:'pointer'}}>Regenerate 3D</button>
-      <div className={styles.hint} aria-hidden="true">{provider ? `GENERATED · ${provider.replaceAll('-', ' ').toUpperCase()}` : 'GENERATED FROM YOUR HOUSE PHOTO'}</div>
-    </> : null}
     {error ? <div className={styles.error} role="status">
       <img src={imageUrl} alt="Original property reference"/>
       <p>{error}</p>
