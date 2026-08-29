@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { inspectWorldAtlas } from '../../../../lib/world-atlas.js';
 import { createModelSignedUrl, readCatalog3DByTask } from '../../../../lib/catalog3dStore';
+import { propertyDraftItemId } from '../../../../lib/property-generation-ids';
 import {
   propertyCollectiblePaymentErrorMessage,
   secureStripePropertyCollectiblePurchase,
@@ -14,10 +14,6 @@ export const dynamic = 'force-dynamic';
 
 function clean(value: unknown, max = 300) {
   return String(value || '').trim().slice(0, max);
-}
-
-function userScope(userId: string) {
-  return createHash('sha256').update(`voxel-vault-property-draft:${userId}`).digest('hex').slice(0, 24);
 }
 
 function findMappedBuilding(atlas: any, atlasId: string) {
@@ -43,8 +39,8 @@ export async function GET(request: Request) {
     if (!building) throw new Error('The purchased mapped building identity could not be restored. Your payment remains recorded; support can recover the Vault item from the purchase record.');
 
     const model = await readCatalog3DByTask(purchase.modelTaskId);
-    const expectedPrefix = `property-voxel:${userScope(auth.user.id)}:`;
-    if (!model?.item_id || !String(model.item_id).startsWith(expectedPrefix)) throw new Error('The purchased voxel model no longer matches this account.');
+    const expectedItemId = propertyDraftItemId(auth.user.id, purchase.draftId, 'voxel');
+    if (!model?.item_id || model.item_id !== expectedItemId) throw new Error('The purchased voxel model no longer matches this signed-in creation.');
     const modelUrl = model.model_storage_path
       ? await createModelSignedUrl(model.model_storage_path, 6 * 60 * 60)
       : model.model_url;
@@ -73,11 +69,12 @@ export async function GET(request: Request) {
       disclosure: 'Payment secured one digital VoxelPop collectible for this mapped World building identity. It does not transfer the real property or create deed/title, rent, occupancy, investment or appreciation rights. Optional minting remains downstream of property verification.',
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
+    const friendly = propertyCollectiblePaymentErrorMessage(error);
     return NextResponse.json({
       ok: false,
-      error: propertyCollectiblePaymentErrorMessage(error) === 'The VoxelPop property collectible purchase could not be verified.'
+      error: friendly === 'The VoxelPop property collectible purchase could not be verified.'
         ? (error instanceof Error ? error.message : 'Property collectible completion failed.')
-        : propertyCollectiblePaymentErrorMessage(error),
+        : friendly,
     }, { status: 400, headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   }
 }
