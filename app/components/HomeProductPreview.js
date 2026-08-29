@@ -10,55 +10,44 @@ const SAMPLE = '/voxelpop/demo-house.svg';
 const STAGES = {
   source: {
     label: 'House photo',
-    copy: 'Start with one clear property photo or reuse a photo from a saved property.',
+    copy: 'Start with one clear property photo.',
   },
   preview: {
     label: '3D voxel photo',
-    copy: 'VoxelPop rebuilds the visible photo as high-fidelity source-colored cubes so you can approve the likeness before the movable model starts.',
+    copy: 'First, approve a source-matched 3D voxel photo.',
   },
   voxel: {
     label: 'Movable 3D voxel',
-    copy: 'Approve the 3D voxel photo, then VoxelPop builds the separate stacked-cube voxel model you can rotate.',
+    copy: 'Then VoxelPop builds the separate stacked-cube model automatically.',
   },
   nft: {
     label: 'Optional NFT',
-    copy: 'After the movable 3D voxel is finished, you can keep it in Vault or mint that digital voxel as an NFT.',
+    copy: 'Mint only if you want to after the voxel is saved.',
   },
 };
 
 export default function HomeProductPreview() {
   const [stage, setStage] = useState('preview');
-  const [voxelReady, setVoxelReady] = useState(false);
   const current = STAGES[stage];
+  const showingVoxel = stage === 'voxel';
 
   return <div className={styles.card}>
     <div className={styles.topline}>
-      <div><small>VOXELPOP · CENTER CREATOR</small><b>{current.label}</b></div>
+      <div><small>VOXELPOP SAMPLE</small><b>{current.label}</b></div>
       <span className={styles.price}>$4.99</span>
     </div>
 
     <div className={styles.viewer} aria-label={`${current.label} sample`}>
-      {stage === 'source' ? <div className={styles.sourceStage}>
-        <img src={SAMPLE} alt="Sample house photo"/>
-        <span>1 · YOUR PHOTO</span>
-      </div> : stage === 'preview'
-        ? <PhotoReliefModelViewer imageUrl={SAMPLE}/>
-        : stage === 'voxel'
-          ? <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE} onReady={() => setVoxelReady(true)}/>
-          : <div className={styles.nftStage}>
-              <div className={styles.nftToken}>
-                <div className={styles.nftModel}><LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE}/></div>
-                <div className={styles.nftMeta}><small>VOXELPOP NFT</small><b>My Property Voxel</b><span>Finished movable 3D voxel · mint optional</span></div>
-              </div>
-              <span className={styles.nftBadge}>4 · NFT AFTER VOXEL</span>
-            </div>}
+      {showingVoxel
+        ? <LocalVoxelModelViewer imageUrl={SAMPLE} sourceImageUrl={SAMPLE}/>
+        : <PhotoReliefModelViewer imageUrl={SAMPLE}/>}
     </div>
 
-    <div className={styles.controls} role="group" aria-label="Choose VoxelPop sample stage">
-      <button type="button" className={stage === 'source' ? styles.active : ''} aria-pressed={stage === 'source'} onClick={() => setStage('source')}><span>1</span>Photo</button>
-      <button type="button" className={stage === 'preview' ? styles.active : ''} aria-pressed={stage === 'preview'} onClick={() => setStage('preview')}><span>2</span>Voxel photo</button>
-      <button type="button" className={stage === 'voxel' ? styles.active : ''} aria-pressed={stage === 'voxel'} onClick={() => setStage('voxel')}><span>3</span>{stage === 'voxel' && !voxelReady ? 'Building…' : 'Movable'}</button>
-      <button type="button" className={stage === 'nft' ? styles.active : ''} aria-pressed={stage === 'nft'} onClick={() => setStage('nft')}><span>4</span>NFT</button>
+    <div className={styles.controls} style={{gridTemplateColumns:'1fr'}}>
+      <button type="button" className={styles.active} onClick={() => setStage(showingVoxel ? 'preview' : 'voxel')}>
+        <span>{showingVoxel ? '2' : '3'}</span>
+        {showingVoxel ? 'See voxel photo' : 'See movable voxel'}
+      </button>
     </div>
     <p>{current.copy}</p>
   </div>;
