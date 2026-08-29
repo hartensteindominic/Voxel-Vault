@@ -22,7 +22,7 @@ export default function MorePage() {
         <div className={styles.heroActions}>
           <Link href="/property">CREATE PROPERTY VOXEL</Link>
           <Link href="/world">OPEN WORLD</Link>
-          <Link href="/vault">OPEN MY VAULT</Link>
+          <Link href="/vault/property-drafts">OPEN MY VAULT</Link>
         </div>
       </section>
 
