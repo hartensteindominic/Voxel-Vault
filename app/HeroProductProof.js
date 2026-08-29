@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import PhotoReliefModelViewer from './property/PhotoReliefModelViewer';
 import LocalVoxelModelViewer from './property/LocalVoxelModelViewer';
-import styles from './home.module.css';
+import styles from './HeroProductProof.module.css';
 
 const SAMPLE = '/voxelpop/demo-house.svg';
 
