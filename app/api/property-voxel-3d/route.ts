@@ -18,8 +18,8 @@ function clean(value: unknown, max = 1200) {
   return String(value || '').trim().slice(0, max);
 }
 
-function cleanAtlasId(value: unknown) {
-  const value = clean(value, 180);
+function cleanAtlasId(input: unknown) {
+  const value = clean(input, 180);
   if (!value || !/^[a-zA-Z0-9:._-]+$/.test(value)) throw new Error('A valid mapped property is required.');
   return value;
 }
