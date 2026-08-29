@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getWallet } from '../../../lib/blockchain';
+import { tenantVoxelOwnershipMessage } from '../../../lib/real-estate/property-rental';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
 import { loadAccountVoxels, summarizeVoxel } from '../../../lib/voxelpop-account';
 import styles from './rentals.module.css';
@@ -120,23 +122,34 @@ export default function RentalsPage() {
     }
   }
 
-  async function attachVoxel(leaseId, sessionId) {
-    if (!session?.access_token) return;
-    setBusy(`attach:${leaseId}:${sessionId}`);
-    setMessage('Adding your minted voxel…');
+  async function attachVoxel(leaseId, voxel) {
+    if (!session?.access_token || !session?.user || !voxel?.sessionId || !voxel?.mint?.tokenId) return;
+    setBusy(`attach:${leaseId}:${voxel.sessionId}`);
+    setMessage('Verify the wallet that owns this voxel…');
     try {
+      const { signer } = await getWallet();
+      const signedAt = new Date().toISOString();
+      const ownershipMessage = tenantVoxelOwnershipMessage({
+        userId: session.user.id,
+        leaseId,
+        sessionId: voxel.sessionId,
+        tokenId: voxel.mint.tokenId,
+        signedAt,
+      });
+      const signature = await signer.signMessage(ownershipMessage);
+      setMessage('Wallet verified. Adding your voxel…');
       const response = await fetch(`/api/vault/rentals/${encodeURIComponent(leaseId)}/attachments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId: voxel.sessionId, signedAt, signature }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Could not add that voxel.');
+      if (!response.ok || data?.ok === false || data?.ownershipVerifiedOnChain !== true) throw new Error(data?.error || 'Could not verify and add that voxel.');
       setPickerLeaseId('');
-      setMessage('Added. The voxel is still your separate asset—it is just associated with this rental.');
+      setMessage('Added. On-chain ownership was checked, and the voxel is still your separate asset.');
       await refreshAll();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not add that voxel.');
+      setMessage(error instanceof Error ? error.message : 'Could not verify and add that voxel.');
     } finally {
       setBusy('');
     }
@@ -240,8 +253,8 @@ export default function RentalsPage() {
                 </div>
 
                 {pickerLeaseId === lease.id && editable ? <div className={styles.picker}>
-                  {availableVoxels.length ? availableVoxels.map((voxel) => <button key={voxel.sessionId} onClick={() => attachVoxel(lease.id, voxel.sessionId)} disabled={busy.startsWith('attach:')}>
-                    <img src={voxel.image} alt=""/><span><b>{voxel.name.replaceAll('-', ' ')}</b><small>Minted #{voxel.mint.tokenId}</small></span>
+                  {availableVoxels.length ? availableVoxels.map((voxel) => <button key={voxel.sessionId} onClick={() => attachVoxel(lease.id, voxel)} disabled={busy.startsWith('attach:')}>
+                    <img src={voxel.image} alt=""/><span><b>{voxel.name.replaceAll('-', ' ')}</b><small>Minted #{voxel.mint.tokenId} · wallet check</small></span>
                   </button>) : <div className={styles.pickerEmpty}>No unused minted voxels yet. <Link href="/studio">Create one →</Link></div>}
                 </div> : null}
 
@@ -254,7 +267,7 @@ export default function RentalsPage() {
                       {editable && attachment.status === 'active' ? <button onClick={() => removeVoxel(lease.id, attachment.id)} disabled={busy === `remove:${attachment.id}`}>Remove</button> : null}
                     </div>;
                   })}
-                </div> : <div className={styles.layerEmpty}>Your minted furniture, art, pets and other voxels can live here without becoming part of the deed or verified building geometry.</div>}
+                </div> : <div className={styles.layerEmpty}>Your minted furniture, art, pets and other voxels can live here. Wallet ownership is checked before permanent placement, and the voxel never becomes part of the deed or verified building geometry.</div>}
               </section>
 
               <div className={styles.providerNote}>
