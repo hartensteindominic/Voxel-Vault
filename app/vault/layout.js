@@ -1,4 +1,6 @@
+import ConsumerTopNav from '../components/ConsumerTopNav';
 import PropertyDraftSyncBridge from './PropertyDraftSyncBridge';
+import './vault-consumer-shell.css';
 
 export const metadata = {
   title: 'My Vault | Voxel Vault',
@@ -6,5 +8,5 @@ export const metadata = {
 };
 
 export default function VaultLayout({ children }) {
-  return <><PropertyDraftSyncBridge />{children}</>;
+  return <><ConsumerTopNav/><PropertyDraftSyncBridge/><div className="vv-vault-route">{children}</div></>;
 }
