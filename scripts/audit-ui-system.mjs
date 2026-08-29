@@ -97,7 +97,7 @@ must(/Confirm the address\./.test(property), 'Address confirmation must be the s
 must(/\/api\/property-generation\/confirm/.test(property), 'Creator must use the duplicate-safe address confirmation endpoint.');
 must(!/\/api\/property-generation\/checkout|Pay \$|Stripe/i.test(property), 'Creator must not contain a checkout step.');
 must(/PhotoReliefModelViewer/.test(property) && /setStage\('model'\)/.test(property), 'Voxel image must automatically advance into 3D generation.');
-must(!/Looks good · continue|approveVoxelImage|previewApproved/.test(property), 'Creator must not add an unnecessary voxel-image approval click.');
+must(!/Looks good · continue|approveVoxelImage|approvePreviewAndBuildVoxel/.test(property), 'Creator must not add an unnecessary voxel-image approval click.');
 must(/LocalVoxelModelViewer/.test(property) && /\/api\/property-local-voxel/.test(property), 'Creator must build and persist a real movable voxel.');
 must(/\/api\/property-generation\/finalize/.test(property), 'Creator must finalize the one-property lock after the 3D voxel exists.');
 must(/savePropertyDraft\(finishedDraft\)/.test(property) && /savePropertyDraftToAccount/.test(property), 'Completion must save the result locally and to the signed-in Inventory.');
