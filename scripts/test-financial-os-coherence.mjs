@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 const nav = fs.readFileSync(new URL('../app/components/FinancialOSNav.js', import.meta.url), 'utf8');
 const commandCenter = fs.readFileSync(new URL('../app/components/AppCommandCenter.js', import.meta.url), 'utf8');
+const homeCapabilities = fs.readFileSync(new URL('../app/components/HomeCapabilityStrip.js', import.meta.url), 'utf8');
+const capabilitiesApi = fs.readFileSync(new URL('../app/api/world-atlas/capabilities/route.ts', import.meta.url), 'utf8');
 const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
 const interactions = fs.readFileSync(new URL('../app/spatial-os-interactions.css', import.meta.url), 'utf8');
 const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
@@ -51,9 +53,20 @@ assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|
 
 assert.match(rootHome, /SPATIAL ASSET OS/);
 assert.match(rootHome, /Everything you own/);
+assert.match(rootHome, /HomeCapabilityStrip/, 'root Home should show safe live capability state');
 for (const core of ['Create', 'Earth', 'Vault', 'Invest']) assert.match(rootHome, new RegExp(`title: '${core}'`));
 assert.match(rootHome, /Organized does not mean conflated/);
 assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must remain a neutral app front door instead of aliasing one subsystem');
+
+assert.match(homeCapabilities, /\/api\/world-atlas\/capabilities/, 'Home capability strip must use the safe public readiness endpoint');
+for (const label of ['WORLD DATA', 'OPEN STREET', 'MESHY 7', 'MARKET FEEDS']) assert.match(homeCapabilities, new RegExp(label));
+assert.match(homeCapabilities, /READY · MANUAL/, 'Meshy readiness must remain explicitly manual');
+assert.match(homeCapabilities, /no auto-spend/, 'Home must explain that Meshy does not spend credits automatically');
+assert.match(homeCapabilities, /Readiness is configuration status, not a promise of market inventory, legal ownership, investment availability or AI-generation rights/, 'Home readiness must preserve truth boundaries');
+assert.match(homeCapabilities, /No API keys or secret values are exposed here/, 'Home must state the secret-value boundary');
+assert.doesNotMatch(homeCapabilities, /process\.env|MESHY_API_KEY|BRIDGE_ACCESS_TOKEN|DOMAIN_CLIENT_SECRET/, 'client capability strip must never reference raw secret environment variables');
+assert.match(capabilitiesApi, /automaticGeneration:\s*false/, 'server capability contract must keep Meshy automatic generation disabled');
+assert.match(capabilitiesApi, /Boolean\(process\.env\.MESHY_API_KEY\?\.trim\(\)\)/, 'Meshy readiness may expose only a boolean');
 
 assert.match(more, /Everything, without the clutter/i);
 assert.match(more, /APP_SECTIONS/);
@@ -92,4 +105,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault app organization + command center + shared interaction + Financial OS coherence regression tests passed');
+console.log('Voxel Vault app organization + command center + live capability + shared interaction + Financial OS coherence regression tests passed');
