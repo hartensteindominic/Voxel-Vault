@@ -16,8 +16,8 @@ export default function HomeProductPreview() {
     </div>
     <div className={styles.facts} aria-label="VoxelPop facts">
       <span>Photo</span>
-      <span>3D review</span>
-      <span>Saved</span>
+      <span>3D voxel photo review</span>
+      <span>Movable voxel</span>
     </div>
   </div>;
 }
