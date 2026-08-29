@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import ProductTopNav from '../components/ProductTopNav';
 import PhotoReliefModelViewer from '../property/PhotoReliefModelViewer';
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './demo.module.css';
@@ -13,12 +14,8 @@ export default function DemoPage() {
   const [voxelReady, setVoxelReady] = useState(false);
 
   return <main className={styles.page}>
+    <ProductTopNav/>
     <div className={styles.shell}>
-      <nav className={styles.top}>
-        <Link href="/" className={styles.brand}><span>V</span><b>VOXEL VAULT</b></Link>
-        <div><Link href="/">Home</Link><Link href="/property">Create mine</Link></div>
-      </nav>
-
       <header className={styles.hero}>
         <small>NO LOGIN · NO PAYMENT · PUBLIC SAMPLE</small>
         <h1>See VoxelPop<br/><em>before you sign in.</em></h1>
@@ -35,9 +32,9 @@ export default function DemoPage() {
         <div className={styles.viewerSide}>
           <div className={styles.viewerHead}>
             <div><small>{stage === 'preview' ? '2 · 3D PREVIEW' : '3 · MOVABLE VOXEL'}</small><h2>{stage === 'preview' ? 'See the house first.' : 'Then voxelize it.'}</h2></div>
-            <div className={styles.switcher}>
-              <button className={stage === 'preview' ? styles.active : ''} onClick={() => setStage('preview')}>3D preview</button>
-              <button className={stage === 'voxel' ? styles.active : ''} onClick={() => setStage('voxel')}>Voxel</button>
+            <div className={styles.switcher} role="tablist" aria-label="VoxelPop demo stage">
+              <button type="button" role="tab" aria-selected={stage === 'preview'} className={stage === 'preview' ? styles.active : ''} onClick={() => setStage('preview')}>3D preview</button>
+              <button type="button" role="tab" aria-selected={stage === 'voxel'} className={stage === 'voxel' ? styles.active : ''} onClick={() => setStage('voxel')}>Voxel</button>
             </div>
           </div>
           <div className={styles.viewer}>
@@ -60,8 +57,6 @@ export default function DemoPage() {
         <b>What this sample proves</b>
         <span>You can inspect the product interaction before creating an account. It does not claim that one photo can reconstruct unseen walls, exact dimensions, roof geometry, title, or any physical-property right.</span>
       </section>
-
-      <footer className={styles.footer}><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/about">About + contact</Link><Link href="/more">More tools</Link></footer>
     </div>
   </main>;
 }
