@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import ConsumerTopNav from '../components/ConsumerTopNav';
 import PhotoReliefModelViewer from '../property/PhotoReliefModelViewer';
 import LocalVoxelModelViewer from '../property/LocalVoxelModelViewer';
 import styles from './demo.module.css';
@@ -13,12 +14,8 @@ export default function DemoPage() {
   const [voxelReady, setVoxelReady] = useState(false);
 
   return <main className={styles.page}>
+    <ConsumerTopNav/>
     <div className={styles.shell}>
-      <nav className={styles.top}>
-        <Link href="/" className={styles.brand}><span>V</span><b>VOXEL VAULT</b></Link>
-        <div><Link href="/">Home</Link><Link href="/property">Create mine</Link></div>
-      </nav>
-
       <header className={styles.hero}>
         <small>NO LOGIN · NO PAYMENT · PUBLIC SAMPLE</small>
         <h1>See VoxelPop<br/><em>before you sign in.</em></h1>
