@@ -7,6 +7,12 @@ import {
   createPropertyGenerationRecoveryTaskId,
   propertyGenerationCanonicalTaskId,
 } from '../../../lib/property-generation-task';
+import {
+  ensureMeshyCredits,
+  isMeshyCreditFailure,
+  MESHY_PROPERTY_CREDITS,
+  meshyCreditFailure,
+} from '../../../lib/meshy-credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -15,6 +21,7 @@ export const dynamic = 'force-dynamic';
 const ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const FULL_BUILD_STAGE = 'the complete Photo → 3D → VoxelPop → final 3D build';
 
 function clean(value: unknown, max = 240) {
   return String(value || '').trim().slice(0, max);
@@ -57,6 +64,12 @@ export async function POST(request: Request) {
       return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
     }
 
+    // Fail before any paid Meshy task starts. The current VoxelPop property chain
+    // uses two textured Smart Topology image-to-3D calls (15 + 15 credits) plus
+    // one nano-banana image-to-image style pass (3 credits) = 33 credits total.
+    const creditGate = await ensureMeshyCredits(apiKey, MESHY_PROPERTY_CREDITS.fullPipeline, FULL_BUILD_STAGE);
+    if (!creditGate.ok) return privateJson(creditGate, { status: creditGate.status });
+
     const bytes = Buffer.from(await photo.arrayBuffer());
     const digest = createHash('sha256').update(bytes).digest('hex');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
@@ -79,6 +92,9 @@ export async function POST(request: Request) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (isMeshyCreditFailure(response.status, data)) {
+        return privateJson(meshyCreditFailure(MESHY_PROPERTY_CREDITS.fullPipeline, null, FULL_BUILD_STAGE), { status: 402 });
+      }
       return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
     }
 
