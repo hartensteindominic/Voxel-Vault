@@ -194,15 +194,27 @@ export default function PropertyJourneyPage() {
     } finally { setBusy(''); }
   }
 
+  async function read3D(taskId) {
+    if (!taskId) throw new Error('This 3D job has no recoverable task reference.');
+    const response = await fetch(`/api/property-voxel-3d?taskId=${encodeURIComponent(taskId)}`, {
+      cache: 'no-store', headers: authHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.ok) throw new Error(data?.error || 'The 3D preview could not be refreshed.');
+    return data;
+  }
+
+  async function refresh3D(taskId, setter) {
+    const data = await read3D(taskId);
+    setter(data);
+    return data?.modelUrl || '';
+  }
+
   async function poll3D(taskId, setter, iteration, label) {
     for (let attempt = 0; attempt < 140; attempt += 1) {
       await wait(attempt === 0 ? 1500 : 3000);
       if (iteration !== pipelineRef.current) throw new Error('Creation changed.');
-      const response = await fetch(`/api/property-voxel-3d?taskId=${encodeURIComponent(taskId)}`, {
-        cache: 'no-store', headers: authHeaders(),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok) throw new Error(data?.error || `${label} could not be read.`);
+      const data = await read3D(taskId);
       setter(data);
       if (data?.modelUrl) return data;
       if (terminal(data?.status)) throw new Error(data?.error || `${label} ended with ${data?.status}.`);
@@ -301,7 +313,9 @@ export default function PropertyJourneyPage() {
       if (!response.ok || !data?.ok || !data?.reference?.storagePath) throw new Error(data?.error || '3D build could not start.');
       setSourceReference(data.reference);
       setPendingPhoto(null);
-      setPendingPreview((current) => { if (current) URL.revokeObjectURL(current); return ''; });
+      // Keep the local browser preview alive through the build. It is not uploaded
+      // to Voxel Vault storage, but it gives the user a stable visual reference
+      // until the generated image and interactive GLB are both ready.
       setSource3d(empty3d());
       setVoxelJob(emptyImage());
       setVoxelImage('');
@@ -437,7 +451,7 @@ export default function PropertyJourneyPage() {
 
       {step === 1 ? <>
         <p className={styles.bigPrompt}>{pendingPhoto ? 'Use this photo?' : 'Choose one photo.'}</p>
-        <p className={styles.flowHint}>Photo → first 3D → VoxelPop → final 3D voxel → address → My World → collect to Vault.</p>
+        <p className={styles.flowHint}>Photo → first 3D → VoxelPop image → final 3D voxel → address → My World → collect to Vault.</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
         {displaySource ? <div className={styles.heroCard}><img src={displaySource} alt="Selected property reference"/><span className={styles.badge}>YOUR PHOTO</span></div> : <div className={styles.photoDrop} onClick={choosePhoto} role="button" tabIndex={0}><div>+</div><b>Choose a property photo</b><span>iPhone photos supported</span></div>}
         {pendingPhoto ? <div className={styles.choicePanel}>
@@ -450,26 +464,28 @@ export default function PropertyJourneyPage() {
 
       {step === 2 ? <>
         <p className={styles.bigPrompt}>Building the first 3D.</p>
-        <p className={styles.stepCopy}>VoxelPop is making a 3D interpretation from your authorized photo. When it finishes, the voxel step starts automatically.</p>
-        <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
-        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>No extra button. First 3D → VoxelPop look → final 3D voxel.</span></div>
+        <p className={styles.stepCopy}>Your source image stays visible while VoxelPop makes the first 3D interpretation. The interactive model only replaces the poster after the GLB really loads.</p>
+        <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl} posterUrl={displaySource} onRecover={() => refresh3D(source3d.taskId, setSource3d)} label="First property 3D preview"/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
+        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>Image stays visible → first 3D → VoxelPop image → final movable 3D.</span></div>
       </> : null}
 
       {step === 3 ? <>
-        <p className={styles.bigPrompt}>{pipelinePhase === 'voxel-3d' ? 'Building the final 3D voxel.' : 'Making the VoxelPop version.'}</p>
-        <p className={styles.stepCopy}>The VoxelPop style pass uses the generated 3D preview, then creates one final movable 3D voxel.</p>
+        <p className={styles.bigPrompt}>{pipelinePhase === 'voxel-3d' ? 'Your image first. Then the 3D.' : 'Making the VoxelPop version.'}</p>
+        <p className={styles.stepCopy}>The generated VoxelPop image remains visible as the trusted poster. Under it, the final interactive 3D loads and can refresh its GLB without starting a new paid generation.</p>
+        {voxelImage ? <div className={styles.heroCard}><img src={voxelImage} alt="VoxelPop property rendering"/><span className={styles.badge}>VOXELPOP IMAGE · READY</span></div> : null}
         <div className={styles.heroCard}>
-          {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl}/> : voxelImage ? <img src={voxelImage} alt="VoxelPop property rendering"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl}/> : null}
-          <span className={styles.badge}>{pipelinePhase === 'voxel-3d' ? `FINAL 3D VOXEL · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL LOOK · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
+          {final3d?.modelUrl ? <MeshyModelViewer modelUrl={final3d.modelUrl} posterUrl={voxelImage || displaySource} onRecover={() => refresh3D(final3d.taskId, setFinal3d)} label="Final VoxelPop interactive 3D"/> : source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl} posterUrl={displaySource} onRecover={() => refresh3D(source3d.taskId, setSource3d)} label="Source 3D preview"/> : displaySource ? <img src={displaySource} alt="Property source preview"/> : null}
+          <span className={styles.badge}>{pipelinePhase === 'voxel-3d' ? `FINAL INTERACTIVE 3D · ${Math.round(Number(final3d?.progress || 0))}%` : `VOXEL LOOK · ${Math.round(Number(voxelJob?.progress || 0))}%`}</span>
           {pipelineRunning ? <div className={styles.buildPulse}/> : null}
         </div>
-        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>Keep this page open while the current build finishes.</span></div>}
+        {pipelinePhase === 'paused' ? <div className={styles.choicePanel}><b>The automatic build paused.</b><button className={styles.primaryOrange} type="button" onClick={retryBuild}>Try build again</button></div> : <div className={styles.autoPanel}><b>AUTOMATIC</b><span>Keep this page open while the current build finishes. A viewer refresh does not regenerate or spend another Meshy job.</span></div>}
       </> : null}
 
       {step === 4 ? <>
         <p className={styles.bigPrompt}>Add the property address.</p>
-        <p className={styles.stepCopy}>Enter the address for the property shown in your photo. We use it to place this digital representation on the map and check its mapped identity.</p>
-        <div className={styles.heroCard}><MeshyModelViewer modelUrl={final3d.modelUrl}/><span className={styles.badge}>VOXEL READY</span></div>
+        <p className={styles.stepCopy}>The VoxelPop image is preserved, and the interactive 3D can recover a fresh model URL if its cached GLB becomes stale.</p>
+        {voxelImage ? <div className={styles.heroCard}><img src={voxelImage} alt="Final VoxelPop image"/><span className={styles.badge}>VOXELPOP IMAGE</span></div> : null}
+        <div className={styles.heroCard}><MeshyModelViewer modelUrl={final3d.modelUrl} posterUrl={voxelImage || displaySource} onRecover={() => refresh3D(final3d.taskId, setFinal3d)} label="Final VoxelPop interactive 3D"/><span className={styles.badge}>INTERACTIVE 3D · READY</span></div>
         <form className={styles.searchForm} onSubmit={placeOnWorld}><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/><button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Checking address…' : 'Verify address + preview'}</button></form>
         <small className={styles.mapNote}>The address helps locate the reference. It is not proof of ownership, title, property value, or an investment offering.</small>
       </> : null}
@@ -478,7 +494,8 @@ export default function PropertyJourneyPage() {
         <p className={styles.bigPrompt}>Your World preview.</p>
         <p className={styles.stepCopy}>This preview is private to your account. It is not published publicly unless you choose to share it later from Vault.</p>
         <div className={styles.worldCard}><PlanetStreamGlobe listings={worldListing} selectedId="my-voxel-preview" simpleMode/><span className={styles.worldBadge}>MY WORLD · PRIVATE PREVIEW</span></div>
-        <div className={styles.miniModel}><MeshyModelViewer modelUrl={final3d.modelUrl}/></div>
+        {voxelImage ? <div className={styles.heroCard}><img src={voxelImage} alt="VoxelPop image saved with this 3D"/><span className={styles.badge}>IMAGE</span></div> : null}
+        <div className={styles.miniModel}><MeshyModelViewer modelUrl={final3d.modelUrl} posterUrl={voxelImage || displaySource} onRecover={() => refresh3D(final3d.taskId, setFinal3d)} label="Saved VoxelPop interactive 3D"/></div>
         <div className={styles.priceCard}>
           <div><small>DIGITAL VOXEL</small><b>{quote?.label || 'World preview'}</b><span>{mappedAddress}</span></div>
           <strong>{quote ? dollars(quote.priceCents) : '—'}</strong>
