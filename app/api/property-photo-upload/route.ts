@@ -61,10 +61,10 @@ export async function POST(request: Request) {
         rightsBasis: 'user-owned',
         rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital creation.',
         label: 'Selected property photo',
-        provider: 'voxelpop-local-webgl-v1',
+        provider: 'meshy-nano-banana-voxelpop + voxelpop-local-webgl-v2',
         storagePath: null,
       },
-      privacy: 'Payment is verified without uploading the source photo. The authorized source stays in this browser device storage while VoxelPop builds the image and interactive 3D locally.',
+      privacy: 'Payment verification does not upload the source photo. During the next review step, the browser sends a resized prepared reference transiently to the configured VoxelPop image provider; Voxel Vault does not save the original source photo in generation storage. The approved generated image then feeds the local interactive 3D voxel build.',
     });
   } catch (error) {
     return privateJson({
