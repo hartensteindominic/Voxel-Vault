@@ -1,7 +1,7 @@
 'use client';
 
-import PropertyJourneySimple from './PropertyJourneySimple';
+import PropertyJourneyExact from './PropertyJourneyExact';
 
 export default function PropertyJourneyPage() {
-  return <PropertyJourneySimple/>;
+  return <PropertyJourneyExact/>;
 }
