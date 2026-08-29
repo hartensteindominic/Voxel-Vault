@@ -6,8 +6,25 @@ import GeoReferenceModel from '../geo/GeoReferenceModel';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import { buildPropertyDraft, readPropertyDraft, savePropertyDraft, setPropertyDraftWorldVisibility } from '../../lib/property-drafts';
 import { savePropertyDraftToAccount } from '../../lib/property-drafts-account';
+import styles from './property.module.css';
 
 function clean(value) { return String(value || '').trim(); }
+function normalizedAddress(value) {
+  return clean(value).toLowerCase()
+    .replace(/\bavenue\b/g, 'ave').replace(/\bstreet\b/g, 'st').replace(/\broad\b/g, 'rd')
+    .replace(/\bboulevard\b/g, 'blvd').replace(/\bdrive\b/g, 'dr').replace(/\blane\b/g, 'ln')
+    .replace(/\bcourt\b/g, 'ct').replace(/\bplace\b/g, 'pl').replace(/\bnew york\b/g, 'ny')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function listingMatchesResolvedAddress(listing, address) {
+  const expected = normalizedAddress(address);
+  const actual = normalizedAddress([listing?.address, listing?.city, listing?.region, listing?.postalCode].filter(Boolean).join(' '));
+  if (!expected || !actual) return false;
+  const expectedNumber = expected.match(/^\d+/)?.[0] || '';
+  const actualNumber = actual.match(/^\d+/)?.[0] || '';
+  if (!expectedNumber || expectedNumber !== actualNumber) return false;
+  return actual === expected || actual.includes(expected) || expected.includes(actual);
+}
 function money(listing) {
   const cents = Number(listing?.marketValueCents);
   if (!Number.isFinite(cents)) return 'PRICE AT SOURCE';
@@ -69,9 +86,12 @@ export default function SimplePropertyPage() {
   const reference = useMemo(() => referenceFor(building), [building]);
   const draft = useMemo(() => buildPropertyDraft({ building, listing: null, fallbackLabel: resolvedQuery }), [building, resolvedQuery]);
   const exactSale = useMemo(() => {
-    if (!building) return null;
-    return listings.find((item) => item?.transactionType === 'sale' && distanceMeters(building.latitude, building.longitude, item.latitude, item.longitude) <= 45) || null;
-  }, [building, listings]);
+    if (!building || !resolvedQuery) return null;
+    return listings.find((item) => item?.transactionType === 'sale'
+      && Boolean(item?.sourceUrl)
+      && distanceMeters(building.latitude, building.longitude, item.latitude, item.longitude) <= 45
+      && listingMatchesResolvedAddress(item, resolvedQuery)) || null;
+  }, [building, listings, resolvedQuery]);
   const fractionRail = platform?.investmentRails?.propertySpecificFractionalOwnership || null;
   const fractionProvider = fractionRail?.providerReferences?.[0] || null;
 
@@ -120,8 +140,9 @@ export default function SimplePropertyPage() {
       setBuilding(selected);
       setListings(Array.isArray(market?.listings) ? market.listings : []);
       setPlatform(status);
-      if (!selected?.geometry) setMessage('Property location ready. No source-backed building footprint exists here, so Voxel Vault kept it as land/location instead of inventing a structure.');
-      else setMessage('3D property ready. Choose what you want to do.');
+      setMessage(selected?.geometry
+        ? '3D property ready. Choose what you want to do.'
+        : 'Property location ready. No source-backed building footprint exists here, so Voxel Vault kept it as land/location instead of inventing a structure.');
       const nextDraft = buildPropertyDraft({ building: selected, fallbackLabel: address });
       setSaved(nextDraft?.id ? readPropertyDraft(nextDraft.id) : null);
     } catch (error) {
@@ -186,46 +207,41 @@ export default function SimplePropertyPage() {
   function buyWhole() {
     if (exactSale?.sourceUrl) {
       window.open(exactSale.sourceUrl, '_blank', 'noopener,noreferrer');
-      setMessage('Opened the authorized sale source. The real purchase still closes through normal contract, title and settlement.');
+      setMessage('Opened the exact authorized sale source. The real purchase still closes through normal contract, title and settlement.');
       return;
     }
-    setMessage('This exact property is not currently tied to an authorized sale listing, so Buy Whole stays off.');
+    setMessage('This exact address is not currently tied to an authorized matching sale listing, so Buy Whole stays off.');
   }
 
-  return <main className="page">
-    <header><Link href="/">V</Link><nav><Link href="/vault/property-drafts">VAULT</Link><Link href="/world">WORLD</Link></nav></header>
-
-    <section className="searchBlock">
+  return <main className={styles.page}>
+    <header className={styles.header}><Link className={styles.logo} href="/">V</Link><nav className={styles.nav}><Link href="/vault/property-drafts">VAULT</Link><Link href="/world">WORLD</Link></nav></header>
+    <section className={styles.searchBlock}>
       <small>1 · ADD PROPERTY</small>
-      <form onSubmit={(event) => { event.preventDefault(); search(); }}>
+      <form className={styles.searchForm} onSubmit={(event) => { event.preventDefault(); search(); }}>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Enter any property address" aria-label="Property address"/>
         <button disabled={busy}>{busy ? '…' : 'ADD'}</button>
       </form>
     </section>
 
-    {building ? <section className="property">
-      <div className="viewer">{reference ? <GeoReferenceModel reference={reference} authoritativeTwin={null} viewMode="orbit" resetKey={0}/> : <div className="empty3d"><div className="parcel"/><b>LAND / LOCATION</b><span>NO BUILDING INVENTED</span></div>}</div>
-      <div className="controls">
-        <div className="title"><small>YOUR 3D PROPERTY</small><h1>{resolvedQuery}</h1><span>{building?.source?.authority || 'Source-backed world map'}</span></div>
-        <div className="choices">
+    {building ? <section className={styles.property}>
+      <div className={styles.viewer}>{reference ? <GeoReferenceModel reference={reference} authoritativeTwin={null} viewMode="orbit" resetKey={0}/> : <div className={styles.empty3d}><div className={styles.parcel}/><b>LAND / LOCATION</b><span>NO BUILDING INVENTED</span></div>}</div>
+      <div className={styles.controls}>
+        <div className={styles.title}><small>YOUR 3D PROPERTY</small><h1>{resolvedQuery}</h1><span>{building?.source?.authority || 'Source-backed world map'}</span></div>
+        <div className={styles.choices}>
           <button onClick={buyPortion}><b>BUY A PIECE</b><span>{fractionRail?.liveExecutionReady ? 'VERIFIED RAIL READY' : 'ONLY WHEN VERIFIED'}</span></button>
-          <button onClick={buyWhole} className={exactSale?.sourceUrl ? 'ready' : ''}><b>BUY THE WHOLE THING</b><span>{exactSale ? money(exactSale) : 'ONLY WHEN LISTED'}</span></button>
+          <button onClick={buyWhole} className={exactSale?.sourceUrl ? styles.ready : ''}><b>BUY THE WHOLE THING</b><span>{exactSale ? money(exactSale) : 'ONLY WHEN EXACTLY LISTED'}</span></button>
         </div>
-        <div className="next">
+        <div className={styles.next}>
           <Link href="/vault/properties/claim">VERIFY → MINT</Link>
-          <button className={saved ? 'done' : ''} onClick={saveToVault}>{saved ? '✓ IN VAULT' : 'SAVE TO VAULT'}</button>
-          <button className={saved?.world?.public ? 'done' : ''} onClick={shareWorld}>{saved?.world?.public ? '✓ ON WORLD' : 'SHOW ON WORLD'}</button>
+          <button className={saved ? styles.done : ''} onClick={saveToVault}>{saved ? '✓ IN VAULT' : 'SAVE TO VAULT'}</button>
+          <button className={saved?.world?.public ? styles.done : ''} onClick={shareWorld}>{saved?.world?.public ? '✓ ON WORLD' : 'SHOW ON WORLD'}</button>
         </div>
-        <p className="message" role="status">{message}</p>
-        {fractionProvider?.officialMarketplaceUrl ? <a className="provider" href={fractionProvider.officialMarketplaceUrl} target="_blank" rel="noreferrer">Browse provider-listed fractional properties ↗</a> : null}
-        <p className="legal">A 3D model or mint is digital provenance, not a deed. A portion or full-property purchase is shown as real only when a verified provider/listing and the required legal settlement actually exist.</p>
+        <p className={styles.message} role="status">{message}</p>
+        {fractionProvider?.officialMarketplaceUrl ? <a className={styles.provider} href={fractionProvider.officialMarketplaceUrl} target="_blank" rel="noreferrer">Browse provider-listed fractional properties ↗</a> : null}
+        <p className={styles.legal}>A 3D model or mint is digital provenance, not a deed. A portion or full-property purchase is shown as real only when a verified provider/listing and the required legal settlement actually exist.</p>
       </div>
-    </section> : <section className="start"><div className="cube"><i/><i/><i/></div><b>{busy ? 'ADDING PROPERTY…' : 'ONE PROPERTY. ONE SCREEN.'}</b><span>{message}</span></section>}
+    </section> : <section className={styles.start}><div className={styles.cube}><i/><i/><i/></div><b>{busy ? 'ADDING PROPERTY…' : 'ONE PROPERTY. ONE SCREEN.'}</b><span>{message}</span></section>}
 
-    <div className="steps"><span>ADD</span><i>→</i><span>BUY PIECE / WHOLE</span><i>→</i><span>MINT</span><i>→</i><span>VAULT</span><i>→</i><span>WORLD</span></div>
-
-    <style jsx>{`
-      :global(body){margin:0;background:#070909;color:#f6f8f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:14px clamp(12px,3vw,34px) 84px;background:radial-gradient(circle at 82% 4%,rgba(121,239,188,.12),transparent 26%),#070909}header{height:48px;display:flex;align-items:center;justify-content:space-between}header>a{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#f6f8f7;color:#07100c;text-decoration:none;font-weight:1000}nav{display:flex;gap:8px}nav a{color:#9aa6a1;text-decoration:none;font-size:8px;font-weight:950;letter-spacing:.12em;padding:10px}.searchBlock{max-width:920px;margin:48px auto 18px}.searchBlock small{display:block;margin-bottom:9px;color:#79efbc;font-size:7px;font-weight:950;letter-spacing:.14em}.searchBlock form{display:grid;grid-template-columns:1fr auto;gap:7px;padding:6px;border:1px solid rgba(255,255,255,.1);border-radius:20px;background:#0e1211}.searchBlock input{min-width:0;border:0;outline:0;background:transparent;color:#fff;padding:15px;font:inherit;font-size:16px}.searchBlock button{border:0;border-radius:14px;padding:0 20px;background:#79efbc;color:#05100b;font-size:9px;font-weight:1000;letter-spacing:.1em}.property{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:10px}.viewer{position:relative;min-height:590px;border:1px solid rgba(255,255,255,.08);border-radius:26px;overflow:hidden;background:#0b0f0e}.empty3d{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:10px;color:#65716d}.empty3d .parcel{width:210px;height:140px;border:2px solid rgba(121,239,188,.38);background:rgba(121,239,188,.05);transform:perspective(420px) rotateX(62deg) rotateZ(-8deg);border-radius:18px}.empty3d b{font-size:9px;letter-spacing:.12em;color:#98afa6}.empty3d span{font-size:6px;font-weight:950;letter-spacing:.12em}.controls{padding:20px;border:1px solid rgba(255,255,255,.08);border-radius:26px;background:rgba(255,255,255,.025)}.title small{color:#79efbc;font-size:7px;font-weight:950;letter-spacing:.13em}.title h1{font-size:clamp(28px,4vw,50px);line-height:.95;letter-spacing:-.055em;margin:8px 0}.title>span{color:#77827e;font-size:8px}.choices{display:grid;gap:8px;margin-top:24px}.choices button{min-height:82px;border:1px solid rgba(255,255,255,.09);border-radius:17px;background:#0d1110;color:#eef3f1;text-align:left;padding:14px;cursor:pointer}.choices button.ready{border-color:rgba(121,239,188,.28);background:rgba(121,239,188,.06)}.choices b{display:block;font-size:13px;letter-spacing:-.01em}.choices span{display:block;margin-top:5px;color:#75817c;font-size:7px;font-weight:850;letter-spacing:.08em}.next{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.next button,.next a{min-height:48px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:#151a18;color:#b4bdb9;text-decoration:none;display:grid;place-items:center;text-align:center;font:inherit;font-size:7px;font-weight:950;letter-spacing:.09em;cursor:pointer}.next a{background:#181d1b}.next button:nth-child(2){background:#f1f5f3;color:#07100c}.next button:last-child{grid-column:1/-1}.next .done{background:#79efbc!important;color:#06100c!important}.message{min-height:38px;margin:12px 0 0;padding:10px;border-radius:12px;background:rgba(121,239,188,.045);color:#9db0a9;font-size:8px;line-height:1.5}.provider{display:inline-block;margin-top:8px;color:#8edbbf;text-decoration:none;font-size:7px;font-weight:850}.legal{margin-top:14px;color:#56625e;font-size:7px;line-height:1.5}.start{max-width:1180px;height:560px;margin:0 auto;border:1px solid rgba(255,255,255,.07);border-radius:28px;display:grid;place-content:center;justify-items:center;gap:12px;text-align:center;background:radial-gradient(circle at 50% 40%,rgba(121,239,188,.08),transparent 28%),#0a0d0c}.start b{font-size:12px;letter-spacing:.12em}.start span{max-width:440px;color:#74807b;font-size:9px;line-height:1.6}.cube{position:relative;width:72px;height:72px;transform:rotate(30deg) skewY(-8deg);background:#79efbc;border-radius:9px;box-shadow:0 25px 70px rgba(121,239,188,.15)}.cube i{position:absolute;background:#173d30}.cube i:nth-child(1){width:18px;height:18px;left:10px;top:12px}.cube i:nth-child(2){width:18px;height:18px;right:10px;top:12px}.cube i:nth-child(3){width:18px;height:18px;left:27px;bottom:10px}.steps{max-width:1180px;margin:10px auto 0;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;color:#61706a;font-size:6px;font-weight:950;letter-spacing:.1em}.steps i{font-style:normal;color:#35413c}@media(max-width:820px){.property{grid-template-columns:1fr}.viewer{min-height:48vh}.controls{padding:15px}.searchBlock{margin-top:28px}.steps{padding:0 8px}}@media(max-width:520px){.page{padding:10px 10px calc(78px + env(safe-area-inset-bottom))}.searchBlock form{border-radius:16px}.searchBlock input{font-size:15px;padding:13px 10px}.searchBlock button{padding:0 15px}.viewer{min-height:43vh;border-radius:20px}.controls{border-radius:20px}.title h1{font-size:31px}.choices{grid-template-columns:1fr 1fr}.choices button{min-height:96px;padding:12px}.choices b{font-size:11px}.next{grid-template-columns:1fr}.next button:last-child{grid-column:auto}.start{height:54vh;min-height:390px}}
-    `}</style>
+    <div className={styles.steps}><span>ADD</span><i>→</i><span>BUY PIECE / WHOLE</span><i>→</i><span>MINT</span><i>→</i><span>VAULT</span><i>→</i><span>WORLD</span></div>
   </main>;
 }
