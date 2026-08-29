@@ -69,9 +69,14 @@ assert.match(property, /You see and approve the 3D picture before VoxelPop creat
 
 assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept privately on-device across checkout');
 assert.match(property, /PhotoReliefModelViewer/, 'recognizable 3D photo preview is a first-class stage');
-assert.match(photoPreview, /CanvasTexture/, 'first 3D preview uses the actual uploaded photo texture');
-assert.match(photoPreview, /PlaneGeometry/, 'first preview uses actual Three.js geometry');
-assert.match(photoPreview, /setZ\(/, 'first preview applies bounded relief to the photo surface');
+assert.match(photoPreview, /CanvasTexture/, 'first 3D picture uses the actual uploaded photo texture');
+assert.match(photoPreview, /new THREE\.BoxGeometry\(cardWidth, cardHeight, depth/, 'first 3D picture adds honest object thickness without deforming the house');
+assert.match(photoPreview, /MeshBasicMaterial\(\{ map: texture, toneMapped: false \}\)/, 'first 3D picture keeps the source photo front unlit and visually faithful');
+assert.match(photoPreview, /averageEdgeColor/, 'first 3D picture derives visible edge color from the actual source image');
+assert.match(photoPreview, /compact \? 2 : 2\.25/, 'first 3D picture uses a sharp mobile render scale');
+assert.doesNotMatch(photoPreview, /positions\.setZ|\.setZ\(/, 'first 3D picture must never warp the uploaded photo into a melted relief');
+assert.match(photoPreview, /targetY = clamp/, 'first 3D picture keeps inspection rotation deliberately bounded');
+assert.match(photoPreview, /Showing the original photo instead/, 'preview failure keeps the source photo visible rather than showing a dead card');
 assert.match(property, /Looks good → Create 3D Voxel/, 'user explicitly approves the 3D picture before voxelization');
 assert.match(property, /createVoxelPoster/, 'VoxelPop voxel image is built only after preview approval');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive voxel is a separate later stage');
@@ -147,4 +152,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> recognizable 3D picture -> explicit approval -> separate 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
+console.log('Guided VoxelPop property checks passed: sign in -> photo -> one $4.99 payment -> sharp source-faithful 3D picture -> explicit approval -> separate 3D voxel -> auto-save to Vault -> Mint Now or Mint Later, with map/World optional and regulated/property-rights rails distinct.');
