@@ -83,8 +83,9 @@ assert.match(localVoxel, /const MAX_SIDE = 32/, 'saved local recipe accepts the 
 assert.match(localVoxel, /if \(recipe\.depths\[index\] <= 0\) continue/, 'saved glTF preserves the empty background');
 assert.match(localVoxel, /silhouette-aware voxel recipe/, 'saved record documents the silhouette-aware model');
 assert.match(localVoxel, /model\/gltf\+json/, 'a durable glTF can be rebuilt from the compact recipe');
-assert.match(localStore, /Deliberately table-only/, 'local record persistence deliberately avoids Storage');
-assert.doesNotMatch(localStore, /createBucket|storage\.from/, 'local record persistence must not touch a Storage bucket');
+assert.match(localStore, /source photo is never/, 'local voxel persistence must keep the original property photo out of server-side model saves');
+assert.match(localStore, /metadata-object fallback in the private voxel-system bucket/, 'derived voxel metadata may use the private durability fallback when the catalog table is unavailable');
+assert.doesNotMatch(localStore, /\.storage|\.upload\(/, 'local voxel persistence must not directly upload the original source photo');
 
 assert.match(mintPrepare, /requireVoxelVaultUser/, 'mint preparation requires the signed-in account');
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint preparation verifies the exact account-owned local model');
