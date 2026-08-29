@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { readCatalog3DByTask } from '../../../../../lib/catalog3dStore';
-import { normalizePropertyDraftId } from '../../../../../lib/property-generation-ids';
-import { verifyPropertyVoxelMetadataSignature } from '../../../../../lib/property-voxel-mint';
+import { readCatalog3DByTask } from '../../../../lib/catalog3dStore';
+import { normalizePropertyDraftId } from '../../../../lib/property-generation-ids';
+import { verifyPropertyVoxelMetadataSignature } from '../../../../lib/property-voxel-mint';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
