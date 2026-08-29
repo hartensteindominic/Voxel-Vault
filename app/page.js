@@ -42,7 +42,12 @@ export default function Home() {
 
       <details className={styles.inclusion}>
         <summary><span><small>WHAT'S INCLUDED / WHAT'S NOT</small><b>Clear boundaries without cluttering the hero</b></span><i>+</i></summary>
-        <div><p><b>$4.99 buys one digital VoxelPop creation:</b> textured 3D preview, approval step, and movable voxel.</p><p>Your photo stays on your device in the normal flow. A one-photo model does not claim to reconstruct unseen sides or survey-grade dimensions.</p><p>A voxel, NFT, map marker, payment, or Property Passport is not a deed and does not create physical-property ownership, rent, occupancy, investment, or appreciation rights.</p></div>
+        <div>
+          <p><b>START → SIGN IN + UPLOAD PHOTO.</b> Nothing is charged or uploaded before account verification.</p>
+          <p><b>One VoxelPop creation costs $4.99.</b> The source photo stays on your device and the normal creation runs without Meshy credits.</p>
+          <p>Optional Collect later is a separate digital-item purchase. A one-photo model does not claim to reconstruct unseen sides or survey-grade dimensions.</p>
+          <p><b>Voxel Vault is not a bank.</b> A VoxelPop item is not a deed. A voxel, NFT, map marker, payment, or Property Passport does not create physical-property ownership, rent, occupancy, investment, or appreciation rights.</p>
+        </div>
       </details>
 
       <footer className={styles.footer}><span>Voxel Vault is a digital creation product. Regulated financial and physical-property rights remain separate provider/legal workflows.</span><span><Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/about">About</Link> · <Link href="/demo">3D demo</Link></span></footer>
