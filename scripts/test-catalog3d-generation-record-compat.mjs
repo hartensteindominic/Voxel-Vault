@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const store = read('lib/catalog3dStore.js');
+const meshRoute = read('app/api/world-atlas/mesh/route.ts');
 const migration007 = read('supabase/migrations/007_catalog_3d_media.sql');
 const migration009 = read('supabase/migrations/009_catalog_3d_binary_storage.sql');
 
@@ -24,4 +25,10 @@ assert.match(store, /for \(const supabase of adminCandidates\(\)\)/, 'storage wr
 assert.match(store, /storageReadyPromise = Promise\.resolve\(supabase\)/, 'a credential is cached only after a successful storage write');
 assert.match(store, /return writeStorageRow\(itemId, payload\)/, 'private storage remains a final fallback rather than a prerequisite for generation records');
 
-console.log('Catalog3D generation-record compatibility passed: VoxelPop can save Meshy task ownership/status on the original 007/008 table schema, retry recoverable Storage failures, and keep 009 private binary metadata optional.');
+assert.match(meshRoute, /async function recoverCachedDisplay/, 'world-atlas Meshy must have an explicit stale-cache recovery path');
+assert.match(meshRoute, /persistModelBinary\(saved\.item_id, providerModelUrl\)/, 'old provider URLs must be re-cached into private storage when still valid');
+assert.match(meshRoute, /fetch\(`\$\{ENDPOINT\}\/\$\{encodeURIComponent\(rawTaskId\(saved\.task_id\)\)\}`/, 'expired provider URLs must be refreshable from the existing Meshy task');
+assert.match(meshRoute, /recovered: recovered\.recovered/, 'cache repair state must be surfaced to callers');
+assert.doesNotMatch(meshRoute, /forceRestart: true/, 'cache recovery must not silently start a new paid Meshy generation');
+
+console.log('Catalog3D generation-record compatibility passed: VoxelPop can save Meshy task ownership/status on the original 007/008 table schema, retry recoverable Storage failures, repair stale completed-model URLs from the existing task, and keep 009 private binary metadata optional.');
