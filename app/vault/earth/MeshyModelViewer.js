@@ -13,10 +13,22 @@ function retryUrl(modelUrl, attempt) {
   }
 }
 
-export default function MeshyModelViewer({ modelUrl }) {
+export default function MeshyModelViewer({
+  modelUrl,
+  fallbackImageUrl = '',
+  label = 'Interactive Meshy 3D model',
+}) {
   const mountRef = useRef(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(Boolean(modelUrl));
+  const [loaded, setLoaded] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    setError('');
+    setLoading(Boolean(modelUrl));
+    setLoaded(false);
+  }, [modelUrl]);
 
   useEffect(() => {
     if (!modelUrl || !mountRef.current) return undefined;
@@ -24,6 +36,7 @@ export default function MeshyModelViewer({ modelUrl }) {
     let cleanup = () => {};
     setError('');
     setLoading(true);
+    setLoaded(false);
 
     Promise.all([
       import('three'),
@@ -36,7 +49,7 @@ export default function MeshyModelViewer({ modelUrl }) {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       } catch {
         setLoading(false);
-        setError('3D model preview is unavailable in this browser.');
+        setError('3D preview is unavailable in this browser. Your image is still shown.');
         return;
       }
       const width = Math.max(280, mount.clientWidth || 360);
@@ -51,6 +64,8 @@ export default function MeshyModelViewer({ modelUrl }) {
       renderer.shadowMap.enabled = !compact;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.style.touchAction = 'none';
+      renderer.domElement.style.opacity = '0';
+      renderer.domElement.style.transition = 'opacity 220ms ease';
       mount.innerHTML = '';
       mount.appendChild(renderer.domElement);
 
@@ -84,17 +99,19 @@ export default function MeshyModelViewer({ modelUrl }) {
       let model = null;
       let loadRetryTimer = 0;
       const loadModel = (attempt = 0) => {
-        loader.load(retryUrl(modelUrl, attempt), (gltf) => {
+        loader.load(retryUrl(modelUrl, attempt + reloadKey * 4), (gltf) => {
           if (dead) return;
           model = gltf.scene;
           model.traverse((object) => {
             if (!object?.isMesh) return;
             object.castShadow = !compact;
             object.receiveShadow = !compact;
-            if (object.material) {
-              object.material.envMapIntensity = 0.75;
-              object.material.needsUpdate = true;
-            }
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach((material) => {
+              if (!material) return;
+              material.envMapIntensity = 0.75;
+              material.needsUpdate = true;
+            });
           });
           const box = new THREE.Box3().setFromObject(model);
           const size = new THREE.Vector3();
@@ -106,7 +123,9 @@ export default function MeshyModelViewer({ modelUrl }) {
           model.scale.setScalar(scale);
           model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
           root.add(model);
+          renderer.domElement.style.opacity = '1';
           setLoading(false);
+          setLoaded(true);
           setError('');
         }, undefined, () => {
           if (dead) return;
@@ -117,7 +136,7 @@ export default function MeshyModelViewer({ modelUrl }) {
             return;
           }
           setLoading(false);
-          setError('The 3D preview could not be loaded. The 3D job is still recoverable; use Try build again if it does not recover.');
+          setError('The 3D preview did not open. Your image is safe—tap Reload 3D or rebuild from the photo.');
         });
       };
       loadModel();
@@ -238,18 +257,19 @@ export default function MeshyModelViewer({ modelUrl }) {
     }).catch(() => {
       if (!dead) {
         setLoading(false);
-        setError('The 3D model viewer could not start.');
+        setError('The 3D viewer could not start. Your image is still shown.');
       }
     });
 
     return () => { dead = true; cleanup(); };
-  }, [modelUrl]);
+  }, [modelUrl, reloadKey]);
 
   return <div className="viewerShell">
-    <div ref={mountRef} className="viewer" aria-label="Interactive Meshy hero-property 3D model" />
-    {loading && !error ? <div className="viewerLoading">Loading live 3D model…</div> : null}
-    {error ? <div className="viewerError">{error}</div> : null}
-    <div className="viewerHint">DRAG · PINCH TO ZOOM · LIVE 3D</div>
-    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewer{position:absolute;inset:0}.viewerLoading{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:rgba(9,16,15,.68);pointer-events:none}.viewerError{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:#09100f}.viewerHint{position:absolute;left:12px;right:12px;bottom:10px;text-align:center;color:#7e8c87;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
+    {fallbackImageUrl ? <img className={`viewerFallback ${loaded ? 'viewerFallbackHidden' : ''}`} src={fallbackImageUrl} alt="3D source preview"/> : null}
+    <div ref={mountRef} className="viewer" aria-label={label}/>
+    {loading && !fallbackImageUrl ? <div className="viewerLoading">Loading live 3D model…</div> : null}
+    {error ? <div className="viewerError" role="status"><span>{error}</span><button type="button" onClick={() => setReloadKey((current) => current + 1)}>Reload 3D</button></div> : null}
+    <div className="viewerHint">{loaded ? 'DRAG · PINCH TO ZOOM · 3D READY' : 'IMAGE FIRST · LOADING 3D'}</div>
+    <style jsx>{`.viewerShell{position:relative;min-height:330px;border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(78,151,126,.16),transparent 42%),#070d0c}.viewerFallback{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .22s ease}.viewerFallbackHidden{opacity:0}.viewer{position:absolute;inset:0;z-index:2}.viewerLoading{position:absolute;inset:0;display:grid;place-content:center;padding:28px;text-align:center;color:#bdc8c4;font-size:11px;line-height:1.5;background:rgba(9,16,15,.68);pointer-events:none}.viewerError{position:absolute;z-index:4;left:14px;right:14px;bottom:34px;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;padding:10px 12px;text-align:center;color:#e7efec;font-size:10px;line-height:1.45;background:rgba(9,16,15,.86);border:1px solid rgba(255,255,255,.1);border-radius:14px;backdrop-filter:blur(10px)}.viewerError button{min-height:36px;border:0;border-radius:12px;padding:0 13px;background:#c9ff54;color:#24310e;font:900 10px inherit;cursor:pointer}.viewerHint{position:absolute;z-index:3;left:12px;right:12px;bottom:10px;text-align:center;color:#9aa9a4;font-size:6px;letter-spacing:.12em;font-weight:900;pointer-events:none}`}</style>
   </div>;
 }
