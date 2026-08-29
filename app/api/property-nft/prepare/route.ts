@@ -21,9 +21,10 @@ const EXISTING_MINT_ABI = [
   'function tokenURI(uint256 tokenId) view returns (string)',
 ];
 
-function clean(value: unknown, max = 500) {
-  return String(value || '').trim().slice(0, max);
-}
+type ExistingMint = { tokenId: string; txHash: string; owner: string; metadataUrl: string };
+type VoucherLookup = { checked: boolean; used: boolean; mint: ExistingMint | null; ownerMismatch?: string };
+
+function clean(value: unknown, max = 500) { return String(value || '').trim().slice(0, max); }
 function normalizePrivateKey(value: string) {
   const trimmed = value.trim();
   if (PRIVATE_KEY_RE.test(trimmed)) return `0x${trimmed}`;
@@ -52,9 +53,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
       promise,
       new Promise<T>((_resolve, reject) => { timer = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs); }),
     ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  } finally { if (timer) clearTimeout(timer); }
 }
 async function mintVoucher(wallet: string, metadataUrl: string, voucherId: string) {
   const secret = signerSecret();
@@ -65,7 +64,7 @@ async function mintVoucher(wallet: string, metadataUrl: string, voucherId: strin
   return { signature: await signer.signMessage(getBytes(digest)), signer: signer.address };
 }
 
-async function findVoucherMint(contractAddress: string, wallet: string, voucherId: string) {
+async function findVoucherMint(contractAddress: string, wallet: string, voucherId: string): Promise<VoucherLookup> {
   let knownUsed = false;
   for (const rpcUrl of rpcCandidates()) {
     const provider = new JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
@@ -93,9 +92,7 @@ async function findVoucherMint(contractAddress: string, wallet: string, voucherI
       }
     } catch (error) {
       console.warn('Property VoxelFlip recovery RPC unavailable', rpcUrl, error);
-    } finally {
-      provider.destroy();
-    }
+    } finally { provider.destroy(); }
   }
   return { checked: knownUsed, used: knownUsed, mint: null };
 }
@@ -116,7 +113,6 @@ export async function POST(request: Request) {
 
     const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
     if (receipt.draftId !== draftId) return NextResponse.json({ ok: false, error: 'This payment does not belong to this property creation.' }, { status: 403 });
-
     const saved = await readCatalog3DByTask(taskId);
     const expectedItemId = propertyDraftItemId(auth.user.id, draftId, 'voxel');
     if (!saved || saved.item_id !== expectedItemId || saved.provider !== 'voxelpop-local-webgl-v1' || saved.status !== 'SUCCEEDED' || !saved.source_image_url) {
@@ -141,20 +137,10 @@ export async function POST(request: Request) {
     const canonicalMetadataUrl = lookup.mint?.metadataUrl || metadataUrl;
     const voucher = lookup.used ? null : await mintVoucher(wallet, canonicalMetadataUrl, voucherId);
     return NextResponse.json({
-      ok: true,
-      ready: true,
-      chain: 'Base',
-      contractAddress,
-      draftId,
-      taskId,
-      wallet,
-      metadataUrl: canonicalMetadataUrl,
-      voucherId,
-      voucherUsed: lookup.used,
-      existingMint: lookup.mint,
-      mintConfigured: Boolean(voucher) || Boolean(lookup.mint),
-      signature: voucher?.signature || null,
-      signer: voucher?.signer || null,
+      ok: true, ready: true, chain: 'Base', contractAddress, draftId, taskId, wallet,
+      metadataUrl: canonicalMetadataUrl, voucherId, voucherUsed: lookup.used,
+      existingMint: lookup.mint, mintConfigured: Boolean(voucher) || Boolean(lookup.mint),
+      signature: voucher?.signature || null, signer: voucher?.signer || null,
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'The property voxel could not be prepared for minting.' }, { status: 500 });
