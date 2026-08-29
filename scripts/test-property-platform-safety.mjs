@@ -111,20 +111,20 @@ requireMarkers(distribution, 'distribution vault', [
   'InvalidStatementHash',
 ]);
 
-// The public root is intentionally focused on the shipping house-voxel product.
+// The public root is intentionally focused on the shipping property-voxel product.
 // Regulated property/investment disclosures belong on their advanced surfaces,
 // while the front door must still preserve optional minting and the digital-only
 // physical-property rights boundary.
 requireMarkers(root, 'simple root homepage', [
-  'HOUSE PHOTO → VOXEL → MINT',
-  'Create house voxel',
+  'PROPERTY → COLLECTIBLE',
+  'Create a property voxel',
   'confirm the address',
-  'Saved to Inventory',
-  'Mint',
+  'saved to Inventory first',
+  'Mint if you want',
   'This collectible is digital only.',
-  'does not create or transfer deed, title, or physical-property rights',
+  'does not create or transfer deed, title',
 ]);
-assert.doesNotMatch(root, /Create mine · \$4\.99|Create · \$4\.99/, 'the live house creator must not reintroduce the legacy checkout CTA');
+assert.doesNotMatch(root, /Create mine · \$4\.99|Create · \$4\.99/, 'the live property creator must not reintroduce the legacy checkout CTA');
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
   'Provider-backed securities may appear only when an approved provider, offering and eligibility path are actually active.',

@@ -1,20 +1,64 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MeshyModelViewer from '../../vault/earth/MeshyModelViewer';
 import { getSupabaseBrowserAsync } from '../../../lib/supabase-browser';
+import { readPropertyDrafts } from '../../../lib/property-drafts';
 import { connectVoxelFlipWallet, mintVoxelFlip } from '../../../lib/voxelflip';
+import styles from '../PropertyStudio.module.css';
 
 function clean(value) { return String(value || '').trim(); }
-function short(value) { const text = clean(value); return text ? `${text.slice(0, 7)}…${text.slice(-5)}` : ''; }
-function errorText(error) { return String(error?.reason || error?.shortMessage || error?.message || error || 'Minting failed.'); }
+function short(value) {
+  const text = clean(value);
+  return text ? `${text.slice(0, 7)}…${text.slice(-5)}` : '';
+}
+function errorText(error) {
+  return String(error?.reason || error?.shortMessage || error?.message || error || 'Minting failed.');
+}
 function storageKey(draftId, taskId) { return `voxelpop:property-mint:${draftId}:${taskId}`; }
+
+function Topbar() {
+  return <header className={styles.topbar}>
+    <Link className={styles.brand} href="/">
+      <span className={styles.brandMark}>V</span>
+      <span>VOXEL VAULT</span>
+    </Link>
+    <nav className={styles.nav} aria-label="Voxel Vault navigation">
+      <Link href="/property">Create</Link>
+      <Link href="/vault/property-drafts">Inventory</Link>
+    </nav>
+  </header>;
+}
+
+function Progress({ complete = false }) {
+  const items = [
+    ['✓', 'PHOTO', 'Done'],
+    ['✓', 'ADDRESS', 'Confirmed'],
+    ['✓', 'VOXEL', 'Built'],
+    [complete ? '✓' : '4', 'MINT', complete ? 'Complete' : 'Optional'],
+    ['5', 'VAULT', 'Inventory'],
+  ];
+  return <div className={styles.progressWrap}><div className={styles.progress}>
+    {items.map(([number, label, detail], index) => {
+      const isDone = index < 3 || (complete && index === 3);
+      const isCurrent = !complete && index === 3;
+      const className = isDone
+        ? `${styles.progressItem} ${styles.progressDone}`
+        : isCurrent
+          ? `${styles.progressItem} ${styles.progressCurrent}`
+          : styles.progressItem;
+      return <div className={className} key={label}>
+        <span>{number}</span><div><b>{label}</b><small>{detail}</small></div>
+      </div>;
+    })}
+  </div></div>;
+}
 
 export default function PropertyVoxelMintPage() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
-  const [params, setParams] = useState({ draftId: '', taskId: '', name: 'VoxelPop Property', modelUrl: '' });
+  const [params, setParams] = useState({ draftId: '', taskId: '', name: 'Voxel Property', modelUrl: '' });
   const [wallet, setWallet] = useState('');
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('Opening your finished voxel…');
@@ -25,21 +69,39 @@ export default function PropertyVoxelMintPage() {
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    const next = {
-      draftId: clean(query.get('draftId')),
-      taskId: clean(query.get('taskId')),
-      name: clean(query.get('name')) || 'VoxelPop Property',
-      modelUrl: clean(query.get('modelUrl')),
-    };
+    const draftId = clean(query.get('draftId'));
+    const taskId = clean(query.get('taskId'));
+    let resolvedModelUrl = clean(query.get('modelUrl'));
+    let resolvedName = clean(query.get('name')) || 'Voxel Property';
+
+    if ((!resolvedModelUrl || resolvedName === 'Voxel Property') && draftId && taskId) {
+      try {
+        const found = readPropertyDrafts().find((draft) => {
+          const savedDraftId = clean(draft?.voxelpop?.creationDraftId);
+          const savedTaskId = clean(draft?.visual?.modelTaskId || draft?.voxelpop?.modelTaskId);
+          return savedDraftId === draftId && savedTaskId === taskId;
+        });
+        if (found) {
+          resolvedModelUrl = resolvedModelUrl || clean(found?.visual?.modelUrl || found?.voxelpop?.modelUrl);
+          resolvedName = clean(found?.label) || resolvedName;
+        }
+      } catch {}
+    }
+
+    const next = { draftId, taskId, name: resolvedName, modelUrl: resolvedModelUrl };
     setParams(next);
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey(next.draftId, next.taskId)) || 'null');
       if (saved?.verified && saved?.tokenId) {
         setMinted(saved);
         setWallet(saved.owner || '');
-        setMessage(`VoxelFlip #${saved.tokenId} is already verified for this voxel.`);
+        setMessage(`Voxel #${saved.tokenId} is already verified for this collectible.`);
+      } else {
+        setMessage('Your finished voxel is ready. Minting is optional.');
       }
-    } catch {}
+    } catch {
+      setMessage('Your finished voxel is ready. Minting is optional.');
+    }
   }, []);
 
   useEffect(() => {
@@ -89,7 +151,7 @@ export default function PropertyVoxelMintPage() {
       connected = await connectVoxelFlipWallet();
       setWallet(connected.address);
       setBusy('prepare');
-      setMessage('Checking this finished voxel and its one-time Base mint voucher…');
+      setMessage('Preparing the one-time mint for this finished voxel…');
       const response = await fetch('/api/property-voxel-nft/prepare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -104,7 +166,7 @@ export default function PropertyVoxelMintPage() {
       if (!result?.tokenId || !result?.hash) throw new Error('The wallet transaction completed, but the token ID could not be read.');
 
       setBusy('verify');
-      setMessage(`VoxelFlip #${result.tokenId} was submitted. Verifying it on Base…`);
+      setMessage(`Voxel #${result.tokenId} was submitted. Verifying it…`);
       const confirm = await fetch('/api/property-voxel-nft/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -118,12 +180,12 @@ export default function PropertyVoxelMintPage() {
         }),
       });
       const verified = await confirm.json().catch(() => ({}));
-      if (!confirm.ok || !verified?.verified) throw new Error(verified?.error || `VoxelFlip #${result.tokenId} was submitted, but verification is not complete. Do not mint it again.`);
+      if (!confirm.ok || !verified?.verified) throw new Error(verified?.error || `Voxel #${result.tokenId} was submitted, but verification is not complete. Do not mint it again.`);
       const finalResult = { ...result, ...verified, verified: true };
       setMinted(finalResult);
       setWallet(finalResult.owner || connected.address);
       try { localStorage.setItem(storageKey(params.draftId, params.taskId), JSON.stringify(finalResult)); } catch {}
-      setMessage(`Done. VoxelFlip #${finalResult.tokenId} is verified and owned by ${short(finalResult.owner)}.`);
+      setMessage(`Done. Voxel #${finalResult.tokenId} is verified and owned by ${short(finalResult.owner)}.`);
     } catch (error) {
       if (error?.code === 'NO_WALLET_PROVIDER' && error?.deepLink) {
         window.location.href = error.deepLink;
@@ -136,39 +198,52 @@ export default function PropertyVoxelMintPage() {
   }
 
   const invalid = !params.draftId || !params.taskId || !modelUrl;
-  if (!authReady) return <main className="page"><section className="shell"><div className="mark">V</div><h1>Opening mint…</h1><p className="status">{message}</p><style jsx>{styles}</style></section></main>;
 
-  return <main className="page"><section className="shell">
-    <nav><Link href="/property">← CREATE</Link><span>VOXELPOP · MINT</span><Link href="/vault/property-drafts">INVENTORY</Link></nav>
+  if (!authReady) return <main className={styles.page}><section className={styles.shell}><Topbar/><div className={styles.signInCard}><div className={styles.signInVoxel} aria-hidden="true"/><p className={styles.eyebrow}>MINT STUDIO</p><h1>Opening your voxel…</h1></div></section></main>;
 
-    {invalid ? <section className="notice"><b>Open Mint from a finished VoxelPop 3D voxel.</b><Link href="/property">Create a voxel</Link></section> : <>
-      <header>
-        <div className="ready">✓ 3D VOXEL SAVED · ONE MINT MAX</div>
-        <h1>{minted ? 'Mint complete.' : 'Mint your voxel.'}</h1>
-        <p>{minted ? 'Your digital voxel is verified on Base.' : 'It is already safe in your Voxel Vault inventory. Minting is optional.'}</p>
+  return <main className={styles.page}><section className={styles.shell}>
+    <Topbar/>
+    <Progress complete={Boolean(minted)}/>
+
+    {invalid ? <div className={styles.emptyCard}>
+      <div className={styles.signInVoxel} aria-hidden="true"/>
+      <p className={styles.eyebrow}>MINT STUDIO</p>
+      <h2>Open Mint from a saved voxel.</h2>
+      <p>The model link is missing from this mint request. Open the collectible from Inventory and choose Mint again.</p>
+      <Link className={styles.primary} href="/vault/property-drafts">Open Inventory</Link>
+    </div> : <>
+      <header className={styles.mintHeader}>
+        <p className={styles.eyebrow}>{minted ? 'MINT COMPLETE' : 'OPTIONAL MINT'}</p>
+        <h1>{minted ? 'Your voxel is on-chain.' : 'Mint the one-of-one.'}</h1>
+        <p>{minted ? 'The digital collectible is verified and remains visible in your Voxel Vault Inventory.' : 'Your voxel is already safe in Inventory. Minting simply gives this digital collectible an on-chain owner.'}</p>
       </header>
 
-      <div className="viewer"><MeshyModelViewer modelUrl={modelUrl}/><span>{minted ? `VOXELFLIP #${minted.tokenId}` : 'YOUR GENERATED 3D VOXEL'}</span></div>
-
-      {minted ? <section className="done">
-        <div className="doneMark">✓</div>
-        <b>VoxelFlip #{minted.tokenId}</b>
-        <span>Verified owner · {short(minted.owner)}</span>
-        <div className="links">{minted.openSeaUrl ? <a href={minted.openSeaUrl} target="_blank" rel="noreferrer">OpenSea ↗</a> : null}{minted.explorerUrl ? <a href={minted.explorerUrl} target="_blank" rel="noreferrer">Transaction ↗</a> : null}<Link href="/vault/property-drafts">Open inventory</Link></div>
-      </section> : <section className="actions">
-        {!session?.user ? <button className="primary" type="button" onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'Opening Google…' : 'Sign in to mint'}</button> : <button className="primary" type="button" onClick={mint} disabled={Boolean(busy)}>{busy === 'wallet' ? 'Connecting wallet…' : busy === 'prepare' ? 'Checking voxel…' : busy === 'mint' ? 'Confirm in wallet…' : busy === 'verify' ? 'Verifying…' : 'Mint this voxel'}</button>}
-        <Link className="later" href="/vault/property-drafts">Keep in inventory</Link>
-        <small>One property can mint only one VoxelPop NFT.</small>
-      </section>}
-
-      {wallet && !minted ? <p className="wallet">Wallet · {short(wallet)}</p> : null}
-      <p className="status" role="status">{message}</p>
-      <p className="truth">The NFT represents the finished digital VoxelPop voxel only. It is not the deed, title, equity, rent, occupancy, investment rights, or ownership of the physical property.</p>
+      <section className={`${styles.mintCard} ${styles.mintLayout}`}>
+        <div className={styles.mintViewer}><div className={styles.viewerShell}><MeshyModelViewer modelUrl={modelUrl}/><span className={styles.viewerBadge}>{minted ? `MINTED #${minted.tokenId}` : 'YOUR 3D VOXEL'}</span></div></div>
+        <div className={styles.mintPanel}>
+          {minted ? <>
+            <div className={styles.successMark}>✓</div>
+            <p className={styles.eyebrow}>VERIFIED COLLECTIBLE</p>
+            <h2>Voxel #{minted.tokenId}</h2>
+            <p>Owned by {short(minted.owner)}. You can keep it in Inventory or open the public transaction details.</p>
+            <div className={styles.successBox}><b>Mint complete</b><span>{params.name}</span><div className={styles.successLinks}>{minted.openSeaUrl ? <a href={minted.openSeaUrl} target="_blank" rel="noreferrer">OpenSea ↗</a> : null}{minted.explorerUrl ? <a href={minted.explorerUrl} target="_blank" rel="noreferrer">Transaction ↗</a> : null}</div></div>
+            <div className={styles.mintActions}><Link className={styles.primary} href="/vault/property-drafts">Back to Inventory</Link><Link className={styles.secondary} href="/property">Create another property</Link></div>
+          </> : <>
+            <p className={styles.eyebrow}>READY TO MINT</p>
+            <h2>{params.name}</h2>
+            <p>One property can have one Voxel Vault mint. You will connect a wallet only after you choose to mint.</p>
+            <div className={styles.mintActions}>
+              {!session?.user
+                ? <button className={styles.primary} type="button" onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'Opening Google…' : 'Sign in to mint'}</button>
+                : <button className={styles.primary} type="button" onClick={mint} disabled={Boolean(busy)}>{busy === 'wallet' ? 'Connecting…' : busy === 'prepare' ? 'Preparing mint…' : busy === 'mint' ? 'Confirm in wallet…' : busy === 'verify' ? 'Verifying…' : 'Mint this voxel'}</button>}
+              <Link className={styles.secondary} href="/vault/property-drafts">Keep in Inventory</Link>
+            </div>
+            {wallet ? <p className={styles.walletLine}>Connected wallet · {short(wallet)}</p> : null}
+          </>}
+        </div>
+      </section>
+      <p className={styles.status} role="status">{message}</p>
+      <p className={styles.truth}>The NFT represents the digital voxel only. It is not the deed, title, equity, rent, occupancy, investment rights, or ownership of the physical property.</p>
     </>}
-    <style jsx>{styles}</style>
   </section></main>;
 }
-
-const styles = `
-:global(body){margin:0;background:#fffaf2;color:#281b12;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}.page{min-height:100vh;padding:10px 12px calc(92px + env(safe-area-inset-bottom));background:radial-gradient(circle at 90% 8%,rgba(113,56,245,.12),transparent 30%),radial-gradient(circle at 10% 88%,rgba(201,255,84,.18),transparent 28%),#fffaf2}.shell{width:min(680px,100%);margin:auto;text-align:center}nav{height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:8px;font-weight:1000;letter-spacing:.1em;color:#8c8179}nav a{color:#6b4db2;text-decoration:none;padding:8px}header{margin:26px auto 14px}.ready{display:inline-flex;padding:7px 10px;border:1px solid #cce99b;border-radius:999px;background:#f5ffe4;color:#527025;font-size:8px;font-weight:1000;letter-spacing:.08em}header h1{font-size:clamp(39px,8vw,56px);line-height:.94;letter-spacing:-.055em;margin:14px 0 8px}header p{max-width:520px;margin:0 auto;color:#786e67;font-size:12px;line-height:1.5}.viewer{position:relative;width:100%;height:min(58vh,520px);min-height:350px;overflow:hidden;border:1px solid #e4dacf;border-radius:26px;background:#21172c;box-shadow:0 20px 48px rgba(70,47,87,.13)}.viewer>div{height:100%!important;min-height:100%!important}.viewer :global(.viewerShell){position:absolute!important;inset:0!important;min-height:100%!important;border-radius:0!important}.viewer>span{position:absolute;z-index:7;left:12px;top:12px;padding:8px 10px;border:1px solid rgba(255,255,255,.5);border-radius:999px;background:rgba(32,23,39,.76);color:#fff;font-size:7px;font-weight:1000;letter-spacing:.08em;backdrop-filter:blur(10px)}.actions{display:grid;gap:9px;margin-top:12px;padding:14px;border:1px solid #e7ded4;border-radius:21px;background:#fff}.primary,.later{width:100%;min-height:57px;border-radius:17px;display:flex;align-items:center;justify-content:center;font:950 16px inherit;text-decoration:none}.primary{border:0;background:#7138f5;color:#fff;box-shadow:0 6px 0 #5120d0;cursor:pointer}.primary:disabled{opacity:.5;box-shadow:none}.later{border:1px solid #ddd2eb;background:#fff;color:#6846b7}.actions small{color:#938a83;font-size:9px}.status{min-height:18px;margin:12px auto 0;max-width:590px;color:#6f655e;font-size:10px;font-weight:700;line-height:1.5}.wallet{margin:10px 0 0;font-size:8px;color:#8c8179}.truth{max-width:610px;margin:11px auto;color:#9c938c;font-size:8px;line-height:1.55}.done{display:grid;gap:9px;margin-top:12px;padding:19px;border:1px solid #d8edac;border-radius:21px;background:#f7ffe8}.doneMark,.mark{width:54px;height:54px;margin:auto;border-radius:17px;background:#c9ff54;color:#456318;display:grid;place-items:center;font-size:25px;font-weight:1000;box-shadow:0 6px 0 #aada35}.done>b{font-size:20px}.done>span{font-size:10px;color:#6f7b59}.links{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:3px}.links a{min-height:47px;display:grid;place-items:center;border:1px solid #dfd7e4;border-radius:13px;background:#fff;color:#614fa2;text-decoration:none;font-size:9px;font-weight:950}.links a:last-child{grid-column:1/-1;background:#21172c;color:#fff;border:0}.notice{margin-top:70px;display:grid;gap:14px;padding:28px;border:1px solid #e6ddd5;border-radius:22px;background:#fff}.notice b{font-size:20px}.notice a{color:#7138f5;font-weight:900}.mark{margin-top:70px}.shell>.mark+h1{font-size:36px;letter-spacing:-.04em}.page button:focus-visible,.page a:focus-visible{outline:3px solid rgba(113,56,245,.24);outline-offset:3px}@media(max-width:520px){.page{padding:8px 8px calc(78px + env(safe-area-inset-bottom))}.viewer{min-height:330px;border-radius:21px}.links{grid-template-columns:1fr}.links a:last-child{grid-column:auto}}
-`;

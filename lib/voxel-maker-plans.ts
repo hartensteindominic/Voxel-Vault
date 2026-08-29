@@ -16,7 +16,7 @@ export const VOXEL_MAKER_PLANS: readonly VoxelMakerPlan[] = Object.freeze([
     name: 'Starter',
     priceCents: 900,
     monthlyVoxels: 3,
-    blurb: 'A simple way to try the house-to-voxel maker.',
+    blurb: 'For trying the house-to-voxel maker.',
     features: ['3 house voxels / month', 'Saved Voxel Vault inventory', 'Mint-ready 3D voxel'],
   },
   {
@@ -24,7 +24,7 @@ export const VOXEL_MAKER_PLANS: readonly VoxelMakerPlan[] = Object.freeze([
     name: 'Creator',
     priceCents: 2900,
     monthlyVoxels: 12,
-    blurb: 'The sweet spot for creators building a real collection.',
+    blurb: 'For regular creators and collectors.',
     badge: 'MOST POPULAR',
     features: ['12 house voxels / month', 'Saved Voxel Vault inventory', 'Mint-ready 3D voxel'],
   },
@@ -33,7 +33,7 @@ export const VOXEL_MAKER_PLANS: readonly VoxelMakerPlan[] = Object.freeze([
     name: 'Pro',
     priceCents: 5900,
     monthlyVoxels: 30,
-    blurb: 'More monthly capacity for larger property collections.',
+    blurb: 'For high-volume property collections.',
     features: ['30 house voxels / month', 'Saved Voxel Vault inventory', 'Mint-ready 3D voxel'],
   },
   {
@@ -41,8 +41,8 @@ export const VOXEL_MAKER_PLANS: readonly VoxelMakerPlan[] = Object.freeze([
     name: 'Studio',
     priceCents: 9900,
     monthlyVoxels: 60,
-    blurb: 'Maximum monthly capacity for serious studios and large collections.',
-    badge: 'PREMIUM',
+    blurb: 'For studios building large voxel collections.',
+    badge: 'MAX',
     features: ['60 house voxels / month', 'Saved Voxel Vault inventory', 'Mint-ready 3D voxel'],
   },
 ]);

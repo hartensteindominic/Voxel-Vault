@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-const property = read('app/property/HouseVoxelMintFlow.js');
+const property = read('app/property/PropertyStudioFlow.js');
 const confirmAddress = read('app/api/property-generation/confirm/route.ts');
 const finalize = read('app/api/property-generation/finalize/route.ts');
 const mint = read('lib/property-voxel-mint.ts');
@@ -11,6 +11,7 @@ const confirmMint = read('app/api/property-voxel-nft/confirm/route.ts');
 const mintState = read('lib/property-collectible-mint-state.ts');
 
 assert.match(property, /Confirm the address\./, 'live creator confirms the property identity before generation');
+assert.match(property, /onePropertyOneMint:\s*true/, 'saved studio collectible records the one-property-one-mint invariant');
 assert.match(confirmAddress, /propertyCollectibleIdentity\(atlasId\)/, 'address confirmation derives a canonical source-backed identity');
 assert.match(confirmAddress, /acquirePropertyCollectibleReservation/, 'address confirmation atomically reserves the property before voxel generation');
 assert.match(confirmAddress, /hold\.sold/, 'already completed or minted properties are rejected before creation');

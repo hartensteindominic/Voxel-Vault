@@ -9,9 +9,9 @@ const capabilitiesApi = fs.readFileSync(new URL('../app/api/world-atlas/capabili
 const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
 const interactions = fs.readFileSync(new URL('../app/spatial-os-interactions.css', import.meta.url), 'utf8');
 const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
-const homePreview = fs.readFileSync(new URL('../app/components/HomeProductPreview.js', import.meta.url), 'utf8');
 const propertyRoute = fs.readFileSync(new URL('../app/property/page.js', import.meta.url), 'utf8');
-const property = fs.readFileSync(new URL('../app/property/HouseVoxelMintFlow.js', import.meta.url), 'utf8');
+const property = fs.readFileSync(new URL('../app/property/PropertyStudioFlow.js', import.meta.url), 'utf8');
+const propertyCss = fs.readFileSync(new URL('../app/property/PropertyStudio.module.css', import.meta.url), 'utf8');
 const more = fs.readFileSync(new URL('../app/more/page.js', import.meta.url), 'utf8');
 const slice = fs.readFileSync(new URL('../app/geo/slice/page.js', import.meta.url), 'utf8');
 const integrationsPage = fs.readFileSync(new URL('../app/admin/integrations/page.js', import.meta.url), 'utf8');
@@ -21,7 +21,7 @@ const vaultLayout = fs.readFileSync(new URL('../app/vault/layout.js', import.met
 const home = fs.readFileSync(new URL('../app/real-estate/page.js', import.meta.url), 'utf8');
 
 // The wider app keeps its canonical directory for advanced surfaces, while the
-// shipping Voxel Vault shell deliberately exposes only the few actions needed now.
+// shipping Voxel Vault property studio deliberately exposes only the few actions needed now.
 for (const label of ['Home', 'Create', 'World', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `canonical product directory should include ${label}`);
 }
@@ -33,7 +33,7 @@ for (const route of ['/property', '/vault/earth', '/geo', '/studio', '/capture',
 }
 assert.match(productMap, /\$1\.99 Property Sandbox/, 'the tiny property comparison must remain explicitly sandboxed under More');
 assert.match(productMap, /No real funds or property rights move/, 'sandbox description must preserve the no-rights boundary');
-assert.match(productMap, /Authorized house photo → \$4\.99 → 3D voxel photo → approval → movable 3D voxel → save or optional mint/, 'legacy product directory copy remains available for compatibility while the live creator is simplified');
+assert.match(productMap, /Authorized house photo → \$4\.99 → 3D voxel photo → approval → movable 3D voxel → save or optional mint/, 'legacy product directory copy remains available for compatibility while the live creator is redesigned');
 assert.match(productMap, /badge: 'PROVIDER-GATED'/, 'regulated investment tools must be visibly provider-gated');
 assert.match(productMap, /A token or VoxelPop item is never the deed/, 'direct ownership path must keep title separate from the token');
 assert.match(productMap, /APP_USER_PREFIXES[\s\S]*'\/admin'/, 'owner routes should keep the global app shell');
@@ -41,11 +41,13 @@ assert.match(productMap, /isOrganizedUserRoute/);
 assert.match(productMap, /isSimplePropertyRoute/);
 assert.match(productMap, /dockItemForPath/);
 
-assert.match(nav, /const DOCK = \[[\s\S]*id: 'home'[\s\S]*id: 'create'[\s\S]*id: 'vault'/, 'mobile primary navigation must be Home, VoxelPop, and Vault only');
+assert.match(nav, /const DOCK = \[[\s\S]*id: 'home'[\s\S]*id: 'create'[\s\S]*id: 'vault'/, 'mobile primary navigation must be Home, Create, and Vault only');
 assert.doesNotMatch(nav, /id: 'world'|id: 'more'/, 'World and More must not compete in the primary mobile dock');
 assert.match(nav, /VoxelPop primary navigation/);
 assert.match(nav, /isOrganizedUserRoute/);
-assert.match(nav, /pathname === '\/' \|\| pathname === '\/property'/, 'Home and the live creator must not stack the bottom dock under their focused header');
+assert.match(nav, /usesPropertyStudioNavigation/, 'the legacy dock must not stack under the redesigned property studio, mint, or Inventory pages');
+assert.match(nav, /pathname\.startsWith\('\/property\/'\)/, 'all property studio subpages must use their own consistent navigation');
+assert.match(nav, /pathname\.startsWith\('\/vault\/property-drafts\/'\)/, 'Inventory detail pages must use the property studio navigation system');
 assert.match(nav, /FinancialOSNav\.module\.css/, 'consumer dock should use its responsive stylesheet');
 assert.match(navCss, /safe-area-inset-bottom/, 'consumer dock must respect the iPhone safe area');
 assert.match(navCss, /@media\(max-width:720px\)/, 'consumer dock must stay mobile-only when desktop top navigation is present');
@@ -53,8 +55,8 @@ assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell 
 assert.match(layout, /FinancialOSNav/);
 assert.match(layout, /AppCommandCenter/);
 assert.match(layout, /spatial-os-interactions\.css/);
-assert.match(layout, /Turn a House Photo into a 3D Voxel Photo/, 'public metadata must describe the focused shipping VoxelPop product');
-assert.match(layout, /Source photo stays on your device; minting is optional/, 'public metadata must preserve the device-local and optional-mint boundaries');
+assert.match(layout, /Turn Property Photos into 3D Voxel Collectibles/, 'public metadata must describe the redesigned focused product');
+assert.match(layout, /save it to your Voxel Vault Inventory, and mint it when you want/i, 'public metadata must describe Inventory persistence and optional downstream minting');
 assert.doesNotMatch(layout, /Real Property, Made Spatial|Your 3D Asset Vault|digital-twin pilot/i, 'public metadata must not revive older broad property/vault positioning');
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
 
@@ -73,38 +75,36 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced tool
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/, 'tool finder must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain pure navigation and never execute side effects');
 
-// Consumer Home is intentionally tiny: one proof object, one create CTA, five
-// short steps, and the digital-only rights boundary. The live creator performs
-// photo -> address -> voxel image -> automatic 3D voxel -> Inventory -> optional mint.
-assert.match(rootHome, /HOUSE PHOTO → VOXEL → MINT/, 'root Home must state the live product in one short line');
-assert.match(rootHome, /Create house voxel/, 'root Home must have one clear creation CTA');
-assert.match(rootHome, /href="\/property"/, 'root Home must route creation into the maker');
+// The redesigned consumer Home is a focused entry into the property studio.
+assert.match(rootHome, /PROPERTY → COLLECTIBLE/, 'root Home must state the focused product');
+assert.match(rootHome, /Create a property voxel/, 'root Home must have a clear creation CTA');
+assert.match(rootHome, /href="\/property"/, 'root Home must route creation into the studio');
 assert.match(rootHome, /confirm the address/i, 'root Home must name address confirmation');
-assert.match(rootHome, /Voxel image/, 'root Home must name the voxel-image stage');
-assert.match(rootHome, /Saved to Inventory/, 'root Home must make automatic Inventory saving explicit');
-assert.match(rootHome, /mint when ready|Mint the one-of-one only if you want/i, 'minting must remain explicitly downstream and optional');
+assert.match(rootHome, /voxel image/i, 'root Home must name the voxel-preview stage');
+assert.match(rootHome, /saved to Inventory first/i, 'root Home must make automatic Inventory saving explicit');
+assert.match(rootHome, /Mint if you want|Minting optional/i, 'minting must remain explicitly downstream and optional');
 assert.match(rootHome, /This collectible is digital only\./, 'root Home must identify the product as digital');
-assert.match(rootHome, /does not create or transfer deed, title, or physical-property rights/i, 'root Home must keep the digital-only physical-property boundary visible');
-assert.match(rootHome, /HomeProductPreview/, 'root Home should prove the product with the production viewer rather than a decorative CSS house');
-assert.doesNotMatch(rootHome, /Create mine · \$4\.99|Create · \$4\.99|secondaryAction|Try voxel sample · no login|VOXELPOP OUTPUT|START → SIGN IN \+ UPLOAD PHOTO|TRY THE \$1\.99 SLICE|YOUR 3D MONEY \+ ASSET WORLD|PROPERTY · CASH · CRYPTO · NFT/i, 'checkout CTAs, duplicate CTAs, output grids, stale funnel, banking, and sandbox-heavy language must stay off the front door');
+assert.match(rootHome, /does not create or transfer deed, title/i, 'root Home must keep the physical-property boundary visible');
+assert.doesNotMatch(rootHome, /Create mine · \$4\.99|Create · \$4\.99|Try voxel sample · no login|VOXELPOP OUTPUT|START → SIGN IN \+ UPLOAD PHOTO|TRY THE \$1\.99 SLICE|YOUR 3D MONEY \+ ASSET WORLD|PROPERTY · CASH · CRYPTO · NFT/i, 'checkout CTAs, stale funnel, banking, and sandbox-heavy language must stay off the front door');
 assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING|guaranteed returns|guaranteed yield|risk[- ]free/i, 'unverified physical-property purchase or return claims must stay out of the consumer front door');
 assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
-assert.match(homePreview, /LocalVoxelModelViewer/, 'homepage proof must show the real movable voxel viewer');
-assert.match(homePreview, />Address</, 'homepage proof must disclose address confirmation');
-assert.match(homePreview, />Inventory</, 'homepage proof must disclose where the finished voxel is kept');
-assert.doesNotMatch(homePreview, /\$4\.99/, 'homepage proof must not reintroduce a checkout price');
 
-assert.match(propertyRoute, /HouseVoxelMintFlow/, 'the active /property route must use the live house voxel creator');
-assert.match(property, /const LABELS = \['PHOTO', 'ADDRESS', 'VOXEL IMAGE', '3D VOXEL', 'DONE'\]/, 'creator must expose the exact five-stage house journey');
-assert.match(property, /Upload one house photo\./, 'creator must begin with one obvious photo action');
+assert.match(propertyRoute, /PropertyStudioFlow/, 'the active /property route must use the new guided studio');
+assert.match(property, /const PROGRESS = \[[\s\S]*PHOTO[\s\S]*ADDRESS[\s\S]*VOXEL[\s\S]*BUILD[\s\S]*VAULT/, 'creator must expose the five-stage property journey');
+assert.match(property, /Start with one great photo\./, 'creator must begin with one obvious photo action');
 assert.match(property, /Confirm the address\./, 'creator must confirm the real property before generation');
-assert.match(property, /PhotoReliefModelViewer/, 'creator must build the voxel-image stage with real voxel geometry');
-assert.match(property, /setStage\('model'\)/, 'voxel-image readiness must automatically advance into 3D generation');
-assert.doesNotMatch(property, /Looks good · continue|approveVoxelImage|\/api\/property-generation\/checkout/, 'live creator must not add approval or checkout detours');
+assert.match(property, /PhotoReliefModelViewer/, 'creator must build the voxel preview with real voxel geometry');
+assert.match(property, /Build the 3D voxel/, 'the page-by-page experience must stop on preview until the user continues');
+assert.match(property, /setStage\('build'\)/, 'the preview continue action must enter the dedicated 3D build page');
+assert.doesNotMatch(property, /\/api\/property-generation\/checkout|Pay \$|Stripe/i, 'live creator must not add a per-property checkout detour');
 assert.match(property, /savePropertyDraft\(finishedDraft\)/, 'finished creation must save to Inventory automatically');
-assert.match(property, /Keep in inventory/, 'finished creation must expose the saved result');
-assert.match(property, /Mint voxel/, 'minting must remain optional after the saved result');
+assert.match(property, /Keep in Inventory/, 'finished creation must expose the saved result');
+assert.match(property, /Mint this voxel/, 'minting must remain optional after the saved result');
+assert.match(property, /modelUrl=\$\{encodeURIComponent\(final3d\.modelUrl\)\}/, 'the actual saved model must be handed into Mint');
 assert.doesNotMatch(property, /PropertyWorldMap|Add to My World/, 'World/map controls must stay outside the core creator');
+assert.match(propertyCss, /#6f42f5/i, 'the property journey must use the new purple design system');
+assert.match(propertyCss, /#c9ff55/i, 'the property journey must use the new playful lime accent');
+assert.match(propertyCss, /safe-area-inset-bottom/, 'the shared studio UI must respect iPhone safe areas');
 
 // The $1.99 comparison remains a pure sandbox, not a faux bank/wallet surface.
 assert.match(slice, /PROPERTY SLICE · SANDBOX/, 'slice page must identify itself as a sandbox before the demo interaction');
@@ -124,20 +124,15 @@ assert.doesNotMatch(homeCapabilities, /process\.env|MESHY_API_KEY|BRIDGE_ACCESS_
 assert.match(capabilitiesApi, /automaticGeneration:\s*false/, 'server capability contract must keep Meshy automatic generation disabled');
 assert.match(capabilitiesApi, /Boolean\(process\.env\.MESHY_API_KEY\?\.trim\(\)\)/, 'Meshy readiness may expose only a boolean');
 
-// Extras keeps advanced and optional tools available without making them part of
-// the normal live house creation funnel. Legacy paid copy remains isolated here
-// until those compatibility surfaces are revised separately.
+// Extras keeps advanced and optional tools available without making them part of the live studio.
 assert.match(more, /Keep VoxelPop simple\.[\s\S]*Open extras only when needed\./i, 'Extras must explain its deliberately secondary role');
 assert.match(more, /main product is Create → 3D voxel photo → movable voxel → Vault/i, 'Extras must retain its compatibility description');
 assert.match(more, /Making a house voxel\?/, 'Extras must lead users back to the core creation task');
-assert.match(more, /3D voxel photo[\s\S]*separate movable model/i, 'Extras must preserve its legacy voxel-photo description');
 assert.match(more, /Create VoxelPop · \$4\.99 →/, 'legacy Extras paid path remains available separately from live /property');
 assert.match(more, /See free sample →/, 'Extras must keep the public sample reachable');
 assert.match(more, /Open Vault →/, 'Extras must keep saved creations reachable');
 assert.match(more, /World, minting, and the tools below are optional/, 'Extras must keep World and minting outside the core funnel');
-assert.match(more, /OTHER DIGITAL TOOLS/, 'secondary digital products must remain collapsed away from the core flow');
 assert.match(more, /OWNER \/ PROVIDER TOOLS/, 'provider and owner rails must stay visibly advanced');
-assert.match(more, /not part of the \$4\.99 VoxelPop product/i, 'advanced provider tooling must stay explicitly separate from the legacy paid VoxelPop product');
 assert.match(more, /A VoxelPop model or NFT is a digital creation/, 'Extras must preserve the digital-not-deed boundary');
 
 assert.match(integrationsApi, /requireVoxelVaultAdmin/, 'integration status must be owner-authenticated');
@@ -172,4 +167,4 @@ assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodia
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault checks passed: one-action Home, five-stage house creation, confirmed address, automatic voxel-image → movable 3D build + Inventory save, three-action mobile navigation, optional minting, sandbox boundaries, and fail-closed advanced rails stay distinct.');
+console.log('Voxel Vault checks passed: focused Home, guided five-stage property studio, confirmed address, explicit voxel preview approval, automatic Inventory save, optional minting, sandbox boundaries, and fail-closed advanced rails stay distinct.');
