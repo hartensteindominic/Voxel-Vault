@@ -63,8 +63,8 @@ requireMarkers(launch, 'legal launch engine', [
 ]);
 
 // The owner-only securities rail and the direct-property rail are intentionally separate.
-// A simple consumer homepage is allowed, but it must fail closed and the advanced directory
-// must preserve access to provider-backed investment workflows and their legal status.
+// The consumer homepage may advertise the paid local digital creator, but regulated rails
+// must remain provider-gated and legally distinct from the digital item.
 requireMarkers(status, 'property status route', [
   'liveSecuritiesImplementationReady = DINARI_LIVE_TRADING_IMPLEMENTATION_READY === true',
   'liveSecuritiesProviderActivated = dinari.productionTradingEnabled === true',
@@ -115,16 +115,20 @@ requireMarkers(distribution, 'distribution vault', [
 ]);
 
 requireMarkers(root, 'simple root homepage', [
-  'START → SIGN IN',
-  'Nothing is uploaded, generated, or charged before sign-in.',
-  'Real-property investment or purchase controls only activate when a verified provider/offering and required legal path exist.',
-  'A 3D model, payment, map marker, Property Passport, or NFT is not a deed',
+  'CREATE A PROPERTY',
+  'One VoxelPop creation costs $4.99.',
+  'source photo stays on your device',
+  'without Meshy credits',
+  'Optional Collect later is a separate digital-item purchase.',
+  'Voxel Vault is not a bank',
+  'VoxelPop item is not a deed',
   'href="/more"',
 ]);
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
-  'Browse provider-backed real-estate securities and sandbox/live states.',
+  'Provider-backed securities may appear only when an approved provider, offering and eligibility path are actually active.',
   "href: '/real-estate/acquire'",
+  'A token or VoxelPop item is never the deed.',
   "href: '/vault/properties/claim'",
 ]);
 
@@ -240,4 +244,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the sign-in-first simple home stays fail-closed without advertising regulated rails, advanced provider-backed investment routes remain discoverable, direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the clear $4.99 device-local non-Meshy consumer flow remains separate from regulated rails, advanced provider-backed investment routes remain discoverable and gated, direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
