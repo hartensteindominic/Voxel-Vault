@@ -58,16 +58,16 @@ function voxelImageTaskToken(apiKey: string, userId: string, taskId: string) {
   return createHmac('sha256', apiKey).update(`property-voxel-image-v1:${userId}:${taskId}`).digest('hex');
 }
 
+async function cachedBinaryUrl(saved: any) {
+  if (!saved?.model_storage_path) return null;
+  return createModelSignedUrl(saved.model_storage_path, 60 * 60);
+}
+
 async function displayUrlFor(saved: any) {
-  // Active property generations should display Meshy's current provider URL first.
-  // The persisted private GLB remains the durable fallback for later sessions,
-  // but a stale/missing cache object must never hide a still-valid live model.
+  // Prefer the current provider URL for an active preview. A private persisted
+  // GLB remains the durable fallback for an older/expired provider task.
   if (isHttpUrl(saved?.model_url)) return saved.model_url;
-  if (saved?.model_storage_path) {
-    const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
-    if (signed) return signed;
-  }
-  return null;
+  return cachedBinaryUrl(saved);
 }
 
 function publicState(saved: any, displayModelUrl: string | null = null) {
@@ -87,6 +87,88 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
     ...init,
     headers: { 'Cache-Control': 'private, no-store, max-age=0', ...(init.headers || {}) },
   });
+}
+
+function providerErrorMessage(data: any, fallback: string) {
+  return clean(data?.task_error?.message || data?.message || data?.error || fallback, 600);
+}
+
+async function refreshPersistedModel(apiKey: string, saved: any, clientTaskId: string | null = null) {
+  const providerTaskId = propertyGenerationProviderTaskId(saved?.task_id || clientTaskId || '');
+  if (!providerTaskId) {
+    const fallbackUrl = await cachedBinaryUrl(saved);
+    return {
+      providerRefreshed: false,
+      cachedBinaryFallback: Boolean(fallbackUrl),
+      ...publicState(saved, fallbackUrl),
+    };
+  }
+
+  const response = await fetch(`${ENDPOINT}/${encodeURIComponent(providerTaskId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const fallbackUrl = await cachedBinaryUrl(saved);
+    if (fallbackUrl) {
+      return {
+        providerRefreshed: false,
+        providerRefreshFailed: true,
+        cachedBinaryFallback: true,
+        ...publicState(saved, fallbackUrl),
+      };
+    }
+    const stale = {
+      ...saved,
+      model_url: null,
+      error: providerErrorMessage(data, 'The saved 3D link expired. Rebuild it from the original photo.'),
+    };
+    return {
+      providerRefreshed: false,
+      providerRefreshFailed: true,
+      needsRebuild: true,
+      ...publicState(stale, null),
+    };
+  }
+
+  const status = clean(data?.status || saved?.status || 'PENDING', 80);
+  const progress = Number(data?.progress || 0);
+  const providerModelUrl = clean(data?.model_urls?.glb, 2200) || null;
+  const thumbnailUrl = clean(data?.alpha_thumbnail_url || data?.thumbnail_url, 2200) || null;
+  let modelStoragePath = saved?.model_storage_path || null;
+
+  if (providerModelUrl && saved?.item_id && !modelStoragePath) {
+    modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+  }
+
+  const patch = {
+    task_id: saved?.task_id || clientTaskId,
+    provider: saved?.provider || 'meshy-property-generation',
+    status,
+    progress: providerModelUrl ? 100 : progress,
+    model_url: providerModelUrl || null,
+    model_storage_path: modelStoragePath || null,
+    thumbnail_url: thumbnailUrl || saved?.thumbnail_url || null,
+    completed_at: providerModelUrl ? new Date().toISOString() : saved?.completed_at || null,
+    error: data?.task_error?.message || null,
+  };
+  const updated = saved?.item_id
+    ? (await saveCatalog3D(saved.item_id, patch) || { ...saved, ...patch })
+    : { ...saved, ...patch };
+  const finalRow = {
+    ...updated,
+    task_id: clientTaskId || updated?.task_id || saved?.task_id || null,
+  };
+  const fallbackUrl = providerModelUrl ? null : await cachedBinaryUrl(finalRow);
+
+  return {
+    providerRefreshed: true,
+    cachedBinaryReady: Boolean(modelStoragePath),
+    cachedBinaryFallback: Boolean(!providerModelUrl && fallbackUrl),
+    ...publicState(finalRow, providerModelUrl || fallbackUrl),
+  };
 }
 
 async function sourcePhotoUrl(auth: any, draftId: string, storagePathRaw: unknown) {
@@ -144,11 +226,14 @@ export async function POST(request: Request) {
             if (directJob.item_id !== itemId) {
               throw new Error('That direct photo 3D job does not belong to this signed-in creation.');
             }
+            const refreshed = (directJob.model_url || directJob.model_storage_path)
+              ? await refreshPersistedModel(apiKey, directJob, taskId)
+              : publicState(directJob);
             return privateJson({
               ok: true,
               reused: true,
               directPhoto: true,
-              ...publicState(directJob, await displayUrlFor(directJob)),
+              ...refreshed,
             });
           }
 
@@ -181,7 +266,8 @@ export async function POST(request: Request) {
     const existing = await readCatalog3D(itemId);
     const sameSourceImage = clean(existing?.source_image_url, 2200) === imageUrl;
     if (sameSourceImage && (existing?.model_url || existing?.model_storage_path)) {
-      return privateJson({ ok: true, reused: true, ...publicState(existing, await displayUrlFor(existing)), progress: 100 });
+      const refreshed = await refreshPersistedModel(apiKey, existing, existing?.task_id || null);
+      return privateJson({ ok: true, reused: true, ...refreshed, progress: refreshed.modelUrl ? 100 : refreshed.progress });
     }
     if (sameSourceImage && existing?.task_id && ['PENDING', 'IN_PROGRESS'].includes(String(existing.status || '').toUpperCase())) {
       return privateJson({ ok: true, reused: true, ...publicState(existing) });
@@ -203,7 +289,7 @@ export async function POST(request: Request) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
+    if (!response.ok) return privateJson({ ok: false, error: providerErrorMessage(data, `3D provider returned ${response.status}.`) }, { status: response.status });
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
@@ -247,6 +333,7 @@ export async function GET(request: Request) {
   const phaseRaw = url.searchParams.get('phase') || '';
   const taskId = clean(url.searchParams.get('taskId'), 420);
   const resumeCached = url.searchParams.get('resume') === '1';
+  const apiKey = process.env.MESHY_API_KEY?.trim();
 
   try {
     if ((atlasIdRaw || draftIdRaw) && !taskId) {
@@ -263,11 +350,22 @@ export async function GET(request: Request) {
       }
       const saved = await readCatalog3D(itemId);
       if (!saved) return privateJson({ ok: true, exists: false, cachedResumeAvailable: false, status: 'NOT_STARTED', progress: 0, modelUrl: null });
-      return privateJson({ ok: true, exists: true, cachedResumeAvailable: true, ...publicState(saved, await displayUrlFor(saved)) });
+      if (apiKey && (saved.model_url || saved.model_storage_path)) {
+        const refreshed = await refreshPersistedModel(apiKey, saved, saved.task_id || null);
+        return privateJson({ ok: true, exists: true, cachedResumeAvailable: true, ...refreshed });
+      }
+      const fallbackUrl = await cachedBinaryUrl(saved);
+      return privateJson({
+        ok: true,
+        exists: true,
+        cachedResumeAvailable: true,
+        cachedBinaryFallback: Boolean(fallbackUrl),
+        needsRebuild: !fallbackUrl,
+        ...publicState({ ...saved, model_url: null }, fallbackUrl),
+      });
     }
 
     if (!taskId) return privateJson({ ok: false, error: 'draftId, atlasId, or taskId is required.' }, { status: 400 });
-    const apiKey = process.env.MESHY_API_KEY?.trim();
     if (!apiKey) return privateJson({ ok: false, error: 'Property 3D generation is not configured on this deployment.' }, { status: 503 });
 
     const stored = await readCatalog3DByTask(taskId);
@@ -296,7 +394,19 @@ export async function GET(request: Request) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || 'Could not read property 3D status.' }, { status: response.status });
+    if (!response.ok) {
+      const fallbackUrl = await cachedBinaryUrl(saved);
+      if (fallbackUrl) {
+        return privateJson({
+          ok: true,
+          exists: true,
+          providerRefreshFailed: true,
+          cachedBinaryFallback: true,
+          ...publicState(saved, fallbackUrl),
+        });
+      }
+      return privateJson({ ok: false, error: providerErrorMessage(data, 'Could not refresh the property 3D model. Rebuild it from the original photo.') }, { status: response.status });
+    }
 
     const status = clean(data?.status || 'PENDING', 80);
     const progress = Number(data?.progress || 0);
@@ -314,7 +424,7 @@ export async function GET(request: Request) {
         thumbnail_url: thumbnailUrl,
         error: data?.task_error?.message || null,
       };
-      return privateJson({ ok: true, exists: true, recoveryMode: true, ...publicState(finalRow, providerModelUrl) });
+      return privateJson({ ok: true, exists: true, recoveryMode: true, providerRefreshed: true, ...publicState(finalRow, providerModelUrl) });
     }
 
     let modelStoragePath = saved?.model_storage_path || null;
@@ -325,7 +435,7 @@ export async function GET(request: Request) {
       provider: saved.provider || 'meshy-property-generation',
       status,
       progress: providerModelUrl ? 100 : progress,
-      model_url: providerModelUrl || saved.model_url || null,
+      model_url: providerModelUrl || null,
       model_storage_path: modelStoragePath || null,
       thumbnail_url: thumbnailUrl || saved.thumbnail_url || null,
       completed_at: providerModelUrl ? new Date().toISOString() : saved.completed_at || null,
@@ -338,11 +448,19 @@ export async function GET(request: Request) {
       status,
       progress: providerModelUrl ? 100 : progress,
       model_storage_path: modelStoragePath,
-      model_url: providerModelUrl || updated?.model_url || null,
+      model_url: providerModelUrl || null,
       thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
       error: data?.task_error?.message || null,
     };
-    return privateJson({ ok: true, exists: true, ...publicState(finalRow, await displayUrlFor(finalRow)) });
+    const fallbackUrl = providerModelUrl ? null : await cachedBinaryUrl(finalRow);
+    return privateJson({
+      ok: true,
+      exists: true,
+      providerRefreshed: true,
+      cachedBinaryReady: Boolean(modelStoragePath),
+      cachedBinaryFallback: Boolean(!providerModelUrl && fallbackUrl),
+      ...publicState(finalRow, providerModelUrl || fallbackUrl),
+    });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property 3D status failed.' }, { status: 500 });
   }
