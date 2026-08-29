@@ -25,7 +25,7 @@ assert.match(home, /HomeProductPreview/, 'home hero must show the real interacti
 assert.match(homePreview, /PhotoReliefModelViewer/, 'home product proof must use the production voxel-photo viewer');
 assert.match(homePreview, /LocalVoxelModelViewer/, 'home product proof must use the production local voxel viewer');
 assert.match(homePreview, /House photo/, 'home preview must expose the source-photo state');
-assert.match(homePreview, /3D voxel photo/, 'home preview must name the intermediate voxel-photo state');
+assert.match(homePreview, /3D preview/, 'home preview must name the intermediate 3D review state');
 assert.match(homePreview, /Movable 3D voxel/, 'home preview must name the final movable-model state');
 assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
