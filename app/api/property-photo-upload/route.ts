@@ -51,6 +51,10 @@ export async function POST(request: Request) {
       paymentSessionId: generationSessionId,
       draftId: receipt.draftId,
       engine: receipt.engine,
+      identityKey: receipt.identityKey,
+      atlasId: receipt.atlasId,
+      propertyAddress: receipt.propertyAddress,
+      onePropertyOnePurchase: true,
       reference: {
         url: null,
         draftId: receipt.draftId,
