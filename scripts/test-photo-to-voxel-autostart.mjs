@@ -68,7 +68,7 @@ assert.doesNotMatch(modelViewer, /Regenerating is not automatic/i, 'the viewer m
 assert.match(property, /Building a first 3D model from your photo/, 'user must see the first automatic 3D processing state');
 assert.match(property, /Turning the 3D into VoxelPop/, 'user must see the voxel processing state');
 assert.match(property, /Building your final VoxelPop 3D/, 'user must see final voxel 3D progress');
-assert.match(property, /setPipelinePhase\('paused'\)/, 'provider failure must move the automatic chain to a recoverable paused state');
+assert.match(property, /'paused-final' : 'paused'/, 'provider failures must distinguish a preserved final-stage checkpoint from earlier recoverable pauses');
 assert.match(property, /async function retryBuild\(\)/, 'paused automatic chain must preserve a retry path');
 assert.match(property, /Try build again/, 'paused early stages must expose a clear retry action');
 assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3D voxel\./, 'visible copy must make the automatic handoff obvious');
