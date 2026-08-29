@@ -31,16 +31,19 @@ assert.match(home, /Privacy/, 'home footer must expose Privacy');
 assert.match(home, /Terms/, 'home footer must expose Terms');
 assert.match(home, /About/, 'home footer must expose About/contact information');
 
-// The first review surface now prioritizes likeness: it presents the exact
-// selected house image as a photo-matched voxel-photo preview before the
-// separate local Three.js movable voxel is built. It must not fabricate unseen
-// geometry merely to make this approval step look more "3D".
-assert.match(photoViewer, /className=\{styles\.housePhoto\} src=\{imageUrl\}/, 'voxel-photo review must preserve the selected house image itself');
-assert.match(photoViewer, /3D VOXEL PHOTO/, 'review surface must identify the intermediate voxel-photo stage');
-assert.match(photoViewer, /PHOTO-MATCHED/, 'review surface must clearly describe its likeness-preserving behavior');
-assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo review must keep the original source visible for comparison');
-assert.doesNotMatch(photoViewer, /InstancedMesh|getImageData|BoxGeometry/, 'the first review stage must not invent block geometry from a single view');
-assert.match(photoViewerStyles, /\.housePhoto\{/, 'photo-matched review must have a dedicated visible house-photo treatment');
+assert.match(photoViewer, /getImageData\(0, 0, columns, rows\)/, 'voxel-photo stage must sample visible source-image colors');
+assert.match(photoViewer, /new THREE\.InstancedMesh/, 'voxel-photo stage must render actual voxel instances');
+assert.match(photoViewer, /new THREE\.BoxGeometry\(1, 1, 1\)/, 'voxel-photo stage must use real block geometry');
+assert.match(photoViewer, /const depth = 0\.18/, 'voxel-photo blocks must have meaningful inspectable depth');
+assert.match(photoViewer, /edge \* 0\.24/, 'voxel depth should respond to visible image structure instead of staying paper-thin');
+assert.match(photoViewer, /voxels\.setColorAt\(instance, color\)/, 'voxel colors must remain tied to the selected house photo');
+assert.doesNotMatch(photoViewer, /backingGeometry|referencePlane/, 'the voxel photo must not fall back to a rectangular picture backing');
+assert.match(photoViewer, /plinthGeometry/, 'the voxel object may stand on a small floor reference without becoming a backed picture');
+assert.match(photoViewer, /ORIGINAL PHOTO/, 'voxel-photo preview must keep the original source visible for comparison');
+assert.match(photoViewer, /PHOTO-MATCHED BLOCKS/, 'viewer must identify the source-faithful output as real blocks, not a styled image');
+assert.match(photoViewer, /ArrowLeft|ArrowRight/, '3D voxel photo must support keyboard inspection as well as drag input');
+assert.match(photoViewerStyles, /\.canvasMount\{/, 'real voxel-photo review must reserve a dedicated WebGL canvas surface');
+assert.match(photoViewerStyles, /focus-visible/, '3D viewer must keep a visible keyboard focus treatment');
 assert.match(photoViewerStyles, /\.sourceCard\{/, 'photo-matched review must keep an original-photo comparison card');
 
 assert.match(demo, /FREE SAMPLE · NO LOGIN · NO PAYMENT/, 'demo must state that it is public and free to inspect');
@@ -74,5 +77,5 @@ assert.match(readme, /Repo scope/, 'README must separate experimental systems fr
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public VoxelPop positioning checks passed: sample-first product proof, photo-matched voxel-photo review, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
+console.log('Public VoxelPop positioning checks passed: sample-first product proof, real photo-matched 3D voxel geometry without a picture backing, movable voxel separation, focused $4.99 story, corrected trust pages, and current social preview remain aligned.');
 await import('./test-public-surface-coherence.mjs');
