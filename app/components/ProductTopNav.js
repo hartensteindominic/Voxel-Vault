@@ -18,8 +18,10 @@ function activeFor(pathname, href) {
 
 export default function ProductTopNav({ className = '' }) {
   const pathname = usePathname() || '/';
-  const dockedMobile = isOrganizedUserRoute(pathname);
-  return <nav className={`${styles.nav} ${dockedMobile ? styles.mobileDocked : ''} ${className}`.trim()} aria-label="VoxelPop product navigation">
+  const focusedFunnel = pathname === '/' || pathname === '/property';
+  const dockedMobile = isOrganizedUserRoute(pathname) && !focusedFunnel;
+
+  return <nav className={`${styles.nav} ${focusedFunnel ? styles.focusedFunnel : ''} ${dockedMobile ? styles.mobileDocked : ''} ${className}`.trim()} aria-label="VoxelPop product navigation">
     <Link className={styles.brand} href="/" aria-label="VoxelPop home">
       <span className={styles.mark}>V</span><b>VOXELPOP</b>
     </Link>
