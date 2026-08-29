@@ -5,52 +5,80 @@ import styles from './home.module.css';
 
 export const metadata = { alternates: { canonical: '/' } };
 
+const RESULTS = [
+  {
+    step: '01',
+    label: 'FIRST RESULT',
+    title: '3D Voxel Photo',
+    copy: 'Your house photo is rebuilt block-by-block as a recognizable voxelized 3D view. Rotate it, inspect the depth, and approve it first.',
+  },
+  {
+    step: '02',
+    label: 'AFTER YOU APPROVE',
+    title: 'Movable 3D Voxel',
+    copy: 'VoxelPop turns the approved Voxel Photo into the separate movable model you can rotate, save to Vault, and optionally mint later.',
+  },
+];
+
 export default function Home() {
   return <main className={styles.page}>
     <ProductTopNav/>
     <div className={styles.shell}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL</p>
-          <h1>Turn your house photo<br/><em>into a 3D voxel photo.</em></h1>
-          <p className={styles.lead}>Upload one house photo and VoxelPop rebuilds the visible photo as a block-by-block 3D voxel photo. Approve it, then create the separate movable 3D voxel. Minting is optional.</p>
+          <div className={styles.brandLockup}><span className={styles.brandMark}>V</span><p className={styles.kicker}>VOXELPOP</p><span className={styles.brandTag}>PHOTO → VOXEL</span></div>
+          <h1>Your house photo.<br/><em>Made Voxel.</em></h1>
+          <p className={styles.lead}>Upload one property photo. Get a recognizable <strong>3D Voxel Photo</strong> first. Approve it, then create the separate movable <strong>3D Voxel Model</strong>.</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/property">Create mine · $4.99</Link>
-            <Link className={styles.secondaryAction} href="/demo">Try the free voxel demo</Link>
+            <Link className={styles.primaryAction} href="/property">Create my VoxelPop <span>$4.99</span></Link>
+            <Link className={styles.secondaryAction} href="/demo">Try free demo</Link>
           </div>
           <div className={styles.trustRow} aria-label="VoxelPop creation facts">
-            <span>Voxel photo before model</span><span>Photo stays on device</span><span>Mint only if you want</span>
+            <span><b>✓</b> Preview before model</span>
+            <span><b>✓</b> Photo stays on device</span>
+            <span><b>✓</b> Minting optional</span>
           </div>
         </div>
         <div className={styles.heroVisual}><HomeProductPreview/></div>
       </section>
 
-      <section className={styles.flowCard} id="how-it-works" aria-label="VoxelPop creation steps">
-        <div className={styles.flowIntro}><p>THE WHOLE FLOW</p><h2>Photo. Voxel photo. Movable voxel.</h2></div>
-        <div className={styles.microFlow}><b>PHOTO</b><i>→</i><b>3D VOXEL PHOTO</b><i>→</i><b>APPROVE</b><i>→</i><b>MOVABLE 3D VOXEL</b></div>
-        <Link className={styles.startButton} href="/property">Start my VoxelPop →</Link>
+      <section className={styles.resultsSection} aria-labelledby="results-title">
+        <div className={styles.sectionHeading}>
+          <p>ONE PHOTO · TWO VOXEL RESULTS</p>
+          <h2 id="results-title">See it before you build it.</h2>
+          <span>No confusing jump from a normal photo straight to a finished model. The Voxel Photo is its own approval step.</span>
+        </div>
+        <div className={styles.resultsGrid}>
+          {RESULTS.map((result, index) => <article className={styles.resultCard} key={result.step}>
+            <div className={styles.resultTop}><span>{result.step}</span><small>{result.label}</small></div>
+            <h3>{result.title}</h3>
+            <p>{result.copy}</p>
+            <div className={styles.resultStatus}>{index === 0 ? 'ROTATE · CHECK · APPROVE' : 'MOVE · SAVE · OPTIONAL MINT'}</div>
+          </article>)}
+        </div>
+      </section>
+
+      <section className={styles.purchaseCard} aria-labelledby="purchase-title">
+        <div className={styles.purchasePrice}><small>ONE VOXELPOP CREATION</small><strong>$4.99</strong></div>
+        <div className={styles.purchaseCopy}>
+          <h2 id="purchase-title">Simple from start to finish.</h2>
+          <p><b>Photo → 3D Voxel Photo → approve → movable 3D Voxel → Vault.</b> Minting comes later only if you choose it.</p>
+        </div>
+        <Link className={styles.purchaseAction} href="/property">Start with my photo →</Link>
       </section>
 
       <details className={styles.inclusion}>
-        <summary><span><small>AFTER YOU CREATE</small><b>Save it, place it, or mint it later</b></span><i>+</i></summary>
-        <div className={styles.afterCreate}>
-          <p><b>Vault</b> keeps your finished VoxelPop so you can reopen it later.</p>
-          <p><b>World</b> can pair the finished voxel with map and building context.</p>
-          <p><b>Mint</b> is optional and comes after the movable voxel is finished. No wallet is required to create.</p>
-          <div className={styles.afterLinks}><Link href="/vault">Open Vault →</Link><Link href="/world">Open World →</Link><Link href="/more">More tools →</Link></div>
-        </div>
-      </details>
-
-      <details className={styles.inclusion}>
-        <summary><span><small>WHAT YOU'RE BUYING</small><b>One digital VoxelPop creation · $4.99</b></span><i>+</i></summary>
+        <summary><span><small>GOOD TO KNOW</small><b>Privacy, accuracy & ownership</b></span><i>+</i></summary>
         <div>
-          <p>Sign in, choose a house photo, and complete the $4.99 creation checkout. You then see the 3D voxel photo before the separate movable voxel is built.</p>
-          <p>Your source photo stays on your device in the normal creation flow. One photo can represent the visible view, but it cannot prove hidden sides or survey-grade dimensions.</p>
-          <p><b>Voxel Vault is not a bank, brokerage, title company, or real-estate marketplace.</b> A VoxelPop item, NFT, map marker, payment, or Property Passport does not create physical-property ownership, rent, occupancy, investment, or appreciation rights.</p>
+          <p>Your source photo stays on your device in the normal creation flow. One photo can recreate the visible view, but it cannot prove hidden sides, the back, or survey-grade dimensions.</p>
+          <p><b>VoxelPop is a digital creation product.</b> A Voxel Photo, movable voxel, NFT, map marker, payment, or Property Passport does not create deed/title, rent, occupancy, investment, appreciation, or other rights in the physical property.</p>
         </div>
       </details>
 
-      <footer className={styles.footer}><span>Voxel Vault is a digital creation product. Physical-property and regulated financial rights remain separate.</span><span><Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/about">About</Link> · <Link href="/demo">Voxel demo</Link></span></footer>
+      <footer className={styles.footer}>
+        <span>VoxelPop by Voxel Vault · Turn a property photo into a 3D Voxel Photo and movable voxel.</span>
+        <span><Link href="/vault">Vault</Link> · <Link href="/world">World</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link></span>
+      </footer>
     </div>
   </main>;
 }
