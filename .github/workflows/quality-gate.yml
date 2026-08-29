@@ -73,6 +73,8 @@ jobs:
         run: node scripts/test-simple-property-world.mjs
       - name: Photo-to-voxel approval flow
         run: node scripts/test-photo-to-voxel-autostart.mjs
+      - name: Focused house voxel app
+        run: node scripts/test-house-voxel-app.mjs
       - name: Property collectible model access
         run: node scripts/test-property-collectible-model-access.mjs
       - name: Meshy polycount limit
