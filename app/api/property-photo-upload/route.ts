@@ -44,23 +44,40 @@ export async function POST(request: Request) {
     const draftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
 
-    if (!(photo instanceof File)) {
-      return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
-    }
-    if (!rightsConfirmed) {
-      return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
-    }
-    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) {
-      return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
-    }
-    if (photo.size <= 0 || photo.size > MAX_BYTES) {
-      return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
-    }
+    if (!(photo instanceof File)) return privateJson({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
+    if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
+    if (!ALLOWED_TYPES.has(String(photo.type || '').toLowerCase())) return privateJson({ ok: false, error: 'Use a JPG, PNG, or WebP property photo.' }, { status: 415 });
+    if (photo.size <= 0 || photo.size > MAX_BYTES) return privateJson({ ok: false, error: 'Property photos must be smaller than 8 MB after preparation.' }, { status: 413 });
 
     const bytes = Buffer.from(await photo.arrayBuffer());
     const digest = createHash('sha256').update(bytes).digest('hex');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
     const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
+    const sourceFingerprint = `inline-photo:${digest}`;
+    const startedAt = new Date().toISOString();
+
+    const reservation = await saveCatalog3D(itemId, {
+      task_id: null,
+      source_image_url: sourceFingerprint,
+      source_image_urls: [sourceFingerprint],
+      provider: 'meshy-property-direct-photo-to-3d',
+      status: 'PREPARING',
+      progress: 0,
+      model_url: null,
+      model_storage_path: null,
+      thumbnail_url: null,
+      exact_model_approved: false,
+      started_at: startedAt,
+      completed_at: null,
+      error: null,
+    });
+    if (!reservation?.item_id) {
+      return privateJson({
+        ok: false,
+        error: 'VoxelPop cannot save generation records on this deployment yet. No 3D job was started. Check the Supabase server write configuration and try again.',
+        setupRequired: true,
+      }, { status: 503 });
+    }
 
     const response = await fetch(ENDPOINT, {
       method: 'POST',
@@ -79,13 +96,22 @@ export async function POST(request: Request) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      await saveCatalog3D(itemId, {
+        task_id: null,
+        source_image_url: sourceFingerprint,
+        provider: 'meshy-property-direct-photo-to-3d',
+        status: 'FAILED',
+        progress: 0,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        error: clean(data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.`, 800),
+      });
       return privateJson({ ok: false, error: data?.task_error?.message || data?.message || data?.error || `3D provider returned ${response.status}.` }, { status: response.status });
     }
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
     const taskId = taskKey(providerTaskId);
-    const sourceFingerprint = `inline-photo:${digest}`;
     const saved = await saveCatalog3D(itemId, {
       task_id: taskId,
       source_image_url: sourceFingerprint,
@@ -97,13 +123,11 @@ export async function POST(request: Request) {
       model_storage_path: null,
       thumbnail_url: null,
       exact_model_approved: false,
-      started_at: new Date().toISOString(),
+      started_at: startedAt,
       completed_at: null,
       error: null,
     });
-    if (!saved?.task_id) {
-      throw new Error('VoxelPop started the 3D job, but the account generation record could not be saved. Please try again shortly.');
-    }
+    if (!saved?.task_id) throw new Error('VoxelPop started the 3D job but could not attach its task ID to the reserved account record. Retry status after the deployment storage is repaired.');
 
     const uploadedAt = new Date().toISOString();
     return privateJson({
@@ -127,9 +151,6 @@ export async function POST(request: Request) {
       privacy: 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.',
     });
   } catch (error) {
-    return privateJson({
-      ok: false,
-      error: error instanceof Error ? error.message : 'Property photo generation handoff failed.',
-    }, { status: 400 });
+    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property photo generation handoff failed.' }, { status: 400 });
   }
 }
