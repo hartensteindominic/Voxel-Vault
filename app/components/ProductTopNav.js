@@ -20,16 +20,17 @@ function activeFor(pathname, href) {
 export default function ProductTopNav({ className = '' }) {
   const pathname = usePathname() || '/';
   const dockedMobile = isOrganizedUserRoute(pathname);
-  return <nav className={`${styles.nav} ${dockedMobile ? styles.mobileDocked : ''} ${className}`.trim()} aria-label="Voxel Vault product navigation">
-    <Link className={styles.brand} href="/" aria-label="Voxel Vault home">
-      <span className={styles.mark}>V</span><b>VOXEL VAULT</b>
+  return <nav className={`${styles.nav} ${dockedMobile ? styles.mobileDocked : ''} ${className}`.trim()} aria-label="VoxelPop navigation">
+    <Link className={styles.brand} href="/" aria-label="VoxelPop by Voxel Vault home">
+      <span className={styles.mark}>V</span>
+      <span className={styles.brandWords}><b>VOXELPOP</b><small>BY VOXEL VAULT</small></span>
     </Link>
     <div className={styles.links}>
       {ITEMS.map((item) => {
         const active = activeFor(pathname, item.href);
         return <Link key={item.href} className={active ? styles.active : ''} href={item.href} aria-current={active ? 'page' : undefined}>{item.label}</Link>;
       })}
-      <Link className={styles.demo} href="/demo" aria-current={pathname === '/demo' ? 'page' : undefined}>3D demo</Link>
+      <Link className={styles.demo} href="/demo" aria-current={pathname === '/demo' ? 'page' : undefined}>Sample</Link>
     </div>
   </nav>;
 }
