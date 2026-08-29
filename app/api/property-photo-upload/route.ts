@@ -111,9 +111,10 @@ export async function POST(request: Request) {
 
     const receipt = await paidPropertyGenerationReceipt(auth, stripe, generationSessionId);
     const draftId = receipt.draftId;
+    const digest = receipt.digest;
     const rightsConfirmed = true;
     const itemId = propertyDraftItemId(auth.user.id, draftId, 'source');
-    const sourceFingerprint = `inline-photo:${receipt.digest}`;
+    const sourceFingerprint = `inline-photo:${digest}`;
 
     // A Stripe success page can be refreshed. Reuse the exact account/draft job
     // instead of spending Meshy credits a second time for the same paid source.
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
       await deleteStagedPropertyPhoto(auth, draftId);
       return privateJson(generationResult({
         draftId,
-        digest: receipt.digest,
+        digest,
         taskId: existing.task_id,
         status: existing.status,
         progress: existing.progress,
@@ -160,8 +161,8 @@ export async function POST(request: Request) {
     }
 
     const bytes = Buffer.from(await photo.arrayBuffer());
-    const digest = createHash('sha256').update(bytes).digest('hex');
-    if (digest !== receipt.digest) throw new Error('The paid source photo fingerprint no longer matches checkout.');
+    const verifiedDigest = createHash('sha256').update(bytes).digest('hex');
+    if (verifiedDigest !== digest) throw new Error('The paid source photo fingerprint no longer matches checkout.');
     const dataUri = `data:${photo.type};base64,${bytes.toString('base64')}`;
 
     const response = await fetch(ENDPOINT, {
