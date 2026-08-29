@@ -1,3 +1,5 @@
+import { WalletIdentityProvider } from './components/WalletIdentity';
+
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
 const TITLE = 'Galactic Trust | Digital Banking';
@@ -29,7 +31,9 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, background: '#07103d' }}>{children}</body>
+      <body style={{ margin: 0, background: '#07103d' }}>
+        <WalletIdentityProvider>{children}</WalletIdentityProvider>
+      </body>
     </html>
   );
 }
