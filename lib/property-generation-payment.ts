@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { getSupabaseAdminCandidates } from './supabase-admin';
 import { normalizePropertyDraftId } from './property-generation-ids';
 
 export const PROPERTY_VOXEL_GENERATION_PRICE_CENTS = 499;
@@ -18,13 +19,69 @@ function safeSegment(value: unknown, fallback = 'item') {
   return text || fallback;
 }
 
-async function ensureBucket(admin: any) {
-  const { data, error } = await admin.storage.listBuckets();
-  if (!error && data?.some((bucket: any) => bucket.name === BUCKET)) return;
-  const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
-  if (created.error && !/already exists/i.test(created.error.message || '')) {
-    throw new Error('Private VoxelPop checkout storage could not be prepared.');
+function storageCandidates(primary: any) {
+  const candidates: any[] = [];
+  if (primary) candidates.push(primary);
+  try {
+    for (const candidate of getSupabaseAdminCandidates()) {
+      if (!candidates.includes(candidate)) candidates.push(candidate);
+    }
+  } catch {}
+  return candidates;
+}
+
+function bucketMissing(error: any) {
+  const text = String(error?.message || error || '');
+  return /bucket.*not found|not found.*bucket|does not exist/i.test(text);
+}
+
+async function prepareBucket(admin: any) {
+  try {
+    const created = await admin.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '75MB' });
+    return !created.error || /already exists/i.test(created.error?.message || '');
+  } catch {
+    return false;
   }
+}
+
+async function uploadPrivateObject(auth: any, storagePath: string, bytes: Buffer, contentType: string) {
+  let sawMissingBucket = false;
+  for (const admin of storageCandidates(auth?.admin)) {
+    try {
+      let result = await admin.storage.from(BUCKET).upload(storagePath, bytes, {
+        contentType,
+        cacheControl: '0',
+        upsert: true,
+      });
+      if (!result.error) return true;
+
+      if (bucketMissing(result.error)) {
+        sawMissingBucket = true;
+        if (await prepareBucket(admin)) {
+          result = await admin.storage.from(BUCKET).upload(storagePath, bytes, {
+            contentType,
+            cacheControl: '0',
+            upsert: true,
+          });
+          if (!result.error) return true;
+        }
+      }
+    } catch {}
+  }
+
+  throw new Error(sawMissingBucket
+    ? 'Private VoxelPop checkout storage is not provisioned on this deployment yet.'
+    : 'Your photo could not be staged securely for checkout.');
+}
+
+async function downloadPrivateObject(auth: any, storagePath: string) {
+  for (const admin of storageCandidates(auth?.admin)) {
+    try {
+      const { data, error } = await admin.storage.from(BUCKET).download(storagePath);
+      if (!error && data) return data;
+    } catch {}
+  }
+  return null;
 }
 
 export function propertyGenerationStagePath(userId: unknown, draftIdRaw: unknown) {
@@ -42,13 +99,7 @@ export async function stagePaidPropertyPhoto(auth: any, draftIdRaw: unknown, pho
   const bytes = Buffer.from(await photo.arrayBuffer());
   const digest = createHash('sha256').update(bytes).digest('hex');
   const storagePath = propertyGenerationStagePath(auth.user.id, draftId);
-  await ensureBucket(auth.admin);
-  const { error } = await auth.admin.storage.from(BUCKET).upload(storagePath, bytes, {
-    contentType,
-    cacheControl: '0',
-    upsert: true,
-  });
-  if (error) throw new Error('Your photo could not be staged securely for checkout.');
+  await uploadPrivateObject(auth, storagePath, bytes, contentType);
 
   return {
     draftId,
@@ -62,9 +113,12 @@ export async function stagePaidPropertyPhoto(auth: any, draftIdRaw: unknown, pho
 
 export async function deleteStagedPropertyPhoto(auth: any, draftIdRaw: unknown) {
   const storagePath = propertyGenerationStagePath(auth.user.id, draftIdRaw);
-  try {
-    await auth.admin.storage.from(BUCKET).remove([storagePath]);
-  } catch {}
+  for (const admin of storageCandidates(auth?.admin)) {
+    try {
+      const { error } = await admin.storage.from(BUCKET).remove([storagePath]);
+      if (!error || /not found/i.test(error?.message || '')) break;
+    } catch {}
+  }
   return storagePath;
 }
 
@@ -107,8 +161,8 @@ export async function paidPropertyGenerationReceipt(auth: any, stripe: any, sess
 }
 
 export async function loadPaidPropertyGenerationPhoto(auth: any, receipt: any) {
-  const { data, error } = await auth.admin.storage.from(BUCKET).download(receipt.storagePath);
-  if (error || !data) throw new Error('The paid source photo is no longer available.');
+  const data = await downloadPrivateObject(auth, receipt.storagePath);
+  if (!data) throw new Error('The paid source photo is no longer available.');
   const bytes = Buffer.from(await data.arrayBuffer());
   if (!bytes.length || bytes.length > MAX_BYTES) throw new Error('The paid source photo is invalid.');
   const digest = createHash('sha256').update(bytes).digest('hex');
