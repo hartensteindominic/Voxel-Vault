@@ -17,7 +17,7 @@ export default function ConsumerFooter() {
     <div className="vvConsumerFooterInner">
       <div className="vvConsumerFooterBrand">
         <Link href="/">VOXEL VAULT</Link>
-        <span>Photo → 3D preview → voxel → optional World / Vault / mint.</span>
+        <span>Photo → 3D voxel photo → movable voxel → save → optional mint.</span>
       </div>
       <nav aria-label="Voxel Vault footer" className="vvConsumerFooterLinks">
         <Link href="/property">Create</Link>
