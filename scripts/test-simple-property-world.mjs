@@ -46,6 +46,7 @@ assert.match(propertyCss, /#7138f5/i, 'VoxelPop purple remains');
 assert.match(propertyCss, /#c9ff54/i, 'VoxelPop lime remains');
 assert.match(propertyCss, /#f7ae2d|#ee950f/i, 'collect action keeps warm orange');
 assert.match(propertyCss, /grid-template-columns:repeat\(5,1fr\)/, 'maker keeps five guided steps');
+assert.match(propertyCss, /resultActions/, 'finished result exposes direct World and Vault actions');
 
 assert.match(property, /Sign in first\./, 'maker exposes the account gate');
 assert.match(property, /Continue with Google/, 'account gate has one clear sign-in action');
@@ -60,6 +61,8 @@ assert.match(property, /indexedDB\.open\(DEVICE_DB/, 'source photo is kept priva
 assert.match(property, /createVoxelPoster/, 'VoxelPop image is built locally');
 assert.match(property, /LocalVoxelModelViewer/, 'local interactive 3D replaces provider generation in the guided maker');
 assert.match(localViewer, /InstancedMesh/, 'local viewer builds real Three.js voxel geometry');
+assert.match(localViewer, /mask/, 'local viewer separates a photo-matched building silhouette from the background instead of extruding the whole square');
+assert.match(localViewer, /PHOTO-MATCHED SILHOUETTE/, 'viewer tells the user the local shape follows the photo silhouette');
 assert.match(localViewer, /3D IMAGE → INTERACTIVE 3D/, 'image must remain visible before interactive 3D');
 assert.match(localVoxel, /propertyDraftItemId\(auth\.user\.id, draftId, 'voxel'\)/, 'finished local voxel remains account/draft bound');
 assert.match(localVoxel, /model\/gltf\+json/, 'compact local recipe can reopen as glTF');
@@ -67,8 +70,8 @@ assert.doesNotMatch(generationCheckout, /MESHY_PROPERTY_CREDITS|readMeshyCreditB
 assert.doesNotMatch(paidVerify, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|api\.meshy|image-to-3d|storage\.from/i, 'paid resume cannot call Meshy or private Storage');
 assert.doesNotMatch(property, /\/api\/property-voxel-3d|\/api\/property-voxel-image/, 'guided maker must not call metered Meshy routes');
 
-assert.match(property, /Add the property address\./, 'address step follows local voxel creation');
-assert.match(property, /Verify address \+ preview/, 'address action says verification and preview');
+assert.match(property, /Your 3D is ready\. Add the address\./, 'address step begins only after the finished 3D is usable');
+assert.match(property, /Open property map/, 'address action has one clear continuation into the map');
 assert.match(property, /setAtlasBuildings/, 'address lookup retains nearby source-backed buildings');
 assert.match(property, /PropertyWorldMap/, 'private collection preview uses the improved focused map');
 assert.match(propertyMap, /ExtrudeGeometry/, 'focused map extrudes source-backed footprints');
@@ -78,9 +81,17 @@ assert.match(propertyMap, /Zoom property map in/, 'focused map exposes mobile zo
 assert.match(property, /MY WORLD · IMPROVED PROPERTY MAP/, 'map improvement is visible in the guided flow');
 assert.match(property, /\/api\/property-collectible\/quote/, 'server quote still follows World placement');
 assert.match(property, /async function collectAndSave\(\)/, 'digital collection action remains');
-assert.match(property, /Collect voxel ·/, 'final paid action identifies the digital voxel');
+assert.match(property, /Optional: collect voxel ·/, 'final paid action is explicitly optional and identifies the digital voxel');
 assert.match(property, /not the market value of the house or land/, 'price copy never looks like a real-property valuation');
 assert.match(property, /Real-property investing can only appear through a separately verified offering/, 'real investment remains on a separate verified rail');
+
+assert.match(property, /Your 3D \+ World are ready\./, 'successful creation has a positive finished-result state');
+assert.match(property, /Saving to Vault is a separate account step and never blocks the finished result/, 'Vault persistence is not allowed to redefine creation success');
+assert.match(property, /YOUR 3D MODEL IS READY/, 'Vault persistence failure keeps the finished 3D as the primary state');
+assert.match(property, /Retry Save to Vault/, 'Vault persistence remains retryable');
+assert.match(property, /Continue to My World instead/, 'a failed Vault save cannot trap the user');
+assert.match(property, /does not require another \$4\.99 payment/, 'Vault retry cannot imply another creation charge');
+assert.doesNotMatch(property, /LOCAL 3D READY · VAULT LINK NEEDS RETRY|Reconnect Vault model/, 'old dead-end Vault-first result language must not return');
 
 for (const cents of ['199', '299', '399']) assert.match(collectibleCommerce, new RegExp(`priceCents: ${cents}`), 'three low-cost digital collection tiers remain');
 for (const tier of ['classic', 'detailed', 'landmark']) assert.match(collectibleCommerce, new RegExp(`tier: '${tier}'`), `pricing keeps ${tier}`);
@@ -114,4 +125,4 @@ assert.match(interestToken, /off-chain legal/, 'economic rights remain defined s
 assert.match(dock, /SIMPLE_PROPERTY_DOCK/, 'guided maker uses the condensed consumer navigation');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Guided VoxelPop property checks passed: sign in -> authorized device-local photo -> clear $4.99 local creation -> VoxelPop image -> interactive 3D -> source-backed property map -> optional digital collection/Vault, without Meshy credits or checkout Storage.');
+console.log('Guided VoxelPop property checks passed: $4.99 -> photo-matched local 3D -> source-backed map -> World, with Vault persistence downgraded to a retryable secondary save and no Meshy credits or checkout Storage.');
