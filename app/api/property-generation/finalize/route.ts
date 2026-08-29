@@ -4,12 +4,13 @@ import { normalizePropertyDraftId } from '../../../../lib/property-generation-id
 import {
   readPropertyCollectibleReservation,
   updatePropertyCollectibleReservation,
+  verifyOwnedFinalVoxelModel,
 } from '../../../../lib/property-collectible-commerce';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function clean(value: unknown, max = 300) {
+function clean(value: unknown, max = 420) {
   return String(value || '').trim().slice(0, max);
 }
 
@@ -28,22 +29,33 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const draftId = normalizePropertyDraftId(body?.draftId);
     const identityKey = clean(body?.identityKey, 100);
-    const taskId = clean(body?.taskId, 260);
-    if (!identityKey || !taskId.startsWith('local-v1:')) {
-      return privateJson({ ok: false, error: 'A confirmed property and finished voxel are required.' }, { status: 400 });
+    const modelTaskId = clean(body?.modelTaskId || body?.taskId, 420);
+    if (!identityKey || !modelTaskId) {
+      return privateJson({ ok: false, error: 'A confirmed property and finished generated 3D voxel are required.' }, { status: 400 });
     }
 
     const reservation = await readPropertyCollectibleReservation(identityKey);
     if (!reservation) return privateJson({ ok: false, error: 'The property confirmation expired. Confirm the address again.' }, { status: 409 });
     if (reservation.buyerId !== auth.user.id) return privateJson({ ok: false, error: 'This property confirmation belongs to another account.' }, { status: 403 });
     if (reservation.draftId !== draftId) return privateJson({ ok: false, error: 'This property confirmation belongs to another creation.' }, { status: 409 });
+    if (reservation.state === 'minted') return privateJson({ ok: false, alreadyMinted: true, error: 'This property has already been minted.' }, { status: 409 });
+
+    const owned = await verifyOwnedFinalVoxelModel({
+      userId: auth.user.id,
+      draftId,
+      modelTaskId,
+      atlasId: reservation.atlasId,
+    });
+    if (!owned.savedModel || !owned.modelUrl) {
+      return privateJson({ ok: false, error: 'Finish the generated 3D voxel before saving it to your Vault.' }, { status: 409 });
+    }
 
     const finalized = await updatePropertyCollectibleReservation({
       identityKey,
       buyerId: auth.user.id,
       state: 'paid',
-      source: 'photo-voxel-complete',
-      sourceId: taskId,
+      source: 'photo-voxel-generated-3d-complete',
+      sourceId: modelTaskId,
     });
 
     return privateJson({
@@ -52,8 +64,13 @@ export async function POST(request: Request) {
       identityKey,
       atlasId: finalized.atlasId,
       address: finalized.address,
-      taskId,
+      taskId: modelTaskId,
+      modelTaskId,
+      modelUrl: owned.modelUrl,
+      modelProvider: clean(owned.savedModel.provider, 120),
+      onePropertyOnePurchase: true,
       onePropertyOneMint: true,
+      digitalOnly: true,
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'The finished property voxel could not be locked.' }, { status: 500 });
