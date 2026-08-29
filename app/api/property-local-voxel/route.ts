@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 
 const PROVIDER = 'voxelpop-local-webgl-v1';
 const RECIPE_PREFIX = 'local-voxel-recipe-v1:';
-const MAX_SIDE = 24;
+const MAX_WIDTH = 32;
+const MAX_HEIGHT = 24;
 const MIN_SIDE = 8;
 
 function clean(value: unknown, max = 500) {
@@ -25,7 +26,7 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
 }
 
 type LocalVoxelRecipe = {
-  version: 1;
+  version: 1 | 2;
   width: number;
   height: number;
   colors: string[];
@@ -35,7 +36,8 @@ type LocalVoxelRecipe = {
 function normalizeRecipe(input: any): LocalVoxelRecipe {
   const width = Math.trunc(Number(input?.width));
   const height = Math.trunc(Number(input?.height));
-  if (Number(input?.version) !== 1 || width < MIN_SIDE || height < MIN_SIDE || width > MAX_SIDE || height > MAX_SIDE) {
+  const version = Math.trunc(Number(input?.version));
+  if (![1, 2].includes(version) || width < MIN_SIDE || height < MIN_SIDE || width > MAX_WIDTH || height > MAX_HEIGHT) {
     throw new Error('The local VoxelPop model recipe is invalid.');
   }
   const count = width * height;
@@ -45,7 +47,7 @@ function normalizeRecipe(input: any): LocalVoxelRecipe {
     throw new Error('The local VoxelPop model recipe is incomplete.');
   }
   if (!depths.some((value) => value > 0)) throw new Error('The local VoxelPop model does not contain visible building geometry.');
-  return { version: 1, width, height, colors, depths };
+  return { version: version as 1 | 2, width, height, colors, depths };
 }
 
 function encodeRecipe(recipe: LocalVoxelRecipe) {
@@ -53,7 +55,7 @@ function encodeRecipe(recipe: LocalVoxelRecipe) {
 }
 
 function decodeRecipe(value: unknown) {
-  const text = clean(value, 12000);
+  const text = clean(value, 18000);
   if (!text.startsWith(RECIPE_PREFIX)) throw new Error('This is not a local VoxelPop model.');
   const encoded = text.slice(RECIPE_PREFIX.length);
   const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
@@ -74,7 +76,7 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   const indices: number[] = [];
   const width = recipe.width;
   const height = recipe.height;
-  const cell = 0.285;
+  const cell = recipe.version >= 2 || width > 24 ? 0.26 : 0.285;
   const half = cell * 0.45;
   const faceIndices = [
     0, 2, 1, 0, 3, 2,
@@ -146,7 +148,7 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   const uri = `data:application/octet-stream;base64,${binary.toString('base64')}`;
 
   return {
-    asset: { version: '2.0', generator: 'VoxelPop Local WebGL silhouette v1' },
+    asset: { version: '2.0', generator: recipe.version >= 2 ? 'VoxelPop Local WebGL reviewed facade v2' : 'VoxelPop Local WebGL silhouette v1' },
     extensionsUsed: ['KHR_materials_unlit'],
     scene: 0,
     scenes: [{ nodes: [0] }],
@@ -217,8 +219,9 @@ export async function POST(request: Request) {
       modelUrl: saved?.model_url || null,
       persisted: Boolean(saved?.task_id),
       collectionReady: Boolean(saved?.task_id && saved?.model_url),
+      recipeVersion: recipe.version,
       note: saved?.task_id
-        ? 'The compact silhouette-aware voxel recipe is account-bound in the catalog. The original source photo was not uploaded for generation.'
+        ? 'The compact reviewed facade voxel recipe is account-bound in the catalog. The original source photo was not uploaded for generation.'
         : 'The local 3D preview is ready on this device, but durable catalog persistence is unavailable. The user can still continue to map and save locally.',
     });
   } catch (error) {
