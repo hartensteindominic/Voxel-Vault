@@ -58,7 +58,7 @@ async function verifyConfirmedDraft(userId: string, draftId: string, identityKey
   const identityKey = clean(identityKeyRaw, 96);
   if (!identityKey) throw new Error('Confirm the property address before generating the voxel.');
   const reservation = await readPropertyCollectibleReservation(identityKey);
-  if (!reservation || reservation.buyerUserId !== userId || reservation.draftId !== draftId) {
+  if (!reservation || reservation.buyerId !== userId || reservation.draftId !== draftId) {
     throw new Error('That confirmed property does not belong to this signed-in creation.');
   }
   if (!['reserved', 'paid', 'minted'].includes(reservation.state)) {
