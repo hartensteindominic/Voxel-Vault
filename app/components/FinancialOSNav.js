@@ -14,6 +14,9 @@ import {
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
+  // The property maker intentionally mirrors the ultra-condensed VoxelPop screen.
+  // Its own large actions are the navigation; a second fixed dock would duplicate controls.
+  if (pathname === '/property') return null;
   const simple = isSimplePropertyRoute(pathname);
   const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
   const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);

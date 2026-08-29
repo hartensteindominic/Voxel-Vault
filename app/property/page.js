@@ -2,58 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import GeoReferenceModel from '../geo/GeoReferenceModel';
+import MeshyModelViewer from '../vault/earth/MeshyModelViewer';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
-import { buildPropertyDraft, readPropertyDraft, savePropertyDraft, setPropertyDraftWorldVisibility } from '../../lib/property-drafts';
+import { buildPropertyDraft, readPropertyDraft, savePropertyDraft } from '../../lib/property-drafts';
 import { savePropertyDraftToAccount } from '../../lib/property-drafts-account';
 import styles from './property.module.css';
 
 function clean(value) { return String(value || '').trim(); }
-function normalizedAddress(value) {
-  return clean(value).toLowerCase()
-    .replace(/\bavenue\b/g, 'ave').replace(/\bstreet\b/g, 'st').replace(/\broad\b/g, 'rd')
-    .replace(/\bboulevard\b/g, 'blvd').replace(/\bdrive\b/g, 'dr').replace(/\blane\b/g, 'ln')
-    .replace(/\bcourt\b/g, 'ct').replace(/\bplace\b/g, 'pl').replace(/\bnew york\b/g, 'ny')
-    .replace(/[^a-z0-9]+/g, ' ').trim();
-}
-function listingMatchesResolvedAddress(listing, address) {
-  const expected = normalizedAddress(address);
-  const actual = normalizedAddress([listing?.address, listing?.city, listing?.region, listing?.postalCode].filter(Boolean).join(' '));
-  if (!expected || !actual) return false;
-  const expectedNumber = expected.match(/^\d+/)?.[0] || '';
-  const actualNumber = actual.match(/^\d+/)?.[0] || '';
-  if (!expectedNumber || expectedNumber !== actualNumber) return false;
-  return actual === expected || actual.includes(expected) || expected.includes(actual);
-}
-function money(listing) {
-  const cents = Number(listing?.marketValueCents);
-  if (!Number.isFinite(cents)) return 'PRICE AT SOURCE';
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: listing?.currency || 'USD', maximumFractionDigits: 0 }).format(cents / 100); }
-  catch { return `$${Math.round(cents / 100).toLocaleString()}`; }
-}
-function distanceMeters(aLat, aLng, bLat, bLng) {
-  const values = [aLat, aLng, bLat, bLng].map(Number);
-  if (values.some((value) => !Number.isFinite(value))) return Infinity;
-  const [lat1, lng1, lat2, lng2] = values.map((value) => value * Math.PI / 180);
-  const dLat = lat2 - lat1;
-  const dLng = lng2 - lng1;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-function referenceFor(building) {
-  if (!building?.geometry) return null;
-  return {
-    found: true,
-    latitude: building.latitude,
-    longitude: building.longitude,
-    geometry: building.geometry,
-    tags: building.tags || {},
-    height: building.height || null,
-    matchStrategy: 'simple_property_flow',
-    source: building.source || null,
-    neighborhoodBuildings: [],
-  };
-}
 function selectedOrLocation(atlas, address) {
   const selected = atlas?.selectedBuilding || atlas?.buildings?.[0] || null;
   if (selected) return selected;
@@ -70,30 +25,60 @@ function selectedOrLocation(atlas, address) {
     source: atlas?.reference?.source || { authority: 'Resolved Earth location', license: '', sourceUrl: '' },
   };
 }
+function readableDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function terminal(value) {
+  return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(value || '').toUpperCase());
+}
+const emptyModel = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
 
 export default function SimplePropertyPage() {
   const [query, setQuery] = useState('');
   const [resolvedQuery, setResolvedQuery] = useState('');
   const [building, setBuilding] = useState(null);
-  const [listings, setListings] = useState([]);
-  const [platform, setPlatform] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('Add an address. Voxel Vault will build the source-backed 3D draft first.');
+  const [openImagery, setOpenImagery] = useState(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [voxelImage, setVoxelImage] = useState('');
+  const [model, setModel] = useState(emptyModel);
+  const [busy, setBusy] = useState('');
+  const [message, setMessage] = useState('Add an address.');
   const [saved, setSaved] = useState(null);
   const [session, setSession] = useState(null);
   const clientRef = useRef(null);
+  const imageIterationRef = useRef(0);
 
-  const reference = useMemo(() => referenceFor(building), [building]);
-  const draft = useMemo(() => buildPropertyDraft({ building, listing: null, fallbackLabel: resolvedQuery }), [building, resolvedQuery]);
-  const exactSale = useMemo(() => {
-    if (!building || !resolvedQuery) return null;
-    return listings.find((item) => item?.transactionType === 'sale'
-      && Boolean(item?.sourceUrl)
-      && distanceMeters(building.latitude, building.longitude, item.latitude, item.longitude) <= 45
-      && listingMatchesResolvedAddress(item, resolvedQuery)) || null;
-  }, [building, listings, resolvedQuery]);
-  const fractionRail = platform?.investmentRails?.propertySpecificFractionalOwnership || null;
-  const fractionProvider = fractionRail?.providerReferences?.[0] || null;
+  const photos = Array.isArray(openImagery?.photos) ? openImagery.photos : [];
+  const activePhoto = photos[photoIndex] || photos[0] || null;
+  const activeReference = useMemo(() => {
+    const refs = Array.isArray(openImagery?.meshyReferences) ? openImagery.meshyReferences : [];
+    if (!activePhoto) return null;
+    return refs.find((item) => item?.sourcePhotoId === activePhoto.id) || refs[photoIndex] || null;
+  }, [openImagery, activePhoto, photoIndex]);
+  const baseDraft = useMemo(() => buildPropertyDraft({
+    building,
+    openImagery,
+    fallbackLabel: resolvedQuery,
+  }), [building, openImagery, resolvedQuery]);
+  const draft = useMemo(() => {
+    if (!baseDraft) return null;
+    return {
+      ...baseDraft,
+      fidelity: model?.modelUrl ? 'photo-guided-voxel-3d' : voxelImage ? 'photo-guided-voxel-image' : baseDraft.fidelity,
+      visual: {
+        referenceImageUrl: activePhoto?.imageUrl || null,
+        referencePhotoId: activePhoto?.id || null,
+        referenceShotDate: activePhoto?.shotDate || null,
+        referenceProvider: activePhoto?.provider || null,
+        voxelImageUrl: voxelImage || null,
+        modelUrl: model?.modelUrl || null,
+        modelTaskId: model?.taskId || null,
+      },
+    };
+  }, [baseDraft, activePhoto, voxelImage, model?.modelUrl, model?.taskId]);
 
   useEffect(() => {
     let active = true;
@@ -115,54 +100,88 @@ export default function SimplePropertyPage() {
     return () => { active = false; subscription?.unsubscribe?.(); };
   }, []);
 
+  useEffect(() => {
+    if (!building?.atlasId || !session?.access_token) return undefined;
+    let active = true;
+    const iterationAtStart = imageIterationRef.current;
+    fetch(`/api/property-voxel-3d?atlasId=${encodeURIComponent(building.atlasId)}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (!active || iterationAtStart !== imageIterationRef.current || !response.ok || !data?.ok) return;
+      if (data?.exists && (data?.taskId || data?.modelUrl)) setModel(data);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [building?.atlasId, session?.access_token]);
+
+  useEffect(() => {
+    if (!model?.taskId || model?.modelUrl || terminal(model?.status) || !session?.access_token) return undefined;
+    let active = true;
+    let timer = null;
+    async function poll() {
+      try {
+        const response = await fetch(`/api/property-voxel-3d?taskId=${encodeURIComponent(model.taskId)}`, {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!active) return;
+        if (!response.ok || !data?.ok) throw new Error(data?.error || 'Could not read 3D progress.');
+        setModel(data);
+        if (data?.modelUrl) {
+          setMessage('3D ready. Drag it to inspect the property.');
+          return;
+        }
+        if (terminal(data?.status)) {
+          setMessage(data?.error || `3D generation ended with ${data?.status}.`);
+          return;
+        }
+        setMessage(`Creating 3D… ${Math.round(Number(data?.progress || 0))}%`);
+        timer = window.setTimeout(poll, 3500);
+      } catch (error) {
+        if (active) setMessage(String(error?.message || error));
+      }
+    }
+    timer = window.setTimeout(poll, 1800);
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
+  }, [model?.taskId, model?.modelUrl, model?.status, session?.access_token]);
+
   async function search(value = query) {
     const address = clean(value);
     if (!address) return;
-    setBusy(true);
+    imageIterationRef.current += 1;
+    setBusy('search');
     setBuilding(null);
-    setListings([]);
+    setOpenImagery(null);
+    setPhotoIndex(0);
+    setVoxelImage('');
+    setModel(emptyModel());
     setSaved(null);
-    setMessage('Building your 3D property…');
+    setMessage('Finding the property…');
     try {
       const params = new URLSearchParams({ address, radius: '180' });
-      const [atlasResponse, listingResponse, platformResponse] = await Promise.all([
-        fetch(`/api/world-atlas/inspect?${params.toString()}`, { cache: 'no-store' }),
-        fetch(`/api/earth-properties/search?q=${encodeURIComponent(address)}&type=sale`, { cache: 'no-store' }),
-        fetch('/api/property-platform/status', { cache: 'no-store' }),
-      ]);
+      const atlasResponse = await fetch(`/api/world-atlas/inspect?${params.toString()}`, { cache: 'no-store' });
       const atlas = await atlasResponse.json().catch(() => ({}));
-      const market = await listingResponse.json().catch(() => ({}));
-      const status = await platformResponse.json().catch(() => ({}));
       if (!atlasResponse.ok || !atlas?.ok) throw new Error(atlas?.error || 'That property could not be mapped yet.');
       const selected = selectedOrLocation(atlas, address);
       if (!selected) throw new Error('That address resolved without a usable map location.');
+
+      const imageryResponse = await fetch(`/api/world-atlas/open-imagery?lat=${encodeURIComponent(selected.latitude)}&lng=${encodeURIComponent(selected.longitude)}&radius=140`, { cache: 'no-store' });
+      const imagery = await imageryResponse.json().catch(() => ({}));
       setResolvedQuery(address);
       setBuilding(selected);
-      setListings(Array.isArray(market?.listings) ? market.listings : []);
-      setPlatform(status);
-      setMessage(selected?.geometry
-        ? '3D property ready. Choose what you want to do.'
-        : 'Property location ready. No source-backed building footprint exists here, so Voxel Vault kept it as land/location instead of inventing a structure.');
-      const nextDraft = buildPropertyDraft({ building: selected, fallbackLabel: address });
-      setSaved(nextDraft?.id ? readPropertyDraft(nextDraft.id) : null);
+      setOpenImagery(imagery?.ok ? imagery : { photos: [], meshyReferences: [], note: imagery?.note || imagery?.error || '' });
+      const nextDraft = buildPropertyDraft({ building: selected, openImagery: imagery?.ok ? imagery : null, fallbackLabel: address });
+      const existingDraft = nextDraft?.id ? readPropertyDraft(nextDraft.id) : null;
+      setSaved(existingDraft);
+      setMessage(imagery?.photos?.length
+        ? 'Newest nearby open photo loaded. Make sure it shows the right facade, then create the voxel image.'
+        : 'No rights-cleared street photo was found here, so Voxel Vault will not invent the building appearance.');
     } catch (error) {
       setResolvedQuery('');
       setMessage(String(error?.message || error || 'Property lookup failed.'));
-    } finally { setBusy(false); }
-  }
-
-  async function saveToVault() {
-    if (!draft) return setMessage('This property needs source-backed identity before it can be saved.');
-    try {
-      const next = savePropertyDraft(draft);
-      setSaved(next);
-      if (session?.user) {
-        const client = clientRef.current || await getSupabaseBrowserAsync();
-        clientRef.current = client;
-        await savePropertyDraftToAccount(client, session.user, next);
-      }
-      setMessage('Saved. It is in your Vault.');
-    } catch (error) { setMessage(String(error?.message || error)); }
+    } finally { setBusy(''); }
   }
 
   async function signIn() {
@@ -174,74 +193,133 @@ export default function SimplePropertyPage() {
     } catch (error) { setMessage(String(error?.message || error || 'Could not sign in.')); }
   }
 
-  async function shareWorld() {
-    if (!draft) return;
-    let current = saved;
-    if (!current) {
-      current = savePropertyDraft(draft);
-      setSaved(current);
-    }
-    if (!session?.user) {
-      setMessage('Your property is saved. Sign in once to put it on the public 3D World.');
+  async function createImage() {
+    if (!building?.atlasId || !activeReference) return setMessage('A rights-cleared property photo is required first.');
+    if (!session?.access_token) {
+      setMessage('Sign in once to create the voxel image.');
       await signIn();
       return;
     }
+    const nextIteration = imageIterationRef.current + 1;
+    imageIterationRef.current = nextIteration;
+    setBusy('image');
+    setMessage(voxelImage ? 'Rebuilding the voxel image from this selected property photo…' : 'Creating a voxel image from this exact selected photo…');
     try {
-      const next = setPropertyDraftWorldVisibility(current.id, true);
-      const client = clientRef.current || await getSupabaseBrowserAsync();
-      clientRef.current = client;
-      await savePropertyDraftToAccount(client, session.user, next);
+      const response = await fetch('/api/property-voxel-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          address: resolvedQuery,
+          atlasId: building.atlasId,
+          references: [activeReference],
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) throw new Error(data?.error || 'Voxel image could not be created.');
+      setVoxelImage(data.imageUrl);
+      setModel(emptyModel());
+      setSaved(null);
+      setMessage('Voxel image ready. Compare it to the real photo, then create 3D.');
+    } catch (error) { setMessage(String(error?.message || error)); }
+    finally { setBusy(''); }
+  }
+
+  async function create3D() {
+    if (!voxelImage || !building?.atlasId) return setMessage('Create the voxel image first.');
+    if (!session?.access_token) {
+      setMessage('Sign in once to create 3D.');
+      await signIn();
+      return;
+    }
+    if (model?.taskId && !terminal(model?.status) && !model?.modelUrl) return;
+    setBusy('3d');
+    setMessage('Creating 3D from the voxel image…');
+    try {
+      const response = await fetch('/api/property-voxel-3d', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ atlasId: building.atlasId, imageUrl: voxelImage }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) throw new Error(data?.error || '3D generation could not start.');
+      setModel(data);
+      setMessage(data?.modelUrl ? '3D ready.' : 'Creating 3D…');
+    } catch (error) { setMessage(String(error?.message || error)); }
+    finally { setBusy(''); }
+  }
+
+  async function saveToVault() {
+    if (!draft || !model?.modelUrl) return setMessage('Create the 3D property first.');
+    try {
+      const next = savePropertyDraft(draft);
       setSaved(next);
-      setMessage('On World. Other people can now see the opt-in 3D property marker and model.');
+      if (session?.user) {
+        const client = clientRef.current || await getSupabaseBrowserAsync();
+        clientRef.current = client;
+        await savePropertyDraftToAccount(client, session.user, next);
+      }
+      setMessage('Saved to your Vault. Minting can wait.');
     } catch (error) { setMessage(String(error?.message || error)); }
   }
 
-  function buyPortion() {
-    if (fractionRail?.liveExecutionReady === true) {
-      setMessage('A verified fractional execution rail is available for review.');
-      return;
-    }
-    setMessage('No verified fractional offering is connected to this exact property yet. Voxel Vault will not fake a share purchase.');
+  function changeProperty() {
+    imageIterationRef.current += 1;
+    setBuilding(null);
+    setResolvedQuery('');
+    setOpenImagery(null);
+    setVoxelImage('');
+    setModel(emptyModel());
+    setSaved(null);
+    setMessage('Add an address.');
   }
 
-  function buyWhole() {
-    if (exactSale?.sourceUrl) {
-      window.open(exactSale.sourceUrl, '_blank', 'noopener,noreferrer');
-      setMessage('Opened the exact authorized sale source. The real purchase still closes through normal contract, title and settlement.');
-      return;
-    }
-    setMessage('This exact address is not currently tied to an authorized matching sale listing, so Buy Whole stays off.');
-  }
+  const displayImage = voxelImage || activePhoto?.imageUrl || '';
+  const photoDate = readableDate(activePhoto?.shotDate);
+  const modelRunning = Boolean(model?.taskId && !model?.modelUrl && !terminal(model?.status));
 
   return <main className={styles.page}>
-    <header className={styles.header}><Link className={styles.logo} href="/">V</Link><nav className={styles.nav}><Link href="/vault/property-drafts">VAULT</Link><Link href="/world">WORLD</Link></nav></header>
-    <section className={styles.searchBlock}>
-      <small>1 · ADD PROPERTY</small>
-      <form className={styles.searchForm} onSubmit={(event) => { event.preventDefault(); search(); }}>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Enter any property address" aria-label="Property address"/>
-        <button disabled={busy}>{busy ? '…' : 'ADD'}</button>
-      </form>
-    </section>
+    <section className={styles.maker}>
+      <h1>Property</h1>
 
-    {building ? <section className={styles.property}>
-      <div className={styles.viewer}>{reference ? <GeoReferenceModel reference={reference} authoritativeTwin={null} viewMode="orbit" resetKey={0}/> : <div className={styles.empty3d}><div className={styles.parcel}/><b>LAND / LOCATION</b><span>NO BUILDING INVENTED</span></div>}</div>
-      <div className={styles.controls}>
-        <div className={styles.title}><small>YOUR 3D PROPERTY</small><h1>{resolvedQuery}</h1><span>{building?.source?.authority || 'Source-backed world map'}</span></div>
-        <div className={styles.choices}>
-          <button onClick={buyPortion}><b>BUY A PIECE</b><span>{fractionRail?.liveExecutionReady ? 'VERIFIED RAIL READY' : 'ONLY WHEN VERIFIED'}</span></button>
-          <button onClick={buyWhole} className={exactSale?.sourceUrl ? styles.ready : ''}><b>BUY THE WHOLE THING</b><span>{exactSale ? money(exactSale) : 'ONLY WHEN EXACTLY LISTED'}</span></button>
-        </div>
-        <div className={styles.next}>
-          <Link href="/vault/properties/claim">VERIFY → MINT</Link>
-          <button className={saved ? styles.done : ''} onClick={saveToVault}>{saved ? '✓ IN VAULT' : 'SAVE TO VAULT'}</button>
-          <button className={saved?.world?.public ? styles.done : ''} onClick={shareWorld}>{saved?.world?.public ? '✓ ON WORLD' : 'SHOW ON WORLD'}</button>
-        </div>
+      {!building ? <>
+        <p className={styles.intro}>Turn a real place into a voxel property.</p>
+        <form className={styles.searchForm} onSubmit={(event) => { event.preventDefault(); search(); }}>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Enter property address" aria-label="Property address" autoComplete="street-address"/>
+          <button disabled={busy === 'search'}>{busy === 'search' ? 'Finding…' : 'Add property'}</button>
+        </form>
+        <div className={styles.homeLinks}><Link href="/vault/property-drafts">Vault</Link><Link href="/world">World</Link></div>
         <p className={styles.message} role="status">{message}</p>
-        {fractionProvider?.officialMarketplaceUrl ? <a className={styles.provider} href={fractionProvider.officialMarketplaceUrl} target="_blank" rel="noreferrer">Browse provider-listed fractional properties ↗</a> : null}
-        <p className={styles.legal}>A 3D model or mint is digital provenance, not a deed. A portion or full-property purchase is shown as real only when a verified provider/listing and the required legal settlement actually exist.</p>
-      </div>
-    </section> : <section className={styles.start}><div className={styles.cube}><i/><i/><i/></div><b>{busy ? 'ADDING PROPERTY…' : 'ONE PROPERTY. ONE SCREEN.'}</b><span>{message}</span></section>}
+      </> : <>
+        <div className={styles.heroCard}>
+          {model?.modelUrl
+            ? <MeshyModelViewer modelUrl={model.modelUrl}/>
+            : displayImage
+              ? <img src={displayImage} alt={voxelImage ? `Voxel rendering of ${resolvedQuery}` : `Newest open street reference near ${resolvedQuery}`} referrerPolicy="no-referrer"/>
+              : <div className={styles.noPhoto}><b>No photo</b><span>No facade invented.</span></div>}
+          <span className={styles.badge}>{model?.modelUrl ? '3D' : voxelImage ? 'VOXEL IMAGE' : 'REAL REFERENCE'}</span>
+          {!voxelImage && !model?.modelUrl && photos.length > 1 ? <div className={styles.photoPicker}>
+            <button type="button" onClick={() => setPhotoIndex((photoIndex - 1 + photos.length) % photos.length)} aria-label="Previous reference photo">‹</button>
+            <b>{photoIndex + 1}/{photos.length}</b>
+            <button type="button" onClick={() => setPhotoIndex((photoIndex + 1) % photos.length)} aria-label="Next reference photo">›</button>
+          </div> : null}
+        </div>
 
-    <div className={styles.steps}><span>ADD</span><i>→</i><span>BUY PIECE / WHOLE</span><i>→</i><span>MINT</span><i>→</i><span>VAULT</span><i>→</i><span>WORLD</span></div>
+        <div className={styles.meta}>
+          <b>{resolvedQuery}</b>
+          <span>{activePhoto ? `Newest open photo${photoDate ? ` · ${photoDate}` : ''}` : 'No rights-cleared photo available'}</span>
+        </div>
+
+        <div className={styles.actions}>
+          <button className={styles.imageButton} type="button" onClick={createImage} disabled={!activeReference || busy === 'image' || modelRunning}>{busy === 'image' ? 'Creating image…' : voxelImage ? 'Redo image' : 'Create image'}</button>
+          <button className={styles.modelButton} type="button" onClick={create3D} disabled={!voxelImage || Boolean(model?.modelUrl) || busy === '3d' || modelRunning}>{model?.modelUrl ? '✓ 3D created' : busy === '3d' || modelRunning ? `Creating 3D${Number(model?.progress) ? ` · ${Math.round(Number(model.progress))}%` : '…'}` : 'Create 3D'}</button>
+          <button className={styles.vaultButton} type="button" onClick={saveToVault} disabled={!model?.modelUrl || Boolean(saved)}>{saved ? '✓ In Vault' : 'Vault'}</button>
+        </div>
+
+        <Link className={`${styles.mintLater} ${!saved ? styles.mintDisabled : ''}`} href={saved ? '/vault/properties/claim' : '#'} onClick={(event) => { if (!saved) { event.preventDefault(); setMessage('Save the 3D property to your Vault first.'); } }}>Mint later</Link>
+        <button className={styles.change} type="button" onClick={changeProperty}>Change property</button>
+        <p className={styles.message} role="status">{message}</p>
+        <p className={styles.truth}>The photo guides appearance. Map data guides location. The voxel image and 3D model are digital interpretations, not a deed, survey, or guarantee of perfect physical accuracy.</p>
+      </>}
+    </section>
   </main>;
 }
