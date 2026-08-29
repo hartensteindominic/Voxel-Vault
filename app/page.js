@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import styles from './home.module.css';
 
-// Safety contract for any future purchase/rent controls: real-world rights only activate when a verified provider, lease/listing and required legal path exist.
-// A 3D model or NFT alone is not a deed, lease, ownership share or rent right.
+// Safety contract for any future purchase controls: Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.
+// Rental controls likewise require a real verified lease/provider path. A 3D model or NFT alone is not a deed, lease, ownership share or rent right.
 export default function Home() {
   return <main className={styles.page}>
     <nav className={styles.top}>
