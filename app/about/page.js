@@ -9,10 +9,10 @@ export const metadata = {
 
 export default function AboutPage() {
   return <main className={styles.page}><ProductTopNav/><div className={styles.shell}>
-    <header className={styles.hero}><small>ABOUT VOXEL VAULT</small><h1>One photo.<br/>One digital voxel.</h1><p>Voxel Vault is building VoxelPop: a privacy-conscious property-photo workflow that lets a user inspect a recognizable 3D preview, approve it, and then create a movable voxel version.</p></header>
+    <header className={styles.hero}><small>ABOUT VOXEL VAULT</small><h1>One photo.<br/>One digital voxel.</h1><p>Voxel Vault is building VoxelPop: a privacy-conscious property-photo workflow that lets a user review a photo-matched 3D voxel photo, approve it, and then create a separate movable voxel.</p></header>
     <section className={styles.card}>
       <h2>What the public product is</h2>
-      <p>The current consumer promise is intentionally simple: <strong>upload an authorized photo of a house, pay $4.99 for one digital creation, see the 3D photo preview first, approve it, then build the separate voxel.</strong> Optional mapping, Vault storage, World placement, and blockchain minting come afterward.</p>
+      <p>The current consumer promise is intentionally simple: <strong>upload an authorized photo of a house, pay $4.99 for one digital creation, see the 3D voxel photo first, approve it, then build the separate movable voxel.</strong> Optional mapping, Vault storage, World placement, and blockchain minting come afterward.</p>
       <h2>What it is not</h2>
       <p>Voxel Vault does not claim that a one-photo creation is a perfect survey-grade replica. A digital VoxelPop creation or NFT is not a deed, title record, rent right, physical-property investment, appraisal, or ownership claim.</p>
       <h2>Why the photo stays local</h2>
