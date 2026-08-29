@@ -19,7 +19,7 @@ function errorText(error) {
 export default function MyDigitalEstatesPage() {
   const [session, setSession] = useState(null);
   const [items, setItems] = useState([]);
-  const [status, setStatus] = useState('Loading your secured Digital Twins…');
+  const [status, setStatus] = useState('Loading the properties you bought…');
   const [busy, setBusy] = useState('');
   const clientRef = useRef(null);
 
@@ -29,7 +29,9 @@ export default function MyDigitalEstatesPage() {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || 'Could not load your Digital Twins.');
     setItems(Array.isArray(data.owned) ? data.owned : []);
-    setStatus(data.count ? `${data.count} secured Digital Twin${data.count === 1 ? '' : 's'} in your Vault.` : 'No secured Digital Twins yet.');
+    setStatus(data.count
+      ? `${data.count} purchased Digital Twin${data.count === 1 ? '' : 's'} ready for you.`
+      : 'No purchased Digital Twins are secured to this account yet.');
   }
 
   useEffect(() => {
@@ -42,12 +44,12 @@ export default function MyDigitalEstatesPage() {
       const next = data.session || null;
       setSession(next);
       if (next?.access_token) await loadOwned(next.access_token);
-      else setStatus('Sign in to see Digital Twins you have purchased.');
+      else setStatus('Sign in to see the Digital Twins you bought.');
       const auth = client.auth.onAuthStateChange(async (_event, nextSession) => {
         if (!active) return;
         setSession(nextSession);
         if (nextSession?.access_token) await loadOwned(nextSession.access_token);
-        else { setItems([]); setStatus('Sign in to see Digital Twins you have purchased.'); }
+        else { setItems([]); setStatus('Sign in to see the Digital Twins you bought.'); }
       });
       subscription = auth.data.subscription;
     }).catch((error) => setStatus(errorText(error)));
@@ -86,57 +88,64 @@ export default function MyDigitalEstatesPage() {
       const claim = await response.json().catch(() => ({}));
       if (!response.ok || !claim?.ready) throw new Error(claim?.error || 'Optional mint could not be prepared.');
 
-      setStatus('Ownership is already secured. MetaMask will now open only the optional NFT mint transaction.');
+      setStatus('Your purchase is already secured. MetaMask is opening only the optional NFT mint transaction.');
       const minted = await mintVoxelFlip({ metadataUrl: claim.metadataUrl, voucherId: claim.voucherId, signature: claim.signature });
       window.localStorage.setItem(`vv-digital-estate-mint:${item.estate.id}`, JSON.stringify(minted));
       window.dispatchEvent(new CustomEvent('voxel-vault:transaction-confirmed', { detail: minted }));
-      setStatus(`${item.estate.name} is now onchain in ${short(wallet)}. Minting added public blockchain provenance and wallet visibility; it did not transfer physical-property rights or guarantee higher market value.`);
+      setStatus(`${item.estate.name} is now onchain in ${short(wallet)}. Minting added public provenance; it did not transfer physical-property rights or guarantee higher value.`);
       await loadOwned(session.access_token);
     } catch (error) { setStatus(errorText(error)); }
     finally { setBusy(''); }
   }
 
-  return (
-    <main className="page">
+  return <main className="page">
+    <section className="shell">
       <header>
-        <div><Link href="/vault/earth">← EARTH PROPERTIES</Link><span>MY DIGITAL TWINS</span></div>
-        <Link className="test" href="/vault/test-land">SAFE TESTNET LAND ↗</Link>
+        <Link className="brand" href="/vault"><span>V</span> Voxel Vault</Link>
+        <nav><Link href="/property">Create</Link><Link href="/world">World</Link><Link href="/more">More</Link></nav>
       </header>
+
       <section className="hero">
-        <div className="eyebrow"><i /> PURCHASE FIRST · BLOCKCHAIN BACKUP WHEN YOU WANT</div>
-        <h1>Your twins.<br/><em>Minting is encouraged.</em></h1>
-        <p>Secure checkout locks a Digital Twin to your Voxel Vault account first. A wallet is not required to buy. If you choose the blockchain backup later, the first wallet you approve becomes the permanent mint wallet for that purchase.</p>
+        <small>BOUGHT · THEN CREATE</small>
+        <h1>The ones you bought.<br/><em>Make them into voxels.</em></h1>
+        <p>Your secured Digital Estate purchase is the starting point—not a dead end. Open it, create an interactive 3D voxel from the purchased design, save that creation to your Vault, and mint only if you want the optional blockchain backup.</p>
+        <div className="flow"><span>✓ BOUGHT</span><i>→</i><span>3D VOXEL</span><i>→</i><span>SAVE TO VAULT</span><i>→</i><span>MINT · OPTIONAL</span></div>
       </section>
 
-      <div className="status">{status}</div>
-      {!session ? <button className="signin" onClick={signIn} disabled={Boolean(busy)}>SIGN IN TO MY VAULT</button> : null}
+      <div className="status" role="status">{status}</div>
+      {!session ? <button className="signin" onClick={signIn} disabled={Boolean(busy)}>{busy === 'signin' ? 'OPENING SIGN-IN…' : 'SIGN IN TO MY BOUGHT PROPERTIES'}</button> : null}
+
+      {session && !items.length ? <section className="empty"><b>No bought properties here yet.</b><span>When a Digital Estate purchase is secured to this account, it will show up here with a 3D voxel button.</span><Link href="/vault/earth">Explore properties</Link></section> : null}
 
       <section className="grid">
         {items.map((item) => <article key={item.estate.id}>
-          <div className="visual" style={{'--accent': item.estate.accent}}>
-            <div className="land"/><div className="house"><b/><b/><b/></div><span>{item.minted === true ? 'ONCHAIN' : 'SECURED'}</span>
+          <div className="visual" style={{'--accent': item.estate.accent, '--terrain': item.estate.terrain, '--structure': item.estate.structure, '--roof': item.estate.roof}}>
+            <div className="land"/><div className="house"><b/><b/><b/></div><span>{item.minted === true ? 'BOUGHT · ONCHAIN' : 'BOUGHT · SECURED'}</span>
           </div>
           <div className="body">
             <small>{item.estate.locationLabel}</small>
             <h2>{item.estate.name}</h2>
-            <div className="price">{formatUsdCents(item.estate.purchasePriceCents)}</div>
+            <p className="summary">{item.estate.summary}</p>
+            <div className="price">{formatUsdCents(item.estate.purchasePriceCents)} <span>digital purchase</span></div>
+            <Link className="create" href={`/vault/estates/mine/${encodeURIComponent(item.estate.id)}/voxel`}>CREATE MY 3D VOXEL →</Link>
+            <div className="included">✓ Included with the secured purchase · no second creation charge</div>
             <dl>
-              <div><dt>STATUS</dt><dd>{item.minted === true ? 'Owned · Minted' : item.minted === false ? 'Owned · Not minted' : 'Owned · Chain status unavailable'}</dd></div>
+              <div><dt>PURCHASE</dt><dd>Secured to this account</dd></div>
+              <div><dt>VOXEL</dt><dd>Ready to create</dd></div>
               <div><dt>MINT WALLET</dt><dd>{short(item.wallet)}</dd></div>
-              <div><dt>PAYMENT</dt><dd>{item.paymentSource === 'base-usdc' ? 'Base USDC' : 'Secure checkout'}</dd></div>
             </dl>
             {item.minted === true
-              ? <div className="minted">✓ BLOCKCHAIN BACKUP ACTIVE</div>
+              ? <div className="minted">✓ OPTIONAL BLOCKCHAIN BACKUP ACTIVE</div>
               : <button className="mint" onClick={() => mintLater(item)} disabled={Boolean(busy)}>{busy === item.estate.id ? 'PREPARING…' : item.wallet ? 'MINT TO BASE · ENCOURAGED BACKUP' : 'CONNECT WALLET + MINT · ENCOURAGED'}</button>}
-            <p className="note">Your account purchase remains secured whether you mint now, later, or never.</p>
+            <p className="note">Minting is optional. Creating and saving the voxel does not require a wallet.</p>
           </div>
         </article>)}
       </section>
 
-      <div className="truth"><strong>DIGITAL BACKUP, NOT THE DEED</strong> Minting adds public blockchain provenance and wallet portability. It does not itself transfer physical title, create rent entitlement, or guarantee appreciation.</div>
-      <style jsx>{`
-        :global(body){margin:0;background:#06070a;color:#f5f6f8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:22px clamp(18px,4vw,60px) 90px;background:radial-gradient(circle at 72% 10%,rgba(115,93,255,.15),transparent 28%),#06070a}header{display:flex;justify-content:space-between;align-items:center;gap:16px}header div{display:flex;gap:18px;align-items:center}header a{color:#7f8797;text-decoration:none;font-size:9px;font-weight:900;letter-spacing:.12em}header span{font-size:9px;font-weight:950;letter-spacing:.16em}.test{border:1px solid rgba(255,255,255,.1);padding:10px 12px;border-radius:12px}.hero{max-width:900px;margin:90px 0 42px}.eyebrow{font-size:9px;letter-spacing:.17em;color:#8d96a8;font-weight:900}.eyebrow i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#79efbc;margin-right:8px;box-shadow:0 0 18px #79efbc}.hero h1{font-size:clamp(52px,8vw,105px);letter-spacing:-.065em;line-height:.88;margin:17px 0 22px}.hero h1 em{font-style:normal;color:#767e90}.hero p{max-width:720px;color:#8a93a5;font-size:13px;line-height:1.75}.status{max-width:850px;padding:14px 16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);border-radius:14px;color:#9ba4b5;font-size:11px;margin-bottom:18px}.signin,.mint{border:0;border-radius:13px;background:#fff;color:#07080b;padding:14px 16px;font-size:9px;font-weight:950;letter-spacing:.1em}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-top:28px}.grid article{border:1px solid rgba(255,255,255,.09);border-radius:24px;overflow:hidden;background:linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.015))}.visual{height:190px;position:relative;overflow:hidden;background:radial-gradient(circle at 55% 35%,color-mix(in srgb,var(--accent) 32%, transparent),transparent 36%),linear-gradient(#11151c,#080a0e)}.land{position:absolute;left:10%;right:10%;bottom:18%;height:25%;background:#202b25;transform:perspective(300px) rotateX(58deg);border-radius:10px}.house{position:absolute;left:24%;right:24%;bottom:29%;height:39%;background:#d9d4ca;border-radius:3px;box-shadow:0 20px 45px rgba(0,0,0,.4)}.house:before{content:'';position:absolute;left:-8%;right:-8%;height:12%;top:-7%;background:#343842}.house b{position:absolute;background:var(--accent);opacity:.8;bottom:16%;width:18%;height:35%}.house b:nth-child(1){left:12%}.house b:nth-child(2){left:41%}.house b:nth-child(3){right:12%}.visual span{position:absolute;top:14px;left:14px;font-size:8px;font-weight:950;letter-spacing:.12em;background:rgba(4,7,9,.7);border:1px solid rgba(255,255,255,.1);padding:7px 9px;border-radius:999px}.body{padding:20px}.body small{color:#788194;font-size:8px;letter-spacing:.13em;font-weight:900}.body h2{font-size:24px;letter-spacing:-.04em;margin:6px 0}.price{font-size:28px;font-weight:900;letter-spacing:-.04em;margin-bottom:16px}dl{display:grid;gap:8px;margin:0 0 16px}dl div{display:flex;justify-content:space-between;gap:12px;border-top:1px solid rgba(255,255,255,.06);padding-top:8px}dt{font-size:7px;color:#687183;font-weight:900;letter-spacing:.12em}dd{margin:0;font-size:9px;color:#a3aaba;text-align:right}.mint{width:100%;background:#6656df;color:#fff}.minted{padding:13px;border-radius:12px;background:rgba(121,239,188,.08);border:1px solid rgba(121,239,188,.18);color:#79efbc;text-align:center;font-size:8px;font-weight:950;letter-spacing:.1em}.note{font-size:8px;color:#666f80;line-height:1.5;margin:10px 0 0}.truth{margin-top:35px;max-width:950px;color:#697284;font-size:9px;line-height:1.6;border-top:1px solid rgba(255,255,255,.07);padding-top:20px}.truth strong{display:block;color:#9aa3b4;letter-spacing:.14em;font-size:8px;margin-bottom:5px}@media(max-width:620px){.page{padding:18px 14px 80px}.hero{margin-top:58px}header span{display:none}.hero h1{font-size:54px}.grid{grid-template-columns:1fr}}
-      `}</style>
-    </main>
-  );
+      <div className="truth"><strong>DIGITAL PURCHASE ≠ PHYSICAL DEED</strong> The voxel is a digital creation derived from the Digital Estate design you purchased. Neither the purchase, voxel nor NFT itself transfers physical title, rent, occupancy, fractional ownership, or guaranteed appreciation.</div>
+    </section>
+    <style jsx>{`
+      :global(body){margin:0;background:#fff9ef;color:#251d2a;font-family:Inter,ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{min-height:100vh;padding:12px 12px calc(100px + env(safe-area-inset-bottom));background:radial-gradient(circle at 5% 20%,#eaffad 0,transparent 25%),radial-gradient(circle at 94% 4%,#ede3ff 0,transparent 28%),#fff9ef}.shell{width:min(1040px,100%);margin:auto}header{min-height:58px;display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:9px;color:#251d2a;text-decoration:none;font-size:12px;font-weight:1000}.brand span{width:36px;height:36px;border-radius:12px;background:#7138f5;color:#fff;display:grid;place-items:center;box-shadow:0 5px 0 #4e20be}nav{display:flex;gap:6px}nav a{min-height:40px;padding:0 12px;display:flex;align-items:center;border:1px solid #e0d8e4;border-radius:999px;background:#ffffffc7;color:#665d69;text-decoration:none;font-size:10px;font-weight:900}.hero{padding:50px 0 25px;max-width:880px}.hero small{color:#7041ed;font-size:10px;font-weight:1000;letter-spacing:.14em}.hero h1{font-size:clamp(50px,8vw,82px);line-height:.88;letter-spacing:-.065em;margin:12px 0 18px}.hero h1 em{font-style:normal;color:#7653d9}.hero p{max-width:760px;margin:0;color:#746b78;font-size:14px;line-height:1.7}.flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:18px}.flow span{padding:8px 10px;border-radius:999px;background:#fff;border:1px solid #e1d9e5;color:#605765;font-size:8px;font-weight:950;letter-spacing:.06em}.flow span:first-child{background:#e9ffc0;border-color:#cee991;color:#3f571c}.flow i{font-style:normal;color:#a79eaa}.status{max-width:850px;padding:13px 15px;border:1px solid #e1dae5;background:#ffffffb8;border-radius:15px;color:#746a77;font-size:11px;margin:0 0 15px}.signin{min-height:48px;border:0;border-radius:15px;background:#7138f5;color:#fff;padding:0 17px;font-size:10px;font-weight:1000;box-shadow:0 6px 0 #4e20be}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;margin-top:24px}.grid article{overflow:hidden;border:1px solid #e1dae6;border-radius:28px;background:#ffffffdc;box-shadow:0 18px 50px #5b3b8d0b}.visual{height:210px;position:relative;overflow:hidden;background:linear-gradient(#f2eaff,#fff5e8)}.land{position:absolute;left:8%;right:8%;bottom:10%;height:35%;background:var(--terrain);transform:perspective(360px) rotateX(60deg);border-radius:18px}.house{position:absolute;left:23%;right:23%;bottom:28%;height:42%;background:var(--structure);border-radius:7px;box-shadow:0 18px 36px #2a1e3022}.house:before{content:'';position:absolute;left:-8%;right:-8%;height:14%;top:-7%;background:var(--roof);border-radius:4px}.house b{position:absolute;background:var(--accent);bottom:18%;width:18%;height:35%;border-radius:2px}.house b:nth-child(1){left:12%}.house b:nth-child(2){left:41%}.house b:nth-child(3){right:12%}.visual span{position:absolute;top:13px;left:13px;padding:8px 10px;border-radius:999px;background:#e8ffb7;color:#3f571c;font-size:8px;font-weight:1000;letter-spacing:.07em}.body{padding:20px}.body small{color:#8665d7;font-size:8px;letter-spacing:.1em;font-weight:950;text-transform:uppercase}.body h2{font-size:27px;letter-spacing:-.045em;margin:6px 0 7px}.summary{margin:0;color:#7a707c;font-size:11px;line-height:1.55;min-height:50px}.price{font-size:22px;font-weight:1000;letter-spacing:-.03em;margin:16px 0}.price span{font-size:8px;color:#9c929e;letter-spacing:.06em;text-transform:uppercase}.create{min-height:52px;display:grid;place-items:center;border-radius:16px;background:#7138f5;color:#fff;text-decoration:none;font-size:11px;font-weight:1000;box-shadow:0 6px 0 #4e20be}.included{margin-top:10px;padding:9px 10px;border-radius:12px;background:#f1ffdb;color:#617443;font-size:9px;font-weight:800}.body dl{display:grid;gap:7px;margin:17px 0}.body dl div{display:flex;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid #eee8ef}.body dt{font-size:7px;color:#a096a2;font-weight:950;letter-spacing:.08em}.body dd{margin:0;font-size:9px;color:#665c69;text-align:right;font-weight:800}.mint{width:100%;min-height:45px;border:1px solid #ded6e2;border-radius:14px;background:#fff;color:#615668;font-size:9px;font-weight:950}.minted{padding:13px;border-radius:14px;background:#e9ffc0;color:#466023;text-align:center;font-size:8px;font-weight:1000;letter-spacing:.08em}.note{font-size:9px;color:#938a95;line-height:1.5;margin:10px 0 0}.empty{max-width:650px;margin:24px 0;padding:28px;border:1px dashed #d9d0df;border-radius:25px;background:#ffffffc7;display:grid;gap:8px}.empty b{font-size:21px}.empty span{font-size:12px;color:#7b727f;line-height:1.6}.empty a{width:max-content;margin-top:4px;color:#6a3ee0;font-size:11px;font-weight:950;text-decoration:none}.truth{margin-top:26px;padding-top:17px;border-top:1px solid #e5dde7;max-width:900px;color:#8b818e;font-size:10px;line-height:1.6}.truth strong{display:block;color:#625865;letter-spacing:.1em;font-size:8px;margin-bottom:5px}@media(max-width:620px){.page{padding-left:9px;padding-right:9px}.hero{padding-top:35px}.hero h1{font-size:52px}.grid{grid-template-columns:1fr}.visual{height:200px}nav a:nth-child(2){display:none}}
+    `}</style>
+  </main>;
 }
