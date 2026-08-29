@@ -2,6 +2,7 @@ import { WalletIdentityProvider } from './components/WalletIdentity';
 import FinancialOSNav from './components/FinancialOSNav';
 import AppCommandCenter from './components/AppCommandCenter';
 import ConsumerFooter from './components/ConsumerFooter';
+import './ui-system.css';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 import './spatial-os-interactions.css';
