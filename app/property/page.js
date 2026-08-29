@@ -458,7 +458,7 @@ export default function PropertyJourneyPage() {
         <p className={styles.bigPrompt}>Building the first 3D.</p>
         <p className={styles.stepCopy}>VoxelPop is making a 3D interpretation from your authorized photo. Your photo stays visible until the 3D canvas has actually loaded.</p>
         <div className={styles.heroCard}>{source3d?.modelUrl ? <MeshyModelViewer modelUrl={source3d.modelUrl} fallbackImageUrl={displaySource}/> : displaySource ? <img src={displaySource} alt="Source being turned into 3D"/> : null}<span className={styles.badge}>3D BUILD · {Math.round(Number(source3d?.progress || 0))}%</span><div className={styles.buildPulse}/></div>
-        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>Image first → first 3D → VoxelPop image → final movable 3D.</span></div>
+        <div className={styles.autoPanel}><b>AUTOMATIC BUILD</b><span>No extra button. First 3D → VoxelPop look → final 3D voxel. Your image stays visible until each 3D render is ready.</span></div>
       </> : null}
 
       {step === 3 ? <>
