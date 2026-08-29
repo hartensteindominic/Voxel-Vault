@@ -61,7 +61,7 @@ export default function DemoPage() {
         <span>You can inspect the product interaction before creating an account. It does not claim that one photo can reconstruct unseen walls, exact dimensions, roof geometry, title, or any physical-property right.</span>
       </section>
 
-      <footer className={styles.footer}><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/about">About + contact</Link><Link href="/more">More tools</Link></footer>
+      <footer className={styles.footer}><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/about">About</Link><Link href="/about#contact">Contact</Link><Link href="/more">More tools</Link></footer>
     </div>
   </main>;
 }
