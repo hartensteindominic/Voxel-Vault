@@ -29,7 +29,7 @@ export default function ProductTopNav({ className = '' }) {
         const active = activeFor(pathname, item.href);
         return <Link key={item.href} className={active ? styles.active : ''} href={item.href} aria-current={active ? 'page' : undefined}>{item.label}</Link>;
       })}
-      <Link className={styles.demo} href="/demo" aria-current={pathname === '/demo' ? 'page' : undefined}>3D demo</Link>
+      <Link className={styles.demo} href="/demo" aria-current={pathname === '/demo' ? 'page' : undefined}>Demo</Link>
     </div>
   </nav>;
 }
