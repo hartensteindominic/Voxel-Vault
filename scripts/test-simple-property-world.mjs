@@ -70,7 +70,7 @@ assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3
 assert.match(property, /MeshyModelViewer/, 'generated source/final models must be viewable interactively');
 assert.doesNotMatch(property, /eth_requestAccounts|mintVoxelFlip/, 'wallet/mint execution must not block the guided maker');
 
-// Private upload must fail clearly and recover from storage races.
+// Private upload must fail clearly and recover from storage races/credential configuration.
 assert.match(photoUploadRoute, /requireVoxelVaultUser/, 'photo upload requires a verified account');
 assert.match(photoUploadRoute, /draftId/, 'photo upload must support creation-before-location');
 assert.match(photoUploadRoute, /public:\s*false/, 'source-photo bucket creation stays private');
@@ -81,7 +81,10 @@ assert.match(photoUploadRoute, /randomUUID/, 'retries must use a unique private 
 assert.match(photoUploadRoute, /upsert:\s*false/, 'property photo uploads should be insert-only');
 assert.match(photoUploadRoute, /attempt < 2/, 'private photo upload must retry once after re-checking storage');
 assert.match(photoUploadRoute, /setupRequired/, 'storage setup failures must be surfaced explicitly');
-assert.match(supabaseAdmin, /SUPABASE_SERVICE_ROLE_KEY \|\| process\.env\.SUPABASE_SECRET_KEY/, 'server storage must prefer the explicit service-role key');
+assert.match(photoUploadRoute, /getSupabaseAdminCandidates/, 'private storage should try every configured supported server credential');
+assert.match(supabaseAdmin, /getSupabaseAdminCandidates/, 'Supabase server helper must expose credential candidates');
+assert.match(supabaseAdmin, /SUPABASE_SECRET_KEY/, 'new Supabase server secret must remain supported');
+assert.match(supabaseAdmin, /SUPABASE_SERVICE_ROLE_KEY/, 'legacy service-role credential must remain supported');
 assert.match(storageMigration, /'voxel-system', 'voxel-system', false, 78643200/, 'migration must guarantee the private voxel-system bucket');
 assert.match(storageMigration, /on conflict \(id\) do update/, 'storage bucket migration must be idempotent');
 
@@ -114,7 +117,7 @@ for (const tier of ['classic', 'detailed', 'landmark']) assert.match(collectible
 assert.match(collectibleCommerce, /footprintPoints/, 'pricing may use source-backed mapped footprint complexity');
 assert.match(collectibleCommerce, /heightMeters/, 'pricing may use source-backed mapped height complexity');
 assert.doesNotMatch(collectibleCommerce, /zestimate|marketValue|assessedValue|salePrice/i, 'digital price must never derive from real-property market valuation');
-assert.match(quoteRoute, /digital build complexity, not the market value of the real property/i, 'quote API must explain the pricing boundary');
+assert.match(quoteRoute, /digital build complexity, not the market value of the physical property/i, 'quote API must explain the pricing boundary');
 
 // One digital collectible per source-backed World identity, with server-authoritative Stripe verification.
 assert.match(collectibleCommerce, /propertyCollectibleIdentity/, 'collection uniqueness must use a server-derived World identity key');
@@ -125,6 +128,8 @@ assert.match(collectibleCommerce, /propertyDraftItemId\(input\.userId, draftId, 
 assert.match(checkoutRoute, /verifyOwnedFinalVoxelModel/, 'checkout must verify the final model belongs to the buyer and creation');
 assert.match(checkoutRoute, /quotePropertyCollectible\(building\)/, 'checkout recomputes price on the server');
 assert.match(checkoutRoute, /kind: 'property_voxel_collectible'/, 'Stripe metadata must identify this product rail');
+assert.match(checkoutRoute, /VoxelPop Digital Voxel/, 'Stripe product name must identify the digital voxel rather than the physical property');
+assert.match(checkoutRoute, /does not buy the physical property/, 'Stripe product description must preserve the physical-property boundary');
 assert.match(checkoutRoute, /digital_only_no_real_property_rights/, 'Stripe checkout metadata preserves digital-only rights');
 assert.match(checkoutRoute, /optional_after_purchase_and_property_verification/, 'wallet mint remains downstream and optional');
 assert.match(checkoutRoute, /success_url: `\$\{appUrl\}\/property\/success/, 'payment returns through the Vault delivery page');
