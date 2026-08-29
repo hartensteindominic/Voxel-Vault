@@ -6,48 +6,40 @@ import { useMemo, useState } from 'react';
 const initialCards = [
   {
     id: 'everyday',
-    name: 'Everyday',
-    holder: 'DOMINIC H',
+    name: 'Everyday demo',
+    holder: 'VAULT MEMBER',
     last4: '4821',
-    number: '4242 8301 7714 4821',
-    expiry: '08/30',
-    cvv: '731',
     frozen: false,
     limit: 3500,
     spent: 1284.62,
-    network: 'VISA',
     tone: 'violet',
   },
   {
     id: 'online',
-    name: 'Online only',
-    holder: 'DOMINIC H',
+    name: 'Online demo',
+    holder: 'VAULT MEMBER',
     last4: '1940',
-    number: '4000 7013 5218 1940',
-    expiry: '11/30',
-    cvv: '264',
     frozen: false,
     limit: 1200,
     spent: 316.18,
-    network: 'VISA',
     tone: 'blue',
   },
 ];
 
 const initialTransactions = [
-  { id: 1, merchant: 'Acme Hosting', detail: 'Software · Today', amount: -24, icon: 'A', category: 'Software' },
-  { id: 2, merchant: 'Coffee District', detail: 'Food & drink · Today', amount: -7.85, icon: 'C', category: 'Food' },
-  { id: 3, merchant: 'Demo payroll', detail: 'Income · Yesterday', amount: 2850, icon: '↗', category: 'Income' },
-  { id: 4, merchant: 'Metro Market', detail: 'Groceries · Aug 27', amount: -83.46, icon: 'M', category: 'Groceries' },
-  { id: 5, merchant: 'Cloudbox', detail: 'Software · Aug 26', amount: -18, icon: 'C', category: 'Software' },
-  { id: 6, merchant: 'Northstar Energy', detail: 'Utilities · Aug 25', amount: -121.32, icon: 'N', category: 'Utilities' },
+  { id: 1, merchant: 'Acme Hosting', detail: 'Simulated software purchase · Today', amount: -24, icon: 'A' },
+  { id: 2, merchant: 'Coffee District', detail: 'Simulated food purchase · Today', amount: -7.85, icon: 'C' },
+  { id: 3, merchant: 'Demo payroll', detail: 'Simulated income · Yesterday', amount: 2850, icon: '↗' },
+  { id: 4, merchant: 'Metro Market', detail: 'Simulated groceries · Aug 27', amount: -83.46, icon: 'M' },
+  { id: 5, merchant: 'Cloudbox', detail: 'Simulated software purchase · Aug 26', amount: -18, icon: 'C' },
+  { id: 6, merchant: 'Northstar Energy', detail: 'Simulated utility bill · Aug 25', amount: -121.32, icon: 'N' },
 ];
 
 const navItems = [
   ['overview', '⌂', 'Overview'],
-  ['cards', '▤', 'Cards'],
+  ['cards', '▤', 'Digital cards'],
   ['activity', '↕', 'Activity'],
-  ['payments', '→', 'Payments'],
+  ['payments', '→', 'Transfers'],
 ];
 
 function money(value) {
@@ -60,14 +52,14 @@ function CardArtwork({ card, compact = false }) {
       <div className="vb-card-glow vb-card-glow-one" />
       <div className="vb-card-glow vb-card-glow-two" />
       <div className="vb-card-topline">
-        <div className="vb-card-brand"><span className="vb-brand-mark">V</span><b>VAULT</b></div>
+        <div className="vb-card-brand"><span className="vb-brand-mark">V</span><b>VAULT · DEMO</b></div>
         <span className="vb-card-chip" aria-hidden="true" />
       </div>
       <div className="vb-card-number">•••• &nbsp;•••• &nbsp;•••• &nbsp;{card.last4}</div>
       <div className="vb-card-bottom">
-        <div><span>CARD HOLDER</span><b>{card.holder}</b></div>
-        <div><span>EXPIRES</span><b>{card.expiry}</b></div>
-        <strong>{card.network}</strong>
+        <div><span>DEMO HOLDER</span><b>{card.holder}</b></div>
+        <div><span>STATUS</span><b>{card.frozen ? 'FROZEN' : 'SANDBOX'}</b></div>
+        <strong>DEMO</strong>
       </div>
       {card.frozen && <div className="vb-card-frozen-label">FROZEN</div>}
     </div>
@@ -76,7 +68,7 @@ function CardArtwork({ card, compact = false }) {
 
 function TinySparkline() {
   return (
-    <svg className="vb-sparkline" viewBox="0 0 260 76" role="img" aria-label="Balance trend rising over the last month">
+    <svg className="vb-sparkline" viewBox="0 0 260 76" role="img" aria-label="Simulated balance trend over the last month">
       <defs>
         <linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="currentColor" stopOpacity="0.26" />
@@ -100,7 +92,7 @@ export default function BankClient() {
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
   const [transfer, setTransfer] = useState({ recipient: '', amount: '' });
-  const [newCard, setNewCard] = useState({ name: 'Virtual card', limit: '1000' });
+  const [newCard, setNewCard] = useState({ name: 'Virtual demo card', limit: '1000' });
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) || cards[0];
   const total = balance + savings;
@@ -116,72 +108,74 @@ export default function BankClient() {
 
   function toggleFreeze() {
     setCards((current) => current.map((card) => card.id === selectedCard.id ? { ...card, frozen: !card.frozen } : card));
-    notify(selectedCard.frozen ? 'Card unfrozen' : 'Card frozen');
+    notify(selectedCard.frozen ? 'Demo card unfrozen' : 'Demo card frozen');
   }
 
   function addDemoFunds() {
     const amount = 500;
     setBalance((value) => value + amount);
     setTransactions((current) => [
-      { id: Date.now(), merchant: 'Demo top up', detail: 'Demo funds · Just now', amount, icon: '+', category: 'Income' },
+      { id: Date.now(), merchant: 'Demo top up', detail: 'Simulation only · Just now', amount, icon: '+' },
       ...current,
     ]);
-    notify('Added $500 in demo funds');
+    notify('Added $500 to the simulated balance');
   }
 
-  function sendTransfer(event) {
+  function simulateTransfer(event) {
     event.preventDefault();
     const amount = Number(transfer.amount);
     if (!transfer.recipient.trim() || !Number.isFinite(amount) || amount <= 0) {
-      notify('Enter a recipient and valid amount');
+      notify('Enter a demo recipient and valid amount');
       return;
     }
     if (amount > balance) {
-      notify('Demo balance is too low');
+      notify('Simulated balance is too low');
       return;
     }
+
     setBalance((value) => value - amount);
     setTransactions((current) => [
       {
         id: Date.now(),
         merchant: transfer.recipient.trim(),
-        detail: 'Transfer · Just now',
+        detail: 'Simulated transfer · Just now',
         amount: -amount,
         icon: '→',
-        category: 'Transfer',
       },
       ...current,
     ]);
     setTransfer({ recipient: '', amount: '' });
     setModal(null);
-    notify('Demo transfer completed');
+    notify('Transfer simulated — no money moved');
   }
 
   function createVirtualCard(event) {
     event.preventDefault();
-    const limit = Math.max(100, Number(newCard.limit) || 1000);
-    const last4 = String(Math.floor(1000 + Math.random() * 9000));
+    if (cards.length >= 6) {
+      notify('Demo card limit reached');
+      return;
+    }
+
+    const limit = Math.min(10000, Math.max(100, Number(newCard.limit) || 1000));
+    const sequence = String(cards.length + 1).padStart(4, '0');
     const id = `virtual-${Date.now()}`;
     const card = {
       id,
-      name: newCard.name.trim() || 'Virtual card',
-      holder: 'DOMINIC H',
-      last4,
-      number: `4000 7712 8406 ${last4}`,
-      expiry: '08/31',
-      cvv: String(Math.floor(100 + Math.random() * 900)),
+      name: newCard.name.trim() || 'Virtual demo card',
+      holder: 'VAULT MEMBER',
+      last4: sequence,
       frozen: false,
       limit,
       spent: 0,
-      network: 'VISA',
       tone: cards.length % 2 ? 'violet' : 'blue',
     };
+
     setCards((current) => [...current, card]);
     setSelectedCardId(id);
-    setNewCard({ name: 'Virtual card', limit: '1000' });
+    setNewCard({ name: 'Virtual demo card', limit: '1000' });
     setModal(null);
     setSection('cards');
-    notify('Demo virtual card created');
+    notify('Simulated digital card created');
   }
 
   function updateLimit(event) {
@@ -194,12 +188,12 @@ export default function BankClient() {
       <aside className="vb-sidebar">
         <Link href="/" className="vb-logo" aria-label="Back to Voxel Vault">
           <span className="vb-logo-mark">V</span>
-          <span><b>Vault</b><small>Bank</small></span>
+          <span><b>Vault</b><small>Bank sandbox</small></span>
         </Link>
 
-        <div className="vb-demo-pill"><span /> DEMO BANKING</div>
+        <div className="vb-demo-pill"><span /> DEMO · NOT MONEY</div>
 
-        <nav className="vb-nav" aria-label="Bank navigation">
+        <nav className="vb-nav" aria-label="Bank sandbox navigation">
           {navItems.map(([id, icon, label]) => (
             <button key={id} className={section === id ? 'active' : ''} onClick={() => setSection(id)}>
               <span>{icon}</span>{label}
@@ -208,11 +202,11 @@ export default function BankClient() {
         </nav>
 
         <div className="vb-sidebar-bottom">
-          <button onClick={() => notify('Support is a demo in this build')}><span>?</span>Help center</button>
-          <button onClick={() => notify('Settings are a demo in this build')}><span>⚙</span>Settings</button>
+          <button onClick={() => notify('Help center is not connected in this prototype')}><span>?</span>Help center</button>
+          <button onClick={() => notify('Settings are simulated in this prototype')}><span>⚙</span>Settings</button>
           <div className="vb-user-chip">
-            <div className="vb-avatar">DH</div>
-            <div><b>Dominic</b><small>Personal account</small></div>
+            <div className="vb-avatar">VV</div>
+            <div><b>Demo member</b><small>Sandbox account</small></div>
             <span>⌄</span>
           </div>
         </div>
@@ -222,18 +216,18 @@ export default function BankClient() {
         <header className="vb-topbar">
           <div>
             <div className="vb-mobile-logo"><span className="vb-logo-mark">V</span><b>Vault Bank</b></div>
-            <h1>{section === 'overview' ? 'Welcome back, Dominic' : section[0].toUpperCase() + section.slice(1)}</h1>
-            <p>{section === 'overview' ? 'Here’s your money at a glance.' : 'Manage everything from one clean workspace.'}</p>
+            <h1>{section === 'overview' ? 'Your money UI, safely sandboxed' : section[0].toUpperCase() + section.slice(1)}</h1>
+            <p>{section === 'overview' ? 'Explore balances, digital cards, controls, and transfer flows without moving real funds.' : 'Every action on this page remains a local simulation.'}</p>
           </div>
           <div className="vb-top-actions">
-            <button className="vb-icon-button" onClick={() => notify('No new alerts')} aria-label="Notifications">♢</button>
-            <button className="vb-primary-button" onClick={() => setModal('new-card')}>+ New card</button>
+            <button className="vb-icon-button" onClick={() => notify('No demo alerts')} aria-label="Notifications">♢</button>
+            <button className="vb-primary-button" onClick={() => setModal('new-card')}>+ Demo card</button>
           </div>
         </header>
 
-        <div className="vb-safety-note">
+        <div className="vb-safety-note" role="note">
           <span>i</span>
-          <p><b>Prototype mode.</b> Balances, cards and transfers on this page are simulated. Real deposits or card issuance require a regulated banking/card provider integration.</p>
+          <p><b>SANDBOX FINANCE · NOT MONEY.</b> Balances, transactions, cards, and controls below are simulated. No deposit is held, no payment is sent, and no debit or credit card is issued. A live launch requires approved banking, identity, ledger, fraud, and card-issuing providers.</p>
         </div>
 
         {section === 'overview' && (
@@ -241,24 +235,24 @@ export default function BankClient() {
             <div className="vb-overview-grid">
               <article className="vb-balance-card">
                 <div className="vb-panel-heading">
-                  <div><span>Total balance</span><h2>{money(total)}</h2></div>
-                  <button onClick={() => setSection('activity')}>•••</button>
+                  <div><span>Total demo balance · not money</span><h2>{money(total)}</h2></div>
+                  <button onClick={() => setSection('activity')} aria-label="Open activity">•••</button>
                 </div>
-                <div className="vb-balance-trend"><b>+4.8%</b><span>this month</span></div>
+                <div className="vb-balance-trend"><b>SIMULATED</b><span>30-day balance trend</span></div>
                 <TinySparkline />
                 <div className="vb-account-strip">
-                  <div><span>Checking</span><b>{money(balance)}</b></div>
-                  <div><span>Savings</span><b>{money(savings)}</b></div>
+                  <div><span>Demo checking</span><b>{money(balance)}</b></div>
+                  <div><span>Demo savings</span><b>{money(savings)}</b></div>
                 </div>
               </article>
 
               <article className="vb-quick-card">
-                <div className="vb-panel-title"><div><span className="vb-kicker">QUICK ACTIONS</span><h3>Move money</h3></div></div>
+                <div className="vb-panel-title"><div><span className="vb-kicker">QUICK ACTIONS</span><h3>Try the banking flow</h3></div></div>
                 <div className="vb-quick-grid">
-                  <button onClick={() => setModal('transfer')}><span>↗</span><b>Transfer</b><small>Send money</small></button>
-                  <button onClick={addDemoFunds}><span>＋</span><b>Add money</b><small>Demo top up</small></button>
-                  <button onClick={() => { setSection('cards'); notify('Choose a card to manage'); }}><span>▤</span><b>Cards</b><small>Manage cards</small></button>
-                  <button onClick={() => notify('Bank details are hidden in demo mode')}><span>⌁</span><b>Bank details</b><small>Routing & account</small></button>
+                  <button onClick={() => setModal('transfer')}><span>↗</span><b>Transfer</b><small>Simulate only</small></button>
+                  <button onClick={addDemoFunds}><span>＋</span><b>Add demo funds</b><small>Local balance</small></button>
+                  <button onClick={() => { setSection('cards'); notify('Choose a demo card to manage'); }}><span>▤</span><b>Digital cards</b><small>Controls</small></button>
+                  <button onClick={() => notify('No routing or account number exists in sandbox mode')}><span>⌁</span><b>Account ID</b><small>VV-SBX-1047</small></button>
                 </div>
               </article>
             </div>
@@ -266,28 +260,28 @@ export default function BankClient() {
             <div className="vb-content-grid">
               <article className="vb-panel vb-card-panel">
                 <div className="vb-panel-title">
-                  <div><span className="vb-kicker">DIGITAL CARD</span><h3>{selectedCard.name}</h3></div>
+                  <div><span className="vb-kicker">DIGITAL CARD · SANDBOX</span><h3>{selectedCard.name}</h3></div>
                   <button className="vb-text-button" onClick={() => setSection('cards')}>Manage →</button>
                 </div>
                 <CardArtwork card={selectedCard} />
                 <div className="vb-card-actions">
                   <button onClick={toggleFreeze}><span>{selectedCard.frozen ? '▶' : '❄'}</span>{selectedCard.frozen ? 'Unfreeze' : 'Freeze'}</button>
-                  <button onClick={() => { setRevealed((value) => !value); }}><span>◉</span>{revealed ? 'Hide' : 'Details'}</button>
-                  <button onClick={() => setModal('new-card')}><span>＋</span>New card</button>
+                  <button onClick={() => setRevealed((value) => !value)}><span>◉</span>{revealed ? 'Hide' : 'Demo ID'}</button>
+                  <button onClick={() => setModal('new-card')}><span>＋</span>New demo</button>
                 </div>
               </article>
 
               <article className="vb-panel vb-spend-panel">
                 <div className="vb-panel-title">
-                  <div><span className="vb-kicker">AUGUST</span><h3>Spending</h3></div>
+                  <div><span className="vb-kicker">AUGUST · SIMULATED</span><h3>Spending</h3></div>
                   <b className="vb-spend-total">{money(monthlySpend)}</b>
                 </div>
-                <div className="vb-budget-row"><span>Monthly budget</span><b>{Math.round((monthlySpend / 2500) * 100)}% of $2,500</b></div>
+                <div className="vb-budget-row"><span>Demo monthly budget</span><b>{Math.round((monthlySpend / 2500) * 100)}% of $2,500</b></div>
                 <div className="vb-progress"><span style={{ width: `${Math.min(100, monthlySpend / 25)}%` }} /></div>
                 <div className="vb-spend-list">
-                  <div><span className="vb-dot dot-one" /><p><b>Shopping</b><small>42% of spend</small></p><strong>$356</strong></div>
-                  <div><span className="vb-dot dot-two" /><p><b>Food & drink</b><small>31% of spend</small></p><strong>$262</strong></div>
-                  <div><span className="vb-dot dot-three" /><p><b>Bills & software</b><small>27% of spend</small></p><strong>$228</strong></div>
+                  <div><span className="vb-dot dot-one" /><p><b>Shopping</b><small>42% of demo spend</small></p><strong>$356</strong></div>
+                  <div><span className="vb-dot dot-two" /><p><b>Food & drink</b><small>31% of demo spend</small></p><strong>$262</strong></div>
+                  <div><span className="vb-dot dot-three" /><p><b>Bills & software</b><small>27% of demo spend</small></p><strong>$228</strong></div>
                 </div>
               </article>
             </div>
@@ -302,40 +296,40 @@ export default function BankClient() {
               {cards.map((card) => (
                 <button key={card.id} className={`vb-card-choice ${card.id === selectedCard.id ? 'selected' : ''}`} onClick={() => { setSelectedCardId(card.id); setRevealed(false); }}>
                   <CardArtwork card={card} compact />
-                  <div><b>{card.name}</b><span>•••• {card.last4}</span></div>
+                  <div><b>{card.name}</b><span>DEMO · {card.last4}</span></div>
                 </button>
               ))}
-              <button className="vb-add-card-tile" onClick={() => setModal('new-card')}><span>＋</span><b>Create virtual card</b><small>Make a separate card for subscriptions, online shopping or a project.</small></button>
+              <button className="vb-add-card-tile" onClick={() => setModal('new-card')}><span>＋</span><b>Create digital demo card</b><small>Make a separate simulated card for subscriptions, shopping, or a project.</small></button>
             </div>
 
             <div className="vb-card-detail-grid">
               <article className="vb-panel vb-card-management">
-                <div className="vb-panel-title"><div><span className="vb-kicker">CARD CONTROLS</span><h3>{selectedCard.name}</h3></div><span className={`vb-status ${selectedCard.frozen ? 'frozen' : ''}`}>{selectedCard.frozen ? 'Frozen' : 'Active'}</span></div>
+                <div className="vb-panel-title"><div><span className="vb-kicker">CARD CONTROLS · DEMO</span><h3>{selectedCard.name}</h3></div><span className={`vb-status ${selectedCard.frozen ? 'frozen' : ''}`}>{selectedCard.frozen ? 'Frozen' : 'Sandbox'}</span></div>
                 <div className="vb-details-box">
-                  <div><span>Card number</span><b>{revealed ? selectedCard.number : `•••• •••• •••• ${selectedCard.last4}`}</b></div>
-                  <div><span>Expires</span><b>{revealed ? selectedCard.expiry : '••/••'}</b></div>
-                  <div><span>CVV</span><b>{revealed ? selectedCard.cvv : '•••'}</b></div>
-                  <button onClick={() => setRevealed((value) => !value)}>{revealed ? 'Hide details' : 'Reveal demo details'}</button>
+                  <div><span>Demo card ID</span><b>{revealed ? `VV-DEMO-${selectedCard.last4}` : 'VV-DEMO-••••'}</b></div>
+                  <div><span>Payment account number</span><b>NOT ISSUED</b></div>
+                  <div><span>Security code</span><b>NOT ISSUED</b></div>
+                  <button onClick={() => setRevealed((value) => !value)}>{revealed ? 'Hide demo ID' : 'Reveal demo ID'}</button>
                 </div>
                 <div className="vb-control-list">
-                  <button onClick={toggleFreeze}><div><span>{selectedCard.frozen ? '▶' : '❄'}</span><p><b>{selectedCard.frozen ? 'Unfreeze card' : 'Freeze card'}</b><small>{selectedCard.frozen ? 'Allow demo card activity again' : 'Pause demo card activity instantly'}</small></p></div><strong>→</strong></button>
-                  <button onClick={() => notify('Replacement flow is demo-only')}><div><span>↻</span><p><b>Replace card</b><small>Create a fresh card number</small></p></div><strong>→</strong></button>
-                  <button onClick={() => notify('Merchant controls are demo-only')}><div><span>⌘</span><p><b>Merchant controls</b><small>Subscriptions, online purchases and categories</small></p></div><strong>→</strong></button>
+                  <button onClick={toggleFreeze}><div><span>{selectedCard.frozen ? '▶' : '❄'}</span><p><b>{selectedCard.frozen ? 'Unfreeze demo card' : 'Freeze demo card'}</b><small>{selectedCard.frozen ? 'Resume simulated activity' : 'Pause simulated activity instantly'}</small></p></div><strong>→</strong></button>
+                  <button onClick={() => notify('Replacement is simulated only')}><div><span>↻</span><p><b>Replace demo card</b><small>No payment credential is generated</small></p></div><strong>→</strong></button>
+                  <button onClick={() => notify('Merchant controls are simulated only')}><div><span>⌘</span><p><b>Merchant controls</b><small>Prototype category and subscription controls</small></p></div><strong>→</strong></button>
                 </div>
               </article>
 
               <article className="vb-panel vb-limit-panel">
-                <span className="vb-kicker">SPENDING LIMIT</span>
+                <span className="vb-kicker">SIMULATED SPENDING LIMIT</span>
                 <h3>{money(selectedCard.limit)} <small>/ month</small></h3>
                 <div className="vb-progress"><span style={{ width: `${Math.min(100, selectedCard.spent / selectedCard.limit * 100)}%` }} /></div>
-                <div className="vb-limit-labels"><span>{money(selectedCard.spent)} spent</span><span>{money(Math.max(0, selectedCard.limit - selectedCard.spent))} left</span></div>
-                <label>Monthly limit
-                  <input type="range" min="100" max="10000" step="100" value={selectedCard.limit} onChange={updateLimit} />
+                <div className="vb-limit-labels"><span>{money(selectedCard.spent)} simulated</span><span>{money(Math.max(0, selectedCard.limit - selectedCard.spent))} left</span></div>
+                <label>Monthly demo limit
+                  <input aria-label="Monthly demo card limit" type="range" min="100" max="10000" step="100" value={selectedCard.limit} onChange={updateLimit} />
                 </label>
                 <div className="vb-limit-presets">
                   {[500, 1000, 2500, 5000].map((value) => <button key={value} className={selectedCard.limit === value ? 'active' : ''} onClick={() => setCards((current) => current.map((card) => card.id === selectedCard.id ? { ...card, limit: value } : card))}>{money(value).replace('.00', '')}</button>)}
                 </div>
-                <div className="vb-wallet-note"><span>⌁</span><div><b>Apple / Google Wallet ready</b><small>Tokenized-wallet provisioning can be connected when a real issuer is configured.</small></div></div>
+                <div className="vb-wallet-note"><span>⌁</span><div><b>Mobile-wallet launch gate</b><small>Provisioning stays disabled until a real issuer supports tokenized wallet credentials.</small></div></div>
               </article>
             </div>
           </div>
@@ -344,25 +338,37 @@ export default function BankClient() {
         {section === 'activity' && <TransactionPanel transactions={transactions} large />}
 
         {section === 'payments' && (
-          <div className="vb-empty-page">
-            <div className="vb-empty-icon">→</div>
-            <span className="vb-kicker">PAYMENTS</span>
-            <h2>Send money without the clutter.</h2>
-            <p>Create a demo transfer to see how the finished payment flow behaves. Production transfers stay disabled until a real provider is connected.</p>
-            <button className="vb-primary-button" onClick={() => setModal('transfer')}>New transfer</button>
+          <div className="vb-cards-page">
+            <article className="vb-empty-page">
+              <div className="vb-empty-icon">→</div>
+              <span className="vb-kicker">TRANSFER SANDBOX</span>
+              <h2>Prototype the payment flow without moving money.</h2>
+              <p>Simulate a transfer to test the interface. There is no ACH, wire, card payment, bank account, or settlement behind this screen.</p>
+              <button className="vb-primary-button" onClick={() => setModal('transfer')}>Simulate transfer</button>
+            </article>
+
+            <article className="vb-panel vb-card-management">
+              <div className="vb-panel-title"><div><span className="vb-kicker">PRODUCTION LAUNCH GATE</span><h3>What must be connected before this can be a real bank product</h3></div><span className="vb-status frozen">NOT CONNECTED</span></div>
+              <div className="vb-control-list">
+                <button type="button" onClick={() => notify('Provider selection is intentionally not configured')}><div><span>1</span><p><b>Regulated banking / money-movement partner</b><small>Account structure, disclosures, settlement, and program approval</small></p></div><strong>—</strong></button>
+                <button type="button" onClick={() => notify('Identity verification is intentionally not configured')}><div><span>2</span><p><b>Identity, KYC, and eligibility</b><small>Verification, sanctions screening, and account eligibility</small></p></div><strong>—</strong></button>
+                <button type="button" onClick={() => notify('Ledger is intentionally not configured')}><div><span>3</span><p><b>Ledger, reconciliation, and fraud controls</b><small>Authoritative balances, transaction state, limits, and monitoring</small></p></div><strong>—</strong></button>
+                <button type="button" onClick={() => notify('Card issuing is intentionally not configured')}><div><span>4</span><p><b>Approved card issuer / processor</b><small>Cardholder terms, credential issuance, authorization, disputes, and tokenized wallets</small></p></div><strong>—</strong></button>
+              </div>
+            </article>
           </div>
         )}
       </section>
 
       {modal === 'transfer' && (
         <div className="vb-modal-backdrop" onMouseDown={() => setModal(null)}>
-          <form className="vb-modal" onSubmit={sendTransfer} onMouseDown={(event) => event.stopPropagation()}>
-            <div className="vb-modal-head"><div><span className="vb-kicker">DEMO TRANSFER</span><h2>Send money</h2></div><button type="button" onClick={() => setModal(null)}>×</button></div>
-            <label>Recipient<input autoFocus value={transfer.recipient} onChange={(event) => setTransfer({ ...transfer, recipient: event.target.value })} placeholder="Name or email" /></label>
-            <label>Amount<div className="vb-money-input"><span>$</span><input inputMode="decimal" value={transfer.amount} onChange={(event) => setTransfer({ ...transfer, amount: event.target.value })} placeholder="0.00" /></div></label>
-            <div className="vb-modal-balance"><span>Available demo balance</span><b>{money(balance)}</b></div>
-            <button className="vb-primary-button vb-full" type="submit">Send demo transfer</button>
-            <p className="vb-modal-disclaimer">No real funds move in this prototype.</p>
+          <form className="vb-modal" onSubmit={simulateTransfer} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="vb-modal-head"><div><span className="vb-kicker">SIMULATION ONLY</span><h2>Simulate a transfer</h2></div><button type="button" onClick={() => setModal(null)} aria-label="Close transfer dialog">×</button></div>
+            <label>Demo recipient<input autoFocus value={transfer.recipient} onChange={(event) => setTransfer({ ...transfer, recipient: event.target.value })} placeholder="Example: Studio Ops" /></label>
+            <label>Demo amount<div className="vb-money-input"><span>$</span><input inputMode="decimal" value={transfer.amount} onChange={(event) => setTransfer({ ...transfer, amount: event.target.value })} placeholder="0.00" /></div></label>
+            <div className="vb-modal-balance"><span>Available demo balance · not money</span><b>{money(balance)}</b></div>
+            <button className="vb-primary-button vb-full" type="submit">Simulate transfer</button>
+            <p className="vb-modal-disclaimer">Nothing leaves this browser state. No ACH, wire, card payment, or other real funds movement is initiated.</p>
           </form>
         </div>
       )}
@@ -370,17 +376,17 @@ export default function BankClient() {
       {modal === 'new-card' && (
         <div className="vb-modal-backdrop" onMouseDown={() => setModal(null)}>
           <form className="vb-modal" onSubmit={createVirtualCard} onMouseDown={(event) => event.stopPropagation()}>
-            <div className="vb-modal-head"><div><span className="vb-kicker">DIGITAL CARD</span><h2>Create a virtual card</h2></div><button type="button" onClick={() => setModal(null)}>×</button></div>
-            <div className="vb-mini-card-preview"><span className="vb-logo-mark">V</span><div><small>NEW VIRTUAL CARD</small><b>{newCard.name || 'Virtual card'}</b></div><strong>VISA</strong></div>
-            <label>Card name<input autoFocus maxLength="24" value={newCard.name} onChange={(event) => setNewCard({ ...newCard, name: event.target.value })} placeholder="Subscriptions" /></label>
-            <label>Monthly limit<div className="vb-money-input"><span>$</span><input inputMode="numeric" value={newCard.limit} onChange={(event) => setNewCard({ ...newCard, limit: event.target.value })} /></div></label>
-            <button className="vb-primary-button vb-full" type="submit">Create demo card</button>
-            <p className="vb-modal-disclaimer">This creates a simulated card only. Live card issuance requires an approved card-issuing provider.</p>
+            <div className="vb-modal-head"><div><span className="vb-kicker">DIGITAL CARD · SANDBOX</span><h2>Create a demo card</h2></div><button type="button" onClick={() => setModal(null)} aria-label="Close digital card dialog">×</button></div>
+            <div className="vb-mini-card-preview"><span className="vb-logo-mark">V</span><div><small>NO PAYMENT CREDENTIAL</small><b>{newCard.name || 'Virtual demo card'}</b></div><strong>DEMO</strong></div>
+            <label>Demo card name<input autoFocus maxLength="24" value={newCard.name} onChange={(event) => setNewCard({ ...newCard, name: event.target.value })} placeholder="Subscriptions" /></label>
+            <label>Monthly demo limit<div className="vb-money-input"><span>$</span><input inputMode="numeric" value={newCard.limit} onChange={(event) => setNewCard({ ...newCard, limit: event.target.value })} /></div></label>
+            <button className="vb-primary-button vb-full" type="submit">Create simulated card</button>
+            <p className="vb-modal-disclaimer">This creates a UI-only card record. It does not generate a PAN, CVV, expiry, payment-network credential, or usable card.</p>
           </form>
         </div>
       )}
 
-      {toast && <div className="vb-toast">✓ {toast}</div>}
+      {toast && <div className="vb-toast" role="status">✓ {toast}</div>}
     </main>
   );
 }
@@ -389,7 +395,7 @@ function TransactionPanel({ transactions, onAll, large = false }) {
   return (
     <article className={`vb-panel vb-transactions ${large ? 'is-large' : ''}`}>
       <div className="vb-panel-title">
-        <div><span className="vb-kicker">ACTIVITY</span><h3>{large ? 'All transactions' : 'Recent transactions'}</h3></div>
+        <div><span className="vb-kicker">SIMULATED ACTIVITY</span><h3>{large ? 'All demo transactions' : 'Recent demo transactions'}</h3></div>
         {onAll && <button className="vb-text-button" onClick={onAll}>View all →</button>}
       </div>
       <div className="vb-transaction-list">
