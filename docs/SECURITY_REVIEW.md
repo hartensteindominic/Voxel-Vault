@@ -14,8 +14,8 @@ Security review is a separate gate from build success. A production release is n
 - **Incomplete paid routes:** receipt collectible mint checkout is disabled until a durable post-payment fulfillment/mint consumer exists. The disabled route cannot create a Stripe Checkout Session.
 - **NFT media:** broken/unsupported media must degrade to a visible recovery state instead of silently producing an empty card.
 - **WebGL:** passive gallery rendering is subject to the mobile/WebGL guard; full inspection remains an explicit user action.
-- **CI mutation risk:** Mobile WebGL Guard is now read-only (`permissions: contents: read`) and has no repository write step.
-- **Release-test coverage:** the primary Quality Gate runs collection integrity, commerce hardening and route-integrity tests in addition to the existing product/security suites and production build.
+- **CI mutation risk:** repository validation workflows use read-only repository permissions where they do not need writes.
+- **Release-test coverage:** the primary Quality Gate runs collection integrity, commerce hardening, route integrity, property/VoxelPop, Vault, provider-boundary and production-build checks in addition to the existing product/security suites.
 
 ## External configuration that code cannot prove
 
@@ -25,14 +25,16 @@ Security review is a separate gate from build success. A production release is n
 
 ## Dependency audit note
 
-The current dependency graph reports high-severity findings, including transitive development-tooling issues through Hardhat and vulnerabilities associated with the current Next/sharp/PostCSS chain. The available automated remediation includes breaking major-version upgrades.
+On August 29, 2026, the deterministic PR build for the current lockfile completed `npm ci` successfully and `npm audit --omit=dev --audit-level=critical` reported **0 production vulnerabilities**.
 
-For this release we do **not** silently run `npm audit fix --force`. Instead:
+The install still reports deprecation notices from transitive tooling packages such as older `glob`, `inflight`, `lodash.isequal`, and `uuid` versions. Those warnings are maintenance debt in the broader tooling graph; they are not a current production-vulnerability finding. Tooling/dependency-major upgrades should continue on isolated branches with the full regression suite rather than by silently running `npm audit fix --force`.
 
-1. critical vulnerabilities remain a hard CI blocker;
-2. high findings are documented here;
-3. dependency-major upgrades receive their own branch and full regression cycle;
-4. production dependencies are audited separately from development tooling.
+Release policy:
+
+1. production critical vulnerabilities remain a hard CI blocker;
+2. production dependencies are audited on the exact committed lockfile;
+3. deprecation/tooling debt is reviewed separately from runtime vulnerability status;
+4. dependency-major upgrades receive their own branch and full regression cycle.
 
 ## Release rule
 
