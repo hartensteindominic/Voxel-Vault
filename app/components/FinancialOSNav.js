@@ -2,18 +2,27 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { APP_DOCK, dockItemForPath, isOrganizedUserRoute } from '../../lib/product-map';
+import {
+  APP_DOCK,
+  SIMPLE_PROPERTY_DOCK,
+  dockItemForPath,
+  isOrganizedUserRoute,
+  isSimplePropertyRoute,
+  simplePropertyDockItemForPath,
+} from '../../lib/product-map';
 
 export default function FinancialOSNav() {
   const pathname = usePathname() || '/';
   if (!isOrganizedUserRoute(pathname)) return null;
-  const active = dockItemForPath(pathname);
+  const simple = isSimplePropertyRoute(pathname);
+  const dock = simple ? SIMPLE_PROPERTY_DOCK : APP_DOCK;
+  const active = simple ? simplePropertyDockItemForPath(pathname) : dockItemForPath(pathname);
 
   return (
     <>
       <div aria-hidden="true" style={{ height: 'calc(82px + env(safe-area-inset-bottom))' }} />
-      <nav aria-label="Voxel Vault primary navigation" style={styles.nav}>
-        {APP_DOCK.map((item) => {
+      <nav aria-label="Voxel Vault primary navigation" style={{ ...styles.nav, gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))`, ...(simple ? styles.simpleNav : {}) }}>
+        {dock.map((item) => {
           const selected = item.id === active.id;
           return (
             <Link
@@ -41,7 +50,6 @@ const styles = {
     transform: 'translateX(-50%)',
     width: 'min(590px, calc(100vw - 18px))',
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
     gap: 4,
     padding: 6,
     boxSizing: 'border-box',
@@ -52,6 +60,9 @@ const styles = {
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
     fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+  },
+  simpleNav: {
+    width: 'min(430px, calc(100vw - 18px))',
   },
   item: {
     minWidth: 0,
