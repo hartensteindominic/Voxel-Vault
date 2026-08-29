@@ -85,6 +85,7 @@ export default function SimplePropertyPage() {
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [pendingPreview, setPendingPreview] = useState('');
   const [uploadRightsConfirmed, setUploadRightsConfirmed] = useState(false);
+  const [autoCreateAfterPhoto, setAutoCreateAfterPhoto] = useState(false);
   const [voxelImage, setVoxelImage] = useState('');
   const [model, setModel] = useState(emptyModel);
   const [busy, setBusy] = useState('');
@@ -162,6 +163,12 @@ export default function SimplePropertyPage() {
   }, []);
 
   useEffect(() => {
+    if (!autoCreateAfterPhoto || !building?.atlasId || !activeReference || !session?.access_token) return;
+    setAutoCreateAfterPhoto(false);
+    void createImage();
+  }, [autoCreateAfterPhoto, building?.atlasId, activeReference, session?.access_token]);
+
+  useEffect(() => {
     if (!model?.taskId || model?.modelUrl || terminal(model?.status) || !session?.access_token) return undefined;
     let active = true;
     let timer = null;
@@ -220,6 +227,7 @@ export default function SimplePropertyPage() {
     const address = clean(value);
     if (!address) return;
     imageIterationRef.current += 1;
+    setAutoCreateAfterPhoto(false);
     setBusy('search');
     clearPendingPhoto();
     setBuilding(null);
@@ -305,7 +313,8 @@ export default function SimplePropertyPage() {
       setVoxelImage('');
       setModel(emptyModel());
       setSaved(null);
-      setMessage('Photo locked in. Now make the voxel first.');
+      setAutoCreateAfterPhoto(true);
+      setMessage('Photo saved. Making your voxel now…');
     } catch (error) { setMessage(String(error?.message || error)); }
     finally { setBusy(''); }
   }
@@ -319,7 +328,8 @@ export default function SimplePropertyPage() {
     setVoxelImage('');
     setModel(emptyModel());
     setSaved(null);
-    setMessage('Photo locked in. Now make the voxel first.');
+    setAutoCreateAfterPhoto(true);
+    setMessage('Street photo selected. Making your voxel now…');
   }
 
   async function createImage() {
@@ -397,6 +407,7 @@ export default function SimplePropertyPage() {
 
   function changePhoto() {
     imageIterationRef.current += 1;
+    setAutoCreateAfterPhoto(false);
     clearPendingPhoto();
     setStreetPhotoChosen(false);
     setUploadedReference(null);
@@ -408,6 +419,7 @@ export default function SimplePropertyPage() {
 
   function changeProperty() {
     imageIterationRef.current += 1;
+    setAutoCreateAfterPhoto(false);
     clearPendingPhoto();
     setBuilding(null);
     setResolvedQuery('');
@@ -423,6 +435,7 @@ export default function SimplePropertyPage() {
 
   const modelRunning = Boolean(model?.taskId && !model?.modelUrl && !terminal(model?.status));
   const photoChosen = Boolean(uploadedReference || streetPhotoChosen);
+  const imageStarting = autoCreateAfterPhoto || busy === 'image';
   const stage = !building ? 1 : model?.modelUrl ? (saved ? 6 : 5) : modelRunning ? 4 : (pendingPhoto || !photoChosen) ? 2 : !voxelImage ? 3 : 4;
   const displayImage = model?.modelUrl ? '' : voxelImage || pendingPreview || activePhoto?.imageUrl || '';
   const photoDate = readableDate(activePhoto?.shotDate);
@@ -488,7 +501,7 @@ export default function SimplePropertyPage() {
           <p className={styles.bigPrompt}>Pick the clearest photo.</p>
           <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectLocalPhoto}/>
           <button className={styles.primaryPurple} type="button" onClick={chooseUpload} disabled={busy === 'prepare-photo'}>{busy === 'prepare-photo' ? 'Preparing photo…' : 'Upload your photo'}</button>
-          {activeReference ? <button className={styles.secondaryButton} type="button" onClick={useStreetPhoto}>Use this street photo</button> : null}
+          {activeReference ? <button className={styles.secondaryButton} type="button" onClick={useStreetPhoto}>Use this street photo → make voxel</button> : null}
           <small>iPhone photos supported · JPG, PNG, WebP, HEIC/HEIF</small>
         </div> : null}
 
@@ -498,15 +511,15 @@ export default function SimplePropertyPage() {
             <input type="checkbox" checked={uploadRightsConfirmed} onChange={(event) => setUploadRightsConfirmed(event.target.checked)}/>
             <span>I took this photo or have permission to use it.</span>
           </label>
-          <button className={styles.primaryPurple} type="button" onClick={usePendingPhoto} disabled={!uploadRightsConfirmed || busy === 'upload'}>{busy === 'upload' ? 'Saving photo…' : 'Use this photo'}</button>
+          <button className={styles.primaryPurple} type="button" onClick={usePendingPhoto} disabled={!uploadRightsConfirmed || busy === 'upload'}>{busy === 'upload' ? 'Saving photo…' : 'Use this photo → make voxel'}</button>
           <button className={styles.textButton} type="button" onClick={chooseUpload}>Choose another</button>
         </div> : null}
 
         {stage === 3 ? <div className={styles.choicePanel}>
-          <p className={styles.bigPrompt}>Make the voxel first.</p>
-          <p className={styles.stepCopy}>We process the exact photo you chose into the VoxelPop image before 3D unlocks.</p>
-          <button className={styles.primaryOrange} type="button" onClick={createImage} disabled={busy === 'image'}>{busy === 'image' ? 'Making your voxel…' : 'Make my voxel'}</button>
-          <button className={styles.textButton} type="button" onClick={changePhoto} disabled={busy === 'image'}>Change photo</button>
+          <p className={styles.bigPrompt}>{imageStarting ? 'Making your voxel…' : 'Make the voxel first.'}</p>
+          <p className={styles.stepCopy}>{imageStarting ? 'Your photo is saved. VoxelPop is processing it now; the voxel image will appear here when it is ready.' : 'The automatic image step paused. Your photo is still saved—tap below to try the voxel again.'}</p>
+          <button className={styles.primaryOrange} type="button" onClick={createImage} disabled={imageStarting}>{imageStarting ? 'Making your voxel…' : 'Make my voxel'}</button>
+          <button className={styles.textButton} type="button" onClick={changePhoto} disabled={imageStarting}>Change photo</button>
         </div> : null}
 
         {stage === 4 ? <div className={styles.choicePanel}>
