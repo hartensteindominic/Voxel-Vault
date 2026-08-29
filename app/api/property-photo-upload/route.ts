@@ -54,6 +54,7 @@ function generationResult(input: {
   paymentSessionId: string;
 }) {
   const uploadedAt = new Date().toISOString();
+  const taskId = input.taskId;
   return {
     ok: true,
     paid: true,
@@ -70,11 +71,11 @@ function generationResult(input: {
       label: 'Selected property photo',
       sourcePhotoId: `upload:${input.digest.slice(0, 20)}`,
       provider: 'user-photo-direct-generation',
-      storagePath: `meshy-source:${input.taskId}`,
+      storagePath: `meshy-source:${taskId}`,
       uploadedAt,
     },
     source3d: {
-      taskId: input.taskId,
+      taskId,
       status: input.status || 'PENDING',
       progress: Number(input.progress || 0),
     },
