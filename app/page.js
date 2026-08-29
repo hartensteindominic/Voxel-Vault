@@ -58,7 +58,7 @@ export default function Home() {
         </div>
         <Link className={styles.startButton} href="/property">START → SIGN IN</Link>
         <div className={styles.microFlow}><b>SIGN IN</b><i>→</i><b>PHOTO</b><i>→</i><b>VOXEL</b><i>→</i><b>3D</b><i>→</i><b>WORLD</b><i>→</i><b>COLLECT + VAULT</b></div>
-        <small>Creation itself is free. Collection is optional. A wallet is optional until you choose a separate verified mint step.</small>
+        <small>Nothing is uploaded, generated, or charged before sign-in. Creation itself is free. Collection is optional. A wallet is optional until you choose a separate verified mint step.</small>
       </section>
 
       <section className={styles.unifiedCard}>
