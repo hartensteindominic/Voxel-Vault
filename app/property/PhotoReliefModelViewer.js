@@ -6,6 +6,54 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function drawCover(context, image, width, height) {
+  const sourceWidth = Math.max(1, image.naturalWidth || image.width || 1);
+  const sourceHeight = Math.max(1, image.naturalHeight || image.height || 1);
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const x = (width - drawWidth) / 2;
+  const y = (height - drawHeight) / 2;
+  context.drawImage(image, x, y, drawWidth, drawHeight);
+}
+
+function averageEdgeColor(context, width, height, edge) {
+  const strip = Math.max(2, Math.round(Math.min(width, height) * 0.025));
+  let x = 0;
+  let y = 0;
+  let w = width;
+  let h = strip;
+  if (edge === 'bottom') y = Math.max(0, height - strip);
+  if (edge === 'left') { w = strip; h = height; }
+  if (edge === 'right') { x = Math.max(0, width - strip); w = strip; h = height; }
+  const data = context.getImageData(x, y, Math.max(1, w), Math.max(1, h)).data;
+  const stride = Math.max(4, Math.floor(data.length / 1000 / 4) * 4 || 4);
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  for (let index = 0; index < data.length; index += stride) {
+    r += data[index] || 0;
+    g += data[index + 1] || 0;
+    b += data[index + 2] || 0;
+    count += 1;
+  }
+  if (!count) return { r: 38, g: 31, b: 43 };
+  return { r: r / count, g: g / count, b: b / count };
+}
+
+function shadeEdge(color, amount = 0.78) {
+  return {
+    r: clamp(Math.round(color.r * amount), 0, 255),
+    g: clamp(Math.round(color.g * amount), 0, 255),
+    b: clamp(Math.round(color.b * amount), 0, 255),
+  };
+}
+
+function colorNumber(color) {
+  return (color.r << 16) + (color.g << 8) + color.b;
+}
+
 export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
   const mountRef = useRef(null);
   const callbackRef = useRef(onReady);
@@ -25,109 +73,192 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
       try {
         const THREE = await import('three');
         if (dead || !mountRef.current) return;
+
         const mount = mountRef.current;
         const width = Math.max(280, mount.clientWidth || 360);
-        const height = Math.max(280, mount.clientHeight || 360);
+        const height = Math.max(280, mount.clientHeight || 420);
         const compact = width < 720 || window.matchMedia?.('(pointer: coarse)')?.matches;
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.18 : 1.45));
+        const renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: false,
+          powerPreference: 'high-performance',
+          preserveDrawingBuffer: false,
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 2 : 2.25));
         renderer.setSize(width, height);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.02;
+        renderer.toneMappingExposure = 1.0;
         renderer.domElement.style.touchAction = 'none';
+        renderer.domElement.style.cursor = 'grab';
+        renderer.domElement.setAttribute('aria-label', 'Interactive source-faithful 3D picture. Drag gently to tilt.');
         mount.innerHTML = '';
         mount.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x21172c);
-        scene.add(new THREE.HemisphereLight(0xfffbef, 0x21122d, 2.1));
-        const key = new THREE.DirectionalLight(0xffffff, 2.7);
-        key.position.set(4, 5, 6);
-        scene.add(key);
-        const fill = new THREE.DirectionalLight(0xc7b7ff, 1.35);
-        fill.position.set(-4, 2, 3);
-        scene.add(fill);
+        scene.background = new THREE.Color(0x17121d);
 
         const sourceCanvas = document.createElement('canvas');
-        const maxTexture = compact ? 1024 : 1400;
-        const scale = Math.min(1, maxTexture / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
-        sourceCanvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
-        sourceCanvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+        const maxTexture = compact ? 1600 : 2200;
+        const sourceWidth = Math.max(1, image.naturalWidth || 1);
+        const sourceHeight = Math.max(1, image.naturalHeight || 1);
+        const scale = Math.min(1, maxTexture / Math.max(sourceWidth, sourceHeight));
+        sourceCanvas.width = Math.max(1, Math.round(sourceWidth * scale));
+        sourceCanvas.height = Math.max(1, Math.round(sourceHeight * scale));
         const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
-        if (!sourceContext) throw new Error('The 3D photo preview is unavailable on this device.');
+        if (!sourceContext) throw new Error('The 3D picture is unavailable on this device.');
+        sourceContext.imageSmoothingEnabled = true;
+        sourceContext.imageSmoothingQuality = 'high';
         sourceContext.drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height);
+
         const texture = new THREE.CanvasTexture(sourceCanvas);
         texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() || 1);
+        texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
 
-        const sampleSize = 64;
-        const sampleCanvas = document.createElement('canvas');
-        sampleCanvas.width = sampleSize;
-        sampleCanvas.height = sampleSize;
-        const sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true });
-        if (!sampleContext) throw new Error('The 3D photo preview is unavailable on this device.');
-        sampleContext.filter = 'contrast(1.06) saturate(1.02)';
-        sampleContext.drawImage(image, 0, 0, sampleSize, sampleSize);
-        const pixels = sampleContext.getImageData(0, 0, sampleSize, sampleSize).data;
-        const luminance = (x, y) => {
-          const cx = clamp(Math.round(x), 0, sampleSize - 1);
-          const cy = clamp(Math.round(y), 0, sampleSize - 1);
-          const index = (cy * sampleSize + cx) * 4;
-          return (pixels[index] * 0.2126 + pixels[index + 1] * 0.7152 + pixels[index + 2] * 0.0722) / 255;
-        };
+        const backgroundCanvas = document.createElement('canvas');
+        const backgroundSize = compact ? 640 : 900;
+        backgroundCanvas.width = backgroundSize;
+        backgroundCanvas.height = backgroundSize;
+        const backgroundContext = backgroundCanvas.getContext('2d');
+        if (!backgroundContext) throw new Error('The 3D picture background is unavailable on this device.');
+        backgroundContext.fillStyle = '#17121d';
+        backgroundContext.fillRect(0, 0, backgroundSize, backgroundSize);
+        backgroundContext.save();
+        backgroundContext.filter = 'blur(22px) saturate(.76) brightness(.72)';
+        backgroundContext.globalAlpha = 0.72;
+        drawCover(backgroundContext, image, backgroundSize, backgroundSize);
+        backgroundContext.restore();
+        const wash = backgroundContext.createLinearGradient(0, 0, backgroundSize, backgroundSize);
+        wash.addColorStop(0, 'rgba(255,250,242,.34)');
+        wash.addColorStop(0.48, 'rgba(62,42,72,.18)');
+        wash.addColorStop(1, 'rgba(17,12,22,.58)');
+        backgroundContext.fillStyle = wash;
+        backgroundContext.fillRect(0, 0, backgroundSize, backgroundSize);
+        const backgroundTexture = new THREE.CanvasTexture(backgroundCanvas);
+        backgroundTexture.colorSpace = THREE.SRGBColorSpace;
+        backgroundTexture.minFilter = THREE.LinearFilter;
+        backgroundTexture.magFilter = THREE.LinearFilter;
 
-        const ratio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
-        const planeHeight = ratio >= 1 ? 5.1 : 5.7;
-        const planeWidth = ratio >= 1 ? planeHeight * ratio : planeHeight * ratio;
-        const boundedWidth = Math.min(7.6, Math.max(3.3, planeWidth));
-        const boundedHeight = boundedWidth / ratio;
-        const geometry = new THREE.PlaneGeometry(boundedWidth, boundedHeight, 48, 48);
-        const positions = geometry.attributes.position;
-        for (let index = 0; index < positions.count; index += 1) {
-          const u = geometry.attributes.uv.getX(index);
-          const v = geometry.attributes.uv.getY(index);
-          const sx = u * (sampleSize - 1);
-          const sy = (1 - v) * (sampleSize - 1);
-          const center = luminance(sx, sy);
-          const edge = Math.abs(luminance(sx + 1, sy) - luminance(sx - 1, sy))
-            + Math.abs(luminance(sx, sy + 1) - luminance(sx, sy - 1));
-          const centerWeight = 1 - Math.min(1, Math.hypot(u - 0.5, v - 0.52) / 0.78);
-          const relief = edge * 0.48 + (center - 0.5) * 0.055 + centerWeight * 0.018;
-          positions.setZ(index, clamp(relief, -0.055, 0.34));
+        const ratio = sourceWidth / sourceHeight;
+        const maxCardWidth = 6.7;
+        const maxCardHeight = 5.35;
+        let cardWidth = maxCardWidth;
+        let cardHeight = cardWidth / ratio;
+        if (cardHeight > maxCardHeight) {
+          cardHeight = maxCardHeight;
+          cardWidth = cardHeight * ratio;
         }
-        positions.needsUpdate = true;
-        geometry.computeVertexNormals();
+        cardWidth = Math.max(2.45, cardWidth);
+        cardHeight = Math.max(2.45, cardHeight);
+        const depth = clamp(Math.min(cardWidth, cardHeight) * 0.055, 0.18, 0.34);
+
+        const top = shadeEdge(averageEdgeColor(sourceContext, sourceCanvas.width, sourceCanvas.height, 'top'), 0.93);
+        const bottom = shadeEdge(averageEdgeColor(sourceContext, sourceCanvas.width, sourceCanvas.height, 'bottom'), 0.58);
+        const left = shadeEdge(averageEdgeColor(sourceContext, sourceCanvas.width, sourceCanvas.height, 'left'), 0.70);
+        const right = shadeEdge(averageEdgeColor(sourceContext, sourceCanvas.width, sourceCanvas.height, 'right'), 0.82);
+
+        const edgeMaterial = (color, roughness = 0.72) => new THREE.MeshStandardMaterial({
+          color: colorNumber(color),
+          roughness,
+          metalness: 0.02,
+        });
+        const frontMaterial = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
+        const materials = [
+          edgeMaterial(right),
+          edgeMaterial(left),
+          edgeMaterial(top, 0.66),
+          edgeMaterial(bottom, 0.82),
+          frontMaterial,
+          new THREE.MeshStandardMaterial({ color: 0x19111f, roughness: 0.9, metalness: 0 }),
+        ];
 
         const group = new THREE.Group();
+        group.position.y = 0.08;
         scene.add(group);
-        const backing = new THREE.Mesh(
-          new THREE.BoxGeometry(boundedWidth + 0.08, boundedHeight + 0.08, 0.20),
-          new THREE.MeshStandardMaterial({ color: 0x170f20, roughness: 0.88, metalness: 0 }),
-        );
-        backing.position.z = -0.11;
-        group.add(backing);
-        const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.78, metalness: 0.01, side: THREE.FrontSide });
-        const photoMesh = new THREE.Mesh(geometry, material);
-        photoMesh.position.z = 0.03;
-        group.add(photoMesh);
 
-        const camera = new THREE.PerspectiveCamera(32, width / height, 0.1, 60);
-        const cameraDistance = Math.max(8.4, boundedWidth * 1.45);
-        camera.position.set(0, 0, cameraDistance);
-        camera.lookAt(0, 0, 0);
+        const geometry = new THREE.BoxGeometry(cardWidth, cardHeight, depth, 1, 1, 1);
+        const picture = new THREE.Mesh(geometry, materials);
+        group.add(picture);
 
-        let targetX = -0.035;
-        let targetY = 0.08;
+        const rimGeometry = new THREE.BoxGeometry(cardWidth + 0.09, cardHeight + 0.09, Math.max(0.05, depth - 0.04), 1, 1, 1);
+        const rimMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2030, roughness: 0.78, metalness: 0.02, side: THREE.BackSide });
+        const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+        rim.position.z = -0.045;
+        group.add(rim);
+
+        const backgroundGeometry = new THREE.PlaneGeometry(15, 15);
+        const backgroundMaterial = new THREE.MeshBasicMaterial({ map: backgroundTexture, depthWrite: false, toneMapped: false });
+        const background = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+        background.position.z = -3.4;
+        scene.add(background);
+
+        const shadowCanvas = document.createElement('canvas');
+        shadowCanvas.width = 512;
+        shadowCanvas.height = 256;
+        const shadowContext = shadowCanvas.getContext('2d');
+        if (shadowContext) {
+          const gradient = shadowContext.createRadialGradient(256, 128, 18, 256, 128, 210);
+          gradient.addColorStop(0, 'rgba(0,0,0,.56)');
+          gradient.addColorStop(0.45, 'rgba(0,0,0,.24)');
+          gradient.addColorStop(1, 'rgba(0,0,0,0)');
+          shadowContext.fillStyle = gradient;
+          shadowContext.fillRect(0, 0, 512, 256);
+        }
+        const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+        const shadowGeometry = new THREE.PlaneGeometry(Math.max(4.1, cardWidth * 0.98), 1.25);
+        const shadowMaterial = new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, opacity: 0.58, depthWrite: false });
+        const shadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
+        shadow.position.set(0, -cardHeight * 0.56, -0.35);
+        shadow.rotation.x = -0.94;
+        scene.add(shadow);
+
+        scene.add(new THREE.HemisphereLight(0xfff8ec, 0x1a1122, 1.55));
+        const key = new THREE.DirectionalLight(0xffffff, 2.25);
+        key.position.set(4.5, 5.5, 7);
+        scene.add(key);
+        const fill = new THREE.DirectionalLight(0xc8b7ff, 0.9);
+        fill.position.set(-5, 1.5, 4);
+        scene.add(fill);
+        const warm = new THREE.DirectionalLight(0xffd8a6, 0.55);
+        warm.position.set(1, -2, 5);
+        scene.add(warm);
+
+        const camera = new THREE.PerspectiveCamera(27, width / height, 0.1, 70);
+        const frameCamera = (nextWidth, nextHeight) => {
+          const aspect = Math.max(0.5, nextWidth / Math.max(1, nextHeight));
+          camera.aspect = aspect;
+          const halfFov = THREE.MathUtils.degToRad(camera.fov * 0.5);
+          const heightDistance = (cardHeight * 0.5) / Math.tan(halfFov);
+          const widthDistance = (cardWidth * 0.5) / (Math.tan(halfFov) * aspect);
+          const distance = Math.max(heightDistance, widthDistance) * (compact ? 1.34 : 1.25) + 0.45;
+          camera.position.set(0, 0.04, distance);
+          camera.lookAt(0, 0.04, 0);
+          camera.updateProjectionMatrix();
+        };
+        frameCamera(width, height);
+
+        let targetX = -0.025;
+        let targetY = 0.10;
         let pointerId = null;
         let lastX = 0;
         let lastY = 0;
+        let frame = 0;
+
+        const renderScene = () => renderer.render(scene, camera);
+        const applyReducedMotionTarget = () => {
+          group.rotation.x = targetX;
+          group.rotation.y = targetY;
+          renderScene();
+        };
         const down = (event) => {
           pointerId = event.pointerId;
           lastX = event.clientX;
           lastY = event.clientY;
+          renderer.domElement.style.cursor = 'grabbing';
           renderer.domElement.setPointerCapture?.(event.pointerId);
         };
         const move = (event) => {
@@ -136,39 +267,47 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           const dy = event.clientY - lastY;
           lastX = event.clientX;
           lastY = event.clientY;
-          targetY = clamp(targetY + dx * 0.006, -0.48, 0.48);
-          targetX = clamp(targetX + dy * 0.004, -0.24, 0.22);
+          targetY = clamp(targetY + dx * 0.0036, -0.32, 0.32);
+          targetX = clamp(targetX + dy * 0.0028, -0.12, 0.10);
+          if (reducedMotion) applyReducedMotionTarget();
         };
         const up = (event) => {
           if (pointerId === event.pointerId) pointerId = null;
+          renderer.domElement.style.cursor = 'grab';
+        };
+        const reset = () => {
+          targetX = -0.025;
+          targetY = 0.10;
+          if (reducedMotion) applyReducedMotionTarget();
         };
         renderer.domElement.addEventListener('pointerdown', down);
         renderer.domElement.addEventListener('pointermove', move);
         renderer.domElement.addEventListener('pointerup', up);
         renderer.domElement.addEventListener('pointercancel', up);
+        renderer.domElement.addEventListener('dblclick', reset);
 
-        let frame = 0;
-        const render = () => {
+        const renderLoop = () => {
           if (dead) return;
-          group.rotation.x += (targetX - group.rotation.x) * 0.08;
-          group.rotation.y += (targetY - group.rotation.y) * 0.08;
-          renderer.render(scene, camera);
-          frame = requestAnimationFrame(render);
+          group.rotation.x += (targetX - group.rotation.x) * 0.095;
+          group.rotation.y += (targetY - group.rotation.y) * 0.095;
+          renderScene();
+          frame = requestAnimationFrame(renderLoop);
         };
-        if (reducedMotion) renderer.render(scene, camera);
-        else render();
+        if (reducedMotion) applyReducedMotionTarget();
+        else renderLoop();
 
         const resize = () => {
           if (dead || !mountRef.current) return;
           const nextWidth = Math.max(280, mountRef.current.clientWidth || width);
           const nextHeight = Math.max(280, mountRef.current.clientHeight || height);
           renderer.setSize(nextWidth, nextHeight);
-          camera.aspect = nextWidth / nextHeight;
-          camera.updateProjectionMatrix();
-          if (reducedMotion) renderer.render(scene, camera);
+          frameCamera(nextWidth, nextHeight);
+          if (reducedMotion) renderScene();
         };
         const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
         observer?.observe(mount);
+
+        renderScene();
         callbackRef.current?.();
 
         cleanup = () => {
@@ -178,19 +317,26 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
           renderer.domElement.removeEventListener('pointermove', move);
           renderer.domElement.removeEventListener('pointerup', up);
           renderer.domElement.removeEventListener('pointercancel', up);
+          renderer.domElement.removeEventListener('dblclick', reset);
           geometry.dispose();
-          material.dispose();
+          rimGeometry.dispose();
+          backgroundGeometry.dispose();
+          shadowGeometry.dispose();
+          materials.forEach((material) => material.dispose());
+          rimMaterial.dispose();
+          backgroundMaterial.dispose();
+          shadowMaterial.dispose();
           texture.dispose();
-          backing.geometry.dispose();
-          backing.material.dispose();
+          backgroundTexture.dispose();
+          shadowTexture.dispose();
           renderer.dispose();
           if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
         };
       } catch (previewError) {
-        if (!dead) setError(String(previewError?.message || previewError || 'The 3D photo preview could not open.'));
+        if (!dead) setError(String(previewError?.message || previewError || 'The 3D picture could not open.'));
       }
     };
-    image.onerror = () => setError('The selected photo could not be opened for the 3D preview.');
+    image.onerror = () => setError('The selected photo could not be opened for the 3D picture.');
 
     return () => {
       dead = true;
@@ -198,8 +344,11 @@ export default function PhotoReliefModelViewer({ imageUrl, onReady }) {
     };
   }, [imageUrl]);
 
-  return <div className="viewerShell" style={{ position: 'relative', width: '100%', height: '100%', minHeight: 300 }}>
+  return <div className="viewerShell" style={{ position: 'relative', width: '100%', height: '100%', minHeight: 300, overflow: 'hidden', background: '#17121d' }}>
     <div ref={mountRef} style={{ position: 'absolute', inset: 0 }}/>
-    {error ? <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 24, color: '#fff', textAlign: 'center', background: '#21172c' }}>{error}</div> : null}
+    {error ? <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateRows: '1fr auto', background: '#17121d' }}>
+      <img src={imageUrl} alt="Source property" style={{ width: '100%', height: '100%', minHeight: 0, objectFit: 'contain', background: '#17121d' }}/>
+      <div style={{ padding: '10px 14px 13px', color: '#f4edf6', textAlign: 'center', fontSize: 11, lineHeight: 1.45 }}>{error} Showing the original photo instead.</div>
+    </div> : null}
   </div>;
 }
