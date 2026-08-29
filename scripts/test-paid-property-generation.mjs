@@ -6,8 +6,8 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), '
 const route = read('app/property/page.js');
 const property = read('app/property/HouseVoxelJourney.js');
 const checkout = read('app/api/property-generation/checkout/route.ts');
-const photoStart = read('app/api/property-photo-upload/route.ts');
-const voxelImage = read('app/api/property-voxel-image/route.ts');
+const paidVerify = read('app/api/property-photo-upload/route.ts');
+const voxelPhoto = read('app/api/property-voxel-photo/route.ts');
 const voxel3d = read('app/api/property-voxel-3d/route.ts');
 const payment = read('lib/property-generation-payment.ts');
 const commerce = read('lib/property-collectible-commerce.ts');
@@ -51,17 +51,22 @@ assert.doesNotMatch(checkout, /MESHY_PROPERTY_CREDITS|readMeshyCreditBalance|mes
 assert.match(commerce, /createHash\('sha256'\).*voxel-pop-property-v1/s, 'property identity is stable and server-derived');
 assert.match(commerce, /state === 'paid' \|\| state === 'minted'/, 'paid and minted property reservations are permanent');
 
-assert.match(photoStart, /paidPropertyGenerationReceipt\(auth, stripe, generationSessionId\)/, 'paid receipt is verified before provider generation begins');
-assert.match(photoStart, /identityKey: receipt\.identityKey/, 'paid verification restores the canonical property identity');
-assert.match(photoStart, /propertyAddress: receipt\.propertyAddress/, 'paid verification restores the canonical address after checkout');
-assert.match(photoStart, /image-to-image/, 'the paid house photo begins with the voxel-image provider pass');
-assert.match(photoStart, /reference_image_urls: \[dataUri\]/, 'the authorized house photo is the direct image reference');
-assert.match(photoStart, /faithful VoxelPop-style voxel architectural image/, 'the image prompt requires a faithful voxel version of the same house');
-assert.match(photoStart, /MESHY_PROPERTY_CREDITS\.afterSource/, 'provider capacity covers only the voxel-image plus final-3D stages');
-assert.doesNotMatch(photoStart, /storage\.from|property-references/i, 'the source photo is not persisted to server-side object storage');
+assert.match(paidVerify, /paidPropertyGenerationReceipt\(auth, stripe, generationSessionId\)/, 'return from checkout verifies the paid receipt');
+assert.match(paidVerify, /identityKey: receipt\.identityKey/, 'paid verification restores the canonical property identity');
+assert.match(paidVerify, /propertyAddress: receipt\.propertyAddress/, 'paid verification restores the canonical address');
+assert.doesNotMatch(paidVerify, /image-to-image|image-to-3d|MESHY_PROPERTY_CREDITS/i, 'receipt verification must not spend provider credits');
 
-assert.match(property, /\/api\/property-photo-upload/, 'the paid browser flow starts voxel generation from the retained source photo');
-assert.match(property, /\/api\/property-voxel-image\?/, 'the creator polls the voxel-image result');
+assert.match(voxelPhoto, /listPaidPropertyCollectiblesForBuyer/, 'voxel image generation independently verifies the paid property reservation');
+assert.match(voxelPhoto, /reference_image_urls: \[reference\]/, 'the authorized prepared house photo is the voxel-image reference');
+assert.match(voxelPhoto, /Preserve visible roof shape and pitch/, 'the prompt preserves visible architectural identity');
+assert.match(voxelPhoto, /MESHY_PROPERTY_CREDITS\.afterSource/, 'the provider preflight covers voxel-image plus final-3D capacity');
+assert.match(voxelPhoto, /voxelImageTaskToken: final3dTaskToken/, 'the completed image job receives the signed token required by final 3D');
+assert.doesNotMatch(voxelPhoto, /storage\.from|property-references/i, 'the source photo is not persisted to generation object storage');
+
+assert.match(property, /\/api\/property-photo-upload/, 'the browser verifies the paid session before resuming');
+assert.match(property, /prepareReferenceDataUrl\(photo\)/, 'the browser prepares a bounded reference after payment');
+assert.match(property, /\/api\/property-voxel-photo/, 'the paid browser flow starts and polls the real voxel image');
+assert.match(property, /voxelDone\.voxelImageTaskToken/, 'the signed image handoff is forwarded into final 3D');
 assert.match(property, /\/api\/property-voxel-3d/, 'the completed voxel image feeds the final 3D route');
 assert.match(property, /phase: 'voxel'/, 'the final 3D request uses the voxel-image phase');
 assert.doesNotMatch(property, /phase: 'source'/, 'there is no redundant generic source-3D generation stage');
@@ -72,11 +77,11 @@ assert.match(property, /Mint this voxel/, 'the exact finished model can be minte
 assert.match(property, /onePropertyOnePurchase: true/, 'saved Vault item records the one-purchase invariant');
 assert.match(property, /onePropertyOneMint: true/, 'saved Vault item records the one-mint invariant');
 assert.doesNotMatch(property, /Looks good · continue|approvePreviewAndBuildVoxel/, 'the new flow has no redundant approval step between voxel image and 3D');
+assert.doesNotMatch(property, /\/api\/property-local-voxel|LocalVoxelModelViewer|PhotoReliefModelViewer/, 'the shipping creator does not end in a local approximation');
 assert.doesNotMatch(property, /\/api\/property-collectible\/checkout|collectAndSave|Collect voxel ·/, 'normal creation has no second collectible checkout');
 
-assert.match(voxelImage, /property-voxel-image-v1/, 'voxel-image polling remains account-token scoped');
 assert.match(voxel3d, /phase === 'voxel'/, 'the 3D backend supports the requested voxel-image-to-3D path');
-assert.match(voxel3d, /voxelImageTaskId/, 'the final 3D backend verifies the completed voxel-image task');
+assert.match(voxel3d, /verifiedVoxelImageUrl/, 'the 3D backend verifies the completed generated voxel-image task');
 assert.match(voxel3d, /propertyDraftItemId\(auth\.user\.id, draftId, phase\)/, 'the generated GLB is stored under the signed-in account voxel phase');
 
 assert.match(vault, /mintHref/, 'Vault can recover mint-later from the generated 3D item');
@@ -94,4 +99,4 @@ assert.match(mintMetadata, /one_property_one_mint: true/, 'NFT metadata states t
 assert.match(mintPage, /modelUrl: clean\(query\.get\('modelUrl'\)\)/, 'mint page displays the same saved generated GLB');
 assert.match(mintPage, /Keep in inventory/, 'mint page lets the user keep the model without minting');
 
-console.log('Paid VoxelPop regression passed: sign in -> house photo -> confirmed address -> one $4.99 unlock -> voxel image -> final 3D GLB -> Vault -> optional one-property mint.');
+console.log('Paid VoxelPop regression passed: sign in -> house photo -> confirmed address -> one $4.99 unlock -> generated voxel image -> real final 3D GLB -> Vault -> optional one-property mint.');
