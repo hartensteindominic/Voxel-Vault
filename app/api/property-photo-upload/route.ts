@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import { saveCatalog3D } from '../../../lib/catalog3dStore';
+import { createProperty3DTaskHandle } from '../../../lib/property-3d-task-handle';
 import { normalizePropertyDraftId, propertyDraftItemId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
@@ -14,10 +15,6 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function clean(value: unknown, max = 240) {
   return String(value || '').trim().slice(0, max);
-}
-
-function taskKey(raw: string) {
-  return raw.startsWith('property-voxel:task:') ? raw : `property-voxel:task:${raw}`;
 }
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
@@ -84,9 +81,13 @@ export async function POST(request: Request) {
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
-    const taskId = taskKey(providerTaskId);
+
+    // Meshy has already accepted the job at this point. Give the browser a
+    // signed, account-bound recovery handle before attempting persistence so a
+    // transient Supabase write failure cannot orphan the paid provider job.
+    const taskId = createProperty3DTaskHandle(apiKey, auth.user.id, itemId, providerTaskId);
     const sourceFingerprint = `inline-photo:${digest}`;
-    const saved = await saveCatalog3D(itemId, {
+    const pendingRow = {
       task_id: taskId,
       source_image_url: sourceFingerprint,
       source_image_urls: [sourceFingerprint],
@@ -100,10 +101,8 @@ export async function POST(request: Request) {
       started_at: new Date().toISOString(),
       completed_at: null,
       error: null,
-    });
-    if (!saved?.task_id) {
-      throw new Error('VoxelPop started the 3D job, but the account generation record could not be saved. Please try again shortly.');
-    }
+    };
+    const saved = await saveCatalog3D(itemId, pendingRow);
 
     const uploadedAt = new Date().toISOString();
     return privateJson({
@@ -121,10 +120,15 @@ export async function POST(request: Request) {
       },
       source3d: {
         taskId,
-        status: saved.status || 'PENDING',
-        progress: Number(saved.progress || 0),
+        status: saved?.status || 'PENDING',
+        progress: Number(saved?.progress || 0),
+        recordPending: !saved,
       },
-      privacy: 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; only a SHA-256 fingerprint and account-bound job record are retained by Voxel Vault.',
+      persistence: saved ? 'saved' : 'recoverable',
+      note: saved
+        ? 'VoxelPop 3D generation started and is saved to this account.'
+        : 'VoxelPop 3D generation started. The signed account job will keep running while Voxel Vault retries its account record.',
+      privacy: 'Voxel Vault does not store the original source photo in its Storage bucket for this flow. The authorized photo is sent directly to the 3D provider for this generation request; Voxel Vault keeps an account-bound signed task handle and a SHA-256 source fingerprint so the job can be resumed safely.',
     });
   } catch (error) {
     return privateJson({
