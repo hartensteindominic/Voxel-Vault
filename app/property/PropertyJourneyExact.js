@@ -199,51 +199,6 @@ async function normalizeIphonePhoto(file) {
   }
 }
 
-async function createVoxelPoster(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = url;
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = () => reject(new Error('The photo could not be opened for the voxel pass.'));
-    });
-    const sampleSize = 72;
-    const sample = document.createElement('canvas');
-    sample.width = sampleSize;
-    sample.height = sampleSize;
-    const sampleContext = sample.getContext('2d');
-    if (!sampleContext) throw new Error('Voxel image processing is unavailable.');
-    const sourceRatio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
-    let sx = 0;
-    let sy = 0;
-    let sw = image.naturalWidth || 1;
-    let sh = image.naturalHeight || 1;
-    if (sourceRatio > 1) { sw = sh; sx = ((image.naturalWidth || 1) - sw) / 2; }
-    else if (sourceRatio < 1) { sh = sw; sy = ((image.naturalHeight || 1) - sh) / 2; }
-    sampleContext.filter = 'saturate(1.06) contrast(1.05)';
-    sampleContext.drawImage(image, sx, sy, sw, sh, 0, 0, sampleSize, sampleSize);
-    const output = document.createElement('canvas');
-    output.width = 864;
-    output.height = 864;
-    const context = output.getContext('2d');
-    if (!context) throw new Error('Voxel image processing is unavailable.');
-    context.imageSmoothingEnabled = false;
-    context.fillStyle = '#ede7df';
-    context.fillRect(0, 0, output.width, output.height);
-    context.drawImage(sample, 0, 0, output.width, output.height);
-    const shade = context.createLinearGradient(0, 0, output.width, output.height);
-    shade.addColorStop(0, 'rgba(255,255,255,.08)');
-    shade.addColorStop(0.62, 'rgba(255,255,255,0)');
-    shade.addColorStop(1, 'rgba(38,18,52,.12)');
-    context.fillStyle = shade;
-    context.fillRect(0, 0, output.width, output.height);
-    return output.toDataURL('image/jpeg', 0.92);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 export default function PropertyJourneyExact() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
@@ -258,7 +213,6 @@ export default function PropertyJourneyExact() {
   const [creationUnlocked, setCreationUnlocked] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewApproved, setPreviewApproved] = useState(false);
-  const [voxelPoster, setVoxelPoster] = useState('');
   const [localRecipe, setLocalRecipe] = useState(null);
   const [final3d, setFinal3d] = useState(empty3d);
   const [address, setAddress] = useState('');
@@ -380,7 +334,6 @@ export default function PropertyJourneyExact() {
     setCreationUnlocked(false);
     setPreviewReady(false);
     setPreviewApproved(false);
-    setVoxelPoster('');
     setLocalRecipe(null);
     setFinal3d(empty3d());
     const alreadyPaid = Boolean(property?.voxelpop?.paidCreation);
@@ -428,7 +381,6 @@ export default function PropertyJourneyExact() {
       setCreationUnlocked(false);
       setPreviewReady(false);
       setPreviewApproved(false);
-      setVoxelPoster('');
       setLocalRecipe(null);
       setFinal3d(empty3d());
       setSavedDraft(null);
@@ -564,22 +516,12 @@ export default function PropertyJourneyExact() {
     }
   }
 
-  async function approvePreviewAndBuildVoxel() {
+  function approvePreviewAndBuildVoxel() {
     if (!pendingPhoto || !previewReady) return;
     setPreviewApproved(true);
-    setBusy('voxel-image');
-    setMessage('3D voxel photo approved. Creating your separate movable VoxelPop voxel…');
-    try {
-      const poster = await createVoxelPoster(pendingPhoto);
-      setVoxelPoster(poster);
-      setFinal3d({ status: 'IN_PROGRESS', progress: 55, modelUrl: null, taskId: null });
-      setBusy('voxel-3d');
-      setMessage('Creating the movable 3D voxel from the approved voxel photo…');
-    } catch (error) {
-      setPreviewApproved(false);
-      setBusy('');
-      setMessage(String(error?.message || error || 'The voxel stage could not start.'));
-    }
+    setFinal3d({ status: 'IN_PROGRESS', progress: 55, modelUrl: null, taskId: null });
+    setBusy('voxel-3d');
+    setMessage('3D voxel photo approved. Building the movable 3D voxel directly from your approved property photo…');
   }
 
   const registerVoxel = useCallback(async (recipe) => {
@@ -805,7 +747,6 @@ export default function PropertyJourneyExact() {
     setCreationUnlocked(false);
     setPreviewReady(false);
     setPreviewApproved(false);
-    setVoxelPoster('');
     setLocalRecipe(null);
     setFinal3d(empty3d());
     setAddress('');
@@ -903,7 +844,7 @@ export default function PropertyJourneyExact() {
           </div>
           <div className={styles.choicePanel}>
             <b>{previewReady ? 'Does this voxel photo look like the house in your photo?' : 'Building the 3D voxel photo…'}</b>
-            <button className={styles.primaryPurple} type="button" onClick={approvePreviewAndBuildVoxel} disabled={!previewReady || busy === 'voxel-image'}>{busy === 'voxel-image' ? 'Starting movable voxel…' : 'Looks good → Create Movable 3D Voxel'}</button>
+            <button className={styles.primaryPurple} type="button" onClick={approvePreviewAndBuildVoxel} disabled={!previewReady || busy === 'voxel-3d'}>{busy === 'voxel-3d' ? 'Starting movable voxel…' : 'Looks good → Create Movable 3D Voxel'}</button>
             <button className={styles.textButton} type="button" onClick={choosePhoto}>Use a different photo · no second charge</button>
           </div>
         </>}
@@ -912,9 +853,9 @@ export default function PropertyJourneyExact() {
 
       {stage === 4 ? <>
         <p className={styles.bigPrompt}>Create the movable 3D voxel.</p>
-        <p className={styles.stepCopy}>VoxelPop now converts the approved 3D voxel photo into the separate movable voxel version.</p>
+        <p className={styles.stepCopy}>VoxelPop now builds the separate movable voxel directly from the approved property photo—there is no extra 2D voxel-picture step.</p>
         <div className={styles.heroCard}>
-          <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster} onReady={handleLocal3DReady}/>
+          <LocalVoxelModelViewer imageUrl={pendingPreview} sourceImageUrl={pendingPreview} onReady={handleLocal3DReady}/>
           <span className={styles.badge}>{final3d.status === 'LOCAL_ONLY' ? 'VOXEL VISIBLE · SAVE NEEDS RETRY' : 'CREATING PHOTO-MATCHED MOVABLE 3D VOXEL'}</span>
           {!localReady ? <div className={styles.buildPulse}/> : null}
         </div>
@@ -926,7 +867,7 @@ export default function PropertyJourneyExact() {
         <p className={styles.bigPrompt}>Your movable voxel is ready.</p>
         <p className={styles.stepCopy}>Mint it now, or keep the finished digital voxel in your Vault and mint it later.</p>
         <div className={styles.heroCard}>
-          <LocalVoxelModelViewer imageUrl={voxelPoster || pendingPreview} sourceImageUrl={pendingPreview || voxelPoster}/>
+          <LocalVoxelModelViewer imageUrl={pendingPreview} sourceImageUrl={pendingPreview}/>
           <span className={styles.badge}>FINAL MOVABLE 3D VOXEL · SAVED</span>
         </div>
         <div className={styles.choicePanel}>
