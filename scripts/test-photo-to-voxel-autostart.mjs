@@ -15,14 +15,15 @@ assert.match(property, /voxelImageTaskId: voxelDone\.taskId/, 'final 3D must use
 assert.match(property, /voxelImageTaskToken: voxelDone\.taskToken/, 'final 3D must carry the account-bound voxel image task token');
 assert.match(property, /phase: 'voxel'/, 'automatic pipeline must build a distinct final voxel 3D phase');
 
-assert.match(property, /Building the first 3D version from your photo/, 'user must see the first automatic 3D processing state');
+assert.match(property, /Building a first 3D model from your photo/, 'user must see the first automatic 3D processing state');
 assert.match(property, /Turning the 3D into VoxelPop/, 'user must see the voxel processing state');
 assert.match(property, /Building your final VoxelPop 3D/, 'user must see final voxel 3D progress');
 assert.match(property, /setPipelinePhase\('paused'\)/, 'provider failure must move the automatic chain to a recoverable paused state');
 assert.match(property, /async function retryBuild\(\)/, 'paused automatic chain must preserve a retry path');
 assert.match(property, /Try build again/, 'paused voxel stage must expose a clear retry action');
+assert.match(property, /No extra button\. First 3D → VoxelPop look → final 3D voxel\./, 'visible copy must make the automatic handoff obvious');
 
 assert.doesNotMatch(property, /Use this street photo/, 'photo-first journey must not branch back into the old street-photo chooser');
 assert.doesNotMatch(property, /autoCreateAfterPhoto/, 'old photo-to-image auto-start state should be removed in favor of the full automatic pipeline');
 
-console.log('Property automatic journey regression passed: approved private photo -> source 3D -> generated-3D voxel style -> final voxel 3D, with visible progress and a safe retry path.');
+console.log('Property automatic journey regression passed: approved private photo -> source 3D -> generated-3D voxel style -> final voxel 3D, with visible progress, clear automatic wording, and a safe retry path.');
