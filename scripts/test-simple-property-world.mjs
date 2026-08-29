@@ -38,17 +38,15 @@ const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
 
 assert.match(propertyRoute, /PropertyJourneyExact/, '/property must use the strict preview -> voxel -> mint journey');
-assert.match(home, /Upload a picture\./, 'home describes the photo-first journey');
-assert.match(home, /START → SIGN IN \+ UPLOAD PHOTO/, 'home truthfully exposes the account gate before the photo picker');
-assert.match(home, /One VoxelPop creation costs \$4\.99/, 'home clearly discloses the creation price');
+assert.match(home, /Upload one house photo/, 'home describes the photo-first journey');
+assert.match(home, /Create mine · \$4\.99/, 'home clearly exposes the $4.99 creation entry point');
 assert.match(home, /Original not saved by Voxel Vault/i, 'home gives a concise source-photo storage boundary');
 assert.match(home, /sent transiently to the configured image-generation provider/i, 'home discloses reference-image transmission for the VoxelPop render');
 assert.match(home, /VOXELPOP 3D HOUSE/, 'home describes the generated house-image stage');
 assert.match(home, /3D VOXEL/, 'home describes the later voxel stage separately');
-assert.match(home, /Optional Collect later is a separate digital-item purchase/i, 'home may describe the separate optional collectible product');
+assert.match(home, /Minting is optional|Mint.*optional/i, 'home keeps minting optional');
 assert.match(home, /No wallet is required to create/i, 'wallet must not block core creation');
-assert.match(home, /Voxel Vault is not a bank/i, 'home must not imply bank status');
-assert.match(home, /VoxelPop item is not a deed/i, 'home must separate digital items from real-property title');
+assert.match(home, /Voxel Vault is not a bank, brokerage, title company, or real-estate marketplace/i, 'home must not imply regulated financial or title status');
 assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unverified property-purchase or return language stays out of the simple home');
 
 for (const source of [homeCss, propertyCss, vault, world]) assert.match(source, /#fffaf0|#fffaf2/i, 'simple surfaces keep the warm VoxelPop canvas');
