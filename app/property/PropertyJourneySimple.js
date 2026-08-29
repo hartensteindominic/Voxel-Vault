@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import LocalVoxelModelViewer from './LocalVoxelModelViewer';
+import PhotoReliefModelViewer from './PhotoReliefModelViewer';
 import PropertyWorldMap from './PropertyWorldMap';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import {
@@ -149,71 +150,46 @@ async function imageReferenceToFile(reference, filename = 'property-reference.jp
   }
 }
 
-async function create3DPreviewImage(file) {
+async function createVoxelPoster(file) {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = url;
     await new Promise((resolve, reject) => {
       image.onload = resolve;
-      image.onerror = () => reject(new Error('The photo could not be opened for the VoxelPop 3D picture.'));
+      image.onerror = () => reject(new Error('The photo could not be opened for the voxel pass.'));
     });
-
-    const output = document.createElement('canvas');
-    output.width = 1000;
-    output.height = 1000;
-    const context = output.getContext('2d');
-    if (!context) throw new Error('VoxelPop image processing is unavailable.');
-
-    context.fillStyle = '#e9e3dc';
-    context.fillRect(0, 0, output.width, output.height);
-
-    const faceX = 70;
-    const faceY = 54;
-    const faceWidth = 850;
-    const faceHeight = 850;
-    for (let layer = 22; layer >= 1; layer -= 1) {
-      const shade = 62 + Math.round((22 - layer) * 1.4);
-      context.fillStyle = `rgb(${shade},${Math.max(38, shade - 18)},${Math.min(100, shade + 8)})`;
-      context.fillRect(faceX + layer * 2.2, faceY + layer * 2.8, faceWidth, faceHeight);
-    }
-
+    const sampleSize = 72;
+    const sample = document.createElement('canvas');
+    sample.width = sampleSize;
+    sample.height = sampleSize;
+    const sampleContext = sample.getContext('2d');
+    if (!sampleContext) throw new Error('Voxel image processing is unavailable.');
     const sourceRatio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
-    const targetRatio = faceWidth / faceHeight;
     let sx = 0;
     let sy = 0;
     let sw = image.naturalWidth || 1;
     let sh = image.naturalHeight || 1;
-    if (sourceRatio > targetRatio) {
-      sw = sh * targetRatio;
-      sx = ((image.naturalWidth || 1) - sw) / 2;
-    } else if (sourceRatio < targetRatio) {
-      sh = sw / targetRatio;
-      sy = ((image.naturalHeight || 1) - sh) / 2;
-    }
-
-    context.save();
-    context.beginPath();
-    context.roundRect(faceX, faceY, faceWidth, faceHeight, 34);
-    context.clip();
-    context.filter = 'saturate(1.035) contrast(1.025)';
-    context.drawImage(image, sx, sy, sw, sh, faceX, faceY, faceWidth, faceHeight);
-    context.filter = 'none';
-    const depthLight = context.createLinearGradient(faceX, faceY, faceX + faceWidth, faceY + faceHeight);
-    depthLight.addColorStop(0, 'rgba(255,255,255,.11)');
-    depthLight.addColorStop(0.55, 'rgba(255,255,255,0)');
-    depthLight.addColorStop(1, 'rgba(30,16,42,.12)');
-    context.fillStyle = depthLight;
-    context.fillRect(faceX, faceY, faceWidth, faceHeight);
-    context.restore();
-
-    context.strokeStyle = 'rgba(255,255,255,.72)';
-    context.lineWidth = 5;
-    context.beginPath();
-    context.roundRect(faceX, faceY, faceWidth, faceHeight, 34);
-    context.stroke();
-
-    return output.toDataURL('image/jpeg', 0.94);
+    if (sourceRatio > 1) { sw = sh; sx = ((image.naturalWidth || 1) - sw) / 2; }
+    else if (sourceRatio < 1) { sh = sw; sy = ((image.naturalHeight || 1) - sh) / 2; }
+    sampleContext.filter = 'saturate(1.06) contrast(1.05)';
+    sampleContext.drawImage(image, sx, sy, sw, sh, 0, 0, sampleSize, sampleSize);
+    const output = document.createElement('canvas');
+    output.width = 864;
+    output.height = 864;
+    const context = output.getContext('2d');
+    if (!context) throw new Error('Voxel image processing is unavailable.');
+    context.imageSmoothingEnabled = false;
+    context.fillStyle = '#ede7df';
+    context.fillRect(0, 0, output.width, output.height);
+    context.drawImage(sample, 0, 0, output.width, output.height);
+    const shade = context.createLinearGradient(0, 0, output.width, output.height);
+    shade.addColorStop(0, 'rgba(255,255,255,.08)');
+    shade.addColorStop(0.62, 'rgba(255,255,255,0)');
+    shade.addColorStop(1, 'rgba(38,18,52,.12)');
+    context.fillStyle = shade;
+    context.fillRect(0, 0, output.width, output.height);
+    return output.toDataURL('image/jpeg', 0.92);
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -229,6 +205,8 @@ export default function PropertyJourneySimple() {
   const [paidSessionId, setPaidSessionId] = useState('');
   const [reuseDraft, setReuseDraft] = useState(null);
   const [reuseEntitled, setReuseEntitled] = useState(false);
+  const [previewUnlocked, setPreviewUnlocked] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
   const [voxelPoster, setVoxelPoster] = useState('');
   const [voxelBuildStarted, setVoxelBuildStarted] = useState(false);
   const [localRecipe, setLocalRecipe] = useState(null);
@@ -248,8 +226,8 @@ export default function PropertyJourneySimple() {
   const localReady = final3d?.status === 'SUCCEEDED';
   const mapped = Boolean(building && mappedAddress);
   const creationIncluded = Boolean(paidSessionId || reuseEntitled);
-  const step = savedDraft ? 5 : mapped ? 4 : (voxelBuildStarted || localReady) ? 3 : voxelPoster ? 2 : 1;
-  const labels = ['PHOTO', '3D PIC', '3D VOXEL', 'MAP', 'MY WORLD'];
+  const step = savedDraft ? 5 : mapped ? 4 : (voxelBuildStarted || localReady) ? 3 : previewUnlocked ? 2 : 1;
+  const labels = ['PHOTO', '3D PREVIEW', '3D VOXEL', 'MAP', 'MY WORLD'];
 
   useEffect(() => {
     let active = true;
@@ -314,6 +292,8 @@ export default function PropertyJourneySimple() {
     });
     setPendingPhoto(photo);
     setRightsConfirmed(rights);
+    setPreviewUnlocked(false);
+    setPreviewReady(false);
     setVoxelPoster('');
     setVoxelBuildStarted(false);
     setLocalRecipe(null);
@@ -347,7 +327,10 @@ export default function PropertyJourneySimple() {
   }
 
   async function startLocalBuild(photo) {
+    if (!photo) return;
     setBusy('local-build');
+    setPreviewReady(false);
+    setPreviewUnlocked(true);
     setVoxelPoster('');
     setVoxelBuildStarted(false);
     setLocalRecipe(null);
@@ -356,23 +339,27 @@ export default function PropertyJourneySimple() {
     setAtlasBuildings([]);
     setMappedAddress('');
     setSavedDraft(null);
-    setMessage('Creating a clear photo-matched 3D picture preview on this device…');
-    try {
-      const poster = await create3DPreviewImage(photo);
-      setVoxelPoster(poster);
-      setMessage('3D picture ready. Check that it still looks like your property, then tap Create 3D Voxel.');
-    } finally {
-      setBusy('');
-    }
+    setMessage('Opening the interactive 3D picture from your actual property photo…');
+    setBusy('');
   }
 
-  function startVoxelBuild() {
-    if (!pendingPhoto || !voxelPoster) return setMessage('Create the 3D picture first.');
-    setVoxelBuildStarted(true);
-    setLocalRecipe(null);
-    setFinal3d({ status: 'IN_PROGRESS', progress: 72, modelUrl: null, taskId: null });
-    setBusy('local-3d');
-    setMessage('Building the movable photo-matched 3D voxel now. No Meshy credits are used.');
+  async function startVoxelBuild() {
+    if (!pendingPhoto || !previewReady) return setMessage('Wait for the 3D picture to finish, then approve it.');
+    setBusy('voxel-image');
+    setMessage('3D picture approved. Creating the separate voxel version from the same property photo…');
+    try {
+      const poster = await createVoxelPoster(pendingPhoto);
+      setVoxelPoster(poster);
+      setVoxelBuildStarted(true);
+      setLocalRecipe(null);
+      setFinal3d({ status: 'IN_PROGRESS', progress: 72, modelUrl: null, taskId: null });
+      setBusy('local-3d');
+      setMessage('Building the movable photo-matched 3D voxel now. No Meshy credits are used.');
+    } catch (error) {
+      setVoxelBuildStarted(false);
+      setBusy('');
+      setMessage(String(error?.message || error || 'The voxel stage could not start.'));
+    }
   }
 
   async function verifyPaidSession(generationSessionId) {
@@ -490,6 +477,8 @@ export default function PropertyJourneySimple() {
           setPendingPhoto(null);
           setPendingPreview('');
           setRightsConfirmed(false);
+          setPreviewUnlocked(false);
+          setPreviewReady(false);
           setVoxelPoster('');
           setVoxelBuildStarted(false);
           setFinal3d(empty3d());
@@ -659,6 +648,8 @@ export default function PropertyJourneySimple() {
     setPaidSessionId('');
     setReuseDraft(null);
     setReuseEntitled(false);
+    setPreviewUnlocked(false);
+    setPreviewReady(false);
     setVoxelPoster('');
     setVoxelBuildStarted(false);
     setLocalRecipe(null);
@@ -728,14 +719,19 @@ export default function PropertyJourneySimple() {
 
       {step === 2 ? <>
         <p className={styles.bigPrompt}>Check the 3D picture.</p>
-        <p className={styles.stepCopy}>This preview keeps the property photo recognizable instead of immediately turning it into a rough voxel. If it looks right, create the movable 3D voxel next.</p>
+        <p className={styles.stepCopy}>This preview keeps the property photo recognizable instead of immediately turning it into a rough voxel. Drag gently to see the 3D relief. If it looks right, create the movable 3D voxel next.</p>
         <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectPhoto}/>
-        <div className={styles.heroCard}><img src={voxelPoster} alt="Photo-matched 3D property picture preview"/><span className={styles.badge}>PHOTO-MATCHED 3D PICTURE PREVIEW</span></div>
+        <div className={styles.heroCard}>
+          <PhotoReliefModelViewer imageUrl={pendingPreview} onReady={() => { setPreviewReady(true); setMessage('3D picture ready. Check that it still looks like your property, then tap Create 3D Voxel.'); }}/>
+          <span className={styles.badge}>INTERACTIVE 3D PICTURE · VOXEL NOT BUILT YET</span>
+          {!previewReady ? <div className={styles.buildPulse}/> : null}
+        </div>
         <div className={styles.choicePanel}>
-          <button className={styles.primaryPurple} type="button" onClick={startVoxelBuild} disabled={busy === 'local-3d'}>{busy === 'local-3d' ? 'Starting 3D voxel…' : 'Create 3D Voxel'}</button>
+          <b>{previewReady ? 'Does this 3D picture still look like your property?' : 'Building the recognizable 3D picture…'}</b>
+          <button className={styles.primaryPurple} type="button" onClick={startVoxelBuild} disabled={!previewReady || busy === 'voxel-image' || busy === 'local-3d'}>{busy === 'voxel-image' || busy === 'local-3d' ? 'Starting 3D voxel…' : 'Looks right → Create 3D Voxel'}</button>
           <button className={styles.textButton} type="button" onClick={choosePhoto}>Picture does not look right · change photo</button>
         </div>
-        <p className={styles.truth}>This is a photo-matched visual preview, not a survey or a perfect reconstruction of unseen sides. The next step makes the movable voxel model from the same source picture.</p>
+        <p className={styles.truth}>This is a photo-matched 3D visual preview, not a survey or a perfect reconstruction of unseen sides. The next step makes the movable voxel model from the same source picture.</p>
       </> : null}
 
       {step === 3 ? <>
@@ -760,7 +756,7 @@ export default function PropertyJourneySimple() {
         <p className={styles.bigPrompt}>Matched to the real map.</p>
         <p className={styles.stepCopy}>Your 3D voxel is now paired with the selected property inside its nearby mapped neighborhood. Save it directly to My World.</p>
         <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>{building?.geometry ? 'SOURCE-BACKED BUILDING FOOTPRINT' : 'VERIFIED LOCATION REFERENCE'}</span></div>
-        {voxelPoster ? <div className={`${styles.miniModel} ${styles.voxelMini}`}><img src={voxelPoster} alt="VoxelPop 3D picture preview"/></div> : null}
+        {voxelPoster ? <div className={`${styles.miniModel} ${styles.voxelMini}`}><img src={voxelPoster} alt="VoxelPop voxel preview"/></div> : null}
         <section className={styles.donePanel}>
           <b>{mappedAddress}</b>
           <span>{building?.geometry ? 'Building footprint matched from map data.' : 'Location matched; exact building footprint was not available from the map source.'}</span>
