@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const destinations = [
   { href: '/vault', label: 'MY VAULT', detail: 'Portfolio' },
+  { href: '/geo/slice', label: 'SLICE', detail: '$1.99 Sandbox' },
   { href: '/vault/earth', label: 'EARTH', detail: 'Real Properties' },
   { href: '/vault/estates/mine', label: 'TWINS', detail: 'My Backups' },
   { href: '/vault/income', label: 'INCOME', detail: 'Payments' },
