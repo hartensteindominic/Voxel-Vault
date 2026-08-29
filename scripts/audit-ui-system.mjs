@@ -47,20 +47,21 @@ const footer = read('app/components/ConsumerFooter.js');
 const system = read('app/ui-system.css');
 const demo = read('app/demo/page.js');
 const property = read('app/property/PropertyJourneyExact.js');
+const propertyCss = read('app/property/property.module.css');
 
 must(/HomeProductPreview/.test(home), 'Homepage must use real production 3D proof.');
 must(!/voxelHouse/.test(home), 'Homepage must not regress to a decorative CSS house.');
 must(/className=\{styles\.primaryAction\} href="\/property"/.test(home), 'Create must be the single visual primary hero action.');
-must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must be the secondary proof action.');
+must(/className=\{styles\.secondaryAction\} href="\/demo"/.test(home), 'No-login demo must remain a secondary proof action.');
 must(/VOXELPOP OUTPUT/.test(home) && /3D voxel photo/i.test(home) && /Movable 3D voxel/.test(home) && /Optional NFT/.test(home), 'Homepage must explain the real voxel-photo, movable-voxel and optional-NFT outputs without restoring dense product clutter.');
 must(/VoxelPop is a digital creation product\./.test(home) && /does not create ownership[\s\S]*physical property/i.test(home), 'Homepage must keep the digital-only physical-property boundary visible.');
 must(/PhotoReliefModelViewer/.test(preview) && /LocalVoxelModelViewer/.test(preview), 'Home product proof must use the actual voxel-photo and movable-voxel viewers.');
 
-must(/Create · \$4\.99[\s\S]*Vault[\s\S]*World/.test(topNav), 'Desktop product nav must keep Create, Vault, and World in the focused product order.');
-must(!/href: '\/more', label: 'More'/.test(topNav), 'Advanced More tools must stay out of the primary VoxelPop header.');
+must(/Create · \$4\.99[\s\S]*Vault/.test(topNav), 'Primary product nav must keep only the two core Create and Vault destinations.');
+must(!/label: 'World'|label: 'Demo'|label: 'More'/.test(topNav), 'World, Demo, and advanced tools must stay out of the primary VoxelPop header.');
 must(/focusedFunnel/.test(topNav) && /mobileDocked/.test(topNav) && /isOrganizedUserRoute/.test(topNav), 'Shared top nav must distinguish the focused Home/Create funnel from routes owned by the mobile dock.');
 must(/\.mobileDocked \.links\{display:none\}/.test(topCss), 'Organized mobile routes must let the bottom dock own navigation instead of duplicating header links.');
-must(/\.focusedFunnel \.links a:nth-child\(2\)\{display:inline-flex\}/.test(topCss) && /\.focusedFunnel \.links \.demo\{display:none\}/.test(topCss), 'Focused Home/Create mobile header must keep Create + Vault visible without a duplicate Demo control.');
+must(/\.focusedFunnel \.links a:nth-child\(2\)\{display:inline-flex\}/.test(topCss), 'Focused Home/Create mobile header must keep Vault reachable without restoring extra header choices.');
 must(/pathname === '\/' \|\| pathname === '\/property'/.test(dock), 'Home and the paid creator must suppress the duplicate bottom dock.');
 must(/SIMPLE_PROPERTY_DOCK\.filter\(\(item\) => item\.id !== 'more'\)/.test(dock), 'Simple secondary routes must keep the condensed dock without More.');
 must(/@media\(max-width:720px\)/.test(dockCss) && /\.nav\{display:none\}/.test(dockCss), 'Bottom dock must be mobile-only.');
@@ -83,6 +84,11 @@ for (const file of ['app/privacy/page.js','app/terms/page.js','app/about/page.js
 
 must(!/Mint is next/i.test(property), 'Creation completion must not imply minting is mandatory.');
 must(/Minting is optional/.test(property), 'Creation completion must state the optional mint boundary.');
+must(/\.accountPill,\.progress,\.stageLabel\{display:none\}/.test(propertyCss), 'Creator must hide account/progress chrome that makes the simple flow feel longer than it is.');
+must(/\.photoDrop \+ \.primaryPurple\{display:none\}/.test(propertyCss), 'Creator must not show two separate controls for the same photo-selection action.');
+must(/\.bigPrompt \+ \.flowHint \+ \.choicePanel\{display:none\}/.test(propertyCss), 'Creator must hide the duplicate source-mode selector on the normal photo-first path.');
+must(/a\.secondaryLink\[href="\/vault\/property-drafts"\][^}]*order:1/.test(propertyCss), 'Finished creations must visually prioritize the saved Vault destination over optional minting.');
+must(/a\.primaryLink\[href\^="\/property\/mint"\][^}]*order:2/.test(propertyCss), 'Optional minting must remain available but visually secondary after save.');
 
 let tinyDeclarations = 0;
 const tinyByFile = [];
@@ -117,5 +123,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: real high-fidelity 3D voxel-photo proof, concise VoxelPop value messaging, focused Home/Create navigation, condensed secondary mobile dock, readable shared trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
+  console.log('\nUI system invariants passed: real high-fidelity 3D voxel-photo proof, one-click-focused Home/Create UX, two-destination product header, readable trust chrome, optional minting, focus visibility, and reduced-motion support are enforced.');
 }
