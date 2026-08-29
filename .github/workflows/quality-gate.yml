@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --no-audit --no-fund
+      - run: node scripts/test-catalog-worker-security.mjs
       - run: npm run test:collection
       - run: npm run test:commerce
       - run: npm run test:routes
