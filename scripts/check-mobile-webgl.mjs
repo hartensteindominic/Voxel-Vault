@@ -54,6 +54,11 @@ assert.match(meshyViewer, /time - lastRender < 33/, 'Meshy GLB viewer must cap c
 assert.match(meshyViewer, /pointers\.size >= 2/, 'Meshy GLB viewer must retain two-finger pinch zoom');
 assert.match(meshyViewer, /IntersectionObserver/, 'Meshy GLB viewer must pause offscreen');
 assert.match(meshyViewer, /prefers-reduced-motion/, 'Meshy GLB viewer must respect reduced motion');
+assert.match(meshyViewer, /fetch\(modelUrl, \{ cache: 'no-store' \}\)/, 'Meshy viewer must bypass stale browser GLB cache before decoding');
+assert.match(meshyViewer, /PHOTO → 3D/, 'Meshy viewer must visibly preserve the image-first transition');
+assert.match(meshyViewer, /RETRY 3D/, 'Meshy viewer must offer in-place GLB recovery without forcing regeneration');
+assert.match(meshyViewer, /\.displayOnly img/, 'Meshy viewer must reuse visible property evidence as its loading/error poster when available');
+assert.doesNotMatch(meshyViewer, /Regenerating is not automatic/, 'Meshy viewer must not strand the user on the old dead-end cached-GLB error');
 assert.match(meshyPanel, /maxSide = 2048/, 'iPhone reference photos must normalize to bounded Meshy upload size');
 assert.match(meshyPanel, /image\/jpeg/, 'iPhone reference normalization must output Meshy-compatible JPEG');
 assert.match(meshyPanel, /FREE OPEN KARTAVIEW VIEW/, 'open-licensed street imagery must be loadable into Meshy from a phone');
@@ -62,4 +67,4 @@ assert.match(realEstateCss, /mobileTabBar/, 'Real estate homepage must expose mo
 assert.match(realEstateCss, /safe-area-inset-bottom/, 'Real estate homepage must account for iPhone safe area');
 assert.match(realEstateCss, /calc\(100% - 22px\)/, 'Real estate mobile shell width must use valid CSS math');
 
-console.log('Mobile WebGL source guard passed: Voxel, GEO, streaming Globe, free open street Compare, Meshy GLB and iPhone reference-photo flows retain touch-safe mobile fallbacks, bounded caches and rendering limits.');
+console.log('Mobile WebGL source guard passed: Voxel, GEO, streaming Globe, free open street Compare, Meshy image-first GLB recovery and iPhone reference-photo flows retain touch-safe mobile fallbacks, bounded caches and rendering limits.');
