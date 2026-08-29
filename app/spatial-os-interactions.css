@@ -1,19 +1,43 @@
 :root {
-  --vv-accent: #9ff5df;
-  --vv-accent-soft: rgba(159, 245, 223, .12);
-  --vv-border: rgba(171, 235, 212, .16);
-  --vv-focus: rgba(159, 245, 223, .92);
-  --vv-radius-control: 14px;
+  --vv-accent: #7c4dff;
+  --vv-accent-strong: #6333e6;
+  --vv-accent-soft: rgba(124, 77, 255, .10);
+  --vv-lime: #caff59;
+  --vv-mint: #bdf5df;
+  --vv-peach: #ffd8c7;
+  --vv-cream: #fffaf2;
+  --vv-paper: #fffefd;
+  --vv-ink: #24182b;
+  --vv-muted: #7d7282;
+  --vv-border: rgba(76, 50, 91, .12);
+  --vv-focus: rgba(124, 77, 255, .82);
+  --vv-shadow-soft: 0 16px 44px rgba(68, 43, 80, .10);
+  --vv-shadow-float: 0 20px 55px rgba(68, 43, 80, .18);
+  --vv-radius-control: 16px;
+  --vv-radius-card: 28px;
   --vv-tap-min: 44px;
 }
 
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  background: var(--vv-cream);
+  scroll-padding-bottom: 110px;
 }
 
 body {
   overscroll-behavior-y: none;
+  background: var(--vv-cream);
+  color: var(--vv-ink);
+  accent-color: var(--vv-accent);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: Inter, ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
 }
 
 a,
@@ -38,18 +62,65 @@ textarea {
   font: inherit;
 }
 
+button:not(:disabled),
+a[href],
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+button,
+a,
+[role='button'] {
+  transition: transform .14s ease, box-shadow .14s ease, background-color .14s ease, border-color .14s ease, opacity .14s ease;
+}
+
+button:active:not(:disabled),
+a:active,
+[role='button']:active:not([aria-disabled='true']) {
+  transform: translateY(1px) scale(.992);
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--vv-focus);
+  outline: 3px solid var(--vv-focus);
   outline-offset: 3px;
 }
 
+input,
+select,
+textarea {
+  caret-color: var(--vv-accent);
+}
+
 ::selection {
-  background: rgba(159, 245, 223, .24);
+  background: rgba(202, 255, 89, .56);
+  color: #2b1835;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 77, 255, .35) transparent;
+}
+
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: rgba(124, 77, 255, .28); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+@media (hover: hover) {
+  a[href]:hover,
+  button:not(:disabled):hover,
+  [role='button']:not([aria-disabled='true']):hover {
+    transform: translateY(-1px);
+  }
 }
 
 @media (pointer: coarse) {
@@ -57,6 +128,20 @@ textarea:focus-visible,
   [role='button'] {
     min-height: var(--vv-tap-min);
   }
+
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --vv-radius-card: 24px;
+  }
+
+  html { scroll-padding-bottom: 104px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
