@@ -5,7 +5,7 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [fix/nft-media-centering, main]
+    branches: [main]
 
 concurrency:
   group: voxel-vault-${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm run test:repo-hygiene
       - run: npm run test:collection
       - run: npm run test:commerce
       - run: npm run test:routes
