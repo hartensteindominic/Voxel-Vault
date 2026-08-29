@@ -78,7 +78,7 @@ assert.match(finalize, /state: 'paid'/, 'finished lock is promoted to the existi
 assert.match(mintPrepare, /verifyOwnedFinalVoxelModel/, 'mint preparation verifies ownership of the exact finished local voxel');
 assert.match(mintPrepare, /already been minted|duplicate mint/i, 'mint preparation blocks duplicate minting');
 assert.doesNotMatch(mintPrepare, /MESHY_API_KEY|api\.meshy|image-to-3d/i, 'property mint does not require Meshy');
-assert.match(mintPage, /Mint Later/, 'mint page still allows keeping the voxel without minting immediately');
+assert.match(mintPage, /Keep in inventory/, 'mint page still allows keeping the voxel without minting immediately');
 assert.match(vault, /directMintHref/, 'Inventory can recover the direct mint route');
 
 assert.doesNotMatch(property, /PropertyWorldMap|mapBuilding|saveToMyWorld|Add to My World/, 'World/map controls stay out of the core creation funnel');
