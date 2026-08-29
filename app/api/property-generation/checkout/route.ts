@@ -7,6 +7,7 @@ import {
   PROPERTY_VOXEL_GENERATION_KIND,
   PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
   PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
+  PROPERTY_VOXEL_SOURCE_HANDLING,
 } from '../../../../lib/property-generation-payment';
 
 export const runtime = 'nodejs';
@@ -44,8 +45,8 @@ export async function POST(request: Request) {
           currency: 'usd',
           unit_amount: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
           product_data: {
-            name: 'VoxelPop 3D Voxel Creation',
-            description: 'One custom digital VoxelPop creation with a voxel-style image and interactive 3D model built by Voxel Vault without metered Meshy generation. Digital creation only; no rights in physical real estate.',
+            name: 'VoxelPop 3D House Creation',
+            description: 'One custom digital VoxelPop house creation: generated 3D house preview, VoxelPop-style image pass, and interactive 3D voxel. Digital creation only; no rights in physical real estate.',
           },
         },
       }],
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
         rights_confirmed: 'true',
         price_cents: String(PROPERTY_VOXEL_GENERATION_PRICE_CENTS),
         generation_engine: PROPERTY_VOXEL_GENERATION_ENGINE,
-        source_storage: 'device-local',
+        source_storage: PROPERTY_VOXEL_SOURCE_HANDLING,
       },
       success_url: `${origin}/property?generation_session={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/property?generation_checkout=cancelled&draftId=${encodeURIComponent(draftId)}`,
@@ -72,8 +73,9 @@ export async function POST(request: Request) {
       priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
       draftId,
       staged: false,
-      storage: 'device-local',
+      sourceHandling: PROPERTY_VOXEL_SOURCE_HANDLING,
       engine: PROPERTY_VOXEL_GENERATION_ENGINE,
+      note: 'Checkout does not upload the property photo. After payment is verified, the authorized photo is sent directly to the private 3D generation provider to build the house preview.',
     });
   } catch (error) {
     return privateJson({
@@ -83,10 +85,10 @@ export async function POST(request: Request) {
   }
 }
 
-// Kept for compatibility with older clients. There is no checkout staging to
-// delete in the local engine because the source photo never leaves the device.
+// Kept for compatibility with older clients. Checkout itself does not stage a
+// photo, so there is no pending source object to delete when checkout is canceled.
 export async function DELETE(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
-  return privateJson({ ok: true, deleted: false, storage: 'device-local' });
+  return privateJson({ ok: true, deleted: false, staged: false });
 }
