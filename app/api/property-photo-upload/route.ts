@@ -79,7 +79,7 @@ function generationResult(input: {
       progress: Number(input.progress || 0),
     },
     recoveryMode: input.recoveryMode === true,
-    privacy: 'The authorized source photo was staged privately only for checkout and the paid Meshy handoff. Voxel Vault removes that staged source after generation starts; the account keeps the SHA-256 fingerprint and account-bound generation record rather than the original photo.',
+    privacy: 'After the paid provider handoff, Voxel Vault does not store the original source photo in its Storage bucket. Checkout temporarily stages the authorized photo privately, then removes that staged source when generation starts; the account keeps the SHA-256 fingerprint and account-bound generation record rather than the original photo.',
   };
 }
 
