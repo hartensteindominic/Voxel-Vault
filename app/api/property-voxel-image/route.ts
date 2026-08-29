@@ -8,6 +8,12 @@ import {
   propertyGenerationProviderTaskId,
   verifyPropertyGenerationRecoveryTaskId,
 } from '../../../lib/property-generation-task';
+import {
+  ensureMeshyCredits,
+  isMeshyCreditFailure,
+  MESHY_PROPERTY_CREDITS,
+  meshyCreditFailure,
+} from '../../../lib/meshy-credits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -18,6 +24,7 @@ const THREE_D_ENDPOINT = 'https://api.meshy.ai/openapi/v1/image-to-3d';
 const MAX_REFERENCE_BYTES = 6 * 1024 * 1024;
 const ALLOWED_RIGHTS_BASES = new Set(['user-owned', 'open-licensed', 'licensed-derivative']);
 const BLOCKED_REFERENCE_HOSTS = /(^|\.)(google\.com|googleusercontent\.com|gstatic\.com|googleapis\.com|maps\.googleapis\.com|streetviewpixels-pa\.googleapis\.com|zillow\.com|zillowstatic\.com|redfin\.com|cdn-redfin\.com|apartments\.com)$/i;
+const REMAINING_BUILD_STAGE = 'the VoxelPop style pass and final movable 3D';
 
 function clean(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max);
@@ -166,6 +173,11 @@ export async function POST(request: Request) {
     if (!draftId && (!address || !atlasId)) return privateJson({ ok: false, error: 'A resolved property is required.' }, { status: 400 });
     if (!references.length) return privateJson({ ok: false, error: 'A rights-cleared visual reference is required before making the voxel.' }, { status: 400 });
 
+    // Once the first 3D exists, do not spend the 3-credit styling call unless
+    // the account can also afford the following 15-credit final 3D stage.
+    const creditGate = await ensureMeshyCredits(apiKey, MESHY_PROPERTY_CREDITS.afterSource, REMAINING_BUILD_STAGE);
+    if (!creditGate.ok) return privateJson(creditGate, { status: creditGate.status });
+
     const subject = draftId ? 'the exact building shown in the generated 3D reference render' : `the exact property shown in the supplied reference photo${references.length > 1 ? 's' : ''}: ${address}`;
     const prompt = [
       `Create a faithful VoxelPop-style voxel architectural rendering of ${subject}.`,
@@ -190,7 +202,12 @@ export async function POST(request: Request) {
       cache: 'no-store',
     });
     const created = await create.json().catch(() => ({}));
-    if (!create.ok) return privateJson({ ok: false, error: created?.message || created?.error || `Voxel image provider returned ${create.status}.` }, { status: create.status });
+    if (!create.ok) {
+      if (isMeshyCreditFailure(create.status, created)) {
+        return privateJson(meshyCreditFailure(MESHY_PROPERTY_CREDITS.afterSource, null, REMAINING_BUILD_STAGE), { status: 402 });
+      }
+      return privateJson({ ok: false, error: created?.message || created?.error || `Voxel image provider returned ${create.status}.` }, { status: create.status });
+    }
 
     const taskId = clean(created?.result || created?.id, 240);
     if (!taskId) throw new Error('The voxel image provider did not return a task ID.');
