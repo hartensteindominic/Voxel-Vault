@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import LocalVoxelModelViewer from './LocalVoxelModelViewer';
-import PhotoReliefModelViewer from './PhotoReliefModelViewer';
+import VoxelPopHouseImageGenerator from './VoxelPopHouseImageGenerator';
 import PropertyWorldMap from './PropertyWorldMap';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import {
@@ -897,7 +897,7 @@ export default function PropertyJourneyExact() {
         <p className={styles.stepCopy}>Review the generated VoxelPop/NFT-house-style image against the original reference. The voxel is not created until you approve this generated house.</p>
         {!pendingPreview ? <section className={styles.donePanel}><b>PAYMENT VERIFIED</b><span>Choose the same photo again. You will not be charged again.</span><button className={styles.primaryPurple} type="button" onClick={choosePhoto}>Choose photo again</button></section> : <>
           <div className={styles.heroCard}>
-            <PhotoReliefModelViewer imageUrl={pendingPreview} onReady={() => setPreviewReady(true)}/>
+            <VoxelPopHouseImageGenerator imageUrl={pendingPreview} onReady={() => setPreviewReady(true)}/>
             <span className={styles.badge}>VOXELPOP 3D HOUSE · VOXEL NOT BUILT YET</span>
             {!previewReady ? <div className={styles.buildPulse}/> : null}
           </div>
