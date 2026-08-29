@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
 import { normalizePropertyDraftId } from '../../../lib/property-generation-ids';
-import { listPaidPropertyCollectiblesForBuyer } from '../../../lib/property-collectible-commerce';
+import { readPropertyCollectibleReservation } from '../../../lib/property-collectible-commerce';
 import {
   MESHY_PROPERTY_CREDITS,
   meshyClientStatus,
@@ -37,6 +37,12 @@ function taskToken(apiKey: string, userId: string, draftId: string, taskId: stri
     .digest('hex');
 }
 
+function final3dTaskToken(apiKey: string, userId: string, taskId: string) {
+  return createHmac('sha256', apiKey)
+    .update(`property-voxel-image-v1:${userId}:${taskId}`)
+    .digest('hex');
+}
+
 function parseReferenceDataUrl(input: unknown) {
   const reference = String(input || '').trim();
   const match = reference.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
@@ -48,11 +54,15 @@ function parseReferenceDataUrl(input: unknown) {
   return reference;
 }
 
-async function verifyPaidDraft(userId: string, draftId: string) {
-  const paid = await listPaidPropertyCollectiblesForBuyer(userId);
-  const reservation = paid.find((item) => item.draftId === draftId) || null;
-  if (!reservation) {
-    throw new Error('Finish the one-property checkout before generating the VoxelPop image.');
+async function verifyConfirmedDraft(userId: string, draftId: string, identityKeyRaw: unknown) {
+  const identityKey = clean(identityKeyRaw, 96);
+  if (!identityKey) throw new Error('Confirm the property address before generating the voxel.');
+  const reservation = await readPropertyCollectibleReservation(identityKey);
+  if (!reservation || reservation.buyerUserId !== userId || reservation.draftId !== draftId) {
+    throw new Error('That confirmed property does not belong to this signed-in creation.');
+  }
+  if (!['reserved', 'paid', 'minted'].includes(reservation.state)) {
+    throw new Error('Confirm the property address before generating the voxel.');
   }
   return reservation;
 }
@@ -93,12 +103,14 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const draftId = normalizePropertyDraftId(body?.draftId);
     const reference = parseReferenceDataUrl(body?.reference);
-    const reservation = await verifyPaidDraft(auth.user.id, draftId);
+    const reservation = await verifyConfirmedDraft(auth.user.id, draftId, body?.identityKey);
 
+    // The user asked for one uninterrupted flow. Do not spend the image credits
+    // unless there are enough provider credits left to also create the final GLB.
     const balance = await readMeshyCreditBalance(apiKey);
-    if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.voxelImage)) {
+    if (!meshyCreditsSufficient(balance, MESHY_PROPERTY_CREDITS.afterSource)) {
       return privateJson(
-        meshyCreditError('starting the VoxelPop house image', MESHY_PROPERTY_CREDITS.voxelImage),
+        meshyCreditError('starting the VoxelPop image and final 3D build', MESHY_PROPERTY_CREDITS.afterSource),
         { status: 503 },
       );
     }
@@ -136,10 +148,14 @@ export async function POST(request: Request) {
       ok: true,
       taskId,
       taskToken: taskToken(apiKey, auth.user.id, draftId, taskId),
+      voxelImageTaskToken: final3dTaskToken(apiKey, auth.user.id, taskId),
       draftId,
       atlasId: reservation.atlasId,
+      identityKey: reservation.identityKey,
       propertyAddress: reservation.address,
       provider: 'meshy-nano-banana-voxelpop',
+      onePropertyOnePurchase: true,
+      onePropertyOneMint: true,
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'VoxelPop image generation could not start.' }, { status: 400 });
@@ -195,6 +211,7 @@ export async function GET(request: Request) {
       ready: true,
       imageUrl: providerImageUrl,
       imageDataUrl: await imageDataUrl(providerImageUrl),
+      voxelImageTaskToken: final3dTaskToken(apiKey, auth.user.id, taskId),
     });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'VoxelPop image generation status could not be read.' }, { status: 400 });
