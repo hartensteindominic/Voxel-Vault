@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { stripe } from '../../../../lib/stripe-server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
 import { normalizePropertyDraftId } from '../../../../lib/property-generation-ids';
@@ -41,9 +42,10 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const draftId = normalizePropertyDraftId(clean(form.get('draftId'), 100));
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
-    const address = clean(form.get('address'), 220);
+    const cookieStore = await cookies();
+    const address = clean(form.get('address') || cookieStore.get('voxelpop_property_address')?.value, 220);
     if (!rightsConfirmed) return privateJson({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
-    if (!address) return privateJson({ ok: false, error: 'Enter the property address so this property can be locked to one purchase and one mint.' }, { status: 400 });
+    if (!address) return privateJson({ ok: false, error: 'Verify the property address before paying so it can be locked to one purchase and one mint.' }, { status: 400 });
 
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
     const selectedBuilding = atlas?.selectedBuilding || null;
@@ -85,15 +87,7 @@ export async function POST(request: Request) {
       try {
         const existing = await stripe.checkout.sessions.retrieve(hold.reservation.sourceId);
         if (existing.payment_status === 'paid') {
-          return privateJson({
-            ok: true,
-            paid: true,
-            reused: true,
-            url: `/property?generation_session=${encodeURIComponent(existing.id)}`,
-            sessionId: existing.id,
-            identityKey,
-            atlasId,
-          });
+          return privateJson({ ok: true, paid: true, reused: true, url: `/property?generation_session=${encodeURIComponent(existing.id)}`, sessionId: existing.id, identityKey, atlasId });
         }
         if (existing.status === 'open' && existing.url) {
           return privateJson({ ok: true, reused: true, url: existing.url, sessionId: existing.id, identityKey, atlasId });
@@ -132,58 +126,24 @@ export async function POST(request: Request) {
         property_address: canonicalAddress,
         one_property_one_purchase: 'true',
       },
-      payment_intent_data: {
-        metadata: {
-          kind: PROPERTY_VOXEL_GENERATION_KIND,
-          voxelpop_user_id: auth.user.id,
-          identity_key: identityKey,
-          atlas_id: atlasId,
-          one_property_one_purchase: 'true',
-        },
-      },
+      payment_intent_data: { metadata: { kind: PROPERTY_VOXEL_GENERATION_KIND, voxelpop_user_id: auth.user.id, identity_key: identityKey, atlas_id: atlasId, one_property_one_purchase: 'true' } },
       success_url: `${origin}/property?generation_session={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/property?generation_checkout=cancelled&draftId=${encodeURIComponent(draftId)}`,
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     });
 
     if (!checkout.url) throw new Error('Stripe did not return a checkout URL.');
-    await updatePropertyCollectibleReservation({
-      identityKey,
-      buyerId: auth.user.id,
-      state: 'checkout',
-      source: 'generation-stripe',
-      sourceId: checkout.id,
-    });
+    await updatePropertyCollectibleReservation({ identityKey, buyerId: auth.user.id, state: 'checkout', source: 'generation-stripe', sourceId: checkout.id });
 
-    return privateJson({
-      ok: true,
-      url: checkout.url,
-      sessionId: checkout.id,
-      priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS,
-      priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL,
-      draftId,
-      identityKey,
-      atlasId,
-      propertyAddress: canonicalAddress,
-      onePropertyOnePurchase: true,
-      staged: false,
-      storage: 'device-local',
-      engine: PROPERTY_VOXEL_GENERATION_ENGINE,
-    });
+    return privateJson({ ok: true, url: checkout.url, sessionId: checkout.id, priceCents: PROPERTY_VOXEL_GENERATION_PRICE_CENTS, priceLabel: PROPERTY_VOXEL_GENERATION_PRICE_LABEL, draftId, identityKey, atlasId, propertyAddress: canonicalAddress, onePropertyOnePurchase: true, staged: false, storage: 'device-local', engine: PROPERTY_VOXEL_GENERATION_ENGINE });
   } catch (error) {
     if (reservationCreated && identityKey) {
       try { await releasePropertyCollectibleReservation(identityKey, auth.user.id); } catch {}
     }
-    return privateJson({
-      ok: false,
-      error: error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.',
-    }, { status: 500 });
+    return privateJson({ ok: false, error: error instanceof Error ? error.message : 'VoxelPop checkout could not be opened.' }, { status: 500 });
   }
 }
 
-// Kept for compatibility with older clients. There is no photo staging to
-// delete because the source photo never leaves the device. Once a checkout is
-// paid, its canonical property reservation remains permanent by design.
 export async function DELETE(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
