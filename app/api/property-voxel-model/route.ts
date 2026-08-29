@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createModelSignedUrl, readCatalog3DByTask } from '../../../lib/catalog3dStore';
+import { createModelSignedUrl, persistModelBinary, readCatalog3DByTask } from '../../../lib/catalog3dStore';
 import { propertyGenerationProviderTaskId } from '../../../lib/property-generation-task';
 import { verifyPropertyGenerationModelToken } from '../../../lib/property-generation-model';
 
@@ -13,10 +13,29 @@ function clean(value: unknown, max = 520) {
   return String(value || '').trim().slice(0, max);
 }
 
-async function fetchModelBytes(url: string) {
+async function fetchBytes(url: string) {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok || !response.body) return null;
   return response;
+}
+
+function binaryResponse(response: Response, fallbackType: string) {
+  return new Response(response.body, {
+    status: 200,
+    headers: {
+      'Content-Type': response.headers.get('content-type') || fallbackType,
+      'Cache-Control': 'private, max-age=300',
+    },
+  });
+}
+
+async function providerTask(apiKey: string, taskId: string) {
+  const response = await fetch(`${ENDPOINT}/${encodeURIComponent(taskId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  });
+  const task = await response.json().catch(() => ({}));
+  return { response, task };
 }
 
 export async function GET(request: Request) {
@@ -27,58 +46,75 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const taskId = clean(url.searchParams.get('taskId'));
     const token = clean(url.searchParams.get('token'), 128);
+    const wantsPreview = url.searchParams.get('preview') === '1';
     if (!verifyPropertyGenerationModelToken(apiKey, taskId, token)) {
       return NextResponse.json({ ok: false, error: 'Invalid or expired 3D model link.' }, { status: 403 });
     }
 
     const saved = await readCatalog3DByTask(taskId);
-    if (saved?.model_storage_path) {
-      const signed = await createModelSignedUrl(saved.model_storage_path, 10 * 60);
-      if (signed) {
-        const cached = await fetchModelBytes(signed);
-        if (cached) {
-          return new Response(cached.body, {
-            status: 200,
-            headers: {
-              'Content-Type': cached.headers.get('content-type') || 'model/gltf-binary',
-              'Cache-Control': 'private, max-age=300',
-            },
-          });
-        }
-      }
-    }
-
     const providerTaskId = propertyGenerationProviderTaskId(saved?.task_id || taskId);
     if (!providerTaskId) {
       return NextResponse.json({ ok: false, error: 'The 3D provider task reference is invalid.' }, { status: 404 });
     }
 
-    const statusResponse = await fetch(`${ENDPOINT}/${encodeURIComponent(providerTaskId)}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      cache: 'no-store',
-    });
-    const task = await statusResponse.json().catch(() => ({}));
-    if (!statusResponse.ok) {
-      return NextResponse.json({ ok: false, error: task?.task_error?.message || task?.message || task?.error || 'The 3D provider could not refresh this model.' }, { status: statusResponse.status });
+    if (wantsPreview) {
+      let thumbnailUrl = clean(saved?.thumbnail_url, 2400);
+      if (!thumbnailUrl) {
+        const refreshed = await providerTask(apiKey, providerTaskId);
+        if (!refreshed.response.ok) {
+          return NextResponse.json({
+            ok: false,
+            error: refreshed.task?.task_error?.message || refreshed.task?.message || refreshed.task?.error || 'The 3D provider could not refresh this preview.',
+          }, { status: refreshed.response.status });
+        }
+        thumbnailUrl = clean(refreshed.task?.alpha_thumbnail_url || refreshed.task?.thumbnail_url, 2400);
+      }
+      if (!thumbnailUrl) return NextResponse.json({ ok: false, error: 'The rendered 3D image is not ready yet.' }, { status: 409 });
+      const preview = await fetchBytes(thumbnailUrl);
+      if (!preview) return NextResponse.json({ ok: false, error: 'The rendered 3D image could not be loaded.' }, { status: 502 });
+      return binaryResponse(preview, 'image/webp');
     }
 
-    const providerModelUrl = clean(task?.model_urls?.glb, 2400);
+    if (saved?.model_storage_path) {
+      const signed = await createModelSignedUrl(saved.model_storage_path, 10 * 60);
+      if (signed) {
+        const cached = await fetchBytes(signed);
+        if (cached) return binaryResponse(cached, 'model/gltf-binary');
+      }
+    }
+
+    const refreshed = await providerTask(apiKey, providerTaskId);
+    if (!refreshed.response.ok) {
+      return NextResponse.json({
+        ok: false,
+        error: refreshed.task?.task_error?.message || refreshed.task?.message || refreshed.task?.error || 'The 3D provider could not refresh this model.',
+      }, { status: refreshed.response.status });
+    }
+
+    const providerModelUrl = clean(refreshed.task?.model_urls?.glb, 2400);
     if (!providerModelUrl) {
       return NextResponse.json({ ok: false, error: 'The 3D model is not ready yet.' }, { status: 409 });
     }
 
-    const providerModel = await fetchModelBytes(providerModelUrl);
+    // The provider task already exists and is complete. If the private cached GLB
+    // was missing or unreadable, overwrite that cache from the existing Meshy GLB.
+    // This repairs delivery without starting or charging for another generation.
+    if (saved?.item_id) {
+      const repairedPath = await persistModelBinary(saved.item_id, providerModelUrl);
+      if (repairedPath) {
+        const signed = await createModelSignedUrl(repairedPath, 10 * 60);
+        if (signed) {
+          const repaired = await fetchBytes(signed);
+          if (repaired) return binaryResponse(repaired, 'model/gltf-binary');
+        }
+      }
+    }
+
+    const providerModel = await fetchBytes(providerModelUrl);
     if (!providerModel) {
       return NextResponse.json({ ok: false, error: 'The refreshed 3D model could not be downloaded.' }, { status: 502 });
     }
-
-    return new Response(providerModel.body, {
-      status: 200,
-      headers: {
-        'Content-Type': providerModel.headers.get('content-type') || 'model/gltf-binary',
-        'Cache-Control': 'private, max-age=300',
-      },
-    });
+    return binaryResponse(providerModel, 'model/gltf-binary');
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : '3D model delivery failed.' }, { status: 500 });
   }
