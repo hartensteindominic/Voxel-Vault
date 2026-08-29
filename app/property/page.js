@@ -139,7 +139,7 @@ async function createVoxelPoster(file) {
       image.onload = resolve;
       image.onerror = () => reject(new Error('The photo could not be opened for the VoxelPop image.'));
     });
-    const sampleSize = 54;
+    const sampleSize = 72;
     const sample = document.createElement('canvas');
     sample.width = sampleSize;
     sample.height = sampleSize;
@@ -151,8 +151,8 @@ async function createVoxelPoster(file) {
     let sw = image.naturalWidth || 1;
     let sh = image.naturalHeight || 1;
     if (sourceRatio > 1) { sw = sh; sx = ((image.naturalWidth || 1) - sw) / 2; }
-    else if (sourceRatio < 1) { sh = sw; sy = ((image.naturalHeight || 1) - sh) / 2; }
-    sampleContext.filter = 'saturate(1.08) contrast(1.06)';
+    else if (sourceRatio < 1) { sh = sw; sy = Math.max(0, ((image.naturalHeight || 1) - sh) * 0.42); }
+    sampleContext.filter = 'saturate(1.06) contrast(1.08)';
     sampleContext.drawImage(image, sx, sy, sw, sh, 0, 0, sampleSize, sampleSize);
 
     const output = document.createElement('canvas');
@@ -163,12 +163,12 @@ async function createVoxelPoster(file) {
     context.imageSmoothingEnabled = false;
     context.drawImage(sample, 0, 0, output.width, output.height);
     const shade = context.createLinearGradient(0, 0, output.width, output.height);
-    shade.addColorStop(0, 'rgba(255,255,255,.10)');
+    shade.addColorStop(0, 'rgba(255,255,255,.08)');
     shade.addColorStop(0.58, 'rgba(255,255,255,0)');
-    shade.addColorStop(1, 'rgba(38,18,52,.15)');
+    shade.addColorStop(1, 'rgba(38,18,52,.12)');
     context.fillStyle = shade;
     context.fillRect(0, 0, output.width, output.height);
-    return output.toDataURL('image/jpeg', 0.91);
+    return output.toDataURL('image/jpeg', 0.92);
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -188,6 +188,7 @@ export default function PropertyJourneyPage() {
   const [final3d, setFinal3d] = useState(empty3d);
   const [localRecipe, setLocalRecipe] = useState(null);
   const [collectionReady, setCollectionReady] = useState(false);
+  const [vaultLinkError, setVaultLinkError] = useState('');
   const [pipelinePhase, setPipelinePhase] = useState('photo');
   const [address, setAddress] = useState('');
   const [mappedAddress, setMappedAddress] = useState('');
@@ -259,6 +260,7 @@ export default function PropertyJourneyPage() {
     setFinal3d(empty3d());
     setLocalRecipe(null);
     setCollectionReady(false);
+    setVaultLinkError('');
     setBuilding(null);
     setAtlasBuildings([]);
     setMappedAddress('');
@@ -302,19 +304,22 @@ export default function PropertyJourneyPage() {
         taskId: data.taskId,
       });
       setCollectionReady(data.collectionReady === true);
+      setVaultLinkError(data.collectionReady === true ? '' : clean(data.note));
       setPipelinePhase('world');
       setMessage(data.collectionReady
-        ? 'Your voxel is ready without Meshy credits. Add the property address to place it on My World.'
-        : 'Your local 3D is ready. Add the address now; collection checkout stays off until the account model record can be saved.');
+        ? 'Your 3D model is ready. Add the property address to place it on My World.'
+        : 'Your 3D model is ready. You can continue to the map and World now; saving to Vault can be retried separately.');
       await removeDevicePhoto(draftId);
       if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('generation_session')) {
         window.history.replaceState({}, '', '/property');
       }
     } catch (error) {
+      const detail = String(error?.message || error || 'Vault save is unavailable.');
       setFinal3d({ status: 'SUCCEEDED', progress: 100, modelUrl: null, thumbnailUrl: voxelImage || null, taskId: `local-device:${draftId}` });
       setCollectionReady(false);
+      setVaultLinkError(detail);
       setPipelinePhase('world');
-      setMessage(`The local 3D is ready, but its Vault link needs a retry. ${String(error?.message || error || '')}`.trim());
+      setMessage('Your 3D model is ready. Continue to the map and World; only Save to Vault needs a retry.');
     } finally {
       setBusy('');
     }
@@ -459,14 +464,19 @@ export default function PropertyJourneyPage() {
   async function retryLocalPersistence() {
     if (!localRecipe) return setMessage('The local 3D recipe is not available. Rebuild the voxel first.');
     setBusy('register');
-    setMessage('Reconnecting this local voxel to your Vault record…');
+    setMessage('Saving this finished 3D model to your Vault…');
     try {
       const data = await registerLocalRecipe(localRecipe);
       setFinal3d((current) => ({ ...current, taskId: data.taskId, modelUrl: data.modelUrl || null }));
       setCollectionReady(data.collectionReady === true);
-      setMessage(data.collectionReady ? 'Vault link ready. You can collect this digital voxel now.' : data.note || 'The Vault record is still unavailable.');
+      setVaultLinkError(data.collectionReady === true ? '' : clean(data.note));
+      setMessage(data.collectionReady
+        ? 'Saved to Vault. Your 3D and map remain ready.'
+        : 'Your 3D and map are still ready. Vault saving is temporarily unavailable, so collection checkout stays off.');
     } catch (error) {
-      setMessage(String(error?.message || error || 'The Vault link is still unavailable.'));
+      const detail = String(error?.message || error || 'The Vault link is still unavailable.');
+      setVaultLinkError(detail);
+      setMessage('Your 3D and map are still ready. Vault saving can be retried later without rebuilding or paying again.');
     } finally { setBusy(''); }
   }
 
@@ -505,15 +515,15 @@ export default function PropertyJourneyPage() {
       setMessage(priced.sold
         ? 'This mapped digital voxel has already been collected.'
         : collectionReady
-          ? 'My World preview ready. If it looks right, collect the voxel and save it to your Vault.'
-          : 'My World preview ready. The local 3D works; reconnect its Vault record before collection checkout.');
+          ? 'Your 3D + World preview are ready. If it looks right, you can optionally collect the voxel.'
+          : 'Your 3D + World preview are ready. Vault saving is separate and can be retried below without blocking the result.');
     } catch (error) {
       setMessage(String(error?.message || error || 'World placement failed.'));
     } finally { setBusy(''); }
   }
 
   async function collectAndSave() {
-    if (!collectionReady) return setMessage('Reconnect the local voxel to its Vault record before opening collection checkout.');
+    if (!collectionReady) return setMessage('Your 3D and map are ready. Save the model to Vault before opening optional collection checkout.');
     if (!quote || !building?.atlasId || !final3d?.taskId || !session?.access_token) return;
     setBusy('checkout');
     setMessage('Opening secure checkout for the digital voxel…');
@@ -545,6 +555,7 @@ export default function PropertyJourneyPage() {
     setFinal3d(empty3d());
     setLocalRecipe(null);
     setCollectionReady(false);
+    setVaultLinkError('');
     setPipelinePhase('photo');
     setAddress('');
     setMappedAddress('');
@@ -606,36 +617,46 @@ export default function PropertyJourneyPage() {
 
       {step === 3 ? <>
         <p className={styles.bigPrompt}>VoxelPop image → movable 3D.</p>
-        <p className={styles.stepCopy}>Your rendered voxel image stays visible until the interactive local 3D has actually rendered.</p>
+        <p className={styles.stepCopy}>Your rendered voxel image stays visible until the interactive local 3D has actually rendered. The local viewer now follows the building silhouette from your photo instead of extruding the whole square image.</p>
         <div className={styles.heroCard}>
           <LocalVoxelModelViewer imageUrl={voxelImage || displaySource} onReady={handleLocal3DReady}/>
           <span className={styles.badge}>VOXEL IMAGE → INTERACTIVE 3D</span>
           {!finalReady ? <div className={styles.buildPulse}/> : null}
         </div>
-        <div className={styles.autoPanel}><b>AUTOMATIC · ON DEVICE</b><span>Photo → VoxelPop image → interactive 3D. No external generation credits are spent.</span></div>
+        <div className={styles.autoPanel}><b>AUTOMATIC · ON DEVICE</b><span>Photo → VoxelPop image → photo-matched silhouette 3D. No external generation credits are spent.</span></div>
       </> : null}
 
       {step === 4 ? <>
-        <p className={styles.bigPrompt}>Add the property address.</p>
-        <p className={styles.stepCopy}>Enter the address for the property shown in your photo. We use it to find source-backed building footprints and build the improved neighborhood map.</p>
-        <div className={styles.heroCard}><LocalVoxelModelViewer imageUrl={voxelImage}/><span className={styles.badge}>VOXEL READY · LOCAL 3D</span></div>
-        <form className={styles.searchForm} onSubmit={placeOnWorld}><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/><button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Building map…' : 'Verify address + preview'}</button></form>
+        <p className={styles.bigPrompt}>Your 3D is ready. Add the address.</p>
+        <p className={styles.stepCopy}>The finished 3D stays usable even if Vault saving is temporarily unavailable. Enter the address to build the source-backed neighborhood map.</p>
+        <div className={styles.heroCard}><LocalVoxelModelViewer imageUrl={voxelImage}/><span className={styles.badge}>3D READY · DRAG + PINCH</span></div>
+        <form className={styles.searchForm} onSubmit={placeOnWorld}><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Property address" aria-label="Property address" autoComplete="street-address"/><button disabled={busy === 'map' || !clean(address)}>{busy === 'map' ? 'Building map…' : 'Open property map'}</button></form>
         <small className={styles.mapNote}>The map uses source-backed building data where available. The address is not proof of ownership, title, property value, or an investment offering.</small>
       </> : null}
 
       {step === 5 ? <>
-        <p className={styles.bigPrompt}>Your World preview.</p>
-        <p className={styles.stepCopy}>The selected building is highlighted inside its nearby source-backed neighborhood, with touch rotation and zoom.</p>
+        <p className={styles.bigPrompt}>Your 3D + World are ready.</p>
+        <p className={styles.stepCopy}>View the finished movable voxel and the mapped neighborhood now. Saving to Vault is a separate account step and never blocks the finished result.</p>
         <div className={styles.worldCard}><PropertyWorldMap selectedBuilding={building} buildings={atlasBuildings}/><span className={styles.worldBadge}>MY WORLD · IMPROVED PROPERTY MAP</span></div>
         <div className={styles.miniModel}><LocalVoxelModelViewer imageUrl={voxelImage}/></div>
+        <div className={styles.resultActions}>
+          <a className={styles.primaryLink} href="/world">Open My World</a>
+          <a className={styles.secondaryLink} href="/vault/property-drafts">Open my Vault</a>
+        </div>
         <div className={styles.priceCard}>
           <div><small>DIGITAL VOXEL</small><b>{quote?.label || 'World preview'}</b><span>{mappedAddress}</span></div>
           <strong>{quote ? dollars(quote.priceCents) : '—'}</strong>
           {quote ? <p>{quote.explanation} This is the price of the generated digital voxel—not the market value of the house or land.</p> : null}
           {availability === 'SOLD' ? <div className={styles.sold}>ALREADY COLLECTED · THIS MAPPED DIGITAL VOXEL IS ONE-OF-ONE</div> : null}
-          {!quote && !building?.mappedIdentityReady ? <div className={styles.sold}>PREVIEW ONLY · A SOURCE-BACKED BUILDING ID IS NEEDED BEFORE COLLECTION</div> : null}
-          {quote && availability !== 'SOLD' && collectionReady ? <button className={styles.primaryOrange} type="button" onClick={collectAndSave} disabled={busy === 'checkout'}>{busy === 'checkout' ? 'Opening secure checkout…' : `Collect voxel · ${dollars(quote.priceCents)}`}</button> : null}
-          {quote && availability !== 'SOLD' && !collectionReady ? <div className={styles.choicePanel}><b>LOCAL 3D READY · VAULT LINK NEEDS RETRY</b><span>The model works on this device. Reconnect its compact account record before any collection payment opens.</span><button className={styles.primaryPurple} type="button" onClick={retryLocalPersistence} disabled={busy === 'register'}>{busy === 'register' ? 'Reconnecting…' : 'Reconnect Vault model'}</button></div> : null}
+          {!quote && !building?.mappedIdentityReady ? <div className={styles.sold}>PREVIEW READY · A SOURCE-BACKED BUILDING ID IS NEEDED ONLY FOR OPTIONAL COLLECTION</div> : null}
+          {quote && availability !== 'SOLD' && collectionReady ? <button className={styles.primaryOrange} type="button" onClick={collectAndSave} disabled={busy === 'checkout'}>{busy === 'checkout' ? 'Opening secure checkout…' : `Optional: collect voxel · ${dollars(quote.priceCents)}`}</button> : null}
+          {quote && availability !== 'SOLD' && !collectionReady ? <div className={styles.choicePanel}>
+            <b>YOUR 3D MODEL IS READY</b>
+            <span>The movable 3D and property map work now. Saving to Vault failed or is temporarily unavailable, but that does not invalidate the model and does not require another $4.99 payment.</span>
+            <button className={styles.primaryPurple} type="button" onClick={retryLocalPersistence} disabled={busy === 'register'}>{busy === 'register' ? 'Saving to Vault…' : 'Retry Save to Vault'}</button>
+            <a className={styles.textLink} href="/world">Continue to My World instead</a>
+            {vaultLinkError ? <small className={styles.vaultNote}>Vault save detail: {vaultLinkError}</small> : null}
+          </div> : null}
           <button className={styles.textButton} type="button" onClick={() => { setBuilding(null); setAtlasBuildings([]); setMappedAddress(''); setQuote(null); setAvailability(''); setMessage('Enter the correct property address.'); }}>Change address</button>
         </div>
         <p className={styles.truth}>This flow creates and may sell the generated digital VoxelPop item only. The photo, local 3D, address, map, payment, or optional later mint does not create deed/title, rent, occupancy, fractional investment, appreciation, or other rights in the physical property. Real-property investing can only appear through a separately verified offering.</p>
