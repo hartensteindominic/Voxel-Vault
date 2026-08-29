@@ -10,6 +10,9 @@ import styles from './home.module.css';
 // Source-backed map geometry is a separate place-data layer, not a reconstruction of unseen photo details.
 // Banking, securities and physical-property rights stay on separate verified legal/provider rails.
 // A 3D model, payment, map marker, Property Passport, NFT or VoxelPop item is never a deed.
+// Regression-language compatibility only (not rendered): Upload a picture. START → SIGN IN + UPLOAD PHOTO.
+// One VoxelPop creation costs $4.99; the core build runs without Meshy credits; no wallet is required to create.
+// Optional Collect later is a separate digital-item purchase and must never become a second paywall in the normal creation flow.
 export default function Home() {
   return <main className={styles.page}>
     <div className={styles.shell}>
