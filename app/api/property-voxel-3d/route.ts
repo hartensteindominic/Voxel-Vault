@@ -9,6 +9,11 @@ import {
   saveCatalog3D,
 } from '../../../lib/catalog3dStore';
 import {
+  createProperty3DTaskHandle,
+  property3DProviderTaskId,
+  verifyProperty3DTaskHandle,
+} from '../../../lib/property-3d-task-handle';
+import {
   normalizePropertyDraftId,
   normalizePropertyGenerationPhase,
   propertyDraftItemId,
@@ -50,14 +55,6 @@ function isHttpUrl(value: unknown) {
 
 function voxelImageTaskToken(apiKey: string, userId: string, taskId: string) {
   return createHmac('sha256', apiKey).update(`property-voxel-image-v1:${userId}:${taskId}`).digest('hex');
-}
-
-function taskKey(raw: string) {
-  return raw.startsWith('property-voxel:task:') ? raw : `property-voxel:task:${raw}`;
-}
-
-function rawTaskId(value: string) {
-  return value.replace(/^property-voxel:task:/, '');
 }
 
 async function displayUrlFor(saved: any) {
@@ -115,6 +112,39 @@ async function verifiedVoxelImageUrl(apiKey: string, userId: string, taskIdRaw: 
   return imageUrl;
 }
 
+async function recoverableTaskRecord(apiKey: string, userId: string, taskId: string, expectedItemId = '') {
+  const saved = await readCatalog3DByTask(taskId);
+  if (saved) {
+    if (!saved.item_id || !propertyGenerationItemBelongsToUser(userId, saved.item_id)) return null;
+    if (expectedItemId && saved.item_id !== expectedItemId) return null;
+    return { row: saved, durable: true };
+  }
+
+  // Legacy raw task IDs still require their durable ownership record. Only the
+  // server-issued signed V1 handle may repair a record that was lost after the
+  // provider accepted a job.
+  const verified = verifyProperty3DTaskHandle(apiKey, userId, taskId);
+  if (!verified?.itemId || !propertyGenerationItemBelongsToUser(userId, verified.itemId)) return null;
+  if (expectedItemId && verified.itemId !== expectedItemId) return null;
+
+  const recovery = {
+    item_id: verified.itemId,
+    task_id: taskId,
+    provider: 'meshy-property-generation-recovered',
+    status: 'PENDING',
+    progress: 0,
+    model_url: null,
+    model_storage_path: null,
+    thumbnail_url: null,
+    exact_model_approved: false,
+    started_at: new Date().toISOString(),
+    completed_at: null,
+    error: null,
+  };
+  const repaired = await saveCatalog3D(verified.itemId, recovery);
+  return { row: repaired || recovery, durable: Boolean(repaired) };
+}
+
 export async function POST(request: Request) {
   const auth = await requireVoxelVaultUser(request);
   if (auth.ok === false) return privateJson({ ok: false, error: auth.error }, { status: auth.status });
@@ -134,18 +164,19 @@ export async function POST(request: Request) {
       const phase = normalizePropertyGenerationPhase(body?.phase);
       itemId = propertyDraftItemId(auth.user.id, draftId, phase);
       if (phase === 'source') {
-        const sourceStoragePath = clean(body?.sourceStoragePath, 900);
+        const sourceStoragePath = clean(body?.sourceStoragePath, 1800);
         if (sourceStoragePath.startsWith('meshy-source:')) {
-          const taskId = clean(sourceStoragePath.slice('meshy-source:'.length), 260);
-          const directJob = await readCatalog3DByTask(taskId);
-          if (!directJob?.item_id || directJob.item_id !== itemId) {
+          const taskId = clean(sourceStoragePath.slice('meshy-source:'.length), 1600);
+          const direct = await recoverableTaskRecord(apiKey, auth.user.id, taskId, itemId);
+          if (!direct) {
             throw new Error('That direct photo 3D job does not belong to this signed-in creation.');
           }
           return privateJson({
             ok: true,
             reused: true,
             directPhoto: true,
-            ...publicState(directJob, await displayUrlFor(directJob)),
+            recordPending: !direct.durable,
+            ...publicState(direct.row, await displayUrlFor(direct.row)),
           });
         }
         imageUrl = await sourcePhotoUrl(auth, draftId, sourceStoragePath);
@@ -191,8 +222,8 @@ export async function POST(request: Request) {
 
     const providerTaskId = clean(data?.result || data?.id, 240);
     if (!providerTaskId) throw new Error('The 3D provider did not return a task ID.');
-    const taskId = taskKey(providerTaskId);
-    const saved = await saveCatalog3D(itemId, {
+    const taskId = createProperty3DTaskHandle(apiKey, auth.user.id, itemId, providerTaskId);
+    const pending = {
       task_id: taskId,
       source_image_url: imageUrl,
       source_image_urls: [imageUrl],
@@ -206,9 +237,16 @@ export async function POST(request: Request) {
       started_at: new Date().toISOString(),
       completed_at: null,
       error: null,
-    });
+    };
+    const saved = await saveCatalog3D(itemId, pending);
 
-    return privateJson({ ok: true, reused: false, sourceChanged: Boolean(existing && !sameSourceImage), ...publicState(saved || { item_id: itemId, task_id: taskId, status: 'PENDING' }) });
+    return privateJson({
+      ok: true,
+      reused: false,
+      sourceChanged: Boolean(existing && !sameSourceImage),
+      recordPending: !saved,
+      ...publicState(saved || { item_id: itemId, ...pending }),
+    });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property 3D generation failed.' }, { status: 400 });
   }
@@ -221,7 +259,7 @@ export async function GET(request: Request) {
   const atlasIdRaw = url.searchParams.get('atlasId') || '';
   const draftIdRaw = url.searchParams.get('draftId') || '';
   const phaseRaw = url.searchParams.get('phase') || '';
-  const taskId = clean(url.searchParams.get('taskId'), 260);
+  const taskId = clean(url.searchParams.get('taskId'), 1600);
   const resumeCached = url.searchParams.get('resume') === '1';
 
   try {
@@ -246,12 +284,13 @@ export async function GET(request: Request) {
     const apiKey = process.env.MESHY_API_KEY?.trim();
     if (!apiKey) return privateJson({ ok: false, error: 'Property 3D generation is not configured on this deployment.' }, { status: 503 });
 
-    const saved = await readCatalog3DByTask(taskId);
-    if (!saved?.item_id || !propertyGenerationItemBelongsToUser(auth.user.id, saved.item_id)) {
+    const recovered = await recoverableTaskRecord(apiKey, auth.user.id, taskId);
+    if (!recovered?.row?.item_id) {
       return privateJson({ ok: false, error: 'That 3D job does not belong to this signed-in account.' }, { status: 404 });
     }
+    const saved = recovered.row;
 
-    const response = await fetch(`${ENDPOINT}/${encodeURIComponent(rawTaskId(taskId))}`, {
+    const response = await fetch(`${ENDPOINT}/${encodeURIComponent(property3DProviderTaskId(taskId))}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       cache: 'no-store',
     });
@@ -275,19 +314,24 @@ export async function GET(request: Request) {
       thumbnail_url: thumbnailUrl || saved.thumbnail_url || null,
       completed_at: providerModelUrl ? new Date().toISOString() : saved.completed_at || null,
       error: data?.task_error?.message || null,
-    }) || saved;
+    });
 
     const finalRow = {
-      ...updated,
+      ...(updated || saved),
       task_id: taskId,
       status,
       progress: providerModelUrl ? 100 : progress,
       model_storage_path: modelStoragePath,
-      model_url: providerModelUrl || updated?.model_url || null,
-      thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
+      model_url: providerModelUrl || updated?.model_url || saved?.model_url || null,
+      thumbnail_url: thumbnailUrl || updated?.thumbnail_url || saved?.thumbnail_url || null,
       error: data?.task_error?.message || null,
     };
-    return privateJson({ ok: true, exists: true, ...publicState(finalRow, await displayUrlFor(finalRow)) });
+    return privateJson({
+      ok: true,
+      exists: true,
+      recordPending: !updated,
+      ...publicState(finalRow, await displayUrlFor(finalRow)),
+    });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property 3D status failed.' }, { status: 500 });
   }
