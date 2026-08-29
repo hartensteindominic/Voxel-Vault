@@ -58,12 +58,39 @@ function voxelImageTaskToken(apiKey: string, userId: string, taskId: string) {
   return createHmac('sha256', apiKey).update(`property-voxel-image-v1:${userId}:${taskId}`).digest('hex');
 }
 
-async function displayUrlFor(saved: any) {
-  if (saved?.model_storage_path) {
-    const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
-    if (signed) return signed;
+async function modelUrlLoads(url: string) {
+  if (!isHttpUrl(url)) return false;
+  try {
+    const response = await fetch(url, {
+      headers: { Range: 'bytes=0-0' },
+      cache: 'no-store',
+    });
+    return response.ok || response.status === 206;
+  } catch {
+    return false;
   }
-  return saved?.model_url || null;
+}
+
+async function cachedModelUrl(saved: any) {
+  if (!saved?.model_storage_path) return null;
+  const signed = await createModelSignedUrl(saved.model_storage_path, 60 * 60);
+  if (!signed) return null;
+  return (await modelUrlLoads(signed)) ? signed : null;
+}
+
+async function displayUrlFor(saved: any) {
+  return (await cachedModelUrl(saved)) || saved?.model_url || null;
+}
+
+function decorateModelUrl(displayModelUrl: string | null, saved: any) {
+  if (!displayModelUrl) return null;
+  const metadata = new URLSearchParams();
+  const thumbnailUrl = clean(saved?.thumbnail_url, 2200);
+  const taskId = clean(saved?.task_id, 420);
+  if (thumbnailUrl) metadata.set('vvPreview', thumbnailUrl);
+  if (taskId) metadata.set('vvRepair', `/api/property-voxel-3d?taskId=${encodeURIComponent(taskId)}&repair=1`);
+  const suffix = metadata.toString();
+  return suffix ? `${displayModelUrl.split('#')[0]}#${suffix}` : displayModelUrl;
 }
 
 function publicState(saved: any, displayModelUrl: string | null = null) {
@@ -72,7 +99,7 @@ function publicState(saved: any, displayModelUrl: string | null = null) {
     taskId: saved?.task_id || null,
     status: saved?.status || 'NOT_STARTED',
     progress: Number(saved?.progress || 0),
-    modelUrl: displayModelUrl,
+    modelUrl: decorateModelUrl(displayModelUrl, saved),
     thumbnailUrl: saved?.thumbnail_url || null,
     error: saved?.error || null,
   };
@@ -243,6 +270,7 @@ export async function GET(request: Request) {
   const phaseRaw = url.searchParams.get('phase') || '';
   const taskId = clean(url.searchParams.get('taskId'), 420);
   const resumeCached = url.searchParams.get('resume') === '1';
+  const repairCache = url.searchParams.get('repair') === '1';
 
   try {
     if ((atlasIdRaw || draftIdRaw) && !taskId) {
@@ -314,7 +342,14 @@ export async function GET(request: Request) {
     }
 
     let modelStoragePath = saved?.model_storage_path || null;
-    if (providerModelUrl && saved?.item_id && !modelStoragePath) modelStoragePath = await persistModelBinary(saved.item_id, providerModelUrl);
+    let cachedPlaybackUrl = repairCache ? null : await cachedModelUrl(saved);
+    if (providerModelUrl && saved?.item_id && (!cachedPlaybackUrl || repairCache)) {
+      const repairedPath = await persistModelBinary(saved.item_id, providerModelUrl);
+      if (repairedPath) {
+        modelStoragePath = repairedPath;
+        cachedPlaybackUrl = await cachedModelUrl({ ...saved, model_storage_path: repairedPath });
+      }
+    }
 
     const updated = await saveCatalog3D(saved.item_id, {
       task_id: saved.task_id || taskId,
@@ -338,7 +373,8 @@ export async function GET(request: Request) {
       thumbnail_url: thumbnailUrl || updated?.thumbnail_url || null,
       error: data?.task_error?.message || null,
     };
-    return privateJson({ ok: true, exists: true, ...publicState(finalRow, await displayUrlFor(finalRow)) });
+    const displayModelUrl = cachedPlaybackUrl || providerModelUrl || finalRow.model_url || null;
+    return privateJson({ ok: true, exists: true, cacheRepaired: repairCache && Boolean(modelStoragePath), ...publicState(finalRow, displayModelUrl) });
   } catch (error) {
     return privateJson({ ok: false, error: error instanceof Error ? error.message : 'Property 3D status failed.' }, { status: 500 });
   }
