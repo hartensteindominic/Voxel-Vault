@@ -61,18 +61,17 @@ assert.match(commandCenter, /Search is navigation only\. It never executes trade
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
 // Consumer Home is intentionally much smaller than the underlying Spatial Asset OS.
-// The front door is account-first, then photo -> automatic 3D -> automatic voxel -> My World -> digital checkout -> Vault.
-assert.match(rootHome, /Sign in first\./, 'root Home should lead with account verification before property work');
+// The front door is account-first, then photo -> automatic 3D -> automatic voxel -> My World -> digital collection -> Vault.
+assert.match(rootHome, /START → SIGN IN/, 'root Home should make the account-first transition explicit');
 assert.match(rootHome, /href="\/property"/, 'root Home should route the single property CTA into the account-gated maker');
-assert.match(rootHome, /START PROPERTY → SIGN IN/, 'root Home should make the account-first transition explicit');
 assert.match(rootHome, /<b>PHOTO<\/b>/, 'root Home should put the authorized photo first');
 assert.match(rootHome, /<b>3D<\/b>/, 'root Home should build the first 3D before voxel styling');
 assert.match(rootHome, /<b>VOXEL<\/b>/, 'root Home should expose the automatic VoxelPop stage');
 assert.match(rootHome, /<b>WORLD<\/b>/, 'root Home should preview the completed voxel on World before checkout');
-assert.match(rootHome, /BUY \+ VAULT/, 'root Home should make paid Vault delivery the end of the guided purchase loop');
-assert.match(rootHome, /Wallet connection is optional/i, 'wallet must remain optional until a user chooses the downstream mint path');
-assert.match(rootHome, /Property checkout buys the generated digital collectible only/i, 'root Home must distinguish digital checkout from buying physical property');
-assert.match(rootHome, /Creating or minting a property model does not buy, rent, or create deed\/title rights/, 'root Home must preserve model versus title truth');
+assert.match(rootHome, /COLLECT \+ VAULT/, 'root Home should make digital collection and Vault delivery the end of the loop');
+assert.match(rootHome, /A wallet is optional/i, 'wallet must remain optional until a user chooses the downstream mint path');
+assert.match(rootHome, /does not buy the physical property/i, 'root Home must distinguish collecting a voxel from buying physical property');
+assert.match(rootHome, /deed\/title, rent, occupancy, or investment rights/, 'root Home must preserve model versus legal-rights truth');
 assert.match(rootHome, /href="\/more"/, 'advanced Spatial Asset OS tools must remain deliberately reachable');
 assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'unverified physical-property purchase execution must stay out of the consumer front door');
 assert.doesNotMatch(rootHome, /HomeCapabilityStrip|FOUR CORE JOBS|title: 'Create'|title: 'Earth'|title: 'Invest'/, 'advanced capability and product taxonomy must not re-clutter the simple home');
