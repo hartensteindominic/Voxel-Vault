@@ -23,8 +23,8 @@ assert.match(property, /sourcePhotoRetainedOnDevice: true/, 'saved property reco
 assert.match(property, /setPaidSessionId\(alreadyPaid \? 'saved-property' : ''\)/, 'a saved paid property is recognized as already paid');
 assert.match(property, /This creation is already paid, so there is no second creation charge/, 'a previously paid saved property does not require a second creation purchase');
 assert.match(property, /Demo property slice · not real-property ownership/, 'sandbox purchases remain clearly demo-only when offered as a source item');
-assert.match(property, /setMessage\('Payment verified\. Loading your 3D picture first\.'\)/,
-  'a verified paid session stops at the generated 3D picture first');
+assert.match(property, /setMessage\('Payment verified\. Generating your VoxelPop 3D house first\.'\)/,
+  'a verified paid session stops at the generated VoxelPop house picture first');
 assert.match(property, /PhotoReliefModelViewer/, 'the VoxelPop house picture stays a distinct approval stage');
 
 assert.match(photoPreview, /\/api\/property-3d-picture/, 'the picture stage calls the dedicated paid VoxelPop image renderer');
@@ -48,6 +48,7 @@ assert.match(pictureRenderer, /sourceStoredByVoxelVault: false/, 'the original r
 assert.match(property, /Looks good → Create 3D Voxel/, 'user approval is required before voxel generation');
 assert.match(property, /async function approvePreviewAndBuildVoxel\(\)/, 'voxel generation has an explicit post-preview gate');
 assert.match(property, /const poster = await createVoxelPoster\(pendingPhoto\)/, 'the approval transition still prepares a local loading poster');
+assert.match(property, /Creating the 3D voxel from the approved VoxelPop house render/, 'the voxel handoff names the approved generated render as its source');
 assert.match(property, /\/api\/property-local-voxel/, 'finished local voxel is registered for continuity and minting');
 assert.match(property, /const localSaved = savePropertyDraft\(finishedDraft\)/, 'finished voxel is saved to Vault before minting');
 assert.match(property, /Your 3D voxel is ready and saved to Vault/, 'successful voxel creation makes its saved state explicit');
