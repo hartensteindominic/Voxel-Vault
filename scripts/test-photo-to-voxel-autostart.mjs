@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const property = read('app/property/PropertyJourneyExact.js');
 const houseGenerator = read('app/property/VoxelPopHouseImageGenerator.js');
+const purchasedPreview = read('app/property/PhotoReliefModelViewer.js');
 const pictureRenderer = read('app/api/property-3d-picture/route.ts');
 const checkout = read('app/api/property-generation/checkout/route.ts');
 const paidVerify = read('app/api/property-photo-upload/route.ts');
@@ -26,6 +27,7 @@ assert.match(property, /Demo property slice · not real-property ownership/, 'sa
 assert.match(property, /setMessage\('Payment verified\. Generating your VoxelPop 3D house first\.'\)/,
   'a verified paid session stops at the generated VoxelPop house picture first');
 assert.match(property, /VoxelPopHouseImageGenerator/, 'the VoxelPop house picture stays a distinct approval stage');
+assert.doesNotMatch(property, /PhotoReliefModelViewer/, 'the paid property editor cannot fall back to the purchased-twin voxel-photo preview');
 
 assert.match(houseGenerator, /\/api\/property-3d-picture/, 'the picture stage calls the dedicated paid VoxelPop image renderer');
 assert.match(houseGenerator, /currentDraftContext/, 'the picture stage reconnects the browser photo to its paid draft');
@@ -35,6 +37,8 @@ assert.match(houseGenerator, /ORIGINAL REFERENCE/, 'the source photo remains vis
 assert.match(houseGenerator, /Regenerate 3D/, 'the user can request another generated house render before approval');
 assert.match(houseGenerator, /callbackRef\.current\?\.\(result\.payload\.image\)/, 'preview approval only unlocks after a generated image is returned');
 assert.doesNotMatch(houseGenerator, /new THREE\.Texture|PlaneGeometry|BoxGeometry|setZ\(/, 'the 3D-picture stage must not regress to a photo slab or brightness relief');
+assert.match(purchasedPreview, /InstancedMesh/, 'the purchased-twin preview can keep its separate interactive voxel-photo presentation');
+assert.match(purchasedPreview, /3D VOXEL PHOTO/, 'the purchased-twin preview remains clearly distinct from the generated property picture stage');
 
 assert.match(pictureRenderer, /paidPropertyGenerationReceipt/, 'new creations must prove the $4.99 Stripe entitlement before image generation');
 assert.match(pictureRenderer, /verifySavedPaidDraft/, 'saved paid properties can reuse the renderer without a second charge');
