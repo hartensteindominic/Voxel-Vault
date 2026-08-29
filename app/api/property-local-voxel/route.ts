@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const PROVIDER = 'voxelpop-local-webgl-v1';
 const RECIPE_PREFIX = 'local-voxel-recipe-v1:';
-const MAX_SIDE = 24;
+const MAX_SIDE = 32;
 const MIN_SIDE = 8;
 
 function clean(value: unknown, max = 500) {
@@ -53,7 +53,7 @@ function encodeRecipe(recipe: LocalVoxelRecipe) {
 }
 
 function decodeRecipe(value: unknown) {
-  const text = clean(value, 12000);
+  const text = clean(value, 24000);
   if (!text.startsWith(RECIPE_PREFIX)) throw new Error('This is not a local VoxelPop model.');
   const encoded = text.slice(RECIPE_PREFIX.length);
   const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
@@ -74,8 +74,8 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   const indices: number[] = [];
   const width = recipe.width;
   const height = recipe.height;
-  const cell = 0.285;
-  const half = cell * 0.45;
+  const cell = 6.55 / Math.max(width, height);
+  const half = cell * 0.465;
   const faceIndices = [
     0, 2, 1, 0, 3, 2,
     4, 5, 6, 4, 6, 7,
@@ -92,13 +92,13 @@ function buildGltf(recipe: LocalVoxelRecipe) {
       if (recipe.depths[index] <= 0) continue;
       const [red, green, blue] = hexRgb(recipe.colors[index]);
       const depthUnit = recipe.depths[index] / 9;
-      const depth = 0.58 + depthUnit * 0.78;
+      const depth = 0.50 + depthUnit * 0.80;
       const hx = half;
       const hy = half;
       const hz = depth / 2;
       const x = (column - (width - 1) / 2) * cell;
-      const y = ((height - 1) / 2 - row) * cell - 0.18;
-      const z = hz - 0.58;
+      const y = ((height - 1) / 2 - row) * cell - 0.12;
+      const z = hz - 0.43;
       positions.push(
         x - hx, y - hy, z - hz,
         x + hx, y - hy, z - hz,
@@ -141,8 +141,8 @@ function buildGltf(recipe: LocalVoxelRecipe) {
   const maxRow = Math.max(...activeRows);
   const xMin = (minColumn - (width - 1) / 2) * cell - half;
   const xMax = (maxColumn - (width - 1) / 2) * cell + half;
-  const yMax = ((height - 1) / 2 - minRow) * cell - 0.18 + half;
-  const yMin = ((height - 1) / 2 - maxRow) * cell - 0.18 - half;
+  const yMax = ((height - 1) / 2 - minRow) * cell - 0.12 + half;
+  const yMin = ((height - 1) / 2 - maxRow) * cell - 0.12 - half;
   const uri = `data:application/octet-stream;base64,${binary.toString('base64')}`;
 
   return {
@@ -171,8 +171,8 @@ function buildGltf(recipe: LocalVoxelRecipe) {
         componentType: 5126,
         count: positionArray.length / 3,
         type: 'VEC3',
-        min: [xMin, yMin, -0.58],
-        max: [xMax, yMax, 0.78],
+        min: [xMin, yMin, -0.43],
+        max: [xMax, yMax, 0.87],
       },
       { bufferView: 1, byteOffset: 0, componentType: 5121, normalized: true, count: colorArray.length / 3, type: 'VEC3' },
       { bufferView: 2, byteOffset: 0, componentType: 5123, count: indexArray.length, type: 'SCALAR' },
@@ -218,7 +218,7 @@ export async function POST(request: Request) {
       persisted: Boolean(saved?.task_id),
       collectionReady: Boolean(saved?.task_id && saved?.model_url),
       note: saved?.task_id
-        ? 'The compact silhouette-aware voxel recipe is account-bound in the catalog. The original source photo was not uploaded for generation.'
+        ? 'The higher-detail silhouette-aware voxel recipe is account-bound in the catalog. The original source photo was not uploaded for generation.'
         : 'The local 3D preview is ready on this device, but durable catalog persistence is unavailable. The user can still continue to map and save locally.',
     });
   } catch (error) {
