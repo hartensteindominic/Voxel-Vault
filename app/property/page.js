@@ -8,7 +8,19 @@ import { buildPropertyDraft, readPropertyDraft, savePropertyDraft } from '../../
 import { savePropertyDraftToAccount } from '../../lib/property-drafts-account';
 import styles from './property.module.css';
 
+const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const emptyModel = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
+
 function clean(value) { return String(value || '').trim(); }
+function terminal(value) {
+  return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(value || '').toUpperCase());
+}
+function readableDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
 function selectedOrLocation(atlas, address) {
   const selected = atlas?.selectedBuilding || atlas?.buildings?.[0] || null;
   if (selected) return selected;
@@ -24,15 +36,6 @@ function selectedOrLocation(atlas, address) {
     height: null,
     source: atlas?.reference?.source || { authority: 'Resolved Earth location', license: '', sourceUrl: '' },
   };
-}
-function readableDate(value) {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-function terminal(value) {
-  return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED'].includes(String(value || '').toUpperCase());
 }
 function isHeic(file) {
   return /image\/(heic|heif)/i.test(String(file?.type || '')) || /\.(heic|heif)$/i.test(String(file?.name || ''));
@@ -68,9 +71,10 @@ async function normalizeIphonePhoto(file) {
     URL.revokeObjectURL(url);
   }
 }
-const emptyModel = () => ({ status: 'NOT_STARTED', progress: 0, modelUrl: null, taskId: null });
 
 export default function SimplePropertyPage() {
+  const [authReady, setAuthReady] = useState(false);
+  const [session, setSession] = useState(null);
   const [query, setQuery] = useState('');
   const [resolvedQuery, setResolvedQuery] = useState('');
   const [building, setBuilding] = useState(null);
@@ -84,9 +88,8 @@ export default function SimplePropertyPage() {
   const [voxelImage, setVoxelImage] = useState('');
   const [model, setModel] = useState(emptyModel);
   const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('Start with an address.');
+  const [message, setMessage] = useState('Sign in to start.');
   const [saved, setSaved] = useState(null);
-  const [session, setSession] = useState(null);
   const clientRef = useRef(null);
   const imageIterationRef = useRef(0);
   const uploadInputRef = useRef(null);
@@ -132,37 +135,31 @@ export default function SimplePropertyPage() {
   useEffect(() => {
     let active = true;
     let subscription = null;
+    const initial = new URLSearchParams(window.location.search).get('q') || '';
+    if (initial) setQuery(initial);
     getSupabaseBrowserAsync().then(async (client) => {
       if (!active) return;
       clientRef.current = client;
       const { data } = await client.auth.getSession();
+      if (!active) return;
       setSession(data.session || null);
-      const auth = client.auth.onAuthStateChange((_event, next) => { if (active) setSession(next || null); });
+      setAuthReady(true);
+      if (data.session?.user) setMessage('Signed in. Start with the property address.');
+      const auth = client.auth.onAuthStateChange((_event, next) => {
+        if (!active) return;
+        setSession(next || null);
+        setAuthReady(true);
+        setMessage(next?.user ? 'Signed in. Start with the property address.' : 'Sign in to start.');
+      });
       subscription = auth.data.subscription;
-    }).catch(() => {});
-
-    const initial = new URLSearchParams(window.location.search).get('q') || '';
-    if (initial) {
-      setQuery(initial);
-      window.setTimeout(() => search(initial), 0);
-    }
+    }).catch(() => {
+      if (active) {
+        setAuthReady(true);
+        setMessage('Sign-in setup is unavailable on this deployment.');
+      }
+    });
     return () => { active = false; subscription?.unsubscribe?.(); };
   }, []);
-
-  useEffect(() => {
-    if (!building?.atlasId || !session?.access_token) return undefined;
-    let active = true;
-    const iterationAtStart = imageIterationRef.current;
-    fetch(`/api/property-voxel-3d?atlasId=${encodeURIComponent(building.atlasId)}`, {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    }).then(async (response) => {
-      const data = await response.json().catch(() => ({}));
-      if (!active || iterationAtStart !== imageIterationRef.current || !response.ok || !data?.ok) return;
-      if (data?.exists && (data?.taskId || data?.modelUrl)) setModel(data);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [building?.atlasId, session?.access_token]);
 
   useEffect(() => {
     if (!model?.taskId || model?.modelUrl || terminal(model?.status) || !session?.access_token) return undefined;
@@ -179,7 +176,7 @@ export default function SimplePropertyPage() {
         if (!response.ok || !data?.ok) throw new Error(data?.error || 'Could not read 3D progress.');
         setModel(data);
         if (data?.modelUrl) {
-          setMessage('Your 3D property is ready.');
+          setMessage('3D ready. Save it to your Vault.');
           return;
         }
         if (terminal(data?.status)) {
@@ -204,7 +201,22 @@ export default function SimplePropertyPage() {
     });
   }
 
+  async function signIn() {
+    setBusy('signin');
+    setMessage('Opening secure sign-in…');
+    try {
+      const client = clientRef.current || await getSupabaseBrowserAsync();
+      clientRef.current = client;
+      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
+      if (error) throw error;
+    } catch (error) {
+      setMessage(String(error?.message || error || 'Could not sign in.'));
+      setBusy('');
+    }
+  }
+
   async function search(value = query) {
+    if (!session?.access_token) return setMessage('Sign in before starting a property.');
     const address = clean(value);
     if (!address) return;
     imageIterationRef.current += 1;
@@ -227,32 +239,22 @@ export default function SimplePropertyPage() {
       if (!atlasResponse.ok || !atlas?.ok) throw new Error(atlas?.error || 'That property could not be mapped yet.');
       const selected = selectedOrLocation(atlas, address);
       if (!selected) throw new Error('That address resolved without a usable map location.');
-
       const imageryResponse = await fetch(`/api/world-atlas/open-imagery?lat=${encodeURIComponent(selected.latitude)}&lng=${encodeURIComponent(selected.longitude)}&radius=140`, { cache: 'no-store' });
       const imagery = await imageryResponse.json().catch(() => ({}));
       setResolvedQuery(address);
       setBuilding(selected);
       setOpenImagery(imagery?.ok ? imagery : { photos: [], meshyReferences: [], note: imagery?.note || imagery?.error || '' });
       const nextDraft = buildPropertyDraft({ building: selected, openImagery: imagery?.ok ? imagery : null, fallbackLabel: address });
-      const existingDraft = nextDraft?.id ? readPropertyDraft(nextDraft.id) : null;
-      setSaved(existingDraft);
-      setMessage('Great. Now choose the best photo of this property.');
+      setSaved(nextDraft?.id ? readPropertyDraft(nextDraft.id) : null);
+      setMessage('Property found. Choose the clearest photo.');
     } catch (error) {
       setResolvedQuery('');
       setMessage(String(error?.message || error || 'Property lookup failed.'));
     } finally { setBusy(''); }
   }
 
-  async function signIn() {
-    try {
-      const client = clientRef.current || await getSupabaseBrowserAsync();
-      clientRef.current = client;
-      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
-      if (error) throw error;
-    } catch (error) { setMessage(String(error?.message || error || 'Could not sign in.')); }
-  }
-
   function chooseUpload() {
+    if (!session?.access_token) return setMessage('Sign in before choosing a photo.');
     uploadInputRef.current?.click();
   }
 
@@ -272,22 +274,15 @@ export default function SimplePropertyPage() {
       setPendingPreview(URL.createObjectURL(photo));
       setStreetPhotoChosen(false);
       setUploadRightsConfirmed(false);
-      setMessage('Nice. Confirm you can use this photo, then continue.');
+      setMessage('Photo ready. Confirm you can use it.');
     } catch {
       setMessage('This iPhone photo could not be prepared. A screenshot of the property photo will work too.');
-    } finally {
-      setBusy('');
-    }
+    } finally { setBusy(''); }
   }
 
   async function usePendingPhoto() {
-    if (!pendingPhoto || !building?.atlasId) return;
+    if (!pendingPhoto || !building?.atlasId || !session?.access_token) return;
     if (!uploadRightsConfirmed) return setMessage('Confirm that you took this photo or have permission to use it.');
-    if (!session?.access_token) {
-      setMessage('Sign in once to keep your property photo private.');
-      await signIn();
-      return;
-    }
     setBusy('upload');
     setMessage('Saving your photo privately…');
     try {
@@ -310,7 +305,7 @@ export default function SimplePropertyPage() {
       setVoxelImage('');
       setModel(emptyModel());
       setSaved(null);
-      setMessage('Photo selected. Next, turn it into a voxel image.');
+      setMessage('Photo locked in. Now make the voxel first.');
     } catch (error) { setMessage(String(error?.message || error)); }
     finally { setBusy(''); }
   }
@@ -324,45 +319,56 @@ export default function SimplePropertyPage() {
     setVoxelImage('');
     setModel(emptyModel());
     setSaved(null);
-    setMessage('Street photo selected. Next, turn it into a voxel image.');
+    setMessage('Photo locked in. Now make the voxel first.');
   }
 
   async function createImage() {
-    if (!building?.atlasId || !activeReference) return setMessage('Choose a property photo first.');
-    if (!session?.access_token) {
-      setMessage('Sign in once to create the voxel image.');
-      await signIn();
-      return;
-    }
-    imageIterationRef.current += 1;
+    if (!building?.atlasId || !activeReference || !session?.access_token) return setMessage('Choose a property photo first.');
+    const iteration = ++imageIterationRef.current;
     setBusy('image');
-    setMessage('Turning this exact property photo into a voxel image…');
+    setMessage('Starting your VoxelPop image…');
     try {
-      const response = await fetch('/api/property-voxel-image', {
+      const startResponse = await fetch('/api/property-voxel-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ address: resolvedQuery, atlasId: building.atlasId, references: [activeReference] }),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.ok) throw new Error(data?.error || 'Voxel image could not be created.');
-      setVoxelImage(data.imageUrl);
-      setModel(emptyModel());
-      setSaved(null);
-      setMessage('Voxel image ready. If it looks right, make it 3D.');
-    } catch (error) { setMessage(String(error?.message || error)); }
-    finally { setBusy(''); }
+      const started = await startResponse.json().catch(() => ({}));
+      if (!startResponse.ok || !started?.ok || !started?.taskId || !started?.taskToken) throw new Error(started?.error || 'Voxel image could not start.');
+
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        await wait(attempt === 0 ? 1400 : 2500);
+        if (iteration !== imageIterationRef.current) return;
+        const params = new URLSearchParams({ taskId: started.taskId, taskToken: started.taskToken });
+        const response = await fetch(`/api/property-voxel-image?${params.toString()}`, {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok) throw new Error(data?.error || 'Voxel image processing failed.');
+        if (data?.imageUrl) {
+          setVoxelImage(data.imageUrl);
+          setModel(emptyModel());
+          setSaved(null);
+          setMessage('Your voxel image is ready. Approve it, then make the 3D version.');
+          return;
+        }
+        const providerProgress = Math.round(Number(data?.progress || 0));
+        setMessage(providerProgress > 0 ? `Making your voxel… ${providerProgress}%` : 'Making your voxel… this can take a minute.');
+      }
+      throw new Error('The voxel image is still processing. Try Make my voxel again in a moment.');
+    } catch (error) {
+      if (iteration === imageIterationRef.current) setMessage(String(error?.message || error));
+    } finally {
+      if (iteration === imageIterationRef.current) setBusy('');
+    }
   }
 
   async function create3D() {
-    if (!voxelImage || !building?.atlasId) return setMessage('Create the voxel image first.');
-    if (!session?.access_token) {
-      setMessage('Sign in once to create 3D.');
-      await signIn();
-      return;
-    }
+    if (!voxelImage || !building?.atlasId || !session?.access_token) return setMessage('Make the voxel image first.');
     if (model?.taskId && !terminal(model?.status) && !model?.modelUrl) return;
     setBusy('3d');
-    setMessage('Building the 3D voxel from your image…');
+    setMessage('Building the 3D voxel from the image you approved…');
     try {
       const response = await fetch('/api/property-voxel-3d', {
         method: 'POST',
@@ -372,22 +378,20 @@ export default function SimplePropertyPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok) throw new Error(data?.error || '3D generation could not start.');
       setModel(data);
-      setMessage(data?.modelUrl ? 'Your 3D property is ready.' : 'Building your 3D voxel…');
+      setMessage(data?.modelUrl ? '3D ready. Save it to your Vault.' : 'Building your 3D voxel…');
     } catch (error) { setMessage(String(error?.message || error)); }
     finally { setBusy(''); }
   }
 
   async function saveToVault() {
-    if (!draft || !model?.modelUrl) return setMessage('Create the 3D property first.');
+    if (!draft || !model?.modelUrl || !session?.user) return setMessage('Create the 3D property first.');
     try {
       const next = savePropertyDraft(draft);
       setSaved(next);
-      if (session?.user) {
-        const client = clientRef.current || await getSupabaseBrowserAsync();
-        clientRef.current = client;
-        await savePropertyDraftToAccount(client, session.user, next);
-      }
-      setMessage('Done. Your property is in the Vault. Mint whenever you are ready.');
+      const client = clientRef.current || await getSupabaseBrowserAsync();
+      clientRef.current = client;
+      await savePropertyDraftToAccount(client, session.user, next);
+      setMessage('Saved to your account Vault. Verify and mint only when you are ready.');
     } catch (error) { setMessage(String(error?.message || error)); }
   }
 
@@ -399,7 +403,7 @@ export default function SimplePropertyPage() {
     setVoxelImage('');
     setModel(emptyModel());
     setSaved(null);
-    setMessage('Choose the best photo of this property.');
+    setMessage('Choose the clearest photo of this property.');
   }
 
   function changeProperty() {
@@ -414,7 +418,7 @@ export default function SimplePropertyPage() {
     setVoxelImage('');
     setModel(emptyModel());
     setSaved(null);
-    setMessage('Start with an address.');
+    setMessage('Start with the property address.');
   }
 
   const modelRunning = Boolean(model?.taskId && !model?.modelUrl && !terminal(model?.status));
@@ -423,17 +427,38 @@ export default function SimplePropertyPage() {
   const displayImage = model?.modelUrl ? '' : voxelImage || pendingPreview || activePhoto?.imageUrl || '';
   const photoDate = readableDate(activePhoto?.shotDate);
 
+  if (!authReady) {
+    return <main className={styles.page}><section className={styles.maker}><div className={styles.brand}>VOXEL VAULT</div><h1>Property</h1><section className={styles.signinPanel}><div className={styles.signinMark}>V</div><p className={styles.bigPrompt}>Checking your account…</p><small>Nothing starts until your sign-in is verified.</small></section></section></main>;
+  }
+
+  if (!session?.user) {
+    return <main className={styles.page}><section className={styles.maker}>
+      <div className={styles.brand}>VOXEL VAULT</div>
+      <h1>Property</h1>
+      <section className={styles.signinPanel}>
+        <div className={styles.signinMark}>V</div>
+        <p className={styles.bigPrompt}>Sign in first.</p>
+        <p className={styles.signinCopy}>Your photos, voxel jobs, 3D drafts and Vault saves stay tied to one verified account.</p>
+        <button className={styles.primaryPurple} type="button" onClick={signIn} disabled={busy === 'signin'}>{busy === 'signin' ? 'Opening sign-in…' : 'Continue with Google'}</button>
+        <small>Nothing is uploaded, generated or saved before sign-in.</small>
+      </section>
+      <p className={styles.message}>{message}</p>
+    </section></main>;
+  }
+
   return <main className={styles.page}>
     <section className={styles.maker}>
       <div className={styles.brand}>VOXEL VAULT</div>
       <h1>Property</h1>
+      <div className={styles.accountPill}><span>✓ SIGNED IN</span><b>{session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email || 'Google account'}</b></div>
       <div className={styles.progress} aria-label={`Step ${stage} of 6`}>
         {[1,2,3,4,5,6].map((step) => <span key={step} className={step <= stage ? styles.progressOn : ''}/>) }
       </div>
-      <p className={styles.stageLabel}>STEP {stage} OF 6 · {stage === 1 ? 'ADDRESS' : stage === 2 ? 'PHOTO' : stage === 3 ? 'VOXEL IMAGE' : stage === 4 ? '3D' : stage === 5 ? 'VAULT' : 'READY TO MINT'}</p>
+      <p className={styles.stageLabel}>STEP {stage} OF 6 · {stage === 1 ? 'ADDRESS' : stage === 2 ? 'PHOTO' : stage === 3 ? 'MAKE VOXEL' : stage === 4 ? 'MAKE 3D' : stage === 5 ? 'SAVE' : 'READY'}</p>
 
       {!building ? <>
         <p className={styles.bigPrompt}>Which property?</p>
+        <p className={styles.flowHint}>Address → photo → <b>make the voxel first</b> → 3D → Vault.</p>
         <form className={styles.searchForm} onSubmit={(event) => { event.preventDefault(); search(); }}>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Enter property address" aria-label="Property address" autoComplete="street-address"/>
           <button disabled={busy === 'search'}>{busy === 'search' ? 'Finding…' : 'Find property'}</button>
@@ -446,7 +471,7 @@ export default function SimplePropertyPage() {
             : displayImage
               ? <img src={displayImage} alt={voxelImage ? `Voxel rendering of ${resolvedQuery}` : `Property reference for ${resolvedQuery}`} referrerPolicy="no-referrer"/>
               : <div className={styles.noPhoto}><b>Add a photo</b><span>No facade invented.</span></div>}
-          <span className={styles.badge}>{model?.modelUrl ? '3D VOXEL' : voxelImage ? 'VOXEL IMAGE' : pendingPhoto ? 'YOUR PHOTO' : activeReference ? 'PROPERTY PHOTO' : 'PHOTO NEEDED'}</span>
+          <span className={styles.badge}>{model?.modelUrl ? '3D VOXEL' : voxelImage ? 'VOXEL READY' : pendingPhoto ? 'YOUR PHOTO' : activeReference ? 'PROPERTY PHOTO' : 'PHOTO NEEDED'}</span>
           {stage === 2 && !pendingPhoto && !uploadedReference && photos.length > 1 ? <div className={styles.photoPicker}>
             <button type="button" onClick={() => setPhotoIndex((photoIndex - 1 + photos.length) % photos.length)} aria-label="Previous reference photo">‹</button>
             <b>{photoIndex + 1}/{photos.length}</b>
@@ -456,11 +481,11 @@ export default function SimplePropertyPage() {
 
         <div className={styles.meta}>
           <b>{resolvedQuery}</b>
-          <span>{model?.modelUrl ? '3D voxel property' : voxelImage ? 'Generated from your selected property photo' : pendingPhoto ? 'Your selected photo' : activePhoto ? `${uploadedReference ? 'Your uploaded photo' : 'Available street photo'}${photoDate ? ` · ${photoDate}` : ''}` : 'Choose or upload a property photo'}</span>
+          <span>{model?.modelUrl ? '3D voxel property' : voxelImage ? 'Voxel image created from your selected property photo' : pendingPhoto ? 'Your selected photo' : activePhoto ? `${uploadedReference ? 'Your uploaded photo' : 'Available street photo'}${photoDate ? ` · ${photoDate}` : ''}` : 'Choose or upload a property photo'}</span>
         </div>
 
         {stage === 2 && !pendingPhoto ? <div className={styles.choicePanel}>
-          <p className={styles.bigPrompt}>Pick the best photo.</p>
+          <p className={styles.bigPrompt}>Pick the clearest photo.</p>
           <input ref={uploadInputRef} className={styles.hiddenInput} type="file" accept="image/*,.heic,.heif" onChange={selectLocalPhoto}/>
           <button className={styles.primaryPurple} type="button" onClick={chooseUpload} disabled={busy === 'prepare-photo'}>{busy === 'prepare-photo' ? 'Preparing photo…' : 'Upload your photo'}</button>
           {activeReference ? <button className={styles.secondaryButton} type="button" onClick={useStreetPhoto}>Use this street photo</button> : null}
@@ -478,36 +503,37 @@ export default function SimplePropertyPage() {
         </div> : null}
 
         {stage === 3 ? <div className={styles.choicePanel}>
-          <p className={styles.bigPrompt}>Make it VoxelPop.</p>
-          <button className={styles.primaryOrange} type="button" onClick={createImage} disabled={busy === 'image'}>{busy === 'image' ? 'Creating…' : 'Create voxel image'}</button>
-          <button className={styles.textButton} type="button" onClick={changePhoto}>Change photo</button>
+          <p className={styles.bigPrompt}>Make the voxel first.</p>
+          <p className={styles.stepCopy}>We process the exact photo you chose into the VoxelPop image before 3D unlocks.</p>
+          <button className={styles.primaryOrange} type="button" onClick={createImage} disabled={busy === 'image'}>{busy === 'image' ? 'Making your voxel…' : 'Make my voxel'}</button>
+          <button className={styles.textButton} type="button" onClick={changePhoto} disabled={busy === 'image'}>Change photo</button>
         </div> : null}
 
         {stage === 4 ? <div className={styles.choicePanel}>
-          <p className={styles.bigPrompt}>{modelRunning ? 'Building your 3D voxel…' : 'Looks right?'}</p>
-          <button className={styles.primaryTeal} type="button" onClick={create3D} disabled={busy === '3d' || modelRunning}>{modelRunning ? `Creating 3D${Number(model?.progress) ? ` · ${Math.round(Number(model.progress))}%` : '…'}` : 'Create 3D'}</button>
-          {!modelRunning ? <button className={styles.textButton} type="button" onClick={createImage}>Redo voxel image</button> : null}
+          <p className={styles.bigPrompt}>{modelRunning ? 'Building your 3D voxel…' : 'Voxel looks right?'}</p>
+          {!modelRunning ? <p className={styles.stepCopy}>This is the image that will become 3D. Redo it now if you want a different result.</p> : null}
+          <button className={styles.primaryTeal} type="button" onClick={create3D} disabled={busy === '3d' || modelRunning}>{modelRunning ? `Creating 3D${Number(model?.progress) ? ` · ${Math.round(Number(model.progress))}%` : '…'}` : 'Make it 3D'}</button>
+          {!modelRunning ? <button className={styles.textButton} type="button" onClick={createImage} disabled={busy === 'image'}>Redo voxel</button> : null}
         </div> : null}
 
         {stage === 5 ? <div className={styles.choicePanel}>
-          <p className={styles.bigPrompt}>Keep it.</p>
-          <button className={styles.primaryPurple} type="button" onClick={saveToVault}>Save to Vault</button>
+          <p className={styles.bigPrompt}>Save it.</p>
+          <button className={styles.primaryPurple} type="button" onClick={saveToVault}>Save to my Vault</button>
           <button className={styles.textButton} type="button" onClick={changePhoto}>Start over with photo</button>
         </div> : null}
 
         {stage === 6 ? <div className={styles.donePanel}>
           <div className={styles.doneMark}>✓</div>
-          <p className={styles.bigPrompt}>It’s in your Vault.</p>
+          <p className={styles.bigPrompt}>Saved to your Vault.</p>
           <Link className={styles.primaryLink} href="/vault/properties/claim">Verify &amp; mint once</Link>
           <div className={styles.doneLinks}><Link href="/vault/property-drafts">Open Vault</Link><Link href="/world">World</Link></div>
-          <small>Minting stays optional. The parcel identity—not the address text—blocks duplicate canonical mints.</small>
         </div> : null}
 
-        <button className={styles.change} type="button" onClick={changeProperty}>Start over</button>
+        <button className={styles.change} type="button" onClick={changeProperty}>Choose a different property</button>
       </>}
 
       <p className={styles.message} role="status">{message}</p>
-      <p className={styles.truth}>Photo = appearance · Map = location · Parcel verification = canonical mint identity. A voxel or NFT is not a deed.</p>
+      <p className={styles.truth}>Photo = appearance · Map = location · Parcel verification = canonical mint identity. A voxel or NFT is not a deed. Parcel identity—not the address text—blocks duplicate canonical mints.</p>
     </section>
   </main>;
 }

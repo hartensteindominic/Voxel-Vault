@@ -61,14 +61,15 @@ assert.match(commandCenter, /Search is navigation only\. It never executes trade
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'command center must remain pure navigation and never execute side effects');
 
 // Consumer Home is intentionally much smaller than the underlying Spatial Asset OS.
-// While the visual pipeline is being hardened, the front door is only:
-// address -> reference photo -> voxel image -> 3D -> Vault -> mint later.
-assert.match(rootHome, /Add a property\./, 'root Home should lead with one property action');
-assert.match(rootHome, /action="\/property"/, 'root Home should route one address directly into the simple property maker');
-assert.match(rootHome, /CREATE IMAGE/, 'root Home should expose the image-first workflow');
-assert.match(rootHome, /CREATE 3D/, 'root Home should expose the 3D step');
-assert.match(rootHome, /MINT LATER/, 'root Home should keep minting optional and downstream');
-assert.match(rootHome, /Creating or minting a property model does not buy the property or create deed\/title rights\./, 'root Home must preserve model versus title truth');
+// The front door is account-first, then property photo -> voxel image -> approved 3D -> Vault.
+assert.match(rootHome, /Sign in first\./, 'root Home should lead with account verification before property work');
+assert.match(rootHome, /href="\/property"/, 'root Home should route the single property CTA into the account-gated maker');
+assert.match(rootHome, /START PROPERTY → SIGN IN/, 'root Home should make the account-first transition explicit');
+assert.match(rootHome, /MAKE VOXEL/, 'root Home should expose voxel-image creation before 3D');
+assert.match(rootHome, /<b>3D<\/b>/, 'root Home should expose the downstream 3D step');
+assert.match(rootHome, /<b>VAULT<\/b>/, 'root Home should expose the account Vault as the save destination');
+assert.match(rootHome, /voxel image must finish first/i, 'root Home should block 3D until the voxel image finishes');
+assert.match(rootHome, /Creating or minting a property model does not buy, rent, or create deed\/title rights/, 'root Home must preserve model versus title truth');
 assert.match(rootHome, /href="\/more"/, 'advanced Spatial Asset OS tools must remain deliberately reachable');
 assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING/, 'property purchase execution must stay out of the troubleshooting front door');
 assert.doesNotMatch(rootHome, /HomeCapabilityStrip|FOUR CORE JOBS|title: 'Create'|title: 'Earth'|title: 'Invest'/, 'advanced capability and product taxonomy must not re-clutter the simple home');
@@ -122,4 +123,4 @@ assert.match(home, /Fail-closed for real money/);
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault bare property maker + advanced Spatial Asset OS + safe app shell + capability + Financial OS coherence regression tests passed');
+console.log('Voxel Vault sign-in-first property maker + advanced Spatial Asset OS + safe app shell + capability + Financial OS coherence regression tests passed');

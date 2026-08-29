@@ -115,7 +115,8 @@ requireMarkers(distribution, 'distribution vault', [
 ]);
 
 requireMarkers(root, 'simple root homepage', [
-  'Add a property.',
+  'Sign in first.',
+  'Nothing uploads, generates, buys, rents or saves before you sign in.',
   'Real purchase buttons only activate when a verified provider/listing and required legal settlement path exist.',
   'A 3D model or NFT alone is not a deed.',
   'href="/more"',
@@ -239,4 +240,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the simple home stays fail-closed without advertising regulated rails, advanced provider-backed investment routes remain discoverable, direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the sign-in-first simple home stays fail-closed without advertising regulated rails, advanced provider-backed investment routes remain discoverable, direct-property environment assertions cannot satisfy authority-evidence gates, legal clearance is never claimed, the Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment is Base Sepolia-only.');
