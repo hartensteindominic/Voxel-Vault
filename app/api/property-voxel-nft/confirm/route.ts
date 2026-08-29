@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../../lib/user-auth';
-import { listPaidPropertyCollectiblesForBuyer, updatePropertyCollectibleReservation, verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
+import { listPaidPropertyCollectiblesForBuyer, verifyOwnedFinalVoxelModel } from '../../../../lib/property-collectible-commerce';
+import { markPropertyCollectibleMinted } from '../../../../lib/property-collectible-mint-state';
 import { propertyVoxelMetadataUrl, propertyVoxelVoucherId, verifyPropertyVoxelMint } from '../../../../lib/property-voxel-mint';
 
 export const runtime = 'nodejs';
@@ -38,7 +39,9 @@ export async function POST(request: Request) {
     const voucherId = propertyVoxelVoucherId(propertyIdentity);
     const verified = await verifyPropertyVoxelMint({ tokenId, wallet, txHash, voucherId, metadataUrl });
 
-    if (reservation.state !== 'minted') await updatePropertyCollectibleReservation({ identityKey: propertyIdentity, buyerId: auth.user.id, state: 'minted', source: 'base-voxel-mint', sourceId: txHash });
+    if (reservation.state !== 'minted') {
+      await markPropertyCollectibleMinted({ identityKey: propertyIdentity, buyerId: auth.user.id, txHash });
+    }
 
     return privateJson({ ok: true, verified: true, ...verified, draftId: owned.draftId, taskId, propertyIdentity, atlasId: reservation.atlasId, propertyAddress: reservation.address, onePropertyOneMint: true, digitalOnly: true, physicalPropertyRights: false });
   } catch (error) {
