@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const PROVIDER = 'voxelpop-local-webgl-v1';
 const RECIPE_PREFIX = 'local-voxel-recipe-v1:';
+const MAX_SIDE = 32;
 
 function clean(value: unknown, max = 300) {
   return String(value || '').trim().slice(0, max);
@@ -21,7 +22,7 @@ function escapeXml(value: unknown) {
     .replaceAll("'", '&apos;');
 }
 function decodeRecipe(value: unknown) {
-  const text = clean(value, 12000);
+  const text = clean(value, 40000);
   if (!text.startsWith(RECIPE_PREFIX)) throw new Error('Local voxel recipe is unavailable.');
   const parsed = JSON.parse(Buffer.from(text.slice(RECIPE_PREFIX.length), 'base64url').toString('utf8'));
   const width = Math.trunc(Number(parsed?.width));
@@ -29,16 +30,20 @@ function decodeRecipe(value: unknown) {
   const count = width * height;
   const colors = Array.isArray(parsed?.colors) ? parsed.colors.slice(0, count).map((item: unknown) => clean(item, 6).toLowerCase()) : [];
   const depths = Array.isArray(parsed?.depths) ? parsed.depths.slice(0, count).map((item: unknown) => Math.max(0, Math.min(9, Math.trunc(Number(item) || 0)))) : [];
-  if (Number(parsed?.version) !== 1 || width < 8 || height < 8 || width > 24 || height > 24 || colors.length !== count || depths.length !== count) throw new Error('Local voxel recipe is invalid.');
+  if (Number(parsed?.version) !== 1 || width < 8 || height < 8 || width > MAX_SIDE || height > MAX_SIDE || colors.length !== count || depths.length !== count) throw new Error('Local voxel recipe is invalid.');
   if (colors.some((value: string) => !/^[a-f0-9]{6}$/.test(value))) throw new Error('Local voxel colors are invalid.');
   return { width, height, colors, depths };
 }
 function thumbnail(recipe: ReturnType<typeof decodeRecipe>, name: string) {
-  const cell = 34;
+  // Fit both wide and tall property voxels into the NFT card without forcing
+  // them back into a square model or overlapping the labels.
+  const maxArtWidth = 1040;
+  const maxArtHeight = 760;
+  const cell = Math.max(12, Math.floor(Math.min(maxArtWidth / recipe.width, maxArtHeight / recipe.height)));
   const artWidth = recipe.width * cell;
   const artHeight = recipe.height * cell;
   const offsetX = Math.round((1200 - artWidth) / 2);
-  const offsetY = 170 + Math.round((760 - artHeight) / 2);
+  const offsetY = 150 + Math.round((800 - artHeight) / 2);
   const blocks: string[] = [];
   for (let row = 0; row < recipe.height; row += 1) {
     for (let column = 0; column < recipe.width; column += 1) {
@@ -47,8 +52,8 @@ function thumbnail(recipe: ReturnType<typeof decodeRecipe>, name: string) {
       if (depth <= 0) continue;
       const x = offsetX + column * cell;
       const y = offsetY + row * cell;
-      const lift = Math.round(depth * 1.4);
-      blocks.push(`<rect x="${x}" y="${y - lift}" width="${cell - 2}" height="${cell - 2 + lift}" rx="3" fill="#${recipe.colors[index]}"/>`);
+      const lift = Math.max(1, Math.round(depth * Math.max(0.7, cell / 24)));
+      blocks.push(`<rect x="${x}" y="${y - lift}" width="${Math.max(2, cell - 2)}" height="${Math.max(2, cell - 2 + lift)}" rx="${Math.max(1, Math.round(cell * 0.09))}" fill="#${recipe.colors[index]}"/>`);
     }
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
@@ -58,7 +63,7 @@ function thumbnail(recipe: ReturnType<typeof decodeRecipe>, name: string) {
     <g>${blocks.join('')}</g>
     <text x="70" y="86" fill="#c9ff54" font-family="Arial,sans-serif" font-size="25" font-weight="800" letter-spacing="6">VOXELPOP · PROPERTY VOXEL</text>
     <text x="70" y="1060" fill="#ffffff" font-family="Arial,sans-serif" font-size="62" font-weight="800">${escapeXml(name)}</text>
-    <text x="70" y="1115" fill="#cfc4dc" font-family="Arial,sans-serif" font-size="23">PHOTO-APPROVED 3D → LOCAL VOXEL → DIGITAL NFT</text>
+    <text x="70" y="1115" fill="#cfc4dc" font-family="Arial,sans-serif" font-size="23">PHOTO-APPROVED 3D → PROPORTION-PRESERVING VOXEL → DIGITAL NFT</text>
     <text x="70" y="1150" fill="#9286a0" font-family="Arial,sans-serif" font-size="18">DIGITAL COLLECTIBLE ONLY · NOT A DEED OR PHYSICAL-PROPERTY RIGHT</text>
   </svg>`;
 }
@@ -83,7 +88,7 @@ export async function GET(request: Request) {
     const animationUrl = `${url.origin}/api/property-local-voxel?taskId=${encodeURIComponent(taskId)}`;
     return NextResponse.json({
       name: `${name} · VoxelPop`,
-      description: 'A photo-approved VoxelPop digital property voxel. The user saw the source-faithful 3D preview before creating this local voxel. This NFT is a digital collectible only and does not convey deed/title, occupancy, rent, investment, appraisal, or other rights in physical real estate.',
+      description: 'A photo-approved VoxelPop digital property voxel. The user saw the source-faithful 3D preview before creating this proportion-preserving local voxel. This NFT is a digital collectible only and does not convey deed/title, occupancy, rent, investment, appraisal, or other rights in physical real estate.',
       image,
       animation_url: animationUrl,
       external_url: `${url.origin}/property`,
@@ -91,6 +96,7 @@ export async function GET(request: Request) {
         { trait_type: 'Asset Type', value: 'VoxelPop Property Voxel' },
         { trait_type: 'Creation Flow', value: 'Photo → 3D Preview → Voxel' },
         { trait_type: '3D Engine', value: 'VoxelPop Local WebGL' },
+        { trait_type: 'House Proportions', value: 'Source aspect preserved' },
         { trait_type: 'Meshy Credits', value: 'Not used' },
         { trait_type: 'Source Preview Approved', value: 'Yes' },
         { trait_type: 'Real Property Rights', value: 'None' },
@@ -101,6 +107,7 @@ export async function GET(request: Request) {
         digital_only: true,
         photo_source_stored_in_metadata: false,
         source_photo_uploaded_for_generation: false,
+        source_aspect_preserved: true,
         real_property_rights: false,
         deed_or_title: false,
       },
