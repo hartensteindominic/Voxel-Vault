@@ -134,7 +134,21 @@ export async function POST(request: Request) {
       const phase = normalizePropertyGenerationPhase(body?.phase);
       itemId = propertyDraftItemId(auth.user.id, draftId, phase);
       if (phase === 'source') {
-        imageUrl = await sourcePhotoUrl(auth, draftId, body?.sourceStoragePath);
+        const sourceStoragePath = clean(body?.sourceStoragePath, 900);
+        if (sourceStoragePath.startsWith('meshy-source:')) {
+          const taskId = clean(sourceStoragePath.slice('meshy-source:'.length), 260);
+          const directJob = await readCatalog3DByTask(taskId);
+          if (!directJob?.item_id || directJob.item_id !== itemId) {
+            throw new Error('That direct photo 3D job does not belong to this signed-in creation.');
+          }
+          return privateJson({
+            ok: true,
+            reused: true,
+            directPhoto: true,
+            ...publicState(directJob, await displayUrlFor(directJob)),
+          });
+        }
+        imageUrl = await sourcePhotoUrl(auth, draftId, sourceStoragePath);
         provider = 'meshy-property-photo-to-3d';
       } else {
         imageUrl = await verifiedVoxelImageUrl(apiKey, auth.user.id, body?.voxelImageTaskId, body?.voxelImageTaskToken);
