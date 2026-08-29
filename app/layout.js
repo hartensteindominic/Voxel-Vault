@@ -1,6 +1,7 @@
 import { WalletIdentityProvider } from './components/WalletIdentity';
 import FinancialOSNav from './components/FinancialOSNav';
 import AppCommandCenter from './components/AppCommandCenter';
+import ConsumerFooter from './components/ConsumerFooter';
 import './vault-fallback.css';
 import './futuristic-vault.css';
 import './spatial-os-interactions.css';
@@ -10,18 +11,26 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_AP
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Voxel Vault | 3D Property + Digital Assets', template: '%s | Voxel Vault' },
-  description: 'Your 3D Asset Vault for paid digital VoxelPop creations, source-backed property maps, digital collectibles, and clearly separated sandbox, provider-backed, and title-based property workflows.',
-  keywords: ['3D property', 'voxel creator', 'digital property', 'NFT vault', 'real estate digital twin', 'digital assets', 'Voxel Vault'],
+  title: { default: 'Voxel Vault | Turn a House Photo into 3D', template: '%s | Voxel Vault' },
+  description: 'Upload a property photo, see a 3D preview, turn it into a movable VoxelPop voxel, and mint only if you want. One $4.99 digital creation; the source photo stays on your device.',
+  keywords: ['photo to 3D', 'house 3D creator', 'voxel creator', 'property visualization', 'VoxelPop', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
-    title: 'Voxel Vault | 3D Property + Digital Assets',
-    description: 'Create digital VoxelPop property assets, explore source-backed places in 3D, and keep digital assets, sandbox tools, provider positions, and real-property title clearly separated.',
-    type: 'website', url: SITE_URL, siteName: 'Voxel Vault', images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
+    title: 'Voxel Vault | Photo → 3D → Voxel',
+    description: 'See your property photo in 3D first, approve it, then build a movable voxel. Minting is optional.',
+    type: 'website',
+    url: SITE_URL,
+    siteName: 'Voxel Vault',
+    images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault VoxelPop' }],
   },
-  twitter: { card: 'summary', title: 'Voxel Vault | 3D Property + Digital Assets', description: 'Create, map, collect, and organize digital property assets with clear ownership boundaries.', images: ['/voxelpop/voxelpop-logo.png'] },
+  twitter: {
+    card: 'summary',
+    title: 'Voxel Vault | Photo → 3D → Voxel',
+    description: 'Upload a house photo, see the 3D preview, create the voxel, mint only if you want.',
+    images: ['/voxelpop/voxelpop-logo.png'],
+  },
 };
 
 export const viewport = {
@@ -33,5 +42,5 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body><WalletIdentityProvider>{children}<AppCommandCenter /><FinancialOSNav /></WalletIdentityProvider></body></html>;
+  return <html lang="en"><body><WalletIdentityProvider>{children}<ConsumerFooter/><AppCommandCenter/><FinancialOSNav/></WalletIdentityProvider></body></html>;
 }
