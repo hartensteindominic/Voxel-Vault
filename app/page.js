@@ -10,22 +10,22 @@ export default function Home() {
     <ProductTopNav/>
     <div className={styles.shell}>
       <section className={styles.hero}>
-        <p className={styles.kicker}>VOXELPOP · ONE PHOTO → YOUR VOXEL</p>
+        <p className={styles.kicker}>VOXELPOP · PHOTO → 3D VOXEL PHOTO → MOVABLE VOXEL → NFT</p>
         <h1>One photo.<br/><em>One simple flow.</em></h1>
         <p className={styles.heroLine}>Upload a property photo, approve the real 3D voxel photo, and your movable voxel saves automatically.</p>
 
         <div className={styles.centerMachine}>
           <HomeProductPreview/>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/property">Create my VoxelPop · $4.99</Link>
+            <Link className={styles.primaryAction} href="/property">Start VoxelPop · $4.99</Link>
             <Link className={styles.secondaryAction} href="/demo">See a sample first</Link>
           </div>
         </div>
 
         <div className={styles.trustRow} aria-label="VoxelPop creation facts">
-          <span>One photo</span>
           <span>Saved automatically</span>
-          <span>No wallet unless you mint</span>
+          <span>NFT optional</span>
+          <span>No wallet until mint</span>
         </div>
       </section>
 
