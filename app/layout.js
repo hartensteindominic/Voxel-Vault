@@ -8,20 +8,26 @@ import './voxelpop-cute-system.css';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
+const TITLE = 'Voxel Vault | Turn a House Photo into a 3D Voxel';
+const DESCRIPTION = 'Upload an authorized house photo, see a textured 3D preview, approve it, then create a movable VoxelPop voxel for $4.99. Source photo stays on your device; minting is optional.';
+
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Voxel Vault | 3D Property + Digital Assets', template: '%s | Voxel Vault' },
-  description: 'Your 3D Asset Vault for paid digital VoxelPop creations, source-backed property maps, digital collectibles, and clearly separated sandbox, provider-backed, and title-based property workflows.',
-  keywords: ['3D property', 'voxel creator', 'digital property', 'NFT vault', 'real estate digital twin', 'digital assets', 'Voxel Vault'],
+  title: { default: TITLE, template: '%s | Voxel Vault' },
+  description: DESCRIPTION,
+  keywords: ['house photo to 3D', 'voxel house creator', '3D house photo', 'VoxelPop', 'voxel creator', 'Voxel Vault'],
   alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   icons: { icon: '/voxelpop/voxelpop-logo.png', apple: '/voxelpop/voxelpop-logo.png' },
   openGraph: {
-    title: 'Voxel Vault | 3D Property + Digital Assets',
-    description: 'Create digital VoxelPop property assets, explore source-backed places in 3D, and keep digital assets, sandbox tools, provider positions, and real-property title clearly separated.',
-    type: 'website', url: SITE_URL, siteName: 'Voxel Vault', images: [{ url: '/voxelpop/voxelpop-logo.png', alt: 'Voxel Vault' }],
+    title: TITLE,
+    description: DESCRIPTION,
+    type: 'website',
+    url: SITE_URL,
+    siteName: 'Voxel Vault',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'VoxelPop house photo to 3D voxel preview' }],
   },
-  twitter: { card: 'summary', title: 'Voxel Vault | 3D Property + Digital Assets', description: 'Create, map, collect, and organize digital property assets with clear ownership boundaries.', images: ['/voxelpop/voxelpop-logo.png'] },
+  twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION, images: ['/opengraph-image'] },
 };
 
 export const viewport = {
