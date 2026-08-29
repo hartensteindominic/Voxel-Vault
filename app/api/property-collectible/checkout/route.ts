@@ -44,7 +44,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Finish the voxel and verify its My World location before collection.' }, { status: 400 });
     }
 
-    await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId });
     const atlas = await inspectWorldAtlas({ address, radiusMeters: 180 });
     if (!atlas?.ok) throw new Error(atlas?.error || 'The mapped property reference could not be re-checked before collection.');
     const building = findMappedBuilding(atlas, atlasId);
@@ -52,6 +51,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'The mapped building identity changed or could not be re-verified. No checkout was created.' }, { status: 409 });
     }
 
+    const verifiedModel = await verifyOwnedFinalVoxelModel({ userId: auth.user.id, draftId, modelTaskId, atlasId });
     identityKey = propertyCollectibleIdentity(atlasId);
     const quote = quotePropertyCollectible(building);
     const hold = await acquirePropertyCollectibleReservation({
@@ -113,7 +113,9 @@ export async function POST(request: Request) {
           unit_amount: quote.priceCents,
           product_data: {
             name: `VoxelPop Digital Voxel · ${quote.label}`,
-            description: 'One generated digital 3D voxel tied to this mapped World reference. This checkout does not buy the physical property or create deed/title, rent, investment, occupancy, or appreciation rights.',
+            description: verifiedModel.mapBacked
+              ? 'One digital VoxelPop collectible using source-backed mapped 3D geometry for this World reference. This checkout does not buy the physical property or create deed/title, rent, investment, occupancy, or appreciation rights.'
+              : 'One digital VoxelPop collectible using the completed generated 3D model for this World reference. This checkout does not buy the physical property or create deed/title, rent, investment, occupancy, or appreciation rights.',
           },
         },
       }],
@@ -124,6 +126,7 @@ export async function POST(request: Request) {
         atlas_id: atlasId,
         draft_id: draftId,
         model_task_id: modelTaskId,
+        model_kind: verifiedModel.mapBacked ? 'source_backed_map_3d' : 'generated_glb',
         price_cents: String(quote.priceCents),
         rights: 'digital_only_no_real_property_rights',
         minting: 'optional_after_purchase_and_property_verification',
@@ -154,7 +157,8 @@ export async function POST(request: Request) {
       url: session.url,
       sessionId: session.id,
       quote,
-      disclosure: 'This checkout collects the generated digital voxel only. Verify & Mint is optional later and does not create deed/title or any other real-property rights.',
+      modelKind: verifiedModel.mapBacked ? 'source-backed-map-3d' : 'generated-glb',
+      disclosure: 'This checkout collects the digital voxel only. Verify & Mint is optional later and does not create deed/title or any other real-property rights.',
     });
   } catch (error) {
     if (reservationCreated && identityKey) {
