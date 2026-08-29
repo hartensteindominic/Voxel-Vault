@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const property = read('app/property/PropertyJourneyExact.js');
-const photoPreview = read('app/property/PhotoReliefModelViewer.js');
+const houseGenerator = read('app/property/VoxelPopHouseImageGenerator.js');
 const pictureRenderer = read('app/api/property-3d-picture/route.ts');
 const checkout = read('app/api/property-generation/checkout/route.ts');
 const paidVerify = read('app/api/property-photo-upload/route.ts');
@@ -25,16 +25,16 @@ assert.match(property, /This creation is already paid, so there is no second cre
 assert.match(property, /Demo property slice · not real-property ownership/, 'sandbox purchases remain clearly demo-only when offered as a source item');
 assert.match(property, /setMessage\('Payment verified\. Generating your VoxelPop 3D house first\.'\)/,
   'a verified paid session stops at the generated VoxelPop house picture first');
-assert.match(property, /PhotoReliefModelViewer/, 'the VoxelPop house picture stays a distinct approval stage');
+assert.match(property, /VoxelPopHouseImageGenerator/, 'the VoxelPop house picture stays a distinct approval stage');
 
-assert.match(photoPreview, /\/api\/property-3d-picture/, 'the picture stage calls the dedicated paid VoxelPop image renderer');
-assert.match(photoPreview, /currentDraftContext/, 'the picture stage reconnects the browser photo to its paid draft');
-assert.match(photoPreview, /paidGenerationProof/, 'the picture stage sends either the Stripe proof or saved-paid entitlement');
-assert.match(photoPreview, /VOXELPOP 3D HOUSE/, 'the picture stage clearly identifies the generated VoxelPop house render');
-assert.match(photoPreview, /ORIGINAL REFERENCE/, 'the source photo remains visible as a comparison reference');
-assert.match(photoPreview, /Regenerate 3D/, 'the user can request another generated house render before approval');
-assert.match(photoPreview, /callbackRef\.current\?\.\(payload\.image\)/, 'preview approval only unlocks after a generated image is returned');
-assert.doesNotMatch(photoPreview, /new THREE\.Texture|PlaneGeometry|BoxGeometry|setZ\(/, 'the 3D-picture stage must not regress to a photo slab or brightness relief');
+assert.match(houseGenerator, /\/api\/property-3d-picture/, 'the picture stage calls the dedicated paid VoxelPop image renderer');
+assert.match(houseGenerator, /currentDraftContext/, 'the picture stage reconnects the browser photo to its paid draft');
+assert.match(houseGenerator, /paidGenerationProof/, 'the picture stage sends either the Stripe proof or saved-paid entitlement');
+assert.match(houseGenerator, /VOXELPOP 3D HOUSE/, 'the picture stage clearly identifies the generated VoxelPop house render');
+assert.match(houseGenerator, /ORIGINAL REFERENCE/, 'the source photo remains visible as a comparison reference');
+assert.match(houseGenerator, /Regenerate 3D/, 'the user can request another generated house render before approval');
+assert.match(houseGenerator, /callbackRef\.current\?\.\(result\.payload\.image\)/, 'preview approval only unlocks after a generated image is returned');
+assert.doesNotMatch(houseGenerator, /new THREE\.Texture|PlaneGeometry|BoxGeometry|setZ\(/, 'the 3D-picture stage must not regress to a photo slab or brightness relief');
 
 assert.match(pictureRenderer, /paidPropertyGenerationReceipt/, 'new creations must prove the $4.99 Stripe entitlement before image generation');
 assert.match(pictureRenderer, /verifySavedPaidDraft/, 'saved paid properties can reuse the renderer without a second charge');
