@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ConsumerTopNav from '../components/ConsumerTopNav';
 import styles from '../legal-page.module.css';
 
 export const metadata = {
@@ -7,8 +8,9 @@ export const metadata = {
 };
 
 export default function PrivacyPage() {
-  return <main className={styles.page}><div className={styles.shell}>
-    <nav className={styles.top}><Link className={styles.brand} href="/"><span>V</span><b>VOXEL VAULT</b></Link><div><Link href="/demo">Public demo</Link><Link href="/property">Create</Link></div></nav>
+  return <main className={styles.page}>
+    <ConsumerTopNav/>
+    <div className={styles.shell}>
     <header className={styles.hero}><small>PRIVACY</small><h1>Your photo starts<br/>on your device.</h1><p>Voxel Vault is designed so the property source photo used by the current VoxelPop creation flow stays on the user’s device rather than becoming a public property-photo database.</p></header>
     <section className={styles.card}>
       <div className={styles.notice}><strong>Current product boundary:</strong> the normal $4.99 property creation flow uses local browser processing for the 3D preview and voxel creation and does not require Meshy credits.</div>
