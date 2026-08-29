@@ -35,7 +35,7 @@ export function meshyCreditFailure(requiredCredits: number, availableCredits: nu
     stage,
     requiredCredits,
     availableCredits: available,
-    error: `VoxelPop 3D credits are currently unavailable for ${stage}. ${requiredCredits} Meshy API credits are needed before this stage starts.${balanceCopy} This is the Meshy generation balance, not your Voxel Vault USD, crypto, or property balance. Nothing new was generated for this stage.`,
+    error: `VoxelPop 3D credits are currently unavailable for ${stage}. ${requiredCredits} Meshy API credits are needed before this stage starts.${balanceCopy} This is the Meshy credit balance, not your Voxel Vault USD, crypto, or property balance. Nothing new was generated for this stage.`,
   };
 }
 
