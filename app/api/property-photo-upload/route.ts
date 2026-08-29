@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultUser } from '../../../lib/user-auth';
+import { normalizePropertyDraftId } from '../../../lib/property-generation-ids';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -43,6 +44,8 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const photo = form.get('photo');
+    const draftIdRaw = clean(form.get('draftId'), 100);
+    const draftId = draftIdRaw ? normalizePropertyDraftId(draftIdRaw) : '';
     const atlasId = clean(form.get('atlasId'), 180);
     const address = clean(form.get('address'), 220);
     const rightsConfirmed = clean(form.get('rightsConfirmed'), 16) === 'true';
@@ -50,8 +53,8 @@ export async function POST(request: Request) {
     if (!(photo instanceof File)) {
       return NextResponse.json({ ok: false, error: 'Choose a property photo first.' }, { status: 400 });
     }
-    if (!atlasId || !address) {
-      return NextResponse.json({ ok: false, error: 'Resolve the property before uploading a photo.' }, { status: 400 });
+    if (!draftId && (!atlasId || !address)) {
+      return NextResponse.json({ ok: false, error: 'Start a photo creation or resolve the property before uploading.' }, { status: 400 });
     }
     if (!rightsConfirmed) {
       return NextResponse.json({ ok: false, error: 'Confirm that you took this photo or have permission to use it.' }, { status: 400 });
@@ -67,8 +70,8 @@ export async function POST(request: Request) {
     const bytes = await photo.arrayBuffer();
     const digest = createHash('sha256').update(Buffer.from(bytes)).digest('hex');
     const userId = safeSegment(auth.user.id, 'user');
-    const propertyId = safeSegment(atlasId);
-    const path = `property-references/${userId}/${propertyId}/${digest}.${extension}`;
+    const subjectId = safeSegment(draftId || atlasId);
+    const path = `property-references/${userId}/${subjectId}/${digest}.${extension}`;
 
     await ensureBucket(auth.admin);
     const uploaded = await auth.admin.storage.from(BUCKET).upload(path, bytes, {
@@ -84,17 +87,18 @@ export async function POST(request: Request) {
     const uploadedAt = new Date().toISOString();
     return NextResponse.json({
       ok: true,
+      draftId: draftId || null,
       reference: {
         url: signed.data.signedUrl,
         rightsBasis: 'user-owned',
-        rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for the property voxel.',
+        rightsReference: 'Signed-in Voxel Vault user confirmed they took this photo or have permission to use it for this digital property creation.',
         label: 'Uploaded property photo',
         sourcePhotoId: `upload:${digest.slice(0, 20)}`,
         provider: 'user-upload',
         storagePath: path,
         uploadedAt,
       },
-      privacy: 'The original upload is stored in a private bucket. The generator receives a short-lived signed URL only.',
+      privacy: 'The original upload is stored in a private bucket. Generation receives short-lived signed access only.',
     }, {
       headers: { 'Cache-Control': 'private, no-store, max-age=0' },
     });
