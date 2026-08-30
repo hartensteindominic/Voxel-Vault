@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import BankClient from './BankClient';
 import GalacticDashboardEnhancements from './GalacticDashboardEnhancements';
+import GalacticSandboxSetup from './GalacticSandboxSetup';
 
 function userLabel(user) {
   return String(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'Galactic member');
@@ -159,11 +160,13 @@ export default function GalacticBankGate() {
 
   const activeSignOut = session?.user ? signOut : () => setDemoAccess(false);
   const label = session?.user ? userLabel(session.user) : 'Demo Explorer';
+  const accessToken = session?.access_token || '';
 
   return (
     <>
-      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} accessToken={session?.access_token || ''} />
+      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} accessToken={accessToken} />
       <GalacticDashboardEnhancements onSignOut={activeSignOut} accountLabel={label} />
+      {session?.user && <GalacticSandboxSetup accessToken={accessToken} />}
     </>
   );
 }
