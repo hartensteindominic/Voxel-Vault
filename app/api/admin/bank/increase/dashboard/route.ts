@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireGalacticTrustAdmin } from '../../../../../../lib/admin-auth';
 import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
+import { resolveIncreaseSandboxOwnerAccount } from '../../../../../../lib/banking/increase-owner-account.js';
 import { getIncreaseSandboxDashboardForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
 import { ensureIncreaseSandboxWebhookSubscription } from '../../../../../../lib/banking/increase-webhook-subscription.js';
 import { pollIncreaseSandboxEvents } from '../../../../../../lib/banking/increase-reconciliation';
-import {
-  getProviderAccountBinding,
-  publicBindingSummary,
-} from '../../../../../../lib/banking/provider-account-binding.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,18 +17,27 @@ export async function GET(request: Request) {
   const auth = await requireGalacticTrustAdmin(request);
   if (auth.ok === false) return response({ ok: false, error: auth.error, setupRequired: auth.setupRequired || false }, auth.status);
 
-  let bindingState: any;
+  let resolution: any;
   try {
-    bindingState = await getProviderAccountBinding(auth.admin, auth.user.id);
+    resolution = await resolveIncreaseSandboxOwnerAccount(auth.admin, auth.user.id, process.env);
   } catch (error: any) {
-    return response({ ok: false, authorized: true, provider: 'Increase', environment: 'sandbox', connected: false, setupRequired: true, canMoveRealMoney: false, error: error instanceof Error ? error.message : 'Increase sandbox identity binding could not be read.' }, 500);
+    return response({ ok: false, authorized: true, provider: 'Increase', environment: 'sandbox', connected: false, setupRequired: true, canMoveRealMoney: false, error: error instanceof Error ? error.message : 'Increase sandbox owner Account could not be resolved.' }, 500);
   }
 
-  if (bindingState.setupRequired) {
-    return response({ ok: false, authorized: true, provider: 'Increase', environment: 'sandbox', connected: false, setupRequired: true, canMoveRealMoney: false, error: bindingState.error || 'Provider identity binding storage is not ready.' }, 503);
-  }
-  if (!bindingState.binding) {
-    return response({ ok: false, authorized: true, provider: 'Increase', environment: 'sandbox', connected: true, setupRequired: true, canMoveRealMoney: false, error: 'No Increase sandbox Account is bound to this signed-in Galactic Trust owner yet. Complete owner-scoped sandbox onboarding before provider balances or transactions are shown.' }, 409);
+  if (!resolution.accountId) {
+    return response({
+      ok: false,
+      authorized: true,
+      provider: 'Increase',
+      environment: 'sandbox',
+      connected: true,
+      setupRequired: true,
+      recoveryAvailable: true,
+      canMoveRealMoney: false,
+      bindingStorageReady: resolution.bindingStorageReady,
+      bindingStorageIssue: resolution.bindingStorageIssue,
+      error: 'No owner-scoped Increase sandbox Account exists yet. Use the Galactic Trust sandbox recovery control to create one.',
+    }, 409);
   }
 
   let webhookAutomation: any = null;
@@ -41,8 +47,20 @@ export async function GET(request: Request) {
   try { reconciliationBackstop = await pollIncreaseSandboxEvents({ maxPages: 2 }); } catch { automationIssue = automationIssue || 'Increase sandbox reconciliation backstop needs attention.'; }
 
   try {
-    const snapshot = await getIncreaseSandboxDashboardForAccount(bindingState.binding.accountId, process.env);
-    return response({ ok: true, authorized: true, ...snapshot, binding: publicBindingSummary(bindingState.binding), webhookAutomation, reconciliationBackstop, automationIssue, note: 'Increase sandbox data is scoped to the Account bound server-side to this signed-in owner. Values are pretend money and cannot represent live customer funds.' });
+    const snapshot = await getIncreaseSandboxDashboardForAccount(resolution.accountId, process.env);
+    return response({
+      ok: true,
+      authorized: true,
+      ...snapshot,
+      binding: resolution.binding,
+      bindingPersistence: resolution.persistence,
+      bindingStorageReady: resolution.bindingStorageReady,
+      bindingStorageIssue: resolution.bindingStorageIssue,
+      webhookAutomation,
+      reconciliationBackstop,
+      automationIssue,
+      note: 'Increase sandbox data is scoped server-side to this signed-in Galactic Trust owner through either trusted database binding storage or the owner-specific Increase idempotency key. Values are pretend money only.',
+    });
   } catch (error: any) {
     const provider = describeIncreaseSandboxError(error, error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.');
     return response({
@@ -52,7 +70,7 @@ export async function GET(request: Request) {
       environment: 'sandbox',
       connected: false,
       canMoveRealMoney: false,
-      binding: publicBindingSummary(bindingState.binding),
+      binding: resolution.binding,
       webhookAutomation,
       reconciliationBackstop,
       automationIssue,
