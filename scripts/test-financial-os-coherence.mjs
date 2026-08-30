@@ -9,6 +9,10 @@ const capabilitiesApi = fs.readFileSync(new URL('../app/api/world-atlas/capabili
 const productMap = fs.readFileSync(new URL('../lib/product-map.js', import.meta.url), 'utf8');
 const interactions = fs.readFileSync(new URL('../app/spatial-os-interactions.css', import.meta.url), 'utf8');
 const rootHome = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
+const galacticGate = fs.readFileSync(new URL('../app/bank/GalacticBankGate.js', import.meta.url), 'utf8');
+const galacticBank = fs.readFileSync(new URL('../app/bank/BankClient.js', import.meta.url), 'utf8');
+const galacticEnhancements = fs.readFileSync(new URL('../app/bank/GalacticDashboardEnhancements.js', import.meta.url), 'utf8');
+const galacticEnhancementCss = fs.readFileSync(new URL('../app/bank/enhancements.css', import.meta.url), 'utf8');
 const propertyRoute = fs.readFileSync(new URL('../app/property/page.js', import.meta.url), 'utf8');
 const property = fs.readFileSync(new URL('../app/property/PropertyStudioFlow.js', import.meta.url), 'utf8');
 const propertyCss = fs.readFileSync(new URL('../app/property/PropertyStudio.module.css', import.meta.url), 'utf8');
@@ -19,9 +23,11 @@ const integrationsApi = fs.readFileSync(new URL('../app/api/admin/integrations/s
 const layout = fs.readFileSync(new URL('../app/layout.js', import.meta.url), 'utf8');
 const vaultLayout = fs.readFileSync(new URL('../app/vault/layout.js', import.meta.url), 'utf8');
 const home = fs.readFileSync(new URL('../app/real-estate/page.js', import.meta.url), 'utf8');
+const galacticHome = /GalacticBankGate/.test(rootHome);
 
 // The wider app keeps its canonical directory for advanced surfaces, while the
-// shipping Voxel Vault property studio deliberately exposes only the few actions needed now.
+// shipping front door may be Galactic Trust and the property studio remains a
+// separately reachable, safety-bounded product surface.
 for (const label of ['Home', 'Create', 'World', 'Vault', 'More']) {
   assert.match(productMap, new RegExp(`label: '${label}'`), `canonical product directory should include ${label}`);
 }
@@ -52,12 +58,20 @@ assert.match(nav, /FinancialOSNav\.module\.css/, 'consumer dock should use its r
 assert.match(navCss, /safe-area-inset-bottom/, 'consumer dock must respect the iPhone safe area');
 assert.match(navCss, /@media\(max-width:720px\)/, 'consumer dock must stay mobile-only when desktop top navigation is present');
 assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell should not be restricted to finance-only routes');
-assert.match(layout, /FinancialOSNav/);
-assert.match(layout, /AppCommandCenter/);
-assert.match(layout, /spatial-os-interactions\.css/);
-assert.match(layout, /Turn Property Photos into 3D Voxel Collectibles/, 'public metadata must describe the redesigned focused product');
-assert.match(layout, /save it to your Voxel Vault Inventory, and mint it when you want/i, 'public metadata must describe Inventory persistence and optional downstream minting');
-assert.doesNotMatch(layout, /Real Property, Made Spatial|Your 3D Asset Vault|digital-twin pilot/i, 'public metadata must not revive older broad property/vault positioning');
+
+if (galacticHome) {
+  assert.match(layout, /WalletIdentityProvider/, 'Galactic Trust layout must keep wallet identity context available to legacy/internal routes');
+  assert.match(layout, /Galactic Trust \| Digital Banking/, 'public metadata must name Galactic Trust');
+  assert.match(layout, /Financial actions remain simulated until regulated provider rails are connected/, 'public metadata must preserve the simulated-banking boundary');
+  assert.match(layout, /themeColor: '#07103d'/, 'Galactic Trust layout must keep the approved cosmic theme color');
+} else {
+  assert.match(layout, /FinancialOSNav/);
+  assert.match(layout, /AppCommandCenter/);
+  assert.match(layout, /spatial-os-interactions\.css/);
+  assert.match(layout, /Turn Property Photos into 3D Voxel Collectibles/, 'public metadata must describe the redesigned focused product');
+  assert.match(layout, /save it to your Voxel Vault Inventory, and mint it when you want/i, 'public metadata must describe Inventory persistence and optional downstream minting');
+  assert.doesNotMatch(layout, /Real Property, Made Spatial|Your 3D Asset Vault|digital-twin pilot/i, 'public metadata must not revive older broad property/vault positioning');
+}
 assert.doesNotMatch(vaultLayout, /VaultPortalNav/);
 
 assert.match(interactions, /--vv-tap-min:\s*44px/, 'coarse-pointer controls should keep an iPhone-friendly minimum target');
@@ -75,19 +89,40 @@ assert.match(commandCenter, /!isSimplePropertyRoute\(pathname\)/, 'advanced tool
 assert.match(commandCenter, /never automatically spends money, mints an NFT, or starts a paid 3D generation/, 'tool finder must disclose its non-execution boundary');
 assert.doesNotMatch(commandCenter, /fetch\(|method:\s*['"]POST['"]|wallet\.send|eth_sendTransaction|checkout\.sessions\.create/, 'tool finder must remain pure navigation and never execute side effects');
 
-// The redesigned consumer Home is a focused entry into the property studio.
-assert.match(rootHome, /PROPERTY → COLLECTIBLE/, 'root Home must state the focused product');
-assert.match(rootHome, /Create a property voxel/, 'root Home must have a clear creation CTA');
-assert.match(rootHome, /href="\/property"/, 'root Home must route creation into the studio');
-assert.match(rootHome, /confirm the address/i, 'root Home must name address confirmation');
-assert.match(rootHome, /voxel image/i, 'root Home must name the voxel-preview stage');
-assert.match(rootHome, /saved to Inventory first/i, 'root Home must make automatic Inventory saving explicit');
-assert.match(rootHome, /Mint if you want|Minting optional/i, 'minting must remain explicitly downstream and optional');
-assert.match(rootHome, /This collectible is digital only\./, 'root Home must identify the product as digital');
-assert.match(rootHome, /does not create or transfer deed, title/i, 'root Home must keep the physical-property boundary visible');
-assert.doesNotMatch(rootHome, /Create mine · \$4\.99|Create · \$4\.99|Try voxel sample · no login|VOXELPOP OUTPUT|START → SIGN IN \+ UPLOAD PHOTO|TRY THE \$1\.99 SLICE|YOUR 3D MONEY \+ ASSET WORLD|PROPERTY · CASH · CRYPTO · NFT/i, 'checkout CTAs, stale funnel, banking, and sandbox-heavy language must stay off the front door');
-assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING|guaranteed returns|guaranteed yield|risk[- ]free/i, 'unverified physical-property purchase or return claims must stay out of the consumer front door');
-assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
+if (galacticHome) {
+  assert.match(rootHome, /GalacticBankGate/, 'root Home must render Galactic Trust');
+  assert.match(rootHome, /enhancements\.css/, 'root Home must load Galactic Trust interaction polish');
+  assert.match(galacticGate, /Continue with Google/, 'Galactic Trust must keep Google sign-in available');
+  assert.match(galacticGate, /signInWithOtp/, 'Galactic Trust must keep passwordless email sign-in available');
+  assert.match(galacticGate, /Explore the Stars demo/, 'Galactic Trust must keep low-friction demo onboarding');
+  assert.match(galacticGate, /simulated banking experience/i, 'Galactic Trust onboarding must disclose that banking is simulated');
+  assert.match(galacticBank, /DEMO BANKING/, 'Galactic Trust dashboard must label demo banking clearly');
+  assert.match(galacticBank, /No real deposits are held and no real money moves in this build\./, 'Galactic Trust dashboard must preserve the no-real-money boundary');
+  assert.match(galacticEnhancements, /Deposit/, 'Galactic Trust must prioritize Deposit');
+  assert.match(galacticEnhancements, /Send/, 'Galactic Trust must prioritize Send');
+  assert.match(galacticEnhancements, /Swap/, 'Galactic Trust must prioritize Swap');
+  assert.match(galacticEnhancements, /1W[\s\S]*1M[\s\S]*3M/, 'Galactic Trust balance must expose interactive trend ranges');
+  assert.match(galacticEnhancements, /metaKey \|\| event\.ctrlKey/, 'Galactic Trust must support Cmd/Ctrl+K quick navigation');
+  assert.match(galacticEnhancements, /visualViewport/, 'Galactic Trust must handle soft-keyboard viewport changes');
+  assert.match(galacticEnhancementCss, /safe-area-inset-bottom/, 'Galactic Trust must respect mobile safe areas');
+  assert.match(galacticEnhancementCss, /pointer:coarse/, 'Galactic Trust must adapt to coarse-pointer mobile and VR surfaces');
+  assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|guaranteed returns|guaranteed yield|risk[- ]free/i, 'unverified physical-property purchase or return claims must stay out of the Galactic Trust front door');
+  assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
+} else {
+  // Legacy focused-property front door checks remain valid if that product is restored later.
+  assert.match(rootHome, /PROPERTY → COLLECTIBLE/, 'root Home must state the focused product');
+  assert.match(rootHome, /Create a property voxel/, 'root Home must have a clear creation CTA');
+  assert.match(rootHome, /href="\/property"/, 'root Home must route creation into the studio');
+  assert.match(rootHome, /confirm the address/i, 'root Home must name address confirmation');
+  assert.match(rootHome, /voxel image/i, 'root Home must name the voxel-preview stage');
+  assert.match(rootHome, /saved to Inventory first/i, 'root Home must make automatic Inventory saving explicit');
+  assert.match(rootHome, /Mint if you want|Minting optional/i, 'minting must remain explicitly downstream and optional');
+  assert.match(rootHome, /This collectible is digital only\./, 'root Home must identify the product as digital');
+  assert.match(rootHome, /does not create or transfer deed, title/i, 'root Home must keep the physical-property boundary visible');
+  assert.doesNotMatch(rootHome, /Create mine · \$4\.99|Create · \$4\.99|Try voxel sample · no login|VOXELPOP OUTPUT|START → SIGN IN \+ UPLOAD PHOTO|TRY THE \$1\.99 SLICE|YOUR 3D MONEY \+ ASSET WORLD|PROPERTY · CASH · CRYPTO · NFT/i, 'checkout CTAs, stale funnel, banking, and sandbox-heavy language must stay off the legacy property front door');
+  assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|BUY A PIECE|BUY THE WHOLE THING|guaranteed returns|guaranteed yield|risk[- ]free/i, 'unverified physical-property purchase or return claims must stay out of the consumer front door');
+  assert.doesNotMatch(rootHome, /RealEstatePlatformPage/, 'root home must not alias an older real-estate subsystem');
+}
 
 assert.match(propertyRoute, /PropertyStudioFlow/, 'the active /property route must use the new guided studio');
 assert.match(property, /const PROGRESS = \[[\s\S]*PHOTO[\s\S]*ADDRESS[\s\S]*VOXEL[\s\S]*BUILD[\s\S]*VAULT/, 'creator must expose the five-stage property journey');
@@ -167,4 +202,4 @@ assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodia
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log('Voxel Vault checks passed: focused Home, guided five-stage property studio, confirmed address, explicit voxel preview approval, automatic Inventory save, optional minting, sandbox boundaries, and fail-closed advanced rails stay distinct.');
+console.log(`Voxel Vault checks passed: ${galacticHome ? 'Galactic Trust account-first demo banking front door, interactive quick actions, command navigation, mobile/VR behavior, and visible trust boundaries' : 'focused Home'} plus the guided five-stage property studio, sandbox boundaries, and fail-closed advanced rails stay distinct.`);
