@@ -66,10 +66,12 @@ export async function POST(request: Request) {
 
   try {
     if (action === 'create_session') {
+      const requestedProgramId = String(body?.programId || '').trim();
       const redirectUrl = new URL('/bank', request.url);
       redirectUrl.searchParams.set('increase_onboarding', 'complete');
+      if (requestedProgramId) redirectUrl.searchParams.set('increase_program_id', requestedProgramId);
       const result = await createIncreaseSandboxOnboardingSession({
-        programId: String(body?.programId || ''),
+        programId: requestedProgramId,
         entityId: String(body?.entityId || ''),
         redirectUrl: redirectUrl.toString(),
       }, process.env);
