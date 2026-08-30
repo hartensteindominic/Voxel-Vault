@@ -40,6 +40,9 @@ jobs:
       - name: Account status UI
         if: always()
         run: node scripts/test-galactic-trust-account-status-ui.mjs
+      - name: Integration health
+        if: always()
+        run: node scripts/test-galactic-trust-integration-health.mjs
       - name: Production build
         if: always()
         run: npm run build
