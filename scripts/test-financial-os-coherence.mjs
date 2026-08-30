@@ -61,8 +61,9 @@ assert.doesNotMatch(nav, /FINANCIAL_PREFIXES|financialRoute/, 'global app shell 
 
 if (galacticHome) {
   assert.match(layout, /WalletIdentityProvider/, 'Galactic Trust layout must keep wallet identity context available to legacy/internal routes');
-  assert.match(layout, /Galactic Trust \| Digital Banking/, 'public metadata must name Galactic Trust');
-  assert.match(layout, /Financial actions remain simulated until regulated provider rails are connected/, 'public metadata must preserve the simulated-banking boundary');
+  assert.match(layout, /Galactic Trust \| Financial App/, 'public metadata must identify Galactic Trust as a financial app rather than a bank');
+  assert.match(layout, /Galactic Trust is not a bank/, 'public metadata must preserve the nonbank boundary');
+  assert.match(layout, /approved sponsor-bank program/, 'public metadata must preserve the provider-backed launch boundary');
   assert.match(layout, /themeColor: '#07103d'/, 'Galactic Trust layout must keep the approved cosmic theme color');
 } else {
   assert.match(layout, /FinancialOSNav/);
@@ -95,7 +96,8 @@ if (galacticHome) {
   assert.match(galacticGate, /Continue with Google/, 'Galactic Trust must keep Google sign-in available');
   assert.match(galacticGate, /signInWithOtp/, 'Galactic Trust must keep passwordless email sign-in available');
   assert.match(galacticGate, /Explore the Stars demo/, 'Galactic Trust must keep low-friction demo onboarding');
-  assert.match(galacticGate, /simulated banking experience/i, 'Galactic Trust onboarding must disclose that banking is simulated');
+  assert.match(galacticGate, /financial technology product, not a bank/i, 'Galactic Trust onboarding must disclose the nonbank boundary');
+  assert.match(galacticGate, /approved sponsor-bank program/i, 'Galactic Trust onboarding must keep live banking provider-gated');
   assert.match(galacticBank, /DEMO BANKING/, 'Galactic Trust dashboard must label demo banking clearly');
   assert.match(galacticBank, /No real deposits are held and no real money moves in this build\./, 'Galactic Trust dashboard must preserve the no-real-money boundary');
   assert.match(galacticEnhancements, /Deposit/, 'Galactic Trust must prioritize Deposit');
@@ -104,6 +106,7 @@ if (galacticHome) {
   assert.match(galacticEnhancements, /1W[\s\S]*1M[\s\S]*3M/, 'Galactic Trust balance must expose interactive trend ranges');
   assert.match(galacticEnhancements, /metaKey \|\| event\.ctrlKey/, 'Galactic Trust must support Cmd/Ctrl+K quick navigation');
   assert.match(galacticEnhancements, /visualViewport/, 'Galactic Trust must handle soft-keyboard viewport changes');
+  assert.match(galacticEnhancements, /\/bank\/readiness/, 'Galactic Trust must surface the regulated launch status');
   assert.match(galacticEnhancementCss, /safe-area-inset-bottom/, 'Galactic Trust must respect mobile safe areas');
   assert.match(galacticEnhancementCss, /pointer:coarse/, 'Galactic Trust must adapt to coarse-pointer mobile and VR surfaces');
   assert.doesNotMatch(rootHome, /BUY PIECE|BUY WHOLE|guaranteed returns|guaranteed yield|risk[- ]free/i, 'unverified physical-property purchase or return claims must stay out of the Galactic Trust front door');
@@ -202,4 +205,4 @@ assert.match(home, /Voxel Vault is not itself a bank, broker, exchange, custodia
 assert.doesNotMatch(home, /guaranteed returns|risk[- ]free|guaranteed profit|guaranteed yield/i);
 assert.doesNotMatch(home, /token is (?:the )?deed|blockchain deed/i);
 
-console.log(`Voxel Vault checks passed: ${galacticHome ? 'Galactic Trust account-first demo banking front door, interactive quick actions, command navigation, mobile/VR behavior, and visible trust boundaries' : 'focused Home'} plus the guided five-stage property studio, sandbox boundaries, and fail-closed advanced rails stay distinct.`);
+console.log(`Voxel Vault checks passed: ${galacticHome ? 'Galactic Trust nonbank financial-app front door, provider-gated banking, interactive quick actions, command navigation, mobile/VR behavior, and visible trust boundaries' : 'focused Home'} plus the guided five-stage property studio, sandbox boundaries, and fail-closed advanced rails stay distinct.`);
