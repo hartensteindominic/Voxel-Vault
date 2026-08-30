@@ -1,7 +1,8 @@
-import BankClient from './BankClient';
+import GalacticBankGate from './GalacticBankGate';
 import './bank.css';
 import './galactic.css';
 import './galactic-trust.css';
+import './auth.css';
 
 export const metadata = {
   title: 'Dashboard',
@@ -10,5 +11,5 @@ export const metadata = {
 };
 
 export default function BankPage() {
-  return <BankClient />;
+  return <GalacticBankGate />;
 }
