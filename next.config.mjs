@@ -16,7 +16,6 @@ const nextConfig = {
         headers: [
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
         ],
       },
