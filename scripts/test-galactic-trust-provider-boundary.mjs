@@ -68,13 +68,12 @@ assert.match(sandboxSource, /\.\.\/\.\.\/increase-sandbox\.js/, 'sandbox provide
 assert.match(resolverSource, /launch\.liveBankingEnabled && platform === 'increase'/, 'resolver must require the regulated launch snapshot before production selection');
 assert.match(gateSource, /new URL\('\/bank', window\.location\.origin\)/, 'Google and OTP auth must return directly to the Galactic Trust dashboard');
 
-assert.match(vercelSource, /"X-Frame-Options", "value": "DENY"/, 'Galactic Trust pages must deny framing to reduce clickjacking risk');
-assert.match(vercelSource, /"Strict-Transport-Security", "value": "max-age=31536000"/, 'Galactic Trust deployment must instruct browsers to keep using HTTPS');
-assert.match(vercelSource, /"X-Permitted-Cross-Domain-Policies", "value": "none"/, 'legacy cross-domain policy files must be disabled');
-assert.match(vercelSource, /"X-Content-Type-Options", "value": "nosniff"/, 'MIME sniffing protection must remain enabled');
-assert.match(vercelSource, /"Referrer-Policy", "value": "strict-origin-when-cross-origin"/, 'referrer policy must remain privacy-conscious');
-assert.doesNotMatch(vercelSource, /Permissions-Policy/, 'parenthesized Permissions-Policy must stay out of vercel.json to avoid deployment-schema rejection');
-assert.match(nextConfigSource, /key: 'Permissions-Policy'/, 'Next response headers must set the browser permissions policy');
-assert.match(nextConfigSource, /camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)/, 'unused sensitive browser capabilities must be disabled by policy');
+assert.match(vercelSource, /"X-Content-Type-Options", "value": "nosniff"/, 'MIME sniffing protection must remain enabled in the proven-safe Vercel config');
+assert.match(vercelSource, /"Referrer-Policy", "value": "strict-origin-when-cross-origin"/, 'referrer policy must remain privacy-conscious in the proven-safe Vercel config');
+assert.doesNotMatch(vercelSource, /X-Frame-Options|Strict-Transport-Security|Permissions-Policy|X-Permitted-Cross-Domain-Policies/, 'new security headers must stay in Next config so Vercel project-config validation cannot reject them');
+assert.match(nextConfigSource, /key: 'X-Frame-Options', value: 'DENY'/, 'Galactic Trust pages must deny framing to reduce clickjacking risk');
+assert.match(nextConfigSource, /key: 'Strict-Transport-Security', value: 'max-age=31536000'/, 'Galactic Trust responses must instruct browsers to keep using HTTPS');
+assert.match(nextConfigSource, /key: 'Permissions-Policy', value: 'camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)'/, 'unused sensitive browser capabilities must be disabled by policy');
+assert.match(nextConfigSource, /key: 'X-Permitted-Cross-Domain-Policies', value: 'none'/, 'legacy cross-domain policy files must be disabled');
 
-console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and deployment security headers remain hardened without relying on a Vercel-incompatible Permissions-Policy value.');
+console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and security headers are hardened through the Next response layer while Vercel project config stays on its proven-safe header set.');
