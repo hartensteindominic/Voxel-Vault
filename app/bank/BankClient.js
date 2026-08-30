@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { buildOrbitResponse } from '../../lib/banking/orbit-chat.js';
 
 const navItems = [
   ['dashboard', '⌂', 'Dashboard'],
@@ -76,38 +77,35 @@ function GalacticCard({ pink = false, frozen = false, onFreeze }) {
   );
 }
 
-function OrbitChat() {
+function OrbitChat({ sandboxConnected, checking, savings, transactions, accountLabel, blueFrozen, pinkFrozen }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Hi! I’m Orbit 👋 Ask me about transfers, cards, crypto, security, privacy, rewards, or Galactic Trust.' },
+    { role: 'assistant', text: 'Hi! I’m Orbit ✨ Ask me what your balance means, how to test a transfer, whether this is real money, how cards work, or anything about Galactic Trust.' },
   ]);
 
+  const suggestions = sandboxConnected
+    ? ['What’s my sandbox balance?', 'How do I test an ACH transfer?', 'Is this real money?']
+    : ['What’s my balance?', 'How do transfers work?', 'Is Galactic Trust a bank?'];
+
   function replyTo(raw) {
-    const message = raw.trim().slice(0, 500);
+    const message = String(raw || '').trim().slice(0, 500);
     if (!message) return;
-    const q = message.toLowerCase();
-    let answer = 'I can help with Galactic Trust accounts, transfers, cards, crypto, rewards, security, privacy, and demo/live status.';
+    const response = buildOrbitResponse(message, {
+      sandboxConnected,
+      checking,
+      savings,
+      transactions,
+      accountLabel,
+      blueFrozen,
+      pinkFrozen,
+    });
 
-    if (/password|pin|cvv|one.?time|otp|recovery|seed phrase|private key/.test(q)) {
-      answer = 'For your security, never share passwords, PINs, CVVs, one-time codes, recovery phrases, or private keys in chat. I do not need them to help you.';
-    } else if (/transfer|send money/.test(q)) {
-      answer = 'Use Transfer from the sidebar or Quick Actions. Owner testing can use Increase sandbox ACH simulations, while real money movement remains blocked.';
-    } else if (/crypto|bitcoin|btc|ethereum|eth|usdc|buy|sell/.test(q)) {
-      answer = 'The Crypto panel lets you practice BTC, ETH, and USDC buys and sells. Orders are simulated right now; no real crypto is purchased or sold until an approved trading/custody provider is connected.';
-    } else if (/private|privacy|data/.test(q)) {
-      answer = 'Galactic Trust is designed to minimize sensitive data exposure. Card numbers stay masked, the assistant does not request account credentials, and provider secrets belong server-side only.';
-    } else if (/safe|security|secure|protect/.test(q)) {
-      answer = 'Security protections include masked card data, same-origin financial actions, restrictive browser headers, fail-closed live-money switches, and short-lived signed authentication for banking integrations.';
-    } else if (/fee|cost|price/.test(q)) {
-      answer = 'This prototype does not charge real banking or crypto fees. Any future fees must match the approved live partner program and be disclosed before a user confirms an action.';
-    } else if (/reward|star/.test(q)) {
-      answer = 'The reference experience includes Galactic Stars and merchant rewards. The displayed 2,450 stars are demo rewards in this build.';
-    } else if (/real|live|demo|sandbox/.test(q)) {
-      answer = 'The website is live, but real banking is not. Increase sandbox can supply pretend-money account and ACH test data for owner testing; production customer money stays hard-locked.';
-    }
-
-    setMessages((current) => [...current, { role: 'user', text: message }, { role: 'assistant', text: answer }]);
+    setMessages((current) => [
+      ...current.slice(-14),
+      { role: 'user', text: message },
+      { role: 'assistant', text: response.text },
+    ]);
     setInput('');
   }
 
@@ -120,12 +118,12 @@ function OrbitChat() {
             <div><strong>Orbit</strong><small><i /> Galactic Trust assistant</small></div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close Orbit">×</button>
           </header>
-          <div className="gt-chat-warning"><span>🔒</span><p>Never share passwords, PINs, CVVs, recovery codes, or one-time codes here.</p></div>
+          <div className="gt-chat-warning"><span>🔒</span><p>Never share passwords, PINs, CVVs, recovery codes, one-time codes, or API keys here.</p></div>
           <div className="gt-chat-messages" aria-live="polite">
             {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`gt-chat-bubble ${message.role}`}>{message.text}</div>)}
           </div>
           <div className="gt-chat-suggestions">
-            {['How do transfers work?', 'How does crypto work?', 'Is my data private?'].map((text) => <button key={text} type="button" onClick={() => replyTo(text)}>{text}</button>)}
+            {suggestions.map((text) => <button key={text} type="button" onClick={() => replyTo(text)}>{text}</button>)}
           </div>
           <form className="gt-chat-form" onSubmit={(event) => { event.preventDefault(); replyTo(input); }}>
             <input value={input} maxLength={500} onChange={(event) => setInput(event.target.value)} placeholder="Ask Orbit anything…" aria-label="Message Orbit" autoComplete="off" />
@@ -445,7 +443,15 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
         </div>
       </section>
 
-      <OrbitChat />
+      <OrbitChat
+        sandboxConnected={sandboxConnected}
+        checking={checking}
+        savings={savings}
+        transactions={transactions}
+        accountLabel={memberName}
+        blueFrozen={blueFrozen}
+        pinkFrozen={pinkFrozen}
+      />
     </main>
   );
 }
