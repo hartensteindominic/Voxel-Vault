@@ -11,11 +11,15 @@ import {
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const gate = read('app/bank/GalacticBankGate.js');
+const bankClient = read('app/bank/BankClient.js');
 const enhancements = read('app/bank/GalacticDashboardEnhancements.js');
 const readinessPage = read('app/bank/readiness/page.js');
 const readinessApi = read('app/api/bank/readiness/route.ts');
 const increaseSandbox = read('lib/banking/increase-sandbox.js');
 const increaseStatusApi = read('app/api/admin/bank/increase/status/route.ts');
+const increaseDashboardApi = read('app/api/admin/bank/increase/dashboard/route.ts');
+const increaseFundApi = read('app/api/admin/bank/increase/fund/route.ts');
+const increaseTransferApi = read('app/api/admin/bank/increase/transfer/route.ts');
 const integrationsApi = read('app/api/admin/integrations/status/route.ts');
 const terms = read('app/terms/page.js');
 const privacy = read('app/privacy/page.js');
@@ -48,7 +52,15 @@ assert.equal(attemptedLive.liveCryptoEnabled, false, 'banking approval must neve
 assert.match(gate, /financial technology product, not a bank/i, 'onboarding must clearly identify Galactic Trust as a nonbank');
 assert.match(gate, /No real deposits are held and no real money moves/i, 'onboarding must keep real deposits and money movement disabled');
 assert.match(gate, /\/bank\/readiness/, 'onboarding must link to public regulated launch status');
+assert.match(gate, /accessToken=\{session\?\.access_token \|\| ''\}/, 'signed-in dashboard must receive the short-lived Supabase access token');
 assert.match(gate, /GalacticDashboardEnhancements onSignOut=\{activeSignOut\}/, 'dashboard enhancements must receive the real account sign-out handler');
+
+assert.match(bankClient, /\/api\/admin\/bank\/increase\/dashboard/, 'owner dashboard must load sanitized Increase sandbox data');
+assert.match(bankClient, /\/api\/admin\/bank\/increase\/fund/, 'owner dashboard must support sandbox-only inbound ACH funding simulation');
+assert.match(bankClient, /\/api\/admin\/bank\/increase\/transfer/, 'owner dashboard must support sandbox-only outbound ACH simulation');
+assert.match(bankClient, /INCREASE SANDBOX/, 'dashboard must visibly label provider-backed test data as sandbox');
+assert.match(bankClient, /No real recipient or bank account is used/i, 'sandbox send flow must disclose that it never targets a real bank recipient');
+assert.match(bankClient, /typeof onSignOut === 'function' \? onSignOut\(\)/, 'visible sidebar sign-out must call the real sign-out handler');
 
 assert.match(enhancements, /financial technology product, not a bank/i, 'dashboard trust strip must preserve the nonbank boundary');
 assert.match(enhancements, /approved sponsor-bank program/i, 'dashboard must name the real launch authority instead of a founder toggle');
@@ -67,12 +79,23 @@ assert.doesNotMatch(increaseSandbox, /GALACTIC_BANKING_PROVIDER_API_KEY/, 'sandb
 assert.match(increaseSandbox, /canMoveRealMoney:\s*false/, 'sandbox adapter must explicitly declare that it cannot move real money');
 assert.match(increaseSandbox, /productionSupported:\s*false/, 'sandbox adapter must explicitly reject production support');
 assert.match(increaseSandbox, /origin !== new URL\(INCREASE_SANDBOX_BASE_URL\)\.origin/, 'provider requests must be origin-pinned');
+assert.match(increaseSandbox, /\/accounts\/\$\{encodeURIComponent\(account\.id\)\}\/balance/, 'dashboard sync must use Increase account balance endpoint');
+assert.match(increaseSandbox, /\/transactions\?account_id=/, 'dashboard sync must use Increase transaction history');
+assert.match(increaseSandbox, /\/simulations\/inbound_ach_transfers/, 'funding must use Increase sandbox inbound ACH simulation');
+assert.match(increaseSandbox, /\/simulations\/ach_transfers\/\$\{encodeURIComponent\(transfer\.id\)\}\/settle/, 'outbound sandbox ACH must settle only through the sandbox simulation endpoint');
+assert.match(increaseSandbox, /routing_number: '101050001'/, 'outbound sandbox ACH must use fixed test coordinates rather than user bank details');
+assert.match(increaseSandbox, /account_number: '987654321'/, 'outbound sandbox ACH must use fixed test account coordinates');
 
-assert.match(increaseStatusApi, /requireVoxelVaultAdmin/, 'Increase sandbox status must be owner-authenticated');
-assert.match(increaseStatusApi, /Cache-Control': 'private, no-store, max-age=0'/, 'Increase sandbox status must never be publicly cached');
+for (const source of [increaseStatusApi, increaseDashboardApi, increaseFundApi, increaseTransferApi]) {
+  assert.match(source, /requireVoxelVaultAdmin/, 'Increase sandbox routes must remain owner-authenticated');
+  assert.match(source, /Cache-Control': 'private, no-store, max-age=0'/, 'Increase sandbox routes must never be publicly cached');
+  assert.doesNotMatch(source, /process\.env\.INCREASE_SANDBOX_API_KEY/, 'route modules must not directly read or return the sandbox key');
+}
 assert.match(increaseStatusApi, /canMoveRealMoney:\s*false/, 'Increase status must preserve the sandbox-only boundary');
 assert.match(increaseStatusApi, /never returns the API key/, 'Increase status must disclose its credential boundary');
-assert.doesNotMatch(increaseStatusApi, /process\.env\.INCREASE_SANDBOX_API_KEY/, 'owner status route must not directly read or return the sandbox key');
+assert.match(increaseDashboardApi, /pretend money/i, 'dashboard API must label Increase values as pretend money');
+assert.match(increaseFundApi, /No external bank account was debited/i, 'sandbox funding must explicitly deny external bank debit');
+assert.match(increaseTransferApi, /No real recipient or bank account is used/i, 'sandbox transfer must explicitly deny real destination use');
 assert.match(integrationsApi, /Increase sandbox/, 'owner integrations center must track the banking sandbox');
 assert.match(integrationsApi, /sandbox · no real money/, 'owner integrations center must label the no-real-money mode');
 
@@ -107,4 +130,4 @@ for (const key of [
 assert.match(envExample, /INCREASE_SANDBOX_API_KEY=\n/, 'Increase sandbox API key must be documented as an empty server-only secret');
 assert.doesNotMatch(envExample, /NEXT_PUBLIC_INCREASE/i, 'Increase credentials must never be exposed to browser code');
 
-console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, owner-only Increase sandbox inspection, real sign-out and hard-locked live money/crypto are enforced.');
+console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, owner-only Increase sandbox dashboard/ACH simulations, real sign-out and hard-locked live money/crypto are enforced.');

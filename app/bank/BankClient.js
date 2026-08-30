@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const navItems = [
   ['dashboard', '⌂', 'Dashboard'],
@@ -32,6 +32,13 @@ const starterCrypto = [
 
 function money(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+}
+
+function displayName(value) {
+  const text = String(value || 'Galactic member').trim();
+  if (!text) return 'Galactic member';
+  if (text.includes('@')) return text.split('@')[0].slice(0, 28);
+  return text.slice(0, 28);
 }
 
 function PlanetLogo() {
@@ -85,19 +92,19 @@ function OrbitChat() {
     if (/password|pin|cvv|one.?time|otp|recovery|seed phrase|private key/.test(q)) {
       answer = 'For your security, never share passwords, PINs, CVVs, one-time codes, recovery phrases, or private keys in chat. I do not need them to help you.';
     } else if (/transfer|send money/.test(q)) {
-      answer = 'Use Transfer from the sidebar or Quick Actions. In this build, transfers are simulated until regulated banking rails are connected and live money movement is explicitly enabled.';
+      answer = 'Use Transfer from the sidebar or Quick Actions. Owner testing can use Increase sandbox ACH simulations, while real money movement remains blocked.';
     } else if (/crypto|bitcoin|btc|ethereum|eth|usdc|buy|sell/.test(q)) {
       answer = 'The Crypto panel lets you practice BTC, ETH, and USDC buys and sells. Orders are simulated right now; no real crypto is purchased or sold until an approved trading/custody provider is connected.';
     } else if (/private|privacy|data/.test(q)) {
       answer = 'Galactic Trust is designed to minimize sensitive data exposure. Card numbers stay masked, the assistant does not request account credentials, and provider secrets belong server-side only.';
     } else if (/safe|security|secure|protect/.test(q)) {
-      answer = 'Security protections include masked card data, same-origin financial actions, restrictive browser headers, fail-closed live-money switches, and short-lived signed authentication for live banking integrations.';
+      answer = 'Security protections include masked card data, same-origin financial actions, restrictive browser headers, fail-closed live-money switches, and short-lived signed authentication for banking integrations.';
     } else if (/fee|cost|price/.test(q)) {
       answer = 'This prototype does not charge real banking or crypto fees. Any future fees must match the approved live partner program and be disclosed before a user confirms an action.';
     } else if (/reward|star/.test(q)) {
       answer = 'The reference experience includes Galactic Stars and merchant rewards. The displayed 2,450 stars are demo rewards in this build.';
-    } else if (/real|live|demo/.test(q)) {
-      answer = 'The interface is live as a website, but balances, cards, transfers, and crypto trading remain demo data until regulated providers and production credentials are connected.';
+    } else if (/real|live|demo|sandbox/.test(q)) {
+      answer = 'The website is live, but real banking is not. Increase sandbox can supply pretend-money account and ACH test data for owner testing; production customer money stays hard-locked.';
     }
 
     setMessages((current) => [...current, { role: 'user', text: message }, { role: 'assistant', text: answer }]);
@@ -133,9 +140,9 @@ function OrbitChat() {
   );
 }
 
-export default function GalacticApp() {
+export default function GalacticApp({ galacticUser = null, demoAccess = false, onSignOut, accountLabel = 'Galactic member', accessToken = '' }) {
   const [checking, setChecking] = useState(15230.45);
-  const [savings] = useState(9120.27);
+  const [savings, setSavings] = useState(9120.27);
   const [transactions, setTransactions] = useState(starterTransactions);
   const [sheet, setSheet] = useState(null);
   const [toast, setToast] = useState('');
@@ -146,12 +153,48 @@ export default function GalacticApp() {
   const [cryptoSymbol, setCryptoSymbol] = useState('BTC');
   const [cryptoSide, setCryptoSide] = useState('buy');
   const [cryptoAmount, setCryptoAmount] = useState('25');
+  const [sandboxConnected, setSandboxConnected] = useState(false);
+  const [sandboxAccounts, setSandboxAccounts] = useState([]);
+  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [sandboxNotice, setSandboxNotice] = useState('');
 
   const total = checking + savings;
   const activeCrypto = cryptoAssets.find((asset) => asset.symbol === cryptoSymbol) || cryptoAssets[0];
   const cryptoUsd = Number(cryptoAmount);
   const cryptoUnits = Number.isFinite(cryptoUsd) && cryptoUsd > 0 ? cryptoUsd / activeCrypto.price : 0;
   const spending = useMemo(() => transactions.filter((item) => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0), [transactions]);
+  const memberName = displayName(demoAccess && !galacticUser ? 'Demo Explorer' : accountLabel);
+
+  function applySandboxSnapshot(payload) {
+    const accounts = Array.isArray(payload?.accounts) ? payload.accounts : [];
+    if (!payload?.connected || !accounts.length) return false;
+    setSandboxAccounts(accounts);
+    setChecking(Number(accounts[0]?.currentBalance || 0));
+    setSavings(Number(accounts[1]?.currentBalance || 0));
+    setTransactions(Array.isArray(payload?.transactions) ? payload.transactions : []);
+    setSandboxConnected(true);
+    setSandboxNotice('Increase sandbox connected · pretend money only');
+    return true;
+  }
+
+  useEffect(() => {
+    let active = true;
+    if (!accessToken || !galacticUser) return () => { active = false; };
+
+    fetch('/api/admin/bank/increase/dashboard', {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!active) return;
+      if (response.ok) applySandboxSnapshot(payload);
+      else if (response.status !== 403) setSandboxNotice(payload?.error || 'Increase sandbox is not connected yet.');
+    }).catch(() => {
+      if (active) setSandboxNotice('Increase sandbox is not connected yet.');
+    });
+
+    return () => { active = false; };
+  }, [accessToken, galacticUser]);
 
   function notify(message) {
     setToast(message);
@@ -164,17 +207,53 @@ export default function GalacticApp() {
     window.setTimeout(() => document.getElementById('gt-action-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 40);
   }
 
-  function submitTransfer(event) {
+  async function runSandboxAction(path, body) {
+    if (!accessToken) return null;
+    setSandboxBusy(true);
+    try {
+      const response = await fetch(path, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Increase sandbox action failed.');
+      applySandboxSnapshot(payload);
+      return payload;
+    } finally {
+      setSandboxBusy(false);
+    }
+  }
+
+  async function submitTransfer(event) {
     event.preventDefault();
     const amount = Number(transfer.amount);
-    if (!transfer.recipient.trim() || !Number.isFinite(amount) || amount <= 0 || amount > 10000) {
-      notify('Enter a recipient and an amount between $0.01 and $10,000.');
+    const max = sandboxConnected ? 1000 : 10000;
+    if (!transfer.recipient.trim() || !Number.isFinite(amount) || amount < (sandboxConnected ? 1 : 0.01) || amount > max) {
+      notify(`Enter a recipient and an amount between ${sandboxConnected ? '$1' : '$0.01'} and ${money(max)}.`);
       return;
     }
     if (amount > checking) {
-      notify('The demo checking balance is too low for that transfer.');
+      notify(`The ${sandboxConnected ? 'sandbox' : 'demo'} checking balance is too low for that transfer.`);
       return;
     }
+
+    if (sandboxConnected) {
+      try {
+        await runSandboxAction('/api/admin/bank/increase/transfer', { recipient: transfer.recipient.trim(), amount });
+        setTransfer({ recipient: '', amount: '' });
+        setSheet(null);
+        notify('Increase sandbox ACH transfer settled. Pretend money only.');
+      } catch (error) {
+        notify(error instanceof Error ? error.message : 'Increase sandbox transfer failed.');
+      }
+      return;
+    }
+
     setChecking((value) => value - amount);
     setTransactions((current) => [{ id: Date.now(), icon: '↑', name: transfer.recipient.trim(), category: 'Demo Transfer', amount: -amount, date: 'Just now', tone: 'purple' }, ...current]);
     setTransfer({ recipient: '', amount: '' });
@@ -182,7 +261,17 @@ export default function GalacticApp() {
     notify('Demo transfer completed. No real money moved.');
   }
 
-  function addDemoMoney() {
+  async function addDemoMoney() {
+    if (sandboxConnected) {
+      try {
+        await runSandboxAction('/api/admin/bank/increase/fund', { amount: 500 });
+        setSheet(null);
+        notify('Added $500 through an Increase sandbox inbound ACH simulation.');
+      } catch (error) {
+        notify(error instanceof Error ? error.message : 'Increase sandbox funding failed.');
+      }
+      return;
+    }
     setChecking((value) => value + 500);
     setTransactions((current) => [{ id: Date.now(), icon: '+', name: 'Demo Add Money', category: 'Demo Funding', amount: 500, date: 'Just now', tone: 'blue' }, ...current]);
     setSheet(null);
@@ -232,7 +321,7 @@ export default function GalacticApp() {
           <button type="button" onClick={() => document.getElementById('security')?.scrollIntoView({ behavior: 'smooth' })}><span>◉</span><b>Security & Privacy</b></button>
           <button type="button" onClick={() => notify('Orbit is available in the bottom-right for help.')}><span>?</span><b>Help Center</b></button>
           <div className="gt-side-rule" />
-          <button type="button" onClick={() => notify('Sign-out is disabled in this demo build.')}><span>↪</span><b>Log Out</b></button>
+          <button type="button" onClick={() => typeof onSignOut === 'function' ? onSignOut() : notify('Sign-out is unavailable.')}><span>↪</span><b>Log Out</b></button>
         </div>
         <div className="gt-astronaut" aria-hidden="true">🧑‍🚀</div>
         <section className="gt-rewards-card" id="rewards">
@@ -244,11 +333,11 @@ export default function GalacticApp() {
 
       <section className="gt-dashboard">
         <header className="gt-dashboard-header">
-          <div><h1>Welcome back, Nova! <span>👋</span></h1><p>Here&apos;s what&apos;s happening in your galaxy.</p></div>
+          <div><h1>Welcome back, {memberName}! <span>👋</span></h1><p>Here&apos;s what&apos;s happening in your galaxy.</p></div>
           <div className="gt-header-tools">
             <label className="gt-search"><span className="gt-sr-only">Search</span><input placeholder="Search anything..." aria-label="Search" /><span>⌕</span></label>
-            <button className="gt-round-button gt-notification" type="button" aria-label="Notifications" onClick={() => notify('You have 3 demo notifications.')}>♧<i>3</i></button>
-            <button className="gt-profile" type="button" onClick={() => notify('Profile controls are in demo mode.')}><span className="gt-avatar">◈</span><b>Nova Star</b><span>⌄</span></button>
+            <button className="gt-round-button gt-notification" type="button" aria-label="Notifications" onClick={() => notify(sandboxConnected ? 'Increase sandbox is synced.' : 'You have 3 demo notifications.')}>♧<i>{sandboxConnected ? '✓' : '3'}</i></button>
+            <button className="gt-profile" type="button" onClick={() => notify(galacticUser ? `Signed in as ${accountLabel}.` : 'Demo profile active.')}><span className="gt-avatar">◈</span><b>{memberName}</b><span>⌄</span></button>
           </div>
         </header>
 
@@ -258,7 +347,7 @@ export default function GalacticApp() {
               <div className="gt-balance-copy">
                 <div className="gt-balance-label">Total Balance <span>◉</span></div>
                 <div className="gt-balance-amount">{money(total)}</div>
-                <div className="gt-balance-growth">↑ <b>12.4%</b> <span>vs last month</span></div>
+                <div className="gt-balance-growth">{sandboxConnected ? <><b>INCREASE SANDBOX</b> <span>provider test balance</span></> : <>↑ <b>12.4%</b> <span>vs last month</span></>}</div>
               </div>
               <div className="gt-hero-stars">✦</div>
               <div className="gt-hero-planet big" />
@@ -267,29 +356,30 @@ export default function GalacticApp() {
             </article>
 
             <section className="gt-banking-controls">
-              <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>DEMO BANKING</b><span>No real deposits are held and no real money moves in this build.</span></div>
+              <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>{sandboxConnected ? 'INCREASE SANDBOX' : 'DEMO BANKING'}</b><span>{sandboxConnected ? 'Provider-backed test data with pretend money only. No real money moves.' : 'No real deposits are held and no real money moves in this build.'}</span></div>
+              {sandboxNotice && galacticUser && <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>SANDBOX STATUS</b><span>{sandboxNotice}</span></div>}
               <div className="gt-quick-actions">
-                <button type="button" onClick={() => openSheet('transfer')}><span className="gt-quick-icon send">↗</span><span><b>Transfer</b><small>Send money</small></span></button>
-                <button type="button" onClick={() => openSheet('add-money')}><span className="gt-quick-icon add">＋</span><span><b>Add Money</b><small>Fund account</small></span></button>
+                <button type="button" onClick={() => openSheet('transfer')}><span className="gt-quick-icon send">↗</span><span><b>Transfer</b><small>{sandboxConnected ? 'Sandbox ACH' : 'Send money'}</small></span></button>
+                <button type="button" onClick={() => openSheet('add-money')}><span className="gt-quick-icon add">＋</span><span><b>Add Money</b><small>{sandboxConnected ? 'Sandbox inbound ACH' : 'Fund account'}</small></span></button>
                 <button type="button" onClick={() => { const next = !blueFrozen; setBlueFrozen(next); notify(next ? 'Demo card frozen.' : 'Demo card unfrozen.'); }}><span className="gt-quick-icon freeze">❄</span><span><b>{blueFrozen ? 'Unfreeze Card' : 'Freeze Card'}</b><small>Nebula Blue</small></span></button>
                 <button type="button" onClick={() => document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' })}><span className="gt-quick-icon card">▤</span><span><b>View Card</b><small>•••• 4532</small></span></button>
               </div>
 
               {sheet && (
                 <div className="gt-action-sheet" id="gt-action-sheet">
-                  <div className="gt-sheet-header"><div><small>Galactic Trust</small><h3>{sheet === 'transfer' ? 'Send a demo transfer' : 'Add demo money'}</h3></div><button type="button" onClick={() => setSheet(null)} aria-label="Close">×</button></div>
+                  <div className="gt-sheet-header"><div><small>Galactic Trust</small><h3>{sheet === 'transfer' ? (sandboxConnected ? 'Send an Increase sandbox ACH' : 'Send a demo transfer') : (sandboxConnected ? 'Simulate inbound ACH funding' : 'Add demo money')}</h3></div><button type="button" onClick={() => setSheet(null)} aria-label="Close">×</button></div>
                   {sheet === 'transfer' ? (
                     <form onSubmit={submitTransfer}>
-                      <label>Recipient<input value={transfer.recipient} onChange={(event) => setTransfer((current) => ({ ...current, recipient: event.target.value }))} maxLength={80} placeholder="Name or email" /></label>
-                      <label>Amount<div className="gt-money-input"><span>$</span><input type="number" min="0.01" max="10000" step="0.01" value={transfer.amount} onChange={(event) => setTransfer((current) => ({ ...current, amount: event.target.value }))} placeholder="0.00" /></div></label>
-                      <button className="gt-primary" type="submit">Simulate Transfer</button>
-                      <p>Demo transfers never move real money.</p>
+                      <label>Recipient<input value={transfer.recipient} onChange={(event) => setTransfer((current) => ({ ...current, recipient: event.target.value }))} maxLength={80} placeholder="Sandbox recipient name" /></label>
+                      <label>Amount<div className="gt-money-input"><span>$</span><input type="number" min={sandboxConnected ? '1' : '0.01'} max={sandboxConnected ? '1000' : '10000'} step="0.01" value={transfer.amount} onChange={(event) => setTransfer((current) => ({ ...current, amount: event.target.value }))} placeholder="0.00" /></div></label>
+                      <button className="gt-primary" type="submit" disabled={sandboxBusy}>{sandboxBusy ? 'Processing sandbox…' : sandboxConnected ? 'Run Sandbox ACH' : 'Simulate Transfer'}</button>
+                      <p>{sandboxConnected ? 'Routes only to Increase sandbox test coordinates. No real recipient or bank account is used.' : 'Demo transfers never move real money.'}</p>
                     </form>
                   ) : (
                     <div className="gt-funding-options">
-                      <button type="button" onClick={addDemoMoney}><span>▣</span><b>Bank transfer</b><small>Add $500 demo funds</small></button>
-                      <button type="button" onClick={addDemoMoney}><span>▤</span><b>Debit card</b><small>Simulated funding</small></button>
-                      <button type="button" onClick={addDemoMoney}><span>↯</span><b>Direct deposit</b><small>Preview flow</small></button>
+                      <button type="button" disabled={sandboxBusy} onClick={addDemoMoney}><span>▣</span><b>{sandboxConnected ? 'Increase sandbox ACH' : 'Bank transfer'}</b><small>{sandboxConnected ? 'Simulate +$500' : 'Add $500 demo funds'}</small></button>
+                      <button type="button" disabled={sandboxConnected || sandboxBusy} onClick={addDemoMoney}><span>▤</span><b>Debit card</b><small>{sandboxConnected ? 'Not wired to sandbox yet' : 'Simulated funding'}</small></button>
+                      <button type="button" disabled={sandboxConnected || sandboxBusy} onClick={addDemoMoney}><span>↯</span><b>Direct deposit</b><small>{sandboxConnected ? 'Not wired to sandbox yet' : 'Preview flow'}</small></button>
                     </div>
                   )}
                 </div>
@@ -298,16 +388,16 @@ export default function GalacticApp() {
             </section>
 
             <div className="gt-account-grid" id="accounts">
-              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon blue">▤</span><span>Checking Account<strong>{money(checking)}</strong><small>•••• 4532</small></span><button type="button" onClick={() => notify('Checking account details remain masked in demo mode.')}>›</button></div><Sparkline tone="blue" /></article>
-              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon teal">▣</span><span>Savings Account<strong>{money(savings)}</strong><small>•••• 8756</small></span><button type="button" onClick={() => notify('Savings account details remain masked in demo mode.')}>›</button></div><Sparkline tone="teal" /></article>
+              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon blue">▤</span><span>{sandboxConnected ? (sandboxAccounts[0]?.name || 'Increase Sandbox Account') : 'Checking Account'}<strong>{money(checking)}</strong><small>{sandboxConnected ? `Available ${money(sandboxAccounts[0]?.availableBalance || 0)}` : '•••• 4532'}</small></span><button type="button" onClick={() => notify(sandboxConnected ? 'Balance is sourced from Increase sandbox. Pretend money only.' : 'Checking account details remain masked in demo mode.')}>›</button></div><Sparkline tone="blue" /></article>
+              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon teal">▣</span><span>{sandboxConnected ? (sandboxAccounts[1]?.name || 'Sandbox Reserve') : 'Savings Account'}<strong>{money(savings)}</strong><small>{sandboxConnected ? (sandboxAccounts[1] ? `Available ${money(sandboxAccounts[1]?.availableBalance || 0)}` : 'No second sandbox account') : '•••• 8756'}</small></span><button type="button" onClick={() => notify(sandboxConnected ? 'Second sandbox account is shown when available.' : 'Savings account details remain masked in demo mode.')}>›</button></div><Sparkline tone="teal" /></article>
             </div>
 
             <section className="gt-activity-card" id="activity">
-              <div className="gt-section-heading"><h2>Recent Activity</h2><button type="button" onClick={() => notify('All recent demo activity is shown here.')}>View All</button></div>
+              <div className="gt-section-heading"><h2>Recent Activity</h2><button type="button" onClick={() => notify(sandboxConnected ? 'Recent Increase sandbox transactions are synced here.' : 'All recent demo activity is shown here.')}>View All</button></div>
               <div className="gt-activity-list">
-                {transactions.slice(0, 6).map((item) => (
+                {transactions.length ? transactions.slice(0, 6).map((item) => (
                   <div className="gt-activity-row" key={item.id}><span className={`gt-merchant-icon ${item.tone}`}>{item.icon}</span><span className="gt-activity-meta"><b>{item.name}</b><small>{item.category}</small></span><span className={`gt-activity-amount ${item.amount > 0 ? 'positive' : ''}`}><b>{item.amount > 0 ? '+' : '−'}{money(Math.abs(item.amount))}</b><small>{item.date}</small></span></div>
-                ))}
+                )) : <div className="gt-activity-row"><span className="gt-merchant-icon blue">◎</span><span className="gt-activity-meta"><b>No sandbox transactions yet</b><small>Use Add Money to create a pretend inbound ACH.</small></span></div>}
               </div>
             </section>
           </section>
@@ -321,7 +411,7 @@ export default function GalacticApp() {
 
             <section className="gt-insights-panel">
               <div className="gt-section-heading"><h2>Spending Insights</h2><span>This Month⌄</span></div>
-              <div className="gt-insights-total"><strong>{money(spending)}</strong><span>Total Spent <i>↓ 8.7% vs last month</i></span></div>
+              <div className="gt-insights-total"><strong>{money(spending)}</strong><span>Total Spent <i>{sandboxConnected ? 'Increase sandbox activity' : '↓ 8.7% vs last month'}</i></span></div>
               <div className="gt-insights-body"><div className="gt-legend"><div><span className="purple" />Shopping <b>$623.10&nbsp; 39%</b></div><div><span className="green" />Food & Drinks <b>$312.45&nbsp; 20%</b></div><div><span className="teal" />Transport <b>$210.75&nbsp; 13%</b></div><div><span className="coral" />Entertainment <b>$198.50&nbsp; 12%</b></div><div><span className="blue" />Bills & Utilities <b>$241.54&nbsp; 16%</b></div></div><div className="gt-donut" aria-label="Spending breakdown"><span>•ᴗ•</span></div></div>
               <button className="gt-breakdown-button" type="button" onClick={() => notify('Detailed spending categories are coming next.')}><span>▥</span> See Full Breakdown <b>›</b></button>
             </section>
@@ -347,7 +437,7 @@ export default function GalacticApp() {
                 <div><span>⌁</span><p><b>Protected sessions</b><small>Live banking is designed around signed short-lived authentication.</small></p></div>
                 <div><span>▣</span><p><b>Masked card data</b><small>Full card numbers, CVVs and PINs are never shown here.</small></p></div>
                 <div><span>◎</span><p><b>Privacy-minded Orbit</b><small>The assistant never asks for passwords, PINs, CVVs or one-time codes.</small></p></div>
-                <div><span>◈</span><p><b>Live-money guard</b><small>Real banking and crypto remain off until approved providers are configured.</small></p></div>
+                <div><span>◈</span><p><b>Live-money guard</b><small>{sandboxConnected ? 'Increase sandbox uses pretend money only; production banking remains locked.' : 'Real banking and crypto remain off until approved providers are configured.'}</small></p></div>
               </div>
               <Link className="gt-privacy-link" href="/privacy">Open Privacy Center →</Link>
             </section>
