@@ -14,6 +14,9 @@ const gate = read('app/bank/GalacticBankGate.js');
 const enhancements = read('app/bank/GalacticDashboardEnhancements.js');
 const readinessPage = read('app/bank/readiness/page.js');
 const readinessApi = read('app/api/bank/readiness/route.ts');
+const increaseSandbox = read('lib/banking/increase-sandbox.js');
+const increaseStatusApi = read('app/api/admin/bank/increase/status/route.ts');
+const integrationsApi = read('app/api/admin/integrations/status/route.ts');
 const terms = read('app/terms/page.js');
 const privacy = read('app/privacy/page.js');
 const layout = read('app/layout.js');
@@ -57,6 +60,22 @@ assert.match(readinessPage, /No fake trust signals/, 'readiness page must forbid
 assert.match(readinessApi, /Cache-Control.*no-store/s, 'readiness endpoint must not cache launch-state assertions');
 assert.doesNotMatch(readinessApi, /API_KEY|SECRET|TOKEN/, 'public readiness endpoint must not expose provider credentials');
 
+assert.match(increaseSandbox, /https:\/\/sandbox\.increase\.com/, 'Increase integration must be pinned to the sandbox origin');
+assert.doesNotMatch(increaseSandbox, /https:\/\/api\.increase\.com/, 'Increase sandbox adapter must not contain the production API origin');
+assert.match(increaseSandbox, /INCREASE_SANDBOX_API_KEY/, 'Increase sandbox adapter must use the sandbox-specific key');
+assert.doesNotMatch(increaseSandbox, /GALACTIC_BANKING_PROVIDER_API_KEY/, 'sandbox adapter must not fall back to a generic production provider key');
+assert.match(increaseSandbox, /canMoveRealMoney:\s*false/, 'sandbox adapter must explicitly declare that it cannot move real money');
+assert.match(increaseSandbox, /productionSupported:\s*false/, 'sandbox adapter must explicitly reject production support');
+assert.match(increaseSandbox, /origin !== new URL\(INCREASE_SANDBOX_BASE_URL\)\.origin/, 'provider requests must be origin-pinned');
+
+assert.match(increaseStatusApi, /requireVoxelVaultAdmin/, 'Increase sandbox status must be owner-authenticated');
+assert.match(increaseStatusApi, /Cache-Control': 'private, no-store, max-age=0'/, 'Increase sandbox status must never be publicly cached');
+assert.match(increaseStatusApi, /canMoveRealMoney:\s*false/, 'Increase status must preserve the sandbox-only boundary');
+assert.match(increaseStatusApi, /never returns the API key/, 'Increase status must disclose its credential boundary');
+assert.doesNotMatch(increaseStatusApi, /process\.env\.INCREASE_SANDBOX_API_KEY/, 'owner status route must not directly read or return the sandbox key');
+assert.match(integrationsApi, /Increase sandbox/, 'owner integrations center must track the banking sandbox');
+assert.match(integrationsApi, /sandbox · no real money/, 'owner integrations center must label the no-real-money mode');
+
 assert.match(terms, /Galactic Trust itself is not an FDIC-insured institution/i, 'terms must keep FDIC attribution accurate');
 assert.match(terms, /current crypto panel is simulated/i, 'terms must keep crypto separate from banking approval');
 assert.match(privacy, /does not currently collect bank-program KYC documents/i, 'privacy notice must accurately describe current identity-data handling');
@@ -81,8 +100,11 @@ for (const key of [
   'GALACTIC_PROVIDER_PRODUCTION_ACCEPTED',
   'GALACTIC_LIVE_BANKING_ENABLED',
   'GALACTIC_LIVE_CRYPTO_ENABLED',
+  'GALACTIC_INCREASE_SANDBOX_ENABLED',
 ]) {
   assert.match(envExample, new RegExp(`${key}=false`), `${key} must default to false in .env.example`);
 }
+assert.match(envExample, /INCREASE_SANDBOX_API_KEY=\n/, 'Increase sandbox API key must be documented as an empty server-only secret');
+assert.doesNotMatch(envExample, /NEXT_PUBLIC_INCREASE/i, 'Increase credentials must never be exposed to browser code');
 
-console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, credential-safe status, real sign-out and hard-locked live money/crypto are enforced.');
+console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, owner-only Increase sandbox inspection, real sign-out and hard-locked live money/crypto are enforced.');
