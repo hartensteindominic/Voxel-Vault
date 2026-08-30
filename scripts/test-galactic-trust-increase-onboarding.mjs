@@ -30,6 +30,14 @@ assert.doesNotMatch(bindingSource, /Dinari|dinari/, 'Galactic Trust provider bin
 const setupSource = await readFile(new URL('../app/bank/GalacticSandboxSetup.js', import.meta.url), 'utf8');
 assert.match(setupSource, /\/api\/admin\/bank\/increase\/onboarding/);
 assert.match(setupSource, /This is not real KYC approval/);
-assert.equal(setupSource.includes('INCREASE_SANDBOX_API_KEY'), false);
+assert.match(setupSource, /setProviderNextStep\(String\(onboardingPayload\?\.nextStep \|\| statusPayload\?\.nextStep/, 'dashboard setup must surface the server-provided provider next step');
+assert.match(setupSource, /status\?\.capabilities\?\.programs\?\.available !== false/, 'hosted onboarding must respect Programs capability health');
+assert.match(setupSource, /status\?\.capabilities\?\.entities\?\.available !== false/, 'hosted onboarding must respect Entities capability health');
+assert.match(setupSource, /const canStartOwnerOnboarding = connected && onboardingReady/, 'dashboard must not offer hosted onboarding while provider onboarding capability is blocked');
+assert.match(setupSource, /disabled=\{busy \|\| !onboardingReady/, 'onboarding controls must fail closed when provider capability is not ready');
+assert.match(setupSource, /Increase sandbox onboarding is blocked/, 'dashboard must show an actionable blocked-onboarding state');
+assert.match(setupSource, /Next step:/, 'blocked setup state must present a concrete next step');
+assert.match(setupSource, /href="\/bank\/integrations"/, 'owner setup panel must link to the sanitized Integration Health center');
+assert.equal(setupSource.includes('NEXT_PUBLIC_INCREASE'), false);
 
 console.log('Galactic Trust Increase sandbox onboarding boundary passed.');
