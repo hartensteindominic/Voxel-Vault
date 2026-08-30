@@ -164,7 +164,7 @@ export default function GalacticBankGate() {
 
   return (
     <>
-      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} accessToken={accessToken} />
+      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} accessToken={session?.access_token || ''} />
       <GalacticDashboardEnhancements onSignOut={activeSignOut} accountLabel={label} />
       {session?.user && <GalacticSandboxSetup accessToken={accessToken} />}
     </>
