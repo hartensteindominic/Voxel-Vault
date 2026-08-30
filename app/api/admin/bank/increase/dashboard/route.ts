@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../../lib/admin-auth';
+import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
 import { getIncreaseSandboxDashboardForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
 import { ensureIncreaseSandboxWebhookSubscription } from '../../../../../../lib/banking/increase-webhook-subscription.js';
 import { pollIncreaseSandboxEvents } from '../../../../../../lib/banking/increase-reconciliation';
@@ -98,6 +99,8 @@ export async function GET(request: Request) {
       note: 'Increase sandbox data is scoped to the Account bound server-side to this signed-in owner. Values are pretend money and cannot represent live customer funds.',
     });
   } catch (error: any) {
+    const fallback = error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.';
+    const failure = describeIncreaseSandboxError(error, fallback);
     return response({
       ok: false,
       authorized: true,
@@ -109,8 +112,10 @@ export async function GET(request: Request) {
       webhookAutomation,
       reconciliationBackstop,
       automationIssue,
-      providerStatus: Number.isFinite(error?.status) ? error.status : null,
-      error: error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.',
+      providerStatus: failure.providerStatus,
+      providerType: failure.providerType,
+      error: failure.error,
+      nextStep: failure.nextStep,
     }, 502);
   }
 }
