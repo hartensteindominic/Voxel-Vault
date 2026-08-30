@@ -6,6 +6,11 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), '
 const home = read('app/page.js');
 const homeCss = read('app/home.module.css');
 const homePreview = read('app/components/HomeProductPreview.js');
+const bankGate = read('app/bank/GalacticBankGate.js');
+const bank = read('app/bank/BankClient.js');
+const bankCss = read('app/bank/galactic-trust.css');
+const bankEnhancements = read('app/bank/GalacticDashboardEnhancements.js');
+const bankEnhancementCss = read('app/bank/enhancements.css');
 const photoViewer = read('app/property/PhotoReliefModelViewer.js');
 const photoViewerStyles = read('app/property/PhotoReliefModelViewer.module.css');
 const demo = read('app/demo/page.js');
@@ -17,27 +22,54 @@ const legacyPrivacy = read('privacy.html');
 const legacyTerms = read('terms.html');
 const readme = read('README.md');
 const og = read('app/opengraph-image.js');
+const galacticHome = /GalacticBankGate/.test(home);
 
-assert.match(home, /PROPERTY → COLLECTIBLE/, 'home must communicate the focused property collectible product immediately');
-assert.match(home, /Create a property voxel/, 'home must keep a clear creation CTA');
-assert.match(home, /Open Inventory/, 'home must keep the saved collection reachable from the front door');
-assert.match(home, /confirm the address/i, 'home must include the property confirmation step');
-assert.match(home, /voxel image/i, 'home must explain the voxel-preview stage');
-assert.match(home, /saved to Inventory first/i, 'home must make the automatic saved result clear');
-assert.match(home, /Mint if you want|Minting optional/i, 'home must keep minting explicitly optional');
-assert.doesNotMatch(home, /Create mine · \$4\.99|Create · \$4\.99/, 'home must not insert legacy per-property checkout copy into the guided studio');
-assert.match(home, /heroVisual/, 'home hero must use the new branded voxel-house visual system');
-assert.match(homeCss, /#6f42f5/i, 'home must use the new Voxel Vault purple');
-assert.match(homeCss, /#c9ff55/i, 'home must use the playful lime accent');
-assert.match(homeCss, /@media\(max-width:620px\)/, 'home must include a dedicated phone layout');
-assert.match(home, /This collectible is digital only\./, 'home must identify the collectible as digital');
-assert.match(home, /does not create or transfer deed, title/i, 'home must preserve the physical-property rights boundary');
-assert.match(home, /Privacy/, 'home footer must expose Privacy');
-assert.match(home, /Terms/, 'home footer must expose Terms');
-assert.match(home, /About/, 'home footer must expose About/contact information');
+if (galacticHome) {
+  assert.match(home, /GalacticBankGate/, 'home must render the Galactic Trust account/banking experience');
+  assert.match(home, /galactic-trust\.css/, 'home must load the approved Galactic Trust visual system');
+  assert.match(home, /enhancements\.css/, 'home must load the Galactic Trust interaction layer');
+  assert.match(bankGate, /Continue with Google/, 'Galactic Trust onboarding must keep Google sign-in');
+  assert.match(bankGate, /signInWithOtp/, 'Galactic Trust onboarding must keep passwordless email sign-in');
+  assert.match(bankGate, /Explore the Stars demo/, 'Galactic Trust onboarding must keep a low-friction demo path');
+  assert.match(bankGate, /simulated banking experience/i, 'Galactic Trust onboarding must identify the simulated banking boundary');
+  assert.match(bank, /DEMO BANKING/, 'dashboard must label demo banking visibly');
+  assert.match(bank, /No real deposits are held and no real money moves in this build\./, 'dashboard must never imply that demo balances are real deposits');
+  assert.match(bank, /Recent Activity/, 'dashboard must keep clear transaction history visible');
+  assert.match(bank, /Security & Privacy/, 'dashboard must keep trust and privacy controls visible');
+  assert.match(bankEnhancements, /Deposit/, 'dashboard must surface Deposit as a primary action');
+  assert.match(bankEnhancements, /Send/, 'dashboard must surface Send as a primary action');
+  assert.match(bankEnhancements, /Swap/, 'dashboard must surface Swap as a primary action');
+  assert.match(bankEnhancements, /1W[\s\S]*1M[\s\S]*3M/, 'balance card must expose interactive demo trend ranges');
+  assert.match(bankEnhancements, /Explore the Stars/, 'dashboard must include the guided Explore the Stars tour');
+  assert.match(bankEnhancements, /metaKey \|\| event\.ctrlKey/, 'dashboard must include the command palette shortcut');
+  assert.match(bankEnhancements, /visualViewport/, 'dashboard must respond to mobile soft-keyboard viewport changes');
+  assert.match(bankEnhancementCss, /safe-area-inset-bottom/, 'dashboard must respect mobile safe areas');
+  assert.match(bankEnhancementCss, /pointer:coarse/, 'dashboard must provide coarse-pointer mobile/VR behavior');
+  assert.match(bankEnhancementCss, /gt-priority-actions/, 'priority actions must receive a dedicated responsive treatment');
+  assert.match(bankCss, /#07103d|#10163d|#2d45ff|#6b38ff/i, 'dashboard must retain the approved cosmic banking palette');
+  assert.doesNotMatch(home, /BUY PIECE|BUY WHOLE|guaranteed returns|guaranteed yield|risk[- ]free/i, 'front door must not make investment purchase or return claims');
+} else {
+  assert.match(home, /PROPERTY → COLLECTIBLE/, 'home must communicate the focused property collectible product immediately');
+  assert.match(home, /Create a property voxel/, 'home must keep a clear creation CTA');
+  assert.match(home, /Open Inventory/, 'home must keep the saved collection reachable from the front door');
+  assert.match(home, /confirm the address/i, 'home must include the property confirmation step');
+  assert.match(home, /voxel image/i, 'home must explain the voxel-preview stage');
+  assert.match(home, /saved to Inventory first/i, 'home must make the automatic saved result clear');
+  assert.match(home, /Mint if you want|Minting optional/i, 'home must keep minting explicitly optional');
+  assert.doesNotMatch(home, /Create mine · \$4\.99|Create · \$4\.99/, 'home must not insert legacy per-property checkout copy into the guided studio');
+  assert.match(home, /heroVisual/, 'home hero must use the new branded voxel-house visual system');
+  assert.match(homeCss, /#6f42f5/i, 'home must use the new Voxel Vault purple');
+  assert.match(homeCss, /#c9ff55/i, 'home must use the playful lime accent');
+  assert.match(homeCss, /@media\(max-width:620px\)/, 'home must include a dedicated phone layout');
+  assert.match(home, /This collectible is digital only\./, 'home must identify the collectible as digital');
+  assert.match(home, /does not create or transfer deed, title/i, 'home must preserve the physical-property rights boundary');
+  assert.match(home, /Privacy/, 'home footer must expose Privacy');
+  assert.match(home, /Terms/, 'home footer must expose Terms');
+  assert.match(home, /About/, 'home footer must expose About/contact information');
+}
 
 // Keep the production viewer proof component healthy for demo/secondary surfaces even though
-// the redesigned homepage intentionally uses a playful branded illustration instead.
+// the current public front door may be Galactic Trust.
 assert.match(homePreview, /LocalVoxelModelViewer/, 'production proof component must keep the real movable-voxel viewer');
 assert.doesNotMatch(homePreview, /PhotoReliefModelViewer/, 'production proof component must not force users through a stage switcher');
 assert.match(homePreview, />Address</, 'production proof component must disclose address confirmation');
@@ -67,16 +99,27 @@ assert.match(demo, /not a fake reconstruction of unseen walls/i, 'demo must expl
 assert.match(demo, /cannot prove hidden sides/i, 'demo must state what a single photo cannot establish');
 assert.doesNotMatch(demo, /getSupabaseBrowserAsync|signInWithOAuth|checkout\.sessions|\/api\/property-generation\/checkout/, 'public demo must not hide an auth or payment gate');
 
-assert.match(layout, /Turn Property Photos into 3D Voxel Collectibles/, 'site metadata must use the redesigned current promise');
-assert.match(layout, /confirm the address, build a 3D voxel collectible/i, 'metadata must describe the property-photo creation journey');
-assert.match(layout, /mint it when you want/i, 'metadata must keep minting optional and downstream');
-assert.doesNotMatch(layout, /real estate digital twin|NFT vault/i, 'metadata must not revive broad legacy positioning');
-assert.match(og, /house photo into a movable 3D voxel/i, 'social preview may retain the detailed product story');
-assert.match(og, /3D VOXEL PHOTO/, 'social preview steps must name the voxel-photo stage');
-assert.match(og, /MOVABLE VOXEL/, 'social preview steps must name the movable-voxel stage');
+if (galacticHome) {
+  assert.match(layout, /Galactic Trust \| Digital Banking/, 'site metadata must identify Galactic Trust');
+  assert.match(layout, /modern digital banking interface/i, 'site metadata must describe the current banking interface');
+  assert.match(layout, /Financial actions remain simulated until regulated provider rails are connected/, 'metadata must preserve the simulated-money boundary');
+  assert.doesNotMatch(layout, /FDIC insured|insured deposits|bank charter/i, 'metadata must not imply unverified banking protections or charter status');
+  assert.match(og, /Galactic Trust/, 'social preview must match the Galactic Trust public front door');
+  assert.match(og, /Your money/, 'social preview must use the Galactic Trust product story');
+  assert.match(og, /SIMULATED BANKING/, 'social preview must preserve the demo-money boundary');
+  assert.match(og, /DEPOSIT[\s\S]*SEND[\s\S]*SWAP/, 'social preview must reflect the fast-action dashboard');
+} else {
+  assert.match(layout, /Turn Property Photos into 3D Voxel Collectibles/, 'site metadata must use the redesigned current promise');
+  assert.match(layout, /confirm the address, build a 3D voxel collectible/i, 'metadata must describe the property-photo creation journey');
+  assert.match(layout, /mint it when you want/i, 'metadata must keep minting optional and downstream');
+  assert.doesNotMatch(layout, /real estate digital twin|NFT vault/i, 'metadata must not revive broad legacy positioning');
+  assert.match(og, /house photo into a movable 3D voxel/i, 'social preview may retain the detailed product story');
+  assert.match(og, /3D VOXEL PHOTO/, 'social preview steps must name the voxel-photo stage');
+  assert.match(og, /MOVABLE VOXEL/, 'social preview steps must name the movable-voxel stage');
+}
 
 for (const page of [privacy, terms, about]) {
-  assert.match(page, /Voxel Vault|VOXEL VAULT/, 'trust pages must identify Voxel Vault');
+  assert.match(page, /Voxel Vault|VOXEL VAULT/, 'legacy trust pages must identify the repository/operator surface');
   assert.doesNotMatch(page, /ToolMint/, 'trust pages must not expose the unrelated legacy ToolMint brand');
 }
 assert.doesNotMatch(legacyPrivacy, /ToolMint/, 'root privacy HTML must no longer expose ToolMint');
@@ -89,7 +132,6 @@ assert.match(readme, /What this repo currently ships/, 'README must lead with th
 assert.match(readme, /Architecture at a glance/, 'README must document the architecture');
 assert.match(readme, /Repo scope/, 'README must separate experimental systems from the public product');
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
-assert.doesNotMatch(readme.split('## What this repo currently ships')[0], /bank|REIT|Algorand|liquidity engine/i, 'README front door must not lead with experimental finance systems');
 
-console.log('Public Voxel Vault positioning checks passed: branded property-collectible home, guided creation, high-fidelity voxel geometry, Inventory persistence, optional minting, and current trust surfaces remain aligned.');
+console.log(`Public positioning checks passed: ${galacticHome ? 'Galactic Trust account-first banking demo, fast dashboard actions, interactive trend, command navigation, mobile/VR handling and visible trust boundaries' : 'branded property-collectible home'} plus high-fidelity voxel geometry and current trust surfaces remain aligned.`);
 await import('./test-public-surface-coherence.mjs');
