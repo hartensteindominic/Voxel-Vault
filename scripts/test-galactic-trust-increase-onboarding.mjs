@@ -15,7 +15,7 @@ assert.equal(configured.canMoveRealMoney, false);
 const routeSource = await readFile(new URL('../app/api/admin/bank/increase/onboarding/route.ts', import.meta.url), 'utf8');
 assert.match(routeSource, /requireGalacticTrustAdmin/, 'onboarding must be Galactic Trust owner-only');
 assert.match(routeSource, /lib\/banking\/provider-account-binding\.js/, 'onboarding must use the Galactic Trust banking binding module');
-assert.match(routeSource, /bindIncreaseSandboxAccount/, 'successful sandbox setup must bind the Increase account to the authenticated owner');
+assert.match(routeSource, /bindIncreaseSandboxAccount/, 'successful hosted sandbox setup must bind the Increase account to the authenticated owner');
 assert.match(routeSource, /auth\.user\.id/, 'provider binding must use the verified session user ID');
 assert.match(routeSource, /not a real KYC\/CIP\/AML decision/, 'sandbox validation simulation must be disclosed');
 assert.match(routeSource, /This is not real KYC approval/, 'sandbox completion must not imply production KYC');
@@ -24,7 +24,8 @@ assert.equal(routeSource.includes('NEXT_PUBLIC_INCREASE'), false, 'provider cred
 const bindingSource = await readFile(new URL('../lib/banking/provider-account-binding.js', import.meta.url), 'utf8');
 assert.match(bindingSource, /provider: 'increase'/);
 assert.match(bindingSource, /environment: 'sandbox'/);
-assert.match(bindingSource, /provider_kyc_status: 'SANDBOX_VALID_SIMULATION'/);
+assert.match(bindingSource, /kycStatus: 'SANDBOX_VALID_SIMULATION'/, 'normal hosted/simulated onboarding must retain its explicit sandbox validation marker');
+assert.match(bindingSource, /kycStatus: 'SANDBOX_ACCOUNT_ONLY'/, 'account-only recovery must remain explicitly distinct from simulated Entity validation');
 assert.doesNotMatch(bindingSource, /Dinari|dinari/, 'Galactic Trust provider binding must not carry the old securities provider implementation');
 
 const setupSource = await readFile(new URL('../app/bank/GalacticSandboxSetup.js', import.meta.url), 'utf8');
@@ -34,10 +35,14 @@ assert.match(setupSource, /setProviderNextStep\(String\(onboardingPayload\?\.nex
 assert.match(setupSource, /status\?\.capabilities\?\.programs\?\.available !== false/, 'hosted onboarding must respect Programs capability health');
 assert.match(setupSource, /status\?\.capabilities\?\.entities\?\.available !== false/, 'hosted onboarding must respect Entities capability health');
 assert.match(setupSource, /const canStartOwnerOnboarding = connected && onboardingReady/, 'dashboard must not offer hosted onboarding while provider onboarding capability is blocked');
-assert.match(setupSource, /disabled=\{busy \|\| !onboardingReady/, 'onboarding controls must fail closed when provider capability is not ready');
-assert.match(setupSource, /Increase sandbox onboarding is blocked/, 'dashboard must show an actionable blocked-onboarding state');
-assert.match(setupSource, /Next step:/, 'blocked setup state must present a concrete next step');
+assert.match(setupSource, /disabled=\{busy \|\| !onboardingReady/, 'hosted onboarding controls must fail closed when provider capability is not ready');
+assert.match(setupSource, /Increase sandbox onboarding is blocked/, 'legacy hosted-onboarding panel must still explain the blocked capability when recovery is unavailable');
+assert.match(setupSource, /Next step:/, 'blocked hosted setup state must present a concrete next step');
 assert.match(setupSource, /href="\/bank\/integrations"/, 'owner setup panel must link to the sanitized Integration Health center');
 assert.equal(setupSource.includes('NEXT_PUBLIC_INCREASE'), false);
 
-console.log('Galactic Trust Increase sandbox onboarding boundary passed.');
+const recoverySource = await readFile(new URL('../app/bank/GalacticIncreaseSandboxRecovery.js', import.meta.url), 'utf8');
+assert.match(recoverySource, /private_feature_error/, 'private-feature restriction must have the separate account-only recovery path');
+assert.match(recoverySource, /This is not KYC or a real bank account/, 'recovery must not be represented as hosted onboarding or KYC');
+
+console.log('Galactic Trust Increase sandbox onboarding boundary passed: normal hosted onboarding retains its validation rules while private-feature recovery stays explicitly account-only.');

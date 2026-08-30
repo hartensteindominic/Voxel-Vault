@@ -18,6 +18,16 @@ const sandboxBinding = {
   setupRequired: false,
   error: '',
 };
+const accountOnlyBinding = {
+  binding: {
+    ...sandboxBinding.binding,
+    kycStatus: 'SANDBOX_ACCOUNT_ONLY',
+    accountId: 'sandbox_account_recovery_private',
+    entityId: 'sandbox_entity_recovery_private',
+  },
+  setupRequired: false,
+  error: '',
+};
 
 const signedOut = buildGalacticAccountLifecycle({ signedIn: false, bindingState: noBinding, env: {} });
 assert.equal(signedOut.lifecycleVersion, GALACTIC_ACCOUNT_LIFECYCLE_VERSION);
@@ -48,6 +58,15 @@ assert.equal(sandboxOwner.sandbox.canMoveRealMoney, false);
 assert.equal(JSON.stringify(sandboxOwner).includes('sandbox_account_private'), false, 'lifecycle response must not expose full provider Account IDs');
 assert.equal(JSON.stringify(sandboxOwner).includes('sandbox_entity_private'), false, 'lifecycle response must not expose full provider Entity IDs');
 
+const recoveredOwner = buildGalacticAccountLifecycle({ signedIn: true, bindingState: accountOnlyBinding, env: {} });
+assert.equal(recoveredOwner.stage, 'sandbox-owner-bound');
+assert.equal(recoveredOwner.sandbox.ownerBindingReady, true);
+assert.equal(recoveredOwner.sandbox.validationKind, 'sandbox-account-only');
+assert.equal(recoveredOwner.sandbox.canMoveRealMoney, false);
+assert.match(recoveredOwner.nextAction, /Hosted identity onboarding was not used/, 'account-only recovery must not be described as hosted/KYC validation');
+assert.equal(JSON.stringify(recoveredOwner).includes('sandbox_account_recovery_private'), false, 'recovery lifecycle must not expose full provider Account IDs');
+assert.equal(JSON.stringify(recoveredOwner).includes('sandbox_entity_recovery_private'), false, 'recovery lifecycle must not expose full provider Entity IDs');
+
 const misleadingBinding = buildGalacticAccountLifecycle({
   signedIn: true,
   bindingState: {
@@ -56,7 +75,7 @@ const misleadingBinding = buildGalacticAccountLifecycle({
   },
   env: {},
 });
-assert.equal(misleadingBinding.stage, 'demo-only', 'Increase sandbox binding must require the explicit simulation marker');
+assert.equal(misleadingBinding.stage, 'demo-only', 'Increase sandbox binding must require an explicit approved sandbox marker');
 assert.equal(misleadingBinding.sandbox.ownerBindingReady, false);
 
 const allEvidenceEnv = {
@@ -93,6 +112,7 @@ assert.equal(envCannotPromoteUser.canMoveRealMoney, false, 'environment assertio
 
 const helperSource = await readFile(new URL('../lib/banking/account-lifecycle.js', import.meta.url), 'utf8');
 assert.match(helperSource, /bankingLaunchSnapshot/, 'lifecycle must derive production state from the regulated launch boundary');
+assert.match(helperSource, /SANDBOX_ACCOUNT_ONLY/, 'lifecycle must recognize the account-only sandbox recovery marker');
 assert.match(helperSource, /customerAccountOpeningSupported: false/, 'customer production account opening must remain explicitly unsupported');
 assert.match(helperSource, /customerMoneyMovementSupported: false/, 'customer production money movement must remain explicitly unsupported');
 assert.match(helperSource, /canMoveRealMoney: false/, 'lifecycle must fail closed on real-money movement');
@@ -108,4 +128,4 @@ assert.equal(routeSource.includes('request.json()'), false, 'lifecycle GET must 
 assert.equal(routeSource.includes('accountId'), false, 'lifecycle route must not expose provider Account IDs');
 assert.equal(routeSource.includes('entityId'), false, 'lifecycle route must not expose provider Entity IDs');
 
-console.log('Galactic Trust account lifecycle checks passed: lifecycle is server-derived, auth-scoped, sandbox-aware, provider IDs stay private, missing binding infrastructure fails closed, and no environment assertion can promote a user into production banking or real-money movement.');
+console.log('Galactic Trust account lifecycle checks passed: lifecycle is server-derived, auth-scoped, sandbox-aware, distinguishes account-only recovery from KYC simulation, provider IDs stay private, missing binding infrastructure fails closed, and no environment assertion can promote a user into production banking or real-money movement.');

@@ -49,6 +49,9 @@ jobs:
       - name: Header center
         if: always()
         run: node scripts/test-galactic-trust-header-center.mjs
+      - name: Increase recovery
+        if: always()
+        run: node scripts/test-galactic-trust-increase-recovery.mjs
       - name: Production build
         if: always()
         run: npm run build

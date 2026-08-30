@@ -1,0 +1,145 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
+import styles from './increase-sandbox-recovery.module.css';
+
+function authHeaders(token, json = false) {
+  const headers = { Authorization: `Bearer ${token}` };
+  if (json) headers['Content-Type'] = 'application/json';
+  return headers;
+}
+
+function hasPrivateFeatureRestriction(status) {
+  return Object.values(status?.capabilities || {}).some((capability) => (
+    capability?.available === false && capability?.issue?.type === 'private_feature_error'
+  ));
+}
+
+function hideLegacyBlockingSetup() {
+  const panel = document.querySelector('[aria-label="Owner Increase sandbox setup"]');
+  if (!panel) return;
+  const parent = panel.parentElement;
+  if (parent && parent.childElementCount === 1) parent.style.display = 'none';
+  else panel.style.display = 'none';
+}
+
+export default function GalacticIncreaseSandboxRecovery() {
+  const [token, setToken] = useState('');
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [accountCount, setAccountCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    let observer;
+
+    async function inspect() {
+      try {
+        const client = await getSupabaseBrowserAsync();
+        const { data, error } = await client.auth.getSession();
+        if (error || !data?.session?.access_token || !active) return;
+        const accessToken = data.session.access_token;
+        setToken(accessToken);
+
+        const [statusResponse, lifecycleResponse, recoveryResponse] = await Promise.all([
+          fetch('/api/admin/bank/increase/status', { cache: 'no-store', headers: authHeaders(accessToken) }),
+          fetch('/api/bank/lifecycle', { cache: 'no-store', headers: authHeaders(accessToken) }),
+          fetch('/api/admin/bank/increase/recovery', { cache: 'no-store', headers: authHeaders(accessToken) }),
+        ]);
+        const [status, lifecycle, recovery] = await Promise.all([
+          statusResponse.json().catch(() => ({})),
+          lifecycleResponse.json().catch(() => ({})),
+          recoveryResponse.json().catch(() => ({})),
+        ]);
+        if (!active) return;
+
+        if (lifecycle?.lifecycle?.sandbox?.ownerBindingReady || recovery?.binding?.status === 'verified') {
+          hideLegacyBlockingSetup();
+          observer = new MutationObserver(hideLegacyBlockingSetup);
+          observer.observe(document.body, { childList: true, subtree: true });
+          window.setTimeout(() => observer?.disconnect(), 5000);
+          return;
+        }
+
+        const privateFeatureBlocked = statusResponse.ok && status?.connected && hasPrivateFeatureRestriction(status);
+        const canRecover = recoveryResponse.ok && recovery?.recoveryAvailable && !recovery?.setupRequired;
+        setAccountCount(Number(status?.counts?.accounts || 0));
+        setVisible(Boolean(privateFeatureBlocked && canRecover));
+        if (recovery?.setupRequired && recovery?.error) setMessage(String(recovery.error));
+      } catch {
+        // The existing setup UI remains the fallback if recovery inspection itself cannot load.
+      }
+    }
+
+    inspect();
+    return () => {
+      active = false;
+      observer?.disconnect();
+    };
+  }, []);
+
+  async function recover() {
+    if (!token || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/bank/increase/recovery', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders(token, true),
+        body: JSON.stringify({ action: 'recover_account_only' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.nextStep || payload?.error || 'Increase sandbox recovery failed.');
+
+      setMessage(payload?.accountNumberReady
+        ? 'Sandbox test account recovered and bound. Reloading Galactic Trust…'
+        : 'Sandbox test account recovered and bound. ACH account-number simulation may still need provider access. Reloading…');
+      window.setTimeout(() => window.location.reload(), 550);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Increase sandbox recovery failed.');
+      setBusy(false);
+    }
+  }
+
+  if (!visible) return null;
+
+  return (
+    <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="Increase sandbox recovery">
+      <section className={styles.card}>
+        <div className={styles.eyebrow}>OWNER RECOVERY · SANDBOX ONLY</div>
+        <div className={styles.titleRow}>
+          <span className={styles.icon}>🪐</span>
+          <div>
+            <h2>We can bypass the blocked hosted-onboarding feature.</h2>
+            <p>Increase Accounts access is connected. Galactic Trust can create a dedicated owner test Account without requiring the restricted Programs/Entities onboarding screen.</p>
+          </div>
+        </div>
+
+        <div className={styles.boundary}>
+          <strong>What this does</strong>
+          <ul>
+            <li>Creates or reuses one idempotent Increase sandbox checking Account for your signed-in owner.</li>
+            <li>Binds only that Account to your Galactic Trust user on the server.</li>
+            <li>Keeps all balances and ACH activity pretend-money sandbox data.</li>
+          </ul>
+        </div>
+
+        <div className={styles.notKyc}>
+          <span>🔒</span>
+          <p><b>This is not KYC or a real bank account.</b> The binding is stored as <code>SANDBOX_ACCOUNT_ONLY</code>. Production money movement remains locked.</p>
+        </div>
+
+        {accountCount > 0 && <p className={styles.existing}>Existing unbound sandbox Accounts will not be adopted automatically; recovery creates/reuses a dedicated owner-scoped Account instead.</p>}
+
+        <button className={styles.primary} type="button" onClick={recover} disabled={busy}>
+          {busy ? 'Creating sandbox test account…' : 'Create sandbox test account'}
+        </button>
+        <a className={styles.secondary} href="/bank/integrations">Open Integration Health</a>
+        {message && <p className={styles.message} role="status">{message}</p>}
+      </section>
+    </div>
+  );
+}
