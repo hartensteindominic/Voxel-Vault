@@ -57,6 +57,7 @@ const sandboxSource = read('lib/banking/providers/increase/sandbox.js');
 const productionSource = read('lib/banking/providers/increase/production.js');
 const resolverSource = read('lib/banking/providers/index.js');
 const gateSource = read('app/bank/GalacticBankGate.js');
+const vercelSource = read('vercel.json');
 
 assert.doesNotMatch(productionSource, /increase-sandbox/i, 'production adapter must not import or reuse sandbox request code');
 assert.doesNotMatch(productionSource, /INCREASE_SANDBOX_API_KEY/, 'production adapter must not accept sandbox credentials');
@@ -66,4 +67,11 @@ assert.match(sandboxSource, /\.\.\/\.\.\/increase-sandbox\.js/, 'sandbox provide
 assert.match(resolverSource, /launch\.liveBankingEnabled && platform === 'increase'/, 'resolver must require the regulated launch snapshot before production selection');
 assert.match(gateSource, /new URL\('\/bank', window\.location\.origin\)/, 'Google and OTP auth must return directly to the Galactic Trust dashboard');
 
-console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated and auth returns to /bank.');
+assert.match(vercelSource, /"X-Frame-Options", "value": "DENY"/, 'Galactic Trust pages must deny framing to reduce clickjacking risk');
+assert.match(vercelSource, /"Strict-Transport-Security", "value": "max-age=31536000"/, 'Galactic Trust deployment must instruct browsers to keep using HTTPS');
+assert.match(vercelSource, /"Permissions-Policy", "value": "camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)"/, 'unused sensitive browser capabilities must be disabled by policy');
+assert.match(vercelSource, /"X-Permitted-Cross-Domain-Policies", "value": "none"/, 'legacy cross-domain policy files must be disabled');
+assert.match(vercelSource, /"X-Content-Type-Options", "value": "nosniff"/, 'MIME sniffing protection must remain enabled');
+assert.match(vercelSource, /"Referrer-Policy", "value": "strict-origin-when-cross-origin"/, 'referrer policy must remain privacy-conscious');
+
+console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and deployment security headers remain hardened.');
