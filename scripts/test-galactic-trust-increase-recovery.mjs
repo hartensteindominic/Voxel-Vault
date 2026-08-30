@@ -92,14 +92,21 @@ try {
   assert.match(bindingSource, /SANDBOX_ACCOUNT_ONLY/, 'binding layer must preserve the account-only marker separately from KYC simulation');
   assert.match(bindingSource, /SANDBOX_VALID_SIMULATION/, 'hosted/simulated KYC marker must remain available for the normal onboarding path');
 
+  const gateSource = await readFile(new URL('../app/bank/GalacticBankGate.js', import.meta.url), 'utf8');
+  assert.match(gateSource, /import GalacticIncreaseSandboxRecovery from '\.\/GalacticIncreaseSandboxRecovery'/, 'dashboard gate must import the recovery UI');
+  assert.match(gateSource, /session\?\.user && <GalacticIncreaseSandboxRecovery \/>/, 'recovery UI must actually be mounted for signed-in users');
+
   const uiSource = await readFile(new URL('../app/bank/GalacticIncreaseSandboxRecovery.js', import.meta.url), 'utf8');
-  assert.match(uiSource, /private_feature_error/, 'recovery UI must only activate for the private-feature restriction');
-  assert.match(uiSource, /Create sandbox test account/, 'recovery UI must provide the one-click account action');
+  assert.match(uiSource, /private_feature_error/, 'recovery UI must activate for the private-feature restriction');
+  assert.match(uiSource, /Create sandbox test account/, 'recovery UI must provide the one-click account action once binding storage is ready');
+  assert.match(uiSource, /Galactic Trust database setup is the blocker/, 'missing binding storage must replace the misleading Increase-support dead end');
+  assert.match(uiSource, /migration 025/, 'database blocker UI must name the pending provider-binding migration');
+  assert.match(uiSource, /takeOverLegacySetup/, 'recovery UI must hide the legacy hosted-onboarding blocker while it owns the recovery state');
   assert.match(uiSource, /This is not KYC or a real bank account/, 'recovery UI must disclose the account-only boundary');
   assert.equal(uiSource.includes('/api/admin/bank/increase/recovery'), true);
   assert.equal(uiSource.includes('NEXT_PUBLIC_INCREASE'), false, 'recovery UI must not reference client-exposed Increase credentials');
 
-  console.log('Galactic Trust Increase recovery checks passed: the private-feature fallback creates an owner-scoped sandbox Account without Programs, Entities, or hosted onboarding, keeps KYC semantics separate, and remains pretend-money only.');
+  console.log('Galactic Trust Increase recovery checks passed: the mounted private-feature fallback takes over the legacy warning, distinguishes missing binding storage from Increase access, creates an owner-scoped sandbox Account without Programs/Entities/hosted onboarding, and remains pretend-money only.');
 } finally {
   globalThis.fetch = originalFetch;
 }
