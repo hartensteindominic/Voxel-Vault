@@ -5,6 +5,8 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), '
 
 const home = read('app/page.js');
 const homeCss = read('app/home.module.css');
+const bankGate = read('app/bank/GalacticBankGate.js');
+const bank = read('app/bank/BankClient.js');
 const propertyRoute = read('app/property/page.js');
 const property = read('app/property/PropertyStudioFlow.js');
 const propertyCss = read('app/property/PropertyStudio.module.css');
@@ -22,17 +24,27 @@ const myWorldApi = read('app/api/world-properties/mine/route.ts');
 const drafts = read('lib/property-drafts.js');
 const dock = read('app/components/FinancialOSNav.js');
 const command = read('app/components/AppCommandCenter.js');
+const galacticHome = /GalacticBankGate/.test(home);
 
-assert.match(home, /PROPERTY → COLLECTIBLE/, 'home communicates the focused property collectible product');
-assert.match(home, /confirm the address/i, 'home includes address confirmation');
-assert.match(home, /saved to Inventory first/i, 'home makes Inventory persistence clear');
-assert.match(home, /Mint if you want|Minting optional/i, 'home keeps minting optional');
-assert.match(home, /This collectible is digital only\./, 'home identifies the product as a digital collectible');
-assert.match(home, /does not create or transfer deed, title/i, 'home keeps the physical-property rights boundary visible');
-assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unsafe property-purchase or return language stays out of home');
-assert.match(homeCss, /#6f42f5/i, 'home uses the new Voxel Vault purple');
-assert.match(homeCss, /#c9ff55/i, 'home uses the playful lime accent');
-assert.match(homeCss, /@media\(max-width:620px\)/, 'home includes a dedicated mobile layout');
+if (galacticHome) {
+  assert.match(home, /GalacticBankGate/, 'Galactic Trust owns the current public front door');
+  assert.match(bankGate, /Explore the Stars demo/, 'Galactic Trust preserves an explicit demo path');
+  assert.match(bankGate, /simulated banking experience/i, 'Galactic Trust keeps its simulated-banking boundary clear');
+  assert.match(bank, /DEMO BANKING/, 'Galactic Trust dashboard remains demo-only');
+  assert.match(bank, /No real deposits are held and no real money moves in this build\./, 'Galactic Trust does not misrepresent demo balances as real deposits');
+  assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unsafe property-purchase or return language stays out of the Galactic Trust front door');
+} else {
+  assert.match(home, /PROPERTY → COLLECTIBLE/, 'home communicates the focused property collectible product');
+  assert.match(home, /confirm the address/i, 'home includes address confirmation');
+  assert.match(home, /saved to Inventory first/i, 'home makes Inventory persistence clear');
+  assert.match(home, /Mint if you want|Minting optional/i, 'home keeps minting optional');
+  assert.match(home, /This collectible is digital only\./, 'home identifies the product as a digital collectible');
+  assert.match(home, /does not create or transfer deed, title/i, 'home keeps the physical-property rights boundary visible');
+  assert.doesNotMatch(home, /BUY A PIECE|BUY THE WHOLE THING|blockchain deed|guaranteed returns|guaranteed yield/i, 'unsafe property-purchase or return language stays out of home');
+  assert.match(homeCss, /#6f42f5/i, 'home uses the new Voxel Vault purple');
+  assert.match(homeCss, /#c9ff55/i, 'home uses the playful lime accent');
+  assert.match(homeCss, /@media\(max-width:620px\)/, 'home includes a dedicated mobile layout');
+}
 
 assert.match(propertyRoute, /PropertyStudioFlow/, '/property must use the guided property studio');
 assert.match(propertyCss, /#6f42f5/i, 'creator shares the new purple design system');
@@ -92,4 +104,4 @@ assert.doesNotMatch(dock, /id: 'world'|id: 'more'/, 'World and More stay out of 
 assert.match(dock, /usesPropertyStudioNavigation/, 'the old dock stays out of the redesigned studio, mint, and Inventory pages');
 assert.match(command, /!isSimplePropertyRoute\(pathname\)/, 'advanced command search stays hidden on simple routes');
 
-console.log('Property studio checks passed: photo -> address -> voxel preview -> explicit 3D build -> Inventory -> optional mint, with one-property/one-mint protection and a consistent mobile design.');
+console.log(`Property studio checks passed: ${galacticHome ? 'Galactic Trust remains the public front door while ' : ''}photo -> address -> voxel preview -> explicit 3D build -> Inventory -> optional mint stays intact, with one-property/one-mint protection and a consistent mobile design.`);
