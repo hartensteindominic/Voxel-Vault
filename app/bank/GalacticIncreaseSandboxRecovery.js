@@ -30,10 +30,19 @@ export default function GalacticIncreaseSandboxRecovery() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [accountCount, setAccountCount] = useState(0);
+  const [recoveryAvailable, setRecoveryAvailable] = useState(false);
+  const [bindingStorageBlocked, setBindingStorageBlocked] = useState(false);
 
   useEffect(() => {
     let active = true;
     let observer;
+
+    function takeOverLegacySetup() {
+      hideLegacyBlockingSetup();
+      observer = new MutationObserver(hideLegacyBlockingSetup);
+      observer.observe(document.body, { childList: true, subtree: true });
+      window.setTimeout(() => observer?.disconnect(), 5000);
+    }
 
     async function inspect() {
       try {
@@ -56,18 +65,24 @@ export default function GalacticIncreaseSandboxRecovery() {
         if (!active) return;
 
         if (lifecycle?.lifecycle?.sandbox?.ownerBindingReady || recovery?.binding?.status === 'verified') {
-          hideLegacyBlockingSetup();
-          observer = new MutationObserver(hideLegacyBlockingSetup);
-          observer.observe(document.body, { childList: true, subtree: true });
-          window.setTimeout(() => observer?.disconnect(), 5000);
+          takeOverLegacySetup();
           return;
         }
 
         const privateFeatureBlocked = statusResponse.ok && status?.connected && hasPrivateFeatureRestriction(status);
-        const canRecover = recoveryResponse.ok && recovery?.recoveryAvailable && !recovery?.setupRequired;
+        if (!privateFeatureBlocked) return;
+
+        const storageBlocked = Boolean(recovery?.setupRequired);
+        const canRecover = recoveryResponse.ok && recovery?.recoveryAvailable && !storageBlocked;
+
         setAccountCount(Number(status?.counts?.accounts || 0));
-        setVisible(Boolean(privateFeatureBlocked && canRecover));
-        if (recovery?.setupRequired && recovery?.error) setMessage(String(recovery.error));
+        setBindingStorageBlocked(storageBlocked);
+        setRecoveryAvailable(Boolean(canRecover));
+        setMessage(storageBlocked
+          ? String(recovery?.error || 'Trusted provider binding storage is not installed yet. Galactic Trust cannot safely bind the Increase sandbox Account until the required Supabase migration is applied.')
+          : '');
+        setVisible(true);
+        takeOverLegacySetup();
       } catch {
         // The existing setup UI remains the fallback if recovery inspection itself cannot load.
       }
@@ -81,7 +96,7 @@ export default function GalacticIncreaseSandboxRecovery() {
   }, []);
 
   async function recover() {
-    if (!token || busy) return;
+    if (!token || busy || !recoveryAvailable) return;
     setBusy(true);
     setMessage('');
     try {
@@ -106,6 +121,9 @@ export default function GalacticIncreaseSandboxRecovery() {
 
   if (!visible) return null;
 
+  const storageTitle = 'Galactic Trust database setup is the blocker.';
+  const recoveryTitle = 'We can bypass the blocked hosted-onboarding feature.';
+
   return (
     <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="Increase sandbox recovery">
       <section className={styles.card}>
@@ -113,30 +131,44 @@ export default function GalacticIncreaseSandboxRecovery() {
         <div className={styles.titleRow}>
           <span className={styles.icon}>🪐</span>
           <div>
-            <h2>We can bypass the blocked hosted-onboarding feature.</h2>
-            <p>Increase Accounts access is connected. Galactic Trust can create a dedicated owner test Account without requiring the restricted Programs/Entities onboarding screen.</p>
+            <h2>{bindingStorageBlocked ? storageTitle : recoveryTitle}</h2>
+            <p>{bindingStorageBlocked
+              ? 'Increase Accounts access is connected. The restricted hosted-onboarding feature is no longer the actionable blocker; trusted provider-binding storage must be installed before Galactic Trust can safely attach a sandbox Account to your signed-in user.'
+              : 'Increase Accounts access is connected. Galactic Trust can create a dedicated owner test Account without requiring the restricted Programs/Entities onboarding screen.'}</p>
           </div>
         </div>
 
         <div className={styles.boundary}>
-          <strong>What this does</strong>
+          <strong>{bindingStorageBlocked ? 'What needs to happen' : 'What this does'}</strong>
           <ul>
-            <li>Creates or reuses one idempotent Increase sandbox checking Account for your signed-in owner.</li>
-            <li>Binds only that Account to your Galactic Trust user on the server.</li>
-            <li>Keeps all balances and ACH activity pretend-money sandbox data.</li>
+            {bindingStorageBlocked ? (
+              <>
+                <li>Apply the pending Galactic Trust Supabase provider-binding migration, including migration 025.</li>
+                <li>Keep database credentials in GitHub Actions secrets only; never paste them into chat or client code.</li>
+                <li>After the migration is actually applied, this panel will offer the one-click Increase sandbox Account recovery automatically.</li>
+              </>
+            ) : (
+              <>
+                <li>Creates or reuses one idempotent Increase sandbox checking Account for your signed-in owner.</li>
+                <li>Binds only that Account to your Galactic Trust user on the server.</li>
+                <li>Keeps all balances and ACH activity pretend-money sandbox data.</li>
+              </>
+            )}
           </ul>
         </div>
 
         <div className={styles.notKyc}>
           <span>🔒</span>
-          <p><b>This is not KYC or a real bank account.</b> The binding is stored as <code>SANDBOX_ACCOUNT_ONLY</code>. Production money movement remains locked.</p>
+          <p><b>This is not KYC or a real bank account.</b> Account-only recovery is stored as <code>SANDBOX_ACCOUNT_ONLY</code>. Production money movement remains locked.</p>
         </div>
 
-        {accountCount > 0 && <p className={styles.existing}>Existing unbound sandbox Accounts will not be adopted automatically; recovery creates/reuses a dedicated owner-scoped Account instead.</p>}
+        {!bindingStorageBlocked && accountCount > 0 && <p className={styles.existing}>Existing unbound sandbox Accounts will not be adopted automatically; recovery creates/reuses a dedicated owner-scoped Account instead.</p>}
 
-        <button className={styles.primary} type="button" onClick={recover} disabled={busy}>
-          {busy ? 'Creating sandbox test account…' : 'Create sandbox test account'}
-        </button>
+        {recoveryAvailable && (
+          <button className={styles.primary} type="button" onClick={recover} disabled={busy}>
+            {busy ? 'Creating sandbox test account…' : 'Create sandbox test account'}
+          </button>
+        )}
         <a className={styles.secondary} href="/bank/integrations">Open Integration Health</a>
         {message && <p className={styles.message} role="status">{message}</p>}
       </section>

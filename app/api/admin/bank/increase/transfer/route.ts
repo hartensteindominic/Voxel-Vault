@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireGalacticTrustAdmin } from '../../../../../../lib/admin-auth';
+import { resolveIncreaseSandboxOwnerAccount } from '../../../../../../lib/banking/increase-owner-account.js';
 import { simulateIncreaseSandboxSendForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
-import { getProviderAccountBinding, publicBindingSummary } from '../../../../../../lib/banking/provider-account-binding.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,12 +21,31 @@ export async function POST(request: Request) {
   if (!Number.isFinite(amount) || amount < 1 || amount > 1000) return response({ ok: false, error: 'Sandbox transfer must be between $1 and $1,000.' }, 400);
 
   try {
-    const bindingState = await getProviderAccountBinding(auth.admin, auth.user.id);
-    if (bindingState.setupRequired) return response({ ok: false, authorized: true, setupRequired: true, canMoveRealMoney: false, error: bindingState.error || 'Provider identity binding storage is not ready.' }, 503);
-    if (!bindingState.binding) return response({ ok: false, authorized: true, setupRequired: true, canMoveRealMoney: false, error: 'No Increase sandbox Account is bound to this signed-in Galactic Trust owner. Complete owner-scoped sandbox onboarding before simulating transfers.' }, 409);
+    const resolution = await resolveIncreaseSandboxOwnerAccount(auth.admin, auth.user.id, process.env);
+    if (!resolution.accountId) {
+      return response({
+        ok: false,
+        authorized: true,
+        setupRequired: true,
+        recoveryAvailable: true,
+        canMoveRealMoney: false,
+        bindingStorageReady: resolution.bindingStorageReady,
+        bindingStorageIssue: resolution.bindingStorageIssue,
+        error: 'No owner-scoped Increase sandbox Account exists yet. Create the sandbox test account before simulating transfers.',
+      }, 409);
+    }
 
-    const snapshot = await simulateIncreaseSandboxSendForAccount(Math.round(amount * 100), recipient, bindingState.binding.accountId, process.env);
-    return response({ ok: true, authorized: true, ...snapshot, binding: publicBindingSummary(bindingState.binding), action: 'sandbox-ach-transfer-simulation', canMoveRealMoney: false, note: 'This transfer is scoped to the Increase sandbox Account bound server-side to this signed-in owner and routes only to sandbox test coordinates. No real recipient or bank account is used.' });
+    const snapshot = await simulateIncreaseSandboxSendForAccount(Math.round(amount * 100), recipient, resolution.accountId, process.env);
+    return response({
+      ok: true,
+      authorized: true,
+      ...snapshot,
+      binding: resolution.binding,
+      bindingPersistence: resolution.persistence,
+      action: 'sandbox-ach-transfer-simulation',
+      canMoveRealMoney: false,
+      note: 'This transfer is scoped server-side to this signed-in owner and routes only to Increase sandbox test coordinates. No real recipient or bank account is used.',
+    });
   } catch (error: any) {
     return response({ ok: false, authorized: true, canMoveRealMoney: false, providerStatus: Number.isFinite(error?.status) ? error.status : null, error: error instanceof Error ? error.message : 'Increase sandbox transfer simulation failed.' }, 502);
   }

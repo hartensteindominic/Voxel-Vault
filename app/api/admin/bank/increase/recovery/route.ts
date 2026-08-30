@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireGalacticTrustAdmin } from '../../../../../../lib/admin-auth';
 import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
-import { recoverIncreaseSandboxOwnerAccount } from '../../../../../../lib/banking/increase-sandbox-recovery.js';
+import {
+  getIncreaseSandboxOwnerRecoveryAccount,
+  publicIncreaseRecoveryBindingSummary,
+  recoverIncreaseSandboxOwnerAccount,
+} from '../../../../../../lib/banking/increase-sandbox-recovery.js';
 import {
   bindIncreaseSandboxAccountOnly,
   getProviderAccountBinding,
@@ -28,19 +32,28 @@ export async function GET(request: Request) {
 
   try {
     const state = await bindingState(auth);
+    const recovery = state.binding ? null : await getIncreaseSandboxOwnerRecoveryAccount(auth.user.id, process.env);
+    const binding = state.binding
+      ? publicBindingSummary(state.binding)
+      : publicIncreaseRecoveryBindingSummary(recovery);
+
     return response({
       ok: true,
       authorized: true,
       provider: 'Increase',
       environment: 'sandbox',
-      recoveryAvailable: !state.setupRequired && !state.binding,
-      setupRequired: Boolean(state.setupRequired),
-      binding: publicBindingSummary(state.binding),
-      error: state.error || '',
+      recoveryAvailable: !binding,
+      setupRequired: false,
+      bindingStorageReady: !state.setupRequired,
+      bindingStorageIssue: state.setupRequired ? (state.error || 'Trusted provider-binding storage is not installed yet.') : '',
+      binding,
       canMoveRealMoney: false,
-      note: 'This owner-only recovery path creates a dedicated Increase sandbox Account without hosted Entity onboarding. It never enables production banking.',
+      note: binding
+        ? 'A verified owner-scoped Increase sandbox Account is available. The owner scope is derived from either trusted database binding storage or the verified Galactic Trust user ID plus Increase idempotency-key lookup.'
+        : 'This owner-only recovery path can create a dedicated Increase sandbox Account without hosted Entity onboarding or the provider-binding database migration. It never enables production banking.',
     });
-  } catch (error) {
+  } catch (error: any) {
+    const provider = describeIncreaseSandboxError(error, error instanceof Error ? error.message : 'Increase sandbox recovery status could not be loaded.');
     return response({
       ok: false,
       authorized: true,
@@ -49,8 +62,11 @@ export async function GET(request: Request) {
       recoveryAvailable: false,
       setupRequired: true,
       canMoveRealMoney: false,
-      error: error instanceof Error ? error.message : 'Increase sandbox recovery status could not be loaded.',
-    }, 500);
+      providerStatus: provider.providerStatus,
+      providerType: provider.providerType,
+      error: provider.error,
+      nextStep: provider.nextStep,
+    }, Number.isFinite(error?.status) ? 502 : 500);
   }
 }
 
@@ -60,19 +76,6 @@ export async function POST(request: Request) {
 
   try {
     const before = await bindingState(auth);
-    if (before.setupRequired) {
-      return response({
-        ok: false,
-        authorized: true,
-        provider: 'Increase',
-        environment: 'sandbox',
-        recoveryAvailable: false,
-        setupRequired: true,
-        canMoveRealMoney: false,
-        error: before.error || 'Trusted provider binding storage must be installed before sandbox recovery can bind an Account.',
-      }, 503);
-    }
-
     if (before.binding) {
       return response({
         ok: true,
@@ -81,6 +84,7 @@ export async function POST(request: Request) {
         environment: 'sandbox',
         recovered: false,
         alreadyBound: true,
+        bindingStorageReady: true,
         binding: publicBindingSummary(before.binding),
         canMoveRealMoney: false,
         note: 'A verified owner-scoped Increase sandbox Account is already bound. No recovery action was needed.',
@@ -88,11 +92,19 @@ export async function POST(request: Request) {
     }
 
     const recovered = await recoverIncreaseSandboxOwnerAccount(auth.user.id, process.env);
-    const binding = await bindIncreaseSandboxAccountOnly(auth.admin, auth.user.id, {
-      entityId: recovered.entityId,
-      accountId: recovered.accountId,
-      source: 'increase-sandbox-account-recovery',
-    }, process.env);
+    let binding = null;
+    let bindingStorageReady = !before.setupRequired;
+
+    if (bindingStorageReady) {
+      const storedBinding = await bindIncreaseSandboxAccountOnly(auth.admin, auth.user.id, {
+        entityId: recovered.entityId,
+        accountId: recovered.accountId,
+        source: 'increase-sandbox-account-recovery',
+      }, process.env);
+      binding = publicBindingSummary(storedBinding);
+    } else {
+      binding = publicIncreaseRecoveryBindingSummary(recovered);
+    }
 
     return response({
       ok: true,
@@ -101,7 +113,9 @@ export async function POST(request: Request) {
       environment: 'sandbox',
       recovered: true,
       alreadyBound: false,
-      binding: publicBindingSummary(binding),
+      bindingStorageReady,
+      bindingStorageIssue: bindingStorageReady ? '' : (before.error || 'Database binding storage is still pending; sandbox owner scope is being derived from the verified user ID and Increase idempotency key instead.'),
+      binding,
       accountCreated: recovered.accountCreated,
       accountNumberReady: Boolean(recovered.accountNumber?.ready),
       accountNumberIssue: recovered.accountNumberIssue || '',
