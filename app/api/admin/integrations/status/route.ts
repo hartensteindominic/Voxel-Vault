@@ -37,6 +37,9 @@ export async function GET(request: Request) {
   const x402 = nonzero('X402_PAY_TO');
   const liquidity = has('BASE_LIQUIDITY_MANAGER_ADDRESS') && nonzero('LIQUIDITY_OWNER_ADDRESS');
   const partnerFeeds = has('EARTH_PARTNER_FEEDS_JSON');
+  const increaseSandboxKey = has('INCREASE_SANDBOX_API_KEY');
+  const increaseSandboxEnabled = truthy('GALACTIC_INCREASE_SANDBOX_ENABLED');
+  const increaseSandbox = increaseSandboxKey && increaseSandboxEnabled;
 
   const regulatedChecks = [
     'REAL_ESTATE_REGISTERED_INTERMEDIARY_ACTIVE',
@@ -64,6 +67,7 @@ export async function GET(request: Request) {
     item('supabase-server', 'Supabase server', 'Identity + storage', supabaseServer ? 'CONFIGURED' : 'NOT CONFIGURED', 'Owner auth, durable records and private storage depend on server credentials.', supabaseServer, 'server-only'),
     item('supabase-browser', 'Supabase browser auth', 'Identity + storage', supabaseBrowser ? 'CONFIGURED' : 'NOT CONFIGURED', 'User sign-in and browser sessions use publishable Supabase configuration.', supabaseBrowser, 'publishable'),
     item('stripe', 'Stripe', 'Payments', stripe ? 'CONFIGURED' : 'NOT CONFIGURED', 'Server-authoritative checkout can run only when the Stripe secret is present.', stripe, 'server-only'),
+    item('increase-sandbox', 'Increase sandbox', 'Banking infrastructure', increaseSandbox ? 'SANDBOX READY' : increaseSandboxKey ? 'KEY PRESENT · DISABLED' : 'NOT CONFIGURED', increaseSandbox ? 'Sandbox credentials and the explicit sandbox switch are present. Owner-only health checks can inspect programs, accounts and entities without moving real money.' : increaseSandboxKey ? 'Sandbox key is present, but GALACTIC_INCREASE_SANDBOX_ENABLED is still false.' : 'Create an Increase sandbox account and add only the sandbox API key to the server environment. This is not a production banking relationship.', increaseSandbox, 'sandbox · no real money'),
     item('bridge', 'Bridge / RESO MLS', 'Property market', bridge ? 'CONFIGURED' : 'AWAITING ACCESS', 'Authorized U.S. listing coverage requires both dataset ID and access token.', bridge, 'licensed feed'),
     item('domain', 'Domain Australia', 'Property market', domain ? 'CONFIGURED' : 'AWAITING ACCESS', 'Australian listing access requires provider OAuth credentials.', domain, 'licensed feed'),
     item('partner-feeds', 'Additional property feeds', 'Property market', partnerFeeds ? 'CONFIGURED' : 'OPTIONAL', 'Country/provider adapters can be added through the normalized partner-feed contract.', partnerFeeds, 'server-only'),
