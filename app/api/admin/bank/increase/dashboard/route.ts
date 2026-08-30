@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../../lib/admin-auth';
 import { getIncreaseSandboxDashboard } from '../../../../../../lib/banking/increase-sandbox.js';
+import { ensureIncreaseSandboxWebhookSubscription } from '../../../../../../lib/banking/increase-webhook-subscription.js';
+import { pollIncreaseSandboxEvents } from '../../../../../../lib/banking/increase-reconciliation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,12 +20,31 @@ export async function GET(request: Request) {
     return response({ ok: false, error: auth.error, setupRequired: auth.setupRequired || false }, auth.status);
   }
 
+  let webhookAutomation: any = null;
+  let reconciliationBackstop: any = null;
+  let automationIssue: string | null = null;
+
+  try {
+    webhookAutomation = await ensureIncreaseSandboxWebhookSubscription(process.env);
+  } catch {
+    automationIssue = 'Increase sandbox webhook subscription needs attention.';
+  }
+
+  try {
+    reconciliationBackstop = await pollIncreaseSandboxEvents({ maxPages: 2 });
+  } catch {
+    automationIssue = automationIssue || 'Increase sandbox reconciliation backstop needs attention.';
+  }
+
   try {
     const snapshot = await getIncreaseSandboxDashboard(process.env);
     return response({
       ok: true,
       authorized: true,
       ...snapshot,
+      webhookAutomation,
+      reconciliationBackstop,
+      automationIssue,
       note: 'Increase sandbox data only. Values are pretend money and cannot represent live customer funds.',
     });
   } catch (error: any) {
@@ -34,6 +55,9 @@ export async function GET(request: Request) {
       environment: 'sandbox',
       connected: false,
       canMoveRealMoney: false,
+      webhookAutomation,
+      reconciliationBackstop,
+      automationIssue,
       providerStatus: Number.isFinite(error?.status) ? error.status : null,
       error: error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.',
     }, 502);
