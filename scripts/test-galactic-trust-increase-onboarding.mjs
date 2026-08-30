@@ -180,9 +180,21 @@ const setupSource = await readFile(new URL('../app/bank/GalacticSandboxSetup.js'
 assert.match(setupSource, /\/api\/admin\/bank\/increase\/onboarding/, 'owner UI must use the owner-only onboarding endpoint');
 assert.match(setupSource, /Start hosted sandbox onboarding/, 'owner UI should launch Increase-hosted onboarding');
 assert.match(setupSource, /This is not real KYC approval/, 'owner UI must label sandbox validation simulation honestly');
+assert.match(setupSource, /const needsAccount = connected && accountCount === 0;/, 'connected sandbox with no account must be an explicit setup-required state');
+assert.match(setupSource, /const blockingSetup = returnedFromOnboarding \|\| needsAccount;/, 'incomplete sandbox setup must block the illustrative dashboard');
+assert.match(setupSource, /position: 'fixed',[\s\S]*inset: 0,[\s\S]*backdropFilter: 'blur\(12px\)'/, 'setup-required state must use a full-screen interaction blocker');
+assert.match(setupSource, /Increase sandbox connected/, 'setup UI must identify the connected provider state');
+assert.match(setupSource, /Account setup required/, 'setup UI must identify the missing-account state');
+assert.match(setupSource, /Sandbox dashboard ready/, 'setup UI must identify the provider-backed ready state');
+assert.match(setupSource, /Demo balances and transfer controls stay blocked until a provider-backed test Account exists/, 'demo balances must not remain actionable while provider setup is incomplete');
+assert.match(setupSource, /if \(!returnedFromOnboarding && connected && accountCount > 0\) return null;/, 'setup blocker must disappear once a sandbox account exists');
 assert.equal(setupSource.includes('INCREASE_SANDBOX_API_KEY'), false, 'client UI must never read the Increase API key');
 assert.equal(setupSource.includes('account_number'), false, 'client setup UI must not handle raw account-number data');
 assert.equal(setupSource.includes('routing_number'), false, 'client setup UI must not handle raw routing-number data');
+
+const dashboardSource = await readFile(new URL('../lib/banking/increase-sandbox.js', import.meta.url), 'utf8');
+assert.match(dashboardSource, /connected: true,[\s\S]*accounts: \[\],[\s\S]*setupRequired: true/, 'provider helper must preserve connected-but-needs-account state');
+assert.match(dashboardSource, /setupRequired: false,[\s\S]*syncedAt:/, 'provider helper must expose a distinct ready state after accounts load');
 
 const gateSource = await readFile(new URL('../app/bank/GalacticBankGate.js', import.meta.url), 'utf8');
 assert.match(gateSource, /GalacticSandboxSetup/, 'bank gate should mount the sandbox setup control');
