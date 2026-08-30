@@ -52,6 +52,20 @@ const stepStyle = {
   padding: '9px 0',
 };
 
+const healthLinkStyle = {
+  display: 'block',
+  marginTop: '12px',
+  padding: '10px 12px',
+  borderRadius: '12px',
+  border: '1px solid #ded8fb',
+  background: '#faf9ff',
+  color: '#5e46d8',
+  textAlign: 'center',
+  textDecoration: 'none',
+  fontSize: '12px',
+  fontWeight: 800,
+};
+
 function authHeaders(accessToken, json = false) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   if (json) headers['Content-Type'] = 'application/json';
@@ -87,6 +101,9 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   const [programs, setPrograms] = useState([]);
   const [programId, setProgramId] = useState('');
   const [entityId, setEntityId] = useState('');
+  const [onboardingRequestOk, setOnboardingRequestOk] = useState(true);
+  const [providerMessage, setProviderMessage] = useState('');
+  const [providerNextStep, setProviderNextStep] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -98,6 +115,18 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   const needsBinding = connected && accountCount > 0 && !bindingReady && !needsBindingStorage;
   const returnedFromOnboarding = Boolean(entityId);
   const blockingSetup = returnedFromOnboarding || needsAccount || needsBinding || needsBindingStorage;
+  const programsCapabilityReady = status?.capabilities?.programs?.available !== false;
+  const entitiesCapabilityReady = status?.capabilities?.entities?.available !== false;
+  const onboardingReady = Boolean(connected && onboardingRequestOk && programsCapabilityReady && entitiesCapabilityReady && programs.length > 0);
+  const onboardingNeeded = returnedFromOnboarding || needsAccount || needsBinding;
+  const onboardingBlocked = Boolean(onboardingNeeded && connected && !needsBindingStorage && !onboardingReady);
+  const actionableNextStep = providerNextStep || (
+    !programsCapabilityReady || !entitiesCapabilityReady
+      ? 'Use an Increase sandbox API key with Programs and Entities access before owner onboarding.'
+      : programs.length === 0
+        ? 'Make at least one Increase sandbox Program available to the configured sandbox key.'
+        : 'Verify the Increase sandbox key and owner-onboarding permissions, then refresh this page.'
+  );
 
   useEffect(() => {
     if (!accessToken) return;
@@ -134,23 +163,30 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       setBinding(onboardingPayload?.binding || null);
       setBindingSetupRequired(Boolean(onboardingPayload?.bindingSetupRequired));
       setBindingError(String(onboardingPayload?.bindingError || ''));
+      setOnboardingRequestOk(onboardingResponse.ok);
+      setProviderMessage(String(onboardingPayload?.error || statusPayload?.error || ''));
+      setProviderNextStep(String(onboardingPayload?.nextStep || statusPayload?.nextStep || ''));
       const nextPrograms = Array.isArray(onboardingPayload?.programs) ? onboardingPayload.programs : [];
       setPrograms(nextPrograms);
       if (nextPrograms.length === 1) setProgramId(nextPrograms[0].id);
     }).catch(() => {
-      if (active) setAuthorized(false);
+      if (active) {
+        setAuthorized(false);
+        setOnboardingRequestOk(false);
+      }
     });
 
     return () => { active = false; };
   }, [accessToken]);
 
   const heading = useMemo(() => {
-    if (returnedFromOnboarding) return 'Finish Increase sandbox setup';
     if (!connected) return 'Increase sandbox setup';
     if (needsBindingStorage) return 'Provider binding storage required';
+    if (onboardingBlocked) return 'Increase sandbox permissions required';
+    if (returnedFromOnboarding) return 'Finish Increase sandbox setup';
     if (needsBinding) return 'Sandbox account ownership setup required';
     return 'Sandbox connected — account setup required';
-  }, [connected, needsBinding, needsBindingStorage, returnedFromOnboarding]);
+  }, [connected, needsBinding, needsBindingStorage, onboardingBlocked, returnedFromOnboarding]);
 
   async function post(action, extra = {}) {
     const response = await fetch('/api/admin/bank/increase/onboarding', {
@@ -160,11 +196,15 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       body: JSON.stringify({ action, programId, ...extra }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload?.error || 'Increase sandbox setup failed.');
+    if (!response.ok) throw new Error(payload?.nextStep || payload?.error || 'Increase sandbox setup failed.');
     return payload;
   }
 
   async function startOnboarding() {
+    if (!onboardingReady) {
+      setMessage(actionableNextStep);
+      return;
+    }
     if (programs.length > 1 && !programId) {
       setMessage('Choose the Increase sandbox Program for this test Entity.');
       return;
@@ -182,6 +222,10 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
 
   async function completeSetup() {
     if (!entityId) return;
+    if (!onboardingReady) {
+      setMessage(actionableNextStep);
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
@@ -197,15 +241,23 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   if (!accessToken || authorized !== true) return null;
   if (!returnedFromOnboarding && connected && accountCount > 0 && bindingReady) return null;
 
-  const canStartOwnerOnboarding = connected && !returnedFromOnboarding && !needsBindingStorage && (needsAccount || needsBinding);
-  const stepTwoTitle = needsBinding ? 'Owner binding required' : needsBindingStorage ? 'Binding storage required' : 'Account setup required';
-  const stepTwoDetail = returnedFromOnboarding
-    ? 'A test Entity was returned. Complete the sandbox-only validation, Account bootstrap, and server-side owner binding.'
+  const canStartOwnerOnboarding = connected && onboardingReady && !returnedFromOnboarding && !needsBindingStorage && (needsAccount || needsBinding);
+  const stepTwoTitle = onboardingBlocked
+    ? 'Onboarding access required'
     : needsBinding
-      ? 'Existing sandbox Accounts are not treated as yours. Complete owner-scoped hosted onboarding so Galactic Trust can bind exactly one provider Account to your signed-in user.'
+      ? 'Owner binding required'
       : needsBindingStorage
-        ? (bindingError || 'Trusted provider binding storage must be installed before any provider Account can be treated as user-owned.')
-        : 'Use Increase-hosted onboarding to create the test Entity before an Account is created.';
+        ? 'Binding storage required'
+        : 'Account setup required';
+  const stepTwoDetail = onboardingBlocked
+    ? actionableNextStep
+    : returnedFromOnboarding
+      ? 'A test Entity was returned. Complete the sandbox-only validation, Account bootstrap, and server-side owner binding.'
+      : needsBinding
+        ? 'Existing sandbox Accounts are not treated as yours. Complete owner-scoped hosted onboarding so Galactic Trust can bind exactly one provider Account to your signed-in user.'
+        : needsBindingStorage
+          ? (bindingError || 'Trusted provider binding storage must be installed before any provider Account can be treated as user-owned.')
+          : 'Use Increase-hosted onboarding to create the test Entity before an Account is created.';
 
   const panel = (
     <aside style={{ ...panelStyle, ...(blockingSetup ? {} : floatingPanelStyle) }} aria-label="Owner Increase sandbox setup" aria-modal={blockingSetup ? 'true' : undefined} role={blockingSetup ? 'dialog' : undefined}>
@@ -226,9 +278,19 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       )}
 
       {!connected && (
-        <p style={{ margin: '12px 0 0', fontSize: '13px', lineHeight: 1.45, color: '#5f5875' }}>
-          Add the server-only Increase sandbox key and enable switch in Vercel, then redeploy. Never put the key in client code or chat.
-        </p>
+        <div style={{ marginTop: '12px', padding: '12px', borderRadius: '14px', background: '#fff8ee', border: '1px solid #f1dcc2' }}>
+          <strong style={{ display: 'block', fontSize: '12px', color: '#80551e' }}>Increase sandbox connection needs attention.</strong>
+          {providerMessage && <small style={{ display: 'block', marginTop: '5px', color: '#785f42', lineHeight: 1.45 }}>{providerMessage}</small>}
+          <small style={{ display: 'block', marginTop: '5px', color: '#785f42', lineHeight: 1.45 }}>{providerNextStep || 'Add the server-only Increase sandbox key and enable switch in Vercel, then redeploy. Never put the key in client code or chat.'}</small>
+        </div>
+      )}
+
+      {onboardingBlocked && (
+        <div style={{ marginTop: '12px', padding: '12px', borderRadius: '14px', background: '#fff8ee', border: '1px solid #f1dcc2' }}>
+          <strong style={{ display: 'block', fontSize: '12px', color: '#80551e' }}>Increase sandbox onboarding is blocked.</strong>
+          {providerMessage && <small style={{ display: 'block', marginTop: '5px', color: '#785f42', lineHeight: 1.45 }}>{providerMessage}</small>}
+          <small style={{ display: 'block', marginTop: '5px', color: '#785f42', lineHeight: 1.45 }}><b>Next step:</b> {actionableNextStep}</small>
+        </div>
       )}
 
       {canStartOwnerOnboarding && (
@@ -247,7 +309,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
               {programs.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
             </select>
           )}
-          <button type="button" onClick={startOnboarding} disabled={busy} style={{ ...buttonStyle, opacity: busy ? 0.65 : 1 }}>
+          <button type="button" onClick={startOnboarding} disabled={busy || !onboardingReady} style={{ ...buttonStyle, opacity: busy || !onboardingReady ? 0.65 : 1 }}>
             {busy ? 'Opening Increase…' : needsBinding ? 'Start owner-scoped sandbox onboarding' : 'Start hosted sandbox onboarding'}
           </button>
         </>
@@ -269,14 +331,15 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
               {programs.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
             </select>
           )}
-          <button type="button" onClick={completeSetup} disabled={busy || needsBindingStorage || (programs.length > 1 && !programId)} style={{ ...buttonStyle, opacity: busy || needsBindingStorage ? 0.65 : 1 }}>
-            {busy ? 'Creating and binding sandbox account…' : 'Complete sandbox setup'}
+          <button type="button" onClick={completeSetup} disabled={busy || !onboardingReady || needsBindingStorage || (programs.length > 1 && !programId)} style={{ ...buttonStyle, opacity: busy || !onboardingReady || needsBindingStorage ? 0.65 : 1 }}>
+            {busy ? 'Creating and binding sandbox account…' : onboardingBlocked ? 'Resolve onboarding access first' : 'Complete sandbox setup'}
           </button>
         </>
       )}
 
       {needsBindingStorage && bindingError && <p role="status" style={{ margin: '10px 0 0', fontSize: '12px', lineHeight: 1.4, color: '#9d2d55' }}>{bindingError}</p>}
       {message && <p role="status" style={{ margin: '10px 0 0', fontSize: '12px', lineHeight: 1.4, color: '#9d2d55' }}>{message}</p>}
+      <a href="/bank/integrations" style={healthLinkStyle}>Open Integration Health →</a>
     </aside>
   );
 
