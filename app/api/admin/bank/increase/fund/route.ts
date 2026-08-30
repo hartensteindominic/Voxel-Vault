@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../../lib/admin-auth';
+import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
 import { simulateIncreaseSandboxDepositForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
 import {
   getProviderAccountBinding,
@@ -67,12 +68,16 @@ export async function POST(request: Request) {
       note: 'Pretend Increase sandbox funds only, scoped to the Account bound server-side to this signed-in owner. No external bank account was debited.',
     });
   } catch (error: any) {
+    const fallback = error instanceof Error ? error.message : 'Increase sandbox funding simulation failed.';
+    const failure = describeIncreaseSandboxError(error, fallback);
     return response({
       ok: false,
       authorized: true,
       canMoveRealMoney: false,
-      providerStatus: Number.isFinite(error?.status) ? error.status : null,
-      error: error instanceof Error ? error.message : 'Increase sandbox funding simulation failed.',
+      providerStatus: failure.providerStatus,
+      providerType: failure.providerType,
+      error: failure.error,
+      nextStep: failure.nextStep,
     }, 502);
   }
 }
