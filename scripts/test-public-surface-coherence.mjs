@@ -53,7 +53,7 @@ if (galacticHome) {
   assert.doesNotMatch(appSitemap, /path:\s*['"]\/studio['"]/, 'The optional Studio route must not replace the current property product in the public sitemap.');
 }
 
-for (const privatePath of ['/admin/', '/api/', '/vault/', '/account/', '/checkout/', '/property/mint']) {
+for (const privatePath of ['/admin/', '/api/', '/vault/', '/account/', '/checkout/', '/property/']) {
   assert.match(appRobots, new RegExp(privatePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `robots metadata must keep ${privatePath} out of search crawling.`);
 }
 
