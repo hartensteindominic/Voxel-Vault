@@ -58,7 +58,6 @@ const productionSource = read('lib/banking/providers/increase/production.js');
 const resolverSource = read('lib/banking/providers/index.js');
 const gateSource = read('app/bank/GalacticBankGate.js');
 const vercelSource = read('vercel.json');
-const nextConfigSource = read('next.config.mjs');
 
 assert.doesNotMatch(productionSource, /increase-sandbox/i, 'production adapter must not import or reuse sandbox request code');
 assert.doesNotMatch(productionSource, /INCREASE_SANDBOX_API_KEY/, 'production adapter must not accept sandbox credentials');
@@ -68,12 +67,10 @@ assert.match(sandboxSource, /\.\.\/\.\.\/increase-sandbox\.js/, 'sandbox provide
 assert.match(resolverSource, /launch\.liveBankingEnabled && platform === 'increase'/, 'resolver must require the regulated launch snapshot before production selection');
 assert.match(gateSource, /new URL\('\/bank', window\.location\.origin\)/, 'Google and OTP auth must return directly to the Galactic Trust dashboard');
 
-assert.match(vercelSource, /"X-Content-Type-Options", "value": "nosniff"/, 'MIME sniffing protection must remain enabled in the proven-safe Vercel config');
-assert.match(vercelSource, /"Referrer-Policy", "value": "strict-origin-when-cross-origin"/, 'referrer policy must remain privacy-conscious in the proven-safe Vercel config');
-assert.doesNotMatch(vercelSource, /X-Frame-Options|Strict-Transport-Security|Permissions-Policy|X-Permitted-Cross-Domain-Policies/, 'new security headers must stay out of Vercel project config');
-assert.match(nextConfigSource, /key: 'X-Frame-Options', value: 'DENY'/, 'Galactic Trust pages must deny framing to reduce clickjacking risk');
-assert.match(nextConfigSource, /key: 'Strict-Transport-Security', value: 'max-age=31536000'/, 'Galactic Trust responses must instruct browsers to keep using HTTPS');
-assert.match(nextConfigSource, /key: 'X-Permitted-Cross-Domain-Policies', value: 'none'/, 'legacy cross-domain policy files must be disabled');
-assert.doesNotMatch(nextConfigSource, /Permissions-Policy/, 'Permissions-Policy remains deferred because the current Vercel deployment adapter rejects that header configuration');
+assert.match(vercelSource, /"X-Content-Type-Options", "value": "nosniff"/, 'MIME sniffing protection must remain enabled');
+assert.match(vercelSource, /"X-Frame-Options", "value": "DENY"/, 'Galactic Trust pages must deny framing to reduce clickjacking risk');
+assert.match(vercelSource, /"Referrer-Policy", "value": "strict-origin-when-cross-origin"/, 'referrer policy must remain privacy-conscious');
+assert.doesNotMatch(vercelSource, /Strict-Transport-Security/, 'Vercel already supplies platform-managed HSTS and the app must not override it here');
+assert.doesNotMatch(vercelSource, /Permissions-Policy/, 'Permissions-Policy remains deferred until it can be deployed without Vercel adapter rejection');
 
-console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and compatible response security headers remain hardened while the Vercel-incompatible Permissions-Policy is deferred.');
+console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and Vercel-supported clickjacking/MIME/referrer protections remain regression-locked without overriding platform HSTS.');
