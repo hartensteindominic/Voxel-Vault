@@ -67,6 +67,8 @@ jobs:
         run: node scripts/test-galactic-trust-provider-boundary.mjs
       - name: Galactic Trust truthful UI states
         run: node scripts/test-galactic-trust-ui-truth.mjs
+      - name: Galactic Trust Increase onboarding
+        run: node scripts/test-galactic-trust-increase-onboarding.mjs
       - name: Galactic Trust Increase webhooks
         run: node scripts/test-galactic-trust-increase-webhooks.mjs
       - name: Hyperreal voxel building
