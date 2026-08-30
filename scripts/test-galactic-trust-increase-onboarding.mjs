@@ -174,7 +174,21 @@ assert.match(routeSource, /requireVoxelVaultAdmin/, 'onboarding API must remain 
 assert.match(routeSource, /private, no-store/, 'onboarding API must prohibit caching');
 assert.match(routeSource, /complete_setup/, 'route should expose an explicit sandbox-completion action');
 assert.match(routeSource, /not a real KYC\/CIP\/AML decision/, 'sandbox validation simulation must be clearly disclosed');
+assert.match(routeSource, /bindIncreaseSandboxAccount/, 'successful Increase sandbox account creation must be bound to the authenticated Galactic Trust owner');
+assert.match(routeSource, /getProviderAccountBinding/, 'onboarding status must read the authenticated owner provider binding');
+assert.match(routeSource, /publicBindingSummary/, 'browser responses must use the masked provider binding summary');
+assert.match(routeSource, /auth\.user\.id/, 'provider binding must use the verified Supabase user ID rather than a client-supplied user identifier');
+assert.match(routeSource, /provider: 'increase',[\s\S]*environment: 'sandbox'/, 'Increase binding lookup must stay scoped to the sandbox environment');
+assert.match(routeSource, /binding = await bindOwnerSandboxAccount\(auth, result, 'increase-hosted-sandbox-onboarding'\)/, 'hosted onboarding completion must bind the resulting provider Account to the signed-in owner');
+assert.match(routeSource, /This is not real KYC approval/, 'bound sandbox setup must still disclaim real KYC approval');
 assert.equal(routeSource.includes('NEXT_PUBLIC_'), false, 'onboarding API must not use client-side provider credentials');
+
+const bindingSource = await readFile(new URL('../lib/real-estate/provider-account-binding.js', import.meta.url), 'utf8');
+assert.match(bindingSource, /bindIncreaseSandboxAccount/, 'trusted provider binding helper must support Increase sandbox');
+assert.match(bindingSource, /getIncreaseSandboxConfig/, 'Increase binding writes must verify the server-side sandbox configuration');
+assert.match(bindingSource, /provider_kyc_status: 'SANDBOX_VALID_SIMULATION'/, 'Increase sandbox validation must be stored as simulation, never real KYC PASS');
+assert.match(bindingSource, /provider: 'increase',[\s\S]*environment: 'sandbox'/, 'Increase binding must remain sandbox-scoped');
+assert.match(bindingSource, /migration 025_galactic_increase_account_bindings/, 'stale provider allowlist must fail closed with the required migration');
 
 const setupSource = await readFile(new URL('../app/bank/GalacticSandboxSetup.js', import.meta.url), 'utf8');
 assert.match(setupSource, /\/api\/admin\/bank\/increase\/onboarding/, 'owner UI must use the owner-only onboarding endpoint');
