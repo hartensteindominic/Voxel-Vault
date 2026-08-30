@@ -8,6 +8,11 @@ import {
   simulateIncreaseSandboxEntityValid,
   submitIncreaseSandboxOnboardingSession,
 } from '../lib/banking/increase-onboarding-sandbox.js';
+import {
+  getIncreaseSandboxDashboardForAccount,
+  simulateIncreaseSandboxDepositForAccount,
+  simulateIncreaseSandboxSendForAccount,
+} from '../lib/banking/increase-sandbox.js';
 
 const env = {
   GALACTIC_INCREASE_SANDBOX_ENABLED: 'true',
@@ -91,8 +96,19 @@ globalThis.fetch = async (input, options = {}) => {
       name: body.name,
       status: 'open',
       currency: 'USD',
+      bank: 'increase_bank',
     };
     return jsonResponse(account);
+  }
+
+  if (method === 'GET' && account && url.pathname === `/accounts/${account.id}`) return jsonResponse(account);
+
+  if (method === 'GET' && account && url.pathname === `/accounts/${account.id}/balance`) {
+    return jsonResponse({ current_balance: 125000, available_balance: 120000 });
+  }
+
+  if (method === 'GET' && url.pathname === '/transactions' && account && url.searchParams.get('account_id') === account.id) {
+    return jsonResponse({ data: [] });
   }
 
   if (method === 'GET' && url.pathname === '/account_numbers' && url.searchParams.get('account_id') === account?.id) {
@@ -110,6 +126,20 @@ globalThis.fetch = async (input, options = {}) => {
       routing_number: '101050001',
     };
     return jsonResponse(accountNumber);
+  }
+
+  if (method === 'POST' && url.pathname === '/simulations/inbound_ach_transfers') {
+    assert.equal(body.account_number_id, accountNumber?.id, 'bound sandbox funding must use the Account Number attached to the bound Account');
+    return jsonResponse({ id: 'sandbox_inbound_ach_transfer_test' });
+  }
+
+  if (method === 'POST' && url.pathname === '/ach_transfers') {
+    assert.equal(body.account_id, account?.id, 'bound sandbox send must use the exact bound Account ID');
+    return jsonResponse({ id: 'sandbox_ach_transfer_test' });
+  }
+
+  if (method === 'POST' && url.pathname === '/simulations/ach_transfers/sandbox_ach_transfer_test/settle') {
+    return jsonResponse({ id: 'sandbox_ach_transfer_test', status: 'settled' });
   }
 
   throw new Error(`Unexpected mocked Increase request: ${method} ${url}`);
@@ -158,6 +188,19 @@ assert.equal(bootstrapped.accountNumber.detailsWithheld, true);
 assert.equal('account_number' in bootstrapped.accountNumber, false, 'raw account number must not leave bootstrap helper');
 assert.equal('routing_number' in bootstrapped.accountNumber, false, 'raw routing number must not leave bootstrap helper');
 
+const boundDashboard = await getIncreaseSandboxDashboardForAccount(bootstrapped.account.id, env);
+assert.equal(boundDashboard.boundAccount, true, 'owner-bound dashboard must identify that it is scoped to a binding');
+assert.equal(boundDashboard.accounts.length, 1, 'owner-bound dashboard must never append unrelated sandbox Accounts');
+assert.equal(boundDashboard.accounts[0].currentBalance, 1250);
+
+const fundedDashboard = await simulateIncreaseSandboxDepositForAccount(50000, bootstrapped.account.id, env);
+assert.equal(fundedDashboard.boundAccount, true);
+assert.equal(fundedDashboard.accounts.length, 1);
+
+const sentDashboard = await simulateIncreaseSandboxSendForAccount(2500, 'Sandbox Recipient', bootstrapped.account.id, env);
+assert.equal(sentDashboard.boundAccount, true);
+assert.equal(sentDashboard.accounts.length, 1);
+
 const requestBodies = JSON.stringify(calls.map((call) => call.body));
 for (const sensitiveField of ['social_security_number', 'tax_identifier', 'date_of_birth', 'identification', 'address']) {
   assert.equal(requestBodies.includes(sensitiveField), false, `Galactic Trust must not collect hosted-onboarding PII field: ${sensitiveField}`);
@@ -190,25 +233,47 @@ assert.match(bindingSource, /provider_kyc_status: 'SANDBOX_VALID_SIMULATION'/, '
 assert.match(bindingSource, /provider: 'increase',[\s\S]*environment: 'sandbox'/, 'Increase binding must remain sandbox-scoped');
 assert.match(bindingSource, /migration 025_galactic_increase_account_bindings/, 'stale provider allowlist must fail closed with the required migration');
 
+const dashboardRouteSource = await readFile(new URL('../app/api/admin/bank/increase/dashboard/route.ts', import.meta.url), 'utf8');
+assert.match(dashboardRouteSource, /getProviderAccountBinding/, 'sandbox dashboard route must load the authenticated owner binding');
+assert.match(dashboardRouteSource, /auth\.user\.id/, 'sandbox dashboard binding lookup must use the verified session user ID');
+assert.match(dashboardRouteSource, /getIncreaseSandboxDashboardForAccount\(bindingState\.binding\.accountId/, 'sandbox dashboard must read exactly the bound Account rather than a global provider account list');
+assert.match(dashboardRouteSource, /No Increase sandbox Account is bound to this signed-in Galactic Trust owner yet/, 'unbound owner dashboard must fail closed');
+assert.doesNotMatch(dashboardRouteSource, /getIncreaseSandboxDashboard\(process\.env\)/, 'owner dashboard must not fall back to the old global sandbox dashboard');
+
+const fundRouteSource = await readFile(new URL('../app/api/admin/bank/increase/fund/route.ts', import.meta.url), 'utf8');
+assert.match(fundRouteSource, /getProviderAccountBinding/, 'sandbox funding route must require the authenticated owner binding');
+assert.match(fundRouteSource, /simulateIncreaseSandboxDepositForAccount/, 'sandbox funding must target the bound Account explicitly');
+assert.match(fundRouteSource, /bindingState\.binding\.accountId/, 'sandbox funding must source Account ID from server-side binding storage');
+
+const transferRouteSource = await readFile(new URL('../app/api/admin/bank/increase/transfer/route.ts', import.meta.url), 'utf8');
+assert.match(transferRouteSource, /getProviderAccountBinding/, 'sandbox transfer route must require the authenticated owner binding');
+assert.match(transferRouteSource, /simulateIncreaseSandboxSendForAccount/, 'sandbox transfers must target the bound Account explicitly');
+assert.match(transferRouteSource, /bindingState\.binding\.accountId/, 'sandbox transfer must source Account ID from server-side binding storage');
+
 const setupSource = await readFile(new URL('../app/bank/GalacticSandboxSetup.js', import.meta.url), 'utf8');
 assert.match(setupSource, /\/api\/admin\/bank\/increase\/onboarding/, 'owner UI must use the owner-only onboarding endpoint');
 assert.match(setupSource, /Start hosted sandbox onboarding/, 'owner UI should launch Increase-hosted onboarding');
+assert.match(setupSource, /Start owner-scoped sandbox onboarding/, 'existing unbound provider Accounts must trigger owner-scoped onboarding instead of being inherited');
 assert.match(setupSource, /This is not real KYC approval/, 'owner UI must label sandbox validation simulation honestly');
+assert.match(setupSource, /const bindingReady = Boolean\(binding\?\.provider === 'increase'/, 'owner UI must require an authenticated Increase sandbox binding');
 assert.match(setupSource, /const needsAccount = connected && accountCount === 0;/, 'connected sandbox with no account must be an explicit setup-required state');
-assert.match(setupSource, /const blockingSetup = returnedFromOnboarding \|\| needsAccount;/, 'incomplete sandbox setup must block the illustrative dashboard');
-assert.match(setupSource, /position: 'fixed',[\s\S]*inset: 0,[\s\S]*backdropFilter: 'blur\(12px\)'/, 'setup-required state must use a full-screen interaction blocker');
-assert.match(setupSource, /Increase sandbox connected/, 'setup UI must identify the connected provider state');
-assert.match(setupSource, /Account setup required/, 'setup UI must identify the missing-account state');
-assert.match(setupSource, /Sandbox dashboard ready/, 'setup UI must identify the provider-backed ready state');
-assert.match(setupSource, /Demo balances and transfer controls stay blocked until a provider-backed test Account exists/, 'demo balances must not remain actionable while provider setup is incomplete');
-assert.match(setupSource, /if \(!returnedFromOnboarding && connected && accountCount > 0\) return null;/, 'setup blocker must disappear once a sandbox account exists');
+assert.match(setupSource, /const needsBinding = connected && accountCount > 0 && !bindingReady && !needsBindingStorage;/, 'existing global sandbox Accounts must not be treated as owner-scoped without a binding');
+assert.match(setupSource, /const blockingSetup = returnedFromOnboarding \|\| needsAccount \|\| needsBinding \|\| needsBindingStorage;/, 'incomplete account or identity binding setup must block the illustrative dashboard');
+assert.match(setupSource, /Existing unbound provider Accounts are deliberately ignored/, 'owner UI must explain that unbound provider Accounts are ignored');
+assert.match(setupSource, /Owner-scoped sandbox dashboard ready/, 'setup UI must identify the bound-account ready state');
+assert.match(setupSource, /Provider balances and transfer controls stay blocked until a sandbox Account is bound server-side to your signed-in user/, 'provider controls must remain blocked until binding exists');
+assert.match(setupSource, /if \(!returnedFromOnboarding && connected && accountCount > 0 && bindingReady\) return null;/, 'setup blocker must disappear only after provider Account and owner binding both exist');
 assert.equal(setupSource.includes('INCREASE_SANDBOX_API_KEY'), false, 'client UI must never read the Increase API key');
 assert.equal(setupSource.includes('account_number'), false, 'client setup UI must not handle raw account-number data');
 assert.equal(setupSource.includes('routing_number'), false, 'client setup UI must not handle raw routing-number data');
 
 const dashboardSource = await readFile(new URL('../lib/banking/increase-sandbox.js', import.meta.url), 'utf8');
 assert.match(dashboardSource, /connected: true,[\s\S]*accounts: \[\],[\s\S]*setupRequired: true/, 'provider helper must preserve connected-but-needs-account state');
-assert.match(dashboardSource, /setupRequired: false,[\s\S]*syncedAt:/, 'provider helper must expose a distinct ready state after accounts load');
+assert.match(dashboardSource, /getIncreaseSandboxDashboardForAccount/, 'provider helper must expose an exact-account dashboard path');
+assert.match(dashboardSource, /resolveBoundAccount/, 'bound provider operations must resolve the exact persisted Account');
+assert.match(dashboardSource, /boundAccount: true/, 'bound dashboard response must identify exact-account scoping');
+assert.match(dashboardSource, /simulateIncreaseSandboxDepositForAccount/, 'provider helper must expose bound-account sandbox funding');
+assert.match(dashboardSource, /simulateIncreaseSandboxSendForAccount/, 'provider helper must expose bound-account sandbox transfers');
 
 const gateSource = await readFile(new URL('../app/bank/GalacticBankGate.js', import.meta.url), 'utf8');
 assert.match(gateSource, /GalacticSandboxSetup/, 'bank gate should mount the sandbox setup control');
