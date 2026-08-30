@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const { data: { user }, error } = await admin.auth.getUser(token);
     if (error || !user) return response({ ok: false, error: 'Your Galactic Trust session is invalid or expired.', lifecycle: buildGalacticAccountLifecycle({ signedIn: false, env: process.env }) }, 401);
 
-    let bindingState = await getProviderAccountBinding(admin, user.id, {
+    let bindingState: any = await getProviderAccountBinding(admin, user.id, {
       provider: 'increase',
       environment: 'sandbox',
     });
