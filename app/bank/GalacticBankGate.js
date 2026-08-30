@@ -152,7 +152,7 @@ export default function GalacticBankGate() {
             </form>
             <button className="gt-auth-demo" type="button" onClick={() => setDemoAccess(true)}>Explore the Stars demo →</button>
             {status && <p className="gt-auth-status" role="status">{status}</p>}
-            <small className="gt-auth-legal">Galactic Trust is a financial technology product, not a bank. It does not currently accept or hold real customer deposits. <a href="/bank/readiness">View regulated launch status.</a></small>
+            <small className="gt-auth-legal">Galactic Trust is a financial technology product, not a bank. This is currently a simulated banking experience. No real deposits are held and no real money moves. <a href="/bank/readiness">View regulated launch status.</a></small>
           </section>
         </section>
       </main>
