@@ -4,6 +4,7 @@ import {
   getIncreaseSandboxConfig,
   inspectIncreaseSandbox,
 } from '../../../../../../lib/banking/increase-sandbox.js';
+import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
       note: 'This route performs read-only sandbox inspection. It cannot move real money and never returns the API key.',
     });
   } catch (error: any) {
+    const failure = describeIncreaseSandboxError(error, 'Increase sandbox connection check failed. Verify the sandbox key and provider account status.');
     return response({
       ok: false,
       authorized: true,
@@ -59,8 +61,10 @@ export async function GET(request: Request) {
       environment: 'sandbox',
       connected: false,
       canMoveRealMoney: false,
-      providerStatus: Number.isFinite(error?.status) ? error.status : null,
-      error: 'Increase sandbox connection check failed. Verify the sandbox key and provider account status.',
+      providerStatus: failure.providerStatus,
+      providerType: failure.providerType,
+      error: failure.error,
+      nextStep: failure.nextStep,
     }, 502);
   }
 }
