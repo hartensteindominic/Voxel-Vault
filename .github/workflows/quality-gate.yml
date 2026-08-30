@@ -17,7 +17,7 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,6 +28,10 @@ jobs:
       - run: npm run test:universal
       - run: npm run test:media
       - run: npm run test:mobile
+      - run: npm run test:collection
+      - run: npm run test:commerce
+      - run: npm run test:routes
+      - run: npm run test:voxelflip-launch
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
