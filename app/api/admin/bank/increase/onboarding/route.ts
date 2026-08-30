@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireGalacticTrustAdmin } from '../../../../../../lib/admin-auth';
+import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
 import {
   bootstrapIncreaseSandboxAccount,
   completeIncreaseSandboxSetup,
@@ -19,7 +20,19 @@ function response(data: any, status = 200) {
 }
 
 function providerError(error: any) {
-  return response({ ok: false, authorized: true, provider: 'Increase', environment: 'sandbox', canMoveRealMoney: false, providerStatus: Number.isFinite(error?.status) ? error.status : null, error: error instanceof Error ? error.message : 'Increase sandbox onboarding action failed.' }, Number.isFinite(error?.status) ? 502 : 400);
+  const provider = describeIncreaseSandboxError(error, error instanceof Error ? error.message : 'Increase sandbox onboarding action failed.');
+  return response({
+    ok: false,
+    authorized: true,
+    provider: 'Increase',
+    environment: 'sandbox',
+    canMoveRealMoney: false,
+    setupRequired: true,
+    providerStatus: provider.providerStatus,
+    providerType: provider.providerType,
+    error: provider.error,
+    nextStep: provider.nextStep,
+  }, Number.isFinite(error?.status) ? 502 : 400);
 }
 
 async function bindOwnerSandboxAccount(auth: any, result: any, source: string) {
