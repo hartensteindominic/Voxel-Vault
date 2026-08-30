@@ -43,6 +43,9 @@ jobs:
       - name: Integration health
         if: always()
         run: node scripts/test-galactic-trust-integration-health.mjs
+      - name: Crypto practice
+        if: always()
+        run: node scripts/test-galactic-trust-crypto-practice.mjs
       - name: Production build
         if: always()
         run: npm run build
