@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../../lib/admin-auth';
-import { simulateIncreaseSandboxDeposit } from '../../../../../../lib/banking/increase-sandbox.js';
+import { simulateIncreaseSandboxDepositForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
+import {
+  getProviderAccountBinding,
+  publicBindingSummary,
+} from '../../../../../../lib/real-estate/provider-account-binding.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,14 +29,42 @@ export async function POST(request: Request) {
   }
 
   try {
-    const snapshot = await simulateIncreaseSandboxDeposit(Math.round(amount * 100), process.env);
+    const bindingState = await getProviderAccountBinding(auth.admin, auth.user.id, {
+      provider: 'increase',
+      environment: 'sandbox',
+    });
+    if (bindingState.setupRequired) {
+      return response({
+        ok: false,
+        authorized: true,
+        setupRequired: true,
+        canMoveRealMoney: false,
+        error: bindingState.error || 'Provider identity binding storage is not ready.',
+      }, 503);
+    }
+    if (!bindingState.binding) {
+      return response({
+        ok: false,
+        authorized: true,
+        setupRequired: true,
+        canMoveRealMoney: false,
+        error: 'No Increase sandbox Account is bound to this signed-in Galactic Trust owner. Complete owner-scoped sandbox onboarding before simulating funding.',
+      }, 409);
+    }
+
+    const snapshot = await simulateIncreaseSandboxDepositForAccount(
+      Math.round(amount * 100),
+      bindingState.binding.accountId,
+      process.env,
+    );
     return response({
       ok: true,
       authorized: true,
       ...snapshot,
+      binding: publicBindingSummary(bindingState.binding),
       action: 'sandbox-inbound-ach-simulation',
       canMoveRealMoney: false,
-      note: 'Pretend Increase sandbox funds only. No external bank account was debited.',
+      note: 'Pretend Increase sandbox funds only, scoped to the Account bound server-side to this signed-in owner. No external bank account was debited.',
     });
   } catch (error: any) {
     return response({
