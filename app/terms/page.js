@@ -28,6 +28,7 @@ export default function TermsPage() {
       <h2>Creation results</h2>
       <p>The 3D preview and voxel are digital representations. A single photograph cannot truthfully establish unseen walls, exact roof geometry, precise dimensions, structural condition, boundaries, survey accuracy, appraisal value, or legal property rights. Results can vary with photo quality, device performance, and browser support.</p>
       <h2>Payments</h2>
+      <p><strong>$4.99 DIGITAL:</strong> a completed VoxelPop creation checkout buys one digital VoxelPop creation. It does not buy the physical house or land and does not create title, equity, rent, occupancy, investment, or appreciation rights.</p>
       <p>A completed $4.99 VoxelPop creation checkout unlocks the digital preview and voxel creation flow for that paid creation. Separate optional digital collectible or blockchain actions, when offered, are not part of the physical-property purchase process.</p>
       <h2>Maps and property information</h2>
       <p>Address, building, parcel, imagery, and other source-backed place information may be incomplete or change over time. Map geometry, a saved property record, a payment, a Property Passport, or an NFT is not proof of deed/title ownership.</p>
