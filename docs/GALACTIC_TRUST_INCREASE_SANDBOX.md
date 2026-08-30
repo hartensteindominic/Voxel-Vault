@@ -22,19 +22,26 @@ Official references:
 
 `GET/POST /api/admin/bank/increase/onboarding` is owner-only and no-store. Supported actions are sandbox-specific: create a hosted session, simulate a sandbox session submission, simulate a valid Entity, bootstrap a validated Entity into an Account and Account Number, or explicitly complete the sandbox setup by simulating validation before bootstrap. Every response reports `canMoveRealMoney: false`.
 
-The `/bank` owner experience includes a temporary sandbox setup control. It first checks the owner-only status/onboarding APIs. Unauthorized signed-in users do not see the control. When no sandbox Account exists, the owner can launch Increase-hosted onboarding. After Increase redirects back with the test `entity_id`, the owner can explicitly complete sandbox setup. Identity form fields stay on Increase's hosted page rather than being collected by Galactic Trust.
+Galactic Trust reuses `vault_provider_account_bindings`, the existing trusted server-written provider identity table, rather than inventing a second account-ownership system. Migration `025_galactic_increase_account_bindings.sql` extends the table's provider allowlist from Dinari-only to Dinari plus Increase while preserving the existing row-level-security posture: authenticated browser users can read only their own row and have no client insert/update/delete policy. A provider Account also remains globally unique per provider/environment so one Increase Account cannot be silently assigned to two users.
 
-The existing dashboard reads provider-authoritative sandbox balances and transactions, ACH simulations use the sandbox Account Number, signed webhooks are processed idempotently, and reconciliation provides a polling backstop.
+After successful sandbox Account creation, the owner-only onboarding API writes an `increase` / `sandbox` binding using the authenticated Supabase user ID returned by server-side session verification. The stored provider validation marker is `SANDBOX_VALID_SIMULATION`, not `PASS`, so the test state cannot be confused with a real KYC/CIP/AML approval.
 
-## Founder setup — the only external step required now
+The `/bank` owner setup control requires both provider connectivity and a verified owner binding before it uncovers provider data. A pre-existing unbound Increase sandbox Account is deliberately ignored. In that case the owner is sent through owner-scoped hosted onboarding rather than inheriting a global test Account.
+
+`GET /api/admin/bank/increase/dashboard`, `POST /api/admin/bank/increase/fund`, and `POST /api/admin/bank/increase/transfer` now fail closed when the signed-in owner has no verified Increase sandbox binding. When a binding exists, each route uses the exact stored Account ID. The dashboard returns only that Account; pretend-money funding resolves its Account Number from that Account; and pretend-money transfers use that Account as the source. The browser only receives a masked binding summary, never the full provider Entity or Account ID from binding storage.
+
+Signed webhooks are processed idempotently and reconciliation provides a polling backstop. These provider-wide automation mechanisms do not authorize user ownership; the signed-in user's dashboard and actions remain scoped by the trusted binding table.
+
+## External setup required for the live sandbox environment
 
 1. Create an Increase account and obtain the **sandbox** API key from the Increase dashboard.
 2. In Vercel, add the key as a server-only environment variable named `INCREASE_SANDBOX_API_KEY`.
 3. Set `GALACTIC_INCREASE_SANDBOX_ENABLED=true` for the environment you want to test.
-4. Redeploy.
-5. Sign in to `/bank`. The owner-only setup control will verify the sandbox connection and, when no sandbox Account exists, offer the hosted onboarding flow.
+4. Ensure the Supabase migration workflow has its required repository secrets and apply pending migrations, including `024_galactic_increase_webhooks_reconciliation.sql` and `025_galactic_increase_account_bindings.sql`.
+5. Redeploy after the Vercel environment variables are present.
+6. Sign in to `/bank`. The owner-only setup control will verify the sandbox connection and the signed-in user's binding state before offering or completing hosted onboarding.
 
-Do **not** paste the sandbox key into ChatGPT, GitHub issues, commits, screenshots, client-side code or a `NEXT_PUBLIC_` variable.
+Do **not** paste the sandbox key, Supabase access token, database password, or other secrets into ChatGPT, GitHub issues, commits, screenshots, client-side code, or any `NEXT_PUBLIC_` variable.
 
 ## Sandbox onboarding sequence now implemented
 
@@ -44,12 +51,15 @@ Do **not** paste the sandbox key into ChatGPT, GitHub issues, commits, screensho
 4. The owner explicitly completes sandbox setup. Because sandbox validations do not run automatically, Galactic Trust calls Increase's sandbox validation simulation with no issues and clearly labels that action as simulated, not real KYC approval.
 5. Only after the provider reports the test Entity as active and `valid`, create or reuse a USD sandbox Account tied to the Entity and Program.
 6. Create or reuse an active Account Number, while withholding raw account/routing details from the setup response.
-7. Reload the sandbox dashboard from Increase-authoritative balances and transactions.
-8. Use existing inbound/outbound ACH simulations, webhook processing and reconciliation against the provider state.
+7. Bind that test Entity/Account to the authenticated Supabase user through trusted server code. The binding is stored as provider `increase`, environment `sandbox`, with validation marker `SANDBOX_VALID_SIMULATION`.
+8. Reload the dashboard from the exact Account referenced by the authenticated user's binding. Never fall back to another open sandbox Account.
+9. Route inbound/outbound ACH simulations through that same bound Account while signed webhooks and reconciliation continue to track provider state.
 
 ## What remains before customer banking
 
-A successful sandbox connection or simulated validation is engineering evidence only. It does not make Galactic Trust a bank, open production customer accounts, make deposits FDIC-insured through Galactic Trust, or authorize real money movement.
+This owner-scoped sandbox binding is an engineering identity boundary for test data. It is not yet a customer onboarding system and must not be reused as proof of production KYC approval.
+
+A successful sandbox connection, simulated validation, or server-side test Account binding does not make Galactic Trust a bank, open production customer accounts, make deposits FDIC-insured through Galactic Trust, or authorize real money movement.
 
 Before any customer-facing account opening or live transfer flow, the selected provider/bank must approve the program, customer eligibility and onboarding, KYC/CIP/AML and sanctions controls, account terms and disclosures, Regulation E/error-resolution handling, ACH/payment use cases and limits, card program, ledger/reconciliation process, deposit-insurance wording, privacy/security, complaints/disputes, incident response and production launch.
 

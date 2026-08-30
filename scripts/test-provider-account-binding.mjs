@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   bindDinariSandboxAccount,
+  bindIncreaseSandboxAccount,
   buildReadOnlyDinariEnvForBinding,
   getProviderAccountBinding,
   publicBindingSummary,
@@ -14,6 +15,11 @@ const sandboxEnv = {
   DINARI_SANDBOX_ORDER_EXECUTION_ENABLED: 'true',
   DINARI_SANDBOX_FAUCET_ENABLED: 'true',
   DINARI_PRODUCTION_TRADING_ENABLED: 'true',
+};
+
+const increaseSandboxEnv = {
+  GALACTIC_INCREASE_SANDBOX_ENABLED: 'true',
+  INCREASE_SANDBOX_API_KEY: 'increase-sandbox-test-key',
 };
 
 function makeAdmin() {
@@ -64,6 +70,11 @@ assert.doesNotMatch(migration, /for insert to authenticated/, 'browser users mus
 assert.doesNotMatch(migration, /for update to authenticated/, 'browser users must not get provider binding update rights');
 assert.doesNotMatch(migration, /for delete to authenticated/, 'browser users must not get provider binding delete rights');
 assert.match(migration, /unique \(provider, environment, account_id\)/, 'one provider account must not bind to multiple Voxel Vault users');
+
+const increaseMigration = readFileSync(new URL('../supabase/migrations/025_galactic_increase_account_bindings.sql', import.meta.url), 'utf8').toLowerCase();
+assert.match(increaseMigration, /provider in \('dinari', 'increase'\)/, 'Increase migration must extend the existing provider allowlist rather than create parallel identity storage');
+assert.doesNotMatch(increaseMigration, /create policy/, 'Increase migration must preserve the existing RLS policy set instead of adding browser write policies');
+assert.doesNotMatch(increaseMigration, /for insert to authenticated|for update to authenticated|for delete to authenticated/, 'Increase migration must not grant browser writes');
 
 const { admin, read } = makeAdmin();
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -127,6 +138,103 @@ assert.throws(
   'a sandbox binding must not be read through live provider configuration'
 );
 
+const { admin: increaseAdmin, read: readIncrease } = makeAdmin();
+const increaseEntityId = 'entity_increase_sandbox_123';
+const increaseAccountId = 'account_increase_sandbox_abcdef123456';
+
+const increaseBefore = await getProviderAccountBinding(increaseAdmin, userId, { provider: 'increase', environment: 'sandbox' });
+assert.equal(increaseBefore.binding, null, 'an unbound Galactic Trust user must not inherit a global Increase sandbox account');
+
+await assert.rejects(
+  () => bindIncreaseSandboxAccount(increaseAdmin, userId, {
+    entityId: increaseEntityId,
+    accountId: increaseAccountId,
+    validationStatus: 'pending',
+  }, increaseSandboxEnv),
+  /validation must be valid/i,
+  'Increase account binding must fail closed until provider sandbox validation is explicitly valid'
+);
+
+await assert.rejects(
+  () => bindIncreaseSandboxAccount(increaseAdmin, userId, {
+    entityId: increaseEntityId,
+    accountId: increaseAccountId,
+    validationStatus: 'valid',
+  }, { ...increaseSandboxEnv, GALACTIC_INCREASE_SANDBOX_ENABLED: 'false' }),
+  /pretend-money sandbox workflow/i,
+  'Increase binding writes must remain disabled outside the explicitly enabled sandbox workflow'
+);
+
+await assert.rejects(
+  () => bindIncreaseSandboxAccount(increaseAdmin, userId, {
+    entityId: increaseEntityId,
+    accountId: increaseAccountId,
+    validationStatus: 'valid',
+  }, { GALACTIC_INCREASE_SANDBOX_ENABLED: 'true' }),
+  /pretend-money sandbox workflow/i,
+  'Increase binding writes must require server-side sandbox credentials'
+);
+
+const increaseBinding = await bindIncreaseSandboxAccount(increaseAdmin, userId, {
+  entityId: increaseEntityId,
+  accountId: increaseAccountId,
+  validationStatus: 'valid',
+  source: 'increase-hosted-sandbox-onboarding',
+}, increaseSandboxEnv);
+
+assert.equal(increaseBinding?.userId, userId);
+assert.equal(increaseBinding?.provider, 'increase');
+assert.equal(increaseBinding?.environment, 'sandbox');
+assert.equal(increaseBinding?.accountId, increaseAccountId);
+assert.equal(increaseBinding?.status, 'verified');
+assert.equal(readIncrease()?.provider_kyc_status, 'SANDBOX_VALID_SIMULATION', 'Increase sandbox validation must never be stored as real KYC PASS');
+
+const increaseLoaded = await getProviderAccountBinding(increaseAdmin, userId, { provider: 'increase', environment: 'sandbox' });
+assert.equal(increaseLoaded.binding?.entityId, increaseEntityId);
+assert.equal(increaseLoaded.binding?.accountId, increaseAccountId);
+assert.equal(increaseLoaded.binding?.kycStatus, 'SANDBOX_VALID_SIMULATION');
+
+const increaseSummary = publicBindingSummary(increaseBinding);
+assert.equal(increaseSummary?.provider, 'increase');
+assert.equal(increaseSummary?.kycStatus, 'SANDBOX_VALID_SIMULATION');
+assert.equal(increaseSummary?.accountSuffix, increaseAccountId.slice(-6));
+assert.equal('accountId' in increaseSummary, false, 'browser Increase summary must not expose the full provider account ID');
+assert.equal('entityId' in increaseSummary, false, 'browser Increase summary must not expose the full provider entity ID');
+
+const missingIncreaseMigrationAdmin = {
+  from() {
+    return {
+      upsert() {
+        return {
+          select() {
+            return {
+              async single() {
+                return {
+                  data: null,
+                  error: {
+                    code: '23514',
+                    message: 'new row violates check constraint vault_provider_account_bindings_provider_check',
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+  },
+};
+
+await assert.rejects(
+  () => bindIncreaseSandboxAccount(missingIncreaseMigrationAdmin, userId, {
+    entityId: increaseEntityId,
+    accountId: increaseAccountId,
+    validationStatus: 'valid',
+  }, increaseSandboxEnv),
+  /migration 025_galactic_increase_account_bindings/i,
+  'Increase binding must fail closed with a concrete migration requirement when the provider allowlist is stale'
+);
+
 const missingTableAdmin = {
   from() {
     return {
@@ -148,4 +256,4 @@ assert.equal(missing.binding, null);
 assert.equal(missing.setupRequired, true, 'missing binding migration must fail closed and report setup required');
 assert.match(missing.error, /migration 014_provider_account_bindings/i);
 
-console.log('Provider binding safety checks passed: RLS has no client writes, global holdings are never inherited, binding is PASS-only and sandbox-only, browser summaries are private, suspended bindings fail closed, and user-bound reads force every trading/funding flag off.');
+console.log('Provider binding safety checks passed: RLS has no client writes, Dinari remains PASS-only and sandbox-only, Increase sandbox uses the same trusted binding table, Increase validation is explicitly recorded as simulation rather than KYC approval, stale migrations fail closed, global holdings are never inherited, browser summaries hide full provider IDs, and user-bound Dinari reads keep every trading/funding flag off.');

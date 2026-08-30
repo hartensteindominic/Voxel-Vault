@@ -81,6 +81,9 @@ function SetupStep({ number, title, detail, state = 'pending' }) {
 export default function GalacticSandboxSetup({ accessToken = '' }) {
   const [authorized, setAuthorized] = useState(null);
   const [status, setStatus] = useState(null);
+  const [binding, setBinding] = useState(null);
+  const [bindingSetupRequired, setBindingSetupRequired] = useState(false);
+  const [bindingError, setBindingError] = useState('');
   const [programs, setPrograms] = useState([]);
   const [programId, setProgramId] = useState('');
   const [entityId, setEntityId] = useState('');
@@ -89,9 +92,12 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
 
   const accountCount = Number(status?.counts?.accounts || 0);
   const connected = Boolean(status?.connected);
+  const bindingReady = Boolean(binding?.provider === 'increase' && binding?.environment === 'sandbox' && binding?.status === 'verified');
   const needsAccount = connected && accountCount === 0;
+  const needsBindingStorage = connected && bindingSetupRequired;
+  const needsBinding = connected && accountCount > 0 && !bindingReady && !needsBindingStorage;
   const returnedFromOnboarding = Boolean(entityId);
-  const blockingSetup = returnedFromOnboarding || needsAccount;
+  const blockingSetup = returnedFromOnboarding || needsAccount || needsBinding || needsBindingStorage;
 
   useEffect(() => {
     if (!accessToken) return;
@@ -125,6 +131,9 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       if (!active) return;
       setAuthorized(Boolean(statusPayload?.authorized && onboardingPayload?.authorized));
       setStatus(statusPayload);
+      setBinding(onboardingPayload?.binding || null);
+      setBindingSetupRequired(Boolean(onboardingPayload?.bindingSetupRequired));
+      setBindingError(String(onboardingPayload?.bindingError || ''));
       const nextPrograms = Array.isArray(onboardingPayload?.programs) ? onboardingPayload.programs : [];
       setPrograms(nextPrograms);
       if (nextPrograms.length === 1) setProgramId(nextPrograms[0].id);
@@ -138,8 +147,10 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   const heading = useMemo(() => {
     if (returnedFromOnboarding) return 'Finish Increase sandbox setup';
     if (!connected) return 'Increase sandbox setup';
+    if (needsBindingStorage) return 'Provider binding storage required';
+    if (needsBinding) return 'Sandbox account ownership setup required';
     return 'Sandbox connected — account setup required';
-  }, [connected, returnedFromOnboarding]);
+  }, [connected, needsBinding, needsBindingStorage, returnedFromOnboarding]);
 
   async function post(action, extra = {}) {
     const response = await fetch('/api/admin/bank/increase/onboarding', {
@@ -184,7 +195,17 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   }
 
   if (!accessToken || authorized !== true) return null;
-  if (!returnedFromOnboarding && connected && accountCount > 0) return null;
+  if (!returnedFromOnboarding && connected && accountCount > 0 && bindingReady) return null;
+
+  const canStartOwnerOnboarding = connected && !returnedFromOnboarding && !needsBindingStorage && (needsAccount || needsBinding);
+  const stepTwoTitle = needsBinding ? 'Owner binding required' : needsBindingStorage ? 'Binding storage required' : 'Account setup required';
+  const stepTwoDetail = returnedFromOnboarding
+    ? 'A test Entity was returned. Complete the sandbox-only validation, Account bootstrap, and server-side owner binding.'
+    : needsBinding
+      ? 'Existing sandbox Accounts are not treated as yours. Complete owner-scoped hosted onboarding so Galactic Trust can bind exactly one provider Account to your signed-in user.'
+      : needsBindingStorage
+        ? (bindingError || 'Trusted provider binding storage must be installed before any provider Account can be treated as user-owned.')
+        : 'Use Increase-hosted onboarding to create the test Entity before an Account is created.';
 
   const panel = (
     <aside style={{ ...panelStyle, ...(blockingSetup ? {} : floatingPanelStyle) }} aria-label="Owner Increase sandbox setup" aria-modal={blockingSetup ? 'true' : undefined} role={blockingSetup ? 'dialog' : undefined}>
@@ -199,8 +220,8 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       {blockingSetup && (
         <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '14px', background: '#fbfaff', border: '1px solid #ece8ff' }}>
           <SetupStep number="1" title="Increase sandbox connected" detail="The provider connection is active. No real money can move." state="complete" />
-          <SetupStep number="2" title="Account setup required" detail={returnedFromOnboarding ? 'A test Entity was returned. Complete the sandbox-only validation and account bootstrap.' : 'Use Increase-hosted onboarding to create the test Entity before an Account is created.'} state="active" />
-          <SetupStep number="3" title="Sandbox dashboard ready" detail="Demo balances and transfer controls stay blocked until a provider-backed test Account exists." state="pending" />
+          <SetupStep number="2" title={stepTwoTitle} detail={stepTwoDetail} state="active" />
+          <SetupStep number="3" title="Owner-scoped sandbox dashboard ready" detail="Provider balances and transfer controls stay blocked until a sandbox Account is bound server-side to your signed-in user." state="pending" />
         </div>
       )}
 
@@ -210,10 +231,10 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
         </p>
       )}
 
-      {needsAccount && !returnedFromOnboarding && (
+      {canStartOwnerOnboarding && (
         <>
           <p style={{ margin: '12px 0 0', fontSize: '13px', lineHeight: 1.45, color: '#5f5875' }}>
-            Identity details are entered on Increase&apos;s hosted sandbox form, not inside Galactic Trust. The dashboard behind this setup screen is intentionally blocked so illustrative demo balances cannot be confused with provider test data.
+            Identity details are entered on Increase&apos;s hosted sandbox form, not inside Galactic Trust. Existing unbound provider Accounts are deliberately ignored so one user can never inherit another sandbox Account by accident.
           </p>
           {programs.length > 1 && (
             <select
@@ -227,7 +248,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
             </select>
           )}
           <button type="button" onClick={startOnboarding} disabled={busy} style={{ ...buttonStyle, opacity: busy ? 0.65 : 1 }}>
-            {busy ? 'Opening Increase…' : 'Start hosted sandbox onboarding'}
+            {busy ? 'Opening Increase…' : needsBinding ? 'Start owner-scoped sandbox onboarding' : 'Start hosted sandbox onboarding'}
           </button>
         </>
       )}
@@ -235,7 +256,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       {returnedFromOnboarding && (
         <>
           <p style={{ margin: '12px 0 0', fontSize: '13px', lineHeight: 1.45, color: '#5f5875' }}>
-            Increase returned a test Entity. Completing setup will simulate a successful sandbox validation, then create or reuse a sandbox Account and Account Number. This is not real KYC approval.
+            Increase returned a test Entity. Completing setup will simulate a successful sandbox validation, create or reuse a sandbox Account and Account Number, then bind that Account server-side to your signed-in user. This is not real KYC approval.
           </p>
           {programs.length > 1 && (
             <select
@@ -248,12 +269,13 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
               {programs.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
             </select>
           )}
-          <button type="button" onClick={completeSetup} disabled={busy || (programs.length > 1 && !programId)} style={{ ...buttonStyle, opacity: busy ? 0.65 : 1 }}>
-            {busy ? 'Creating sandbox account…' : 'Complete sandbox setup'}
+          <button type="button" onClick={completeSetup} disabled={busy || needsBindingStorage || (programs.length > 1 && !programId)} style={{ ...buttonStyle, opacity: busy || needsBindingStorage ? 0.65 : 1 }}>
+            {busy ? 'Creating and binding sandbox account…' : 'Complete sandbox setup'}
           </button>
         </>
       )}
 
+      {needsBindingStorage && bindingError && <p role="status" style={{ margin: '10px 0 0', fontSize: '12px', lineHeight: 1.4, color: '#9d2d55' }}>{bindingError}</p>}
       {message && <p role="status" style={{ margin: '10px 0 0', fontSize: '12px', lineHeight: 1.4, color: '#9d2d55' }}>{message}</p>}
     </aside>
   );

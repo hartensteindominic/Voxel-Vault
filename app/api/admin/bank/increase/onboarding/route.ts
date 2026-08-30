@@ -9,6 +9,11 @@ import {
   simulateIncreaseSandboxEntityValid,
   submitIncreaseSandboxOnboardingSession,
 } from '../../../../../../lib/banking/increase-onboarding-sandbox.js';
+import {
+  bindIncreaseSandboxAccount,
+  getProviderAccountBinding,
+  publicBindingSummary,
+} from '../../../../../../lib/real-estate/provider-account-binding.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,6 +37,16 @@ function providerError(error: any) {
   }, Number.isFinite(error?.status) ? 502 : 400);
 }
 
+async function bindOwnerSandboxAccount(auth: any, result: any, source: string) {
+  const binding = await bindIncreaseSandboxAccount(auth.admin, auth.user.id, {
+    entityId: String(result?.entity?.entityId || ''),
+    accountId: String(result?.account?.id || ''),
+    validationStatus: String(result?.entity?.validationStatus || ''),
+    source,
+  }, process.env);
+  return publicBindingSummary(binding);
+}
+
 export async function GET(request: Request) {
   const auth = await requireVoxelVaultAdmin(request);
   if (auth.ok === false) {
@@ -43,12 +58,19 @@ export async function GET(request: Request) {
     const entityId = String(url.searchParams.get('entity_id') || '').trim();
     const onboarding = await inspectIncreaseSandboxOnboarding(process.env);
     const entity = entityId ? await getIncreaseSandboxEntityReadiness(entityId, process.env) : null;
+    const bindingState = await getProviderAccountBinding(auth.admin, auth.user.id, {
+      provider: 'increase',
+      environment: 'sandbox',
+    });
     return response({
       ok: true,
       authorized: true,
       ...onboarding,
       entity,
-      note: 'Owner-only Increase sandbox onboarding status. No customer identity fields or account-number details are returned.',
+      binding: publicBindingSummary(bindingState.binding),
+      bindingSetupRequired: bindingState.setupRequired,
+      bindingError: bindingState.error || '',
+      note: 'Owner-only Increase sandbox onboarding status. Provider identity is scoped to the signed-in owner through a server-written binding; no customer identity fields or account-number details are returned.',
     });
   } catch (error: any) {
     return providerError(error);
@@ -107,7 +129,15 @@ export async function POST(request: Request) {
         programId: String(body?.programId || ''),
         accountName: String(body?.accountName || ''),
       }, process.env);
-      return response({ ok: true, authorized: true, action, ...result });
+      const binding = await bindOwnerSandboxAccount(auth, result, 'increase-sandbox-bootstrap');
+      return response({
+        ok: true,
+        authorized: true,
+        action,
+        ...result,
+        binding,
+        note: 'Sandbox Account ownership is bound server-side to the signed-in owner. Provider validation is sandbox simulation only; no real money can move.',
+      });
     }
 
     if (action === 'complete_setup') {
@@ -116,12 +146,14 @@ export async function POST(request: Request) {
         programId: String(body?.programId || ''),
         accountName: String(body?.accountName || ''),
       }, process.env);
+      const binding = await bindOwnerSandboxAccount(auth, result, 'increase-hosted-sandbox-onboarding');
       return response({
         ok: true,
         authorized: true,
         action,
         ...result,
-        note: 'Sandbox-only setup: validation was simulated before creating/reusing a test Account and Account Number. No real money can move.',
+        binding,
+        note: 'Sandbox-only setup: validation was simulated before creating/reusing a test Account and Account Number, then the provider Account was bound server-side to the signed-in owner. This is not real KYC approval and no real money can move.',
       });
     }
 
