@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 
 const page = await readFile(new URL('../app/bank/status/page.js', import.meta.url), 'utf8');
 const enhancements = await readFile(new URL('../app/bank/GalacticDashboardEnhancements.js', import.meta.url), 'utf8');
+const dashboardState = await readFile(new URL('../app/bank/GalacticDashboardAccountState.js', import.meta.url), 'utf8');
+const bankGate = await readFile(new URL('../app/bank/GalacticBankGate.js', import.meta.url), 'utf8');
 const lifecycleRoute = await readFile(new URL('../app/api/bank/lifecycle/route.ts', import.meta.url), 'utf8');
 
 assert.match(page, /getSupabaseBrowserAsync/, 'account status UI must derive its bearer session from the authenticated Supabase browser session');
@@ -31,8 +33,22 @@ assert.match(enhancements, /View your account status →/, 'dashboard trust stri
 assert.match(enhancements, /View regulated launch status →/, 'dashboard trust strip must separately link to regulated launch readiness');
 assert.match(enhancements, /Illustrative demo trend/, 'balance enhancement must label its synthetic trend as illustrative demo data');
 
+assert.match(dashboardState, /document\.querySelector\('\.gt-balance-hero'\)/, 'dashboard account state must attach to the primary balance hero');
+assert.match(dashboardState, /fetch\('\/api\/bank\/lifecycle'/, 'dashboard account state must reuse the server-derived lifecycle endpoint');
+assert.match(dashboardState, /Authorization: `Bearer \$\{accessToken\}`/, 'dashboard account state must authenticate lifecycle reads with the signed-in session token');
+assert.match(dashboardState, /DEMO MODE/, 'dashboard must visibly distinguish demo mode');
+assert.match(dashboardState, /INCREASE SANDBOX/, 'dashboard must visibly distinguish an Increase sandbox test-account state');
+assert.match(dashboardState, /SETUP REQUIRED/, 'dashboard must visibly distinguish infrastructure setup-required state');
+assert.match(dashboardState, /REAL MONEY LOCKED/, 'dashboard account-state indicator must keep the real-money lock visible');
+assert.match(dashboardState, /href="\/bank\/status"/, 'dashboard account-state indicator must link to the full personal status page');
+assert.equal(dashboardState.includes('accountId'), false, 'dashboard account-state indicator must not handle full provider Account IDs');
+assert.equal(dashboardState.includes('entityId'), false, 'dashboard account-state indicator must not handle provider Entity IDs');
+assert.equal(dashboardState.includes('INCREASE_SANDBOX_API_KEY'), false, 'dashboard account-state indicator must not read provider credentials');
+assert.equal(dashboardState.includes('NEXT_PUBLIC_'), false, 'dashboard account-state indicator must not depend on client-exposed banking secrets');
+assert.match(bankGate, /GalacticDashboardAccountState accessToken=\{accessToken\} demoAccess=\{demoAccess\}/, 'authenticated dashboard gate must mount the server-derived account-state indicator');
+
 assert.match(lifecycleRoute, /admin\.auth\.getUser\(token\)/, 'status UI source endpoint must continue to verify the session server-side');
 assert.match(lifecycleRoute, /getProviderAccountBinding\(admin, user\.id/, 'status UI source endpoint must scope binding to the verified user');
 assert.match(lifecycleRoute, /not a bank-account approval or production eligibility decision/, 'server lifecycle source must retain the production-eligibility disclaimer');
 
-console.log('Galactic Trust account status UI checks passed: personal lifecycle and regulated launch readiness stay distinct, sandbox ownership is labeled as test-only, production banking remains visibly unsupported, provider IDs/secrets stay out of the client, and the dashboard exposes both destinations clearly.');
+console.log('Galactic Trust account status UI checks passed: personal lifecycle and regulated launch readiness stay distinct, the main dashboard shows server-derived demo/sandbox/setup state, production banking remains visibly unsupported, provider IDs/secrets stay out of the client, and the dashboard exposes the correct status destinations.');
