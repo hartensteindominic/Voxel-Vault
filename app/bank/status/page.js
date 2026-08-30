@@ -15,7 +15,7 @@ const stageCopy = {
   'sandbox-owner-bound': {
     eyebrow: 'INCREASE SANDBOX · TEST ACCOUNT',
     title: 'Your signed-in account is bound to an Increase sandbox test account.',
-    detail: 'Provider balances and ACH simulations are scoped to your server-side test binding. The money is pretend and this is not a production bank account.',
+    detail: 'Provider balances and ACH simulations are scoped to your server-side test binding. The money is pretend. This is not a production bank account.',
     icon: '✓',
   },
   'infrastructure-setup-required': {
