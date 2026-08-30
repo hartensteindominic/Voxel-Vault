@@ -69,6 +69,8 @@ jobs:
         run: node scripts/test-galactic-trust-ui-truth.mjs
       - name: Galactic Trust account lifecycle
         run: node scripts/test-galactic-trust-account-lifecycle.mjs
+      - name: Galactic Trust account status UI
+        run: node scripts/test-galactic-trust-account-status-ui.mjs
       - name: Galactic Trust Increase onboarding
         run: node scripts/test-galactic-trust-increase-onboarding.mjs
       - name: Galactic Trust Increase webhooks
