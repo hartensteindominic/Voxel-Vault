@@ -7,6 +7,7 @@ import {
   bankingEvidenceRequirements,
   bankingLaunchSnapshot,
 } from '../lib/banking/regulated-launch.js';
+import { buildOrbitResponse } from '../lib/banking/orbit-chat.js';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -16,6 +17,7 @@ const enhancements = read('app/bank/GalacticDashboardEnhancements.js');
 const readinessPage = read('app/bank/readiness/page.js');
 const readinessApi = read('app/api/bank/readiness/route.ts');
 const increaseSandbox = read('lib/banking/increase-sandbox.js');
+const orbitChat = read('lib/banking/orbit-chat.js');
 const increaseStatusApi = read('app/api/admin/bank/increase/status/route.ts');
 const increaseDashboardApi = read('app/api/admin/bank/increase/dashboard/route.ts');
 const increaseFundApi = read('app/api/admin/bank/increase/fund/route.ts');
@@ -61,6 +63,47 @@ assert.match(bankClient, /\/api\/admin\/bank\/increase\/transfer/, 'owner dashbo
 assert.match(bankClient, /INCREASE SANDBOX/, 'dashboard must visibly label provider-backed test data as sandbox');
 assert.match(bankClient, /No real recipient or bank account is used/i, 'sandbox send flow must disclose that it never targets a real bank recipient');
 assert.match(bankClient, /typeof onSignOut === 'function' \? onSignOut\(\)/, 'visible sidebar sign-out must call the real sign-out handler');
+assert.match(bankClient, /buildOrbitResponse/, 'Orbit must use the richer contextual response engine');
+assert.match(bankClient, /sandboxConnected,\n\s+checking,\n\s+savings,\n\s+transactions,/s, 'Orbit must receive current dashboard financial context rather than static canned answers');
+
+assert.match(orbitChat, /sensitive-data/, 'Orbit must include a dedicated sensitive-data safety response');
+assert.match(orbitChat, /bank-status/, 'Orbit must distinguish nonbank and deposit-insurance questions');
+assert.match(orbitChat, /unsupported-banking/, 'Orbit must clearly say when a banking feature is not connected');
+
+const orbitContext = {
+  sandboxConnected: true,
+  checking: 100,
+  savings: 20,
+  accountLabel: 'Test User',
+  blueFrozen: true,
+  pinkFrozen: false,
+  transactions: [
+    { name: 'Sandbox ACH', amount: -12.5, category: 'Sandbox ACH' },
+    { name: 'Inbound test', amount: 50, category: 'Sandbox ACH' },
+  ],
+};
+const orbitBalance = buildOrbitResponse('what is my balance?', orbitContext);
+assert.equal(orbitBalance.intent, 'balance', 'Orbit must understand balance questions');
+assert.match(orbitBalance.text, /\$120\.00/, 'Orbit balance response must use current dashboard values');
+assert.match(orbitBalance.text, /pretend money/i, 'sandbox balance response must preserve pretend-money boundary');
+
+const orbitTransfer = buildOrbitResponse('how do I send an ACH?', orbitContext);
+assert.equal(orbitTransfer.intent, 'transfer', 'Orbit must understand transfer questions');
+assert.match(orbitTransfer.text, /fixed test banking coordinates/i, 'sandbox transfer response must explain the safe test destination');
+assert.match(orbitTransfer.text, /\$1,000/, 'sandbox transfer response must communicate the current test limit');
+
+const orbitCard = buildOrbitResponse('is my card frozen?', orbitContext);
+assert.equal(orbitCard.intent, 'cards', 'Orbit must understand card-status questions');
+assert.match(orbitCard.text, /Nebula Blue is currently frozen/i, 'Orbit card response must reflect live UI state');
+
+const orbitBankStatus = buildOrbitResponse('are you a real FDIC bank?', orbitContext);
+assert.equal(orbitBankStatus.intent, 'bank-status', 'Orbit must understand bank/FDIC questions');
+assert.match(orbitBankStatus.text, /not a bank/i, 'Orbit must not misrepresent Galactic Trust as a bank');
+assert.match(orbitBankStatus.text, /not an FDIC-insured institution/i, 'Orbit must keep FDIC attribution accurate');
+
+const orbitSecret = buildOrbitResponse('my API key is abc123', orbitContext);
+assert.equal(orbitSecret.intent, 'sensitive-data', 'Orbit must prioritize secret-handling safety');
+assert.match(orbitSecret.text, /do not share/i, 'Orbit must tell users not to share secrets');
 
 assert.match(enhancements, /financial technology product, not a bank/i, 'dashboard trust strip must preserve the nonbank boundary');
 assert.match(enhancements, /approved sponsor-bank program/i, 'dashboard must name the real launch authority instead of a founder toggle');
@@ -130,4 +173,4 @@ for (const key of [
 assert.match(envExample, /INCREASE_SANDBOX_API_KEY=\n/, 'Increase sandbox API key must be documented as an empty server-only secret');
 assert.doesNotMatch(envExample, /NEXT_PUBLIC_INCREASE/i, 'Increase credentials must never be exposed to browser code');
 
-console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, owner-only Increase sandbox dashboard/ACH simulations, real sign-out and hard-locked live money/crypto are enforced.');
+console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, contextual Orbit responses, owner-only Increase sandbox dashboard/ACH simulations, real sign-out and hard-locked live money/crypto are enforced.');
