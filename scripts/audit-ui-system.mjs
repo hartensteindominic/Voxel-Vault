@@ -26,6 +26,11 @@ const required = [
   'app/ui-system.css',
   'app/page.js',
   'app/home.module.css',
+  'app/bank/BankClient.js',
+  'app/bank/GalacticBankGate.js',
+  'app/bank/galactic-trust.css',
+  'app/bank/enhancements.css',
+  'app/bank/GalacticDashboardEnhancements.js',
   'app/demo/page.js',
   'app/property/page.js',
   'app/property/PropertyStudioFlow.js',
@@ -44,6 +49,11 @@ for (const file of required) must(fs.existsSync(path.join(root, file)), `${file}
 
 const home = read('app/page.js');
 const homeCss = read('app/home.module.css');
+const bank = read('app/bank/BankClient.js');
+const bankGate = read('app/bank/GalacticBankGate.js');
+const bankCss = read('app/bank/galactic-trust.css');
+const bankEnhancements = read('app/bank/GalacticDashboardEnhancements.js');
+const bankEnhancementCss = read('app/bank/enhancements.css');
 const topNav = read('app/components/ProductTopNav.js');
 const topCss = read('app/components/ProductTopNav.module.css');
 const dock = read('app/components/FinancialOSNav.js');
@@ -59,16 +69,36 @@ const localViewer = read('app/property/LocalVoxelModelViewer.js');
 const mintPage = read('app/property/mint/page.js');
 const inventory = read('app/vault/property-drafts/page.js');
 
-must(/PROPERTY → COLLECTIBLE/.test(home), 'Homepage must state the focused property collectible product.');
-must(/Create a property voxel/.test(home) && /href="\/property"/.test(home), 'Homepage must have a clear property-creation CTA.');
-must(/Open Inventory/.test(home), 'Homepage must keep Inventory reachable without entering creation.');
-must(/confirm the address/i.test(home) && /voxel image/i.test(home) && /saved to Inventory first/i.test(home), 'Homepage must explain the guided photo-to-Inventory path.');
-must(/Mint if you want|Minting optional/i.test(home), 'Homepage must keep minting explicitly optional.');
-must(/This collectible is digital only\./.test(home) && /does not create or transfer deed, title/i.test(home), 'Homepage must keep the digital-only property-rights boundary visible.');
+const galacticHome = /GalacticBankGate/.test(home);
+if (galacticHome) {
+  must(/GalacticBankGate/.test(home), 'Homepage must render the Galactic Trust account/bank gate.');
+  must(/enhancements\.css/.test(home), 'Homepage must load the Galactic Trust interaction layer.');
+  must(/Continue with Google/.test(bankGate) && /signInWithOAuth/.test(bankGate), 'Galactic Trust must keep Google sign-in available.');
+  must(/signInWithOtp/.test(bankGate) && /secure sign-in link/i.test(bankGate), 'Galactic Trust must keep passwordless email sign-in available.');
+  must(/Explore the Stars demo/.test(bankGate), 'Galactic Trust must keep a low-friction demo entry path.');
+  must(/simulated banking experience/i.test(bankGate) && /No real deposits are held/i.test(bankGate), 'Galactic Trust onboarding must keep the demo-money boundary visible.');
+  must(/DEMO BANKING/.test(bank) && /No real deposits are held and no real money moves/.test(bank), 'Galactic Trust dashboard must keep the real-money boundary visible.');
+  must(/gt-balance-hero/.test(bank) && /Recent Activity/.test(bank) && /Security & Privacy/.test(bank), 'Galactic Trust must keep balance, transaction history, and trust surfaces visible.');
+  must(/1W/.test(bankEnhancements) && /1M/.test(bankEnhancements) && /3M/.test(bankEnhancements), 'Galactic Trust balance must expose an interactive demo trend.');
+  must(/Deposit/.test(bankEnhancements) && /Send/.test(bankEnhancements) && /Swap/.test(bankEnhancements), 'Galactic Trust must expose Deposit, Send, and Swap as priority actions.');
+  must(/metaKey|ctrlKey/.test(bankEnhancements) && /Quick jump/.test(bankEnhancements), 'Galactic Trust must keep a keyboard command palette.');
+  must(/Explore the Stars/.test(bankEnhancements) && /tourSteps/.test(bankEnhancements), 'Galactic Trust must keep the guided onboarding tour.');
+  must(/visualViewport/.test(bankEnhancements), 'Galactic Trust must account for mobile soft-keyboard viewport changes.');
+  must(/safe-area-inset-bottom/.test(bankEnhancementCss) && /pointer:coarse/.test(bankEnhancementCss), 'Galactic Trust enhancements must support safe areas and coarse-pointer/mobile/VR layouts.');
+  must(/gt-balance-interactive/.test(bankEnhancementCss) && /gt-priority-actions/.test(bankEnhancementCss) && /gt-trust-strip/.test(bankEnhancementCss), 'Galactic Trust must style the trend, priority actions, and early trust strip.');
+  must(/#07103d|#10163d|#2d45ff|#6b38ff/i.test(bankCss), 'Galactic Trust must retain its cosmic banking color system.');
+} else {
+  must(/PROPERTY → COLLECTIBLE/.test(home), 'Homepage must state the focused property collectible product.');
+  must(/Create a property voxel/.test(home) && /href="\/property"/.test(home), 'Homepage must have a clear property-creation CTA.');
+  must(/Open Inventory/.test(home), 'Homepage must keep Inventory reachable without entering creation.');
+  must(/confirm the address/i.test(home) && /voxel image/i.test(home) && /saved to Inventory first/i.test(home), 'Homepage must explain the guided photo-to-Inventory path.');
+  must(/Mint if you want|Minting optional/i.test(home), 'Homepage must keep minting explicitly optional.');
+  must(/This collectible is digital only\./.test(home) && /does not create or transfer deed, title/i.test(home), 'Homepage must keep the digital-only property-rights boundary visible.');
+  must(/#6f42f5/i.test(homeCss) && /#c9ff55/i.test(homeCss), 'Homepage must use the new playful Voxel Vault color system.');
+  must(/@media\(max-width:620px\)/.test(homeCss), 'Homepage must retain a dedicated mobile layout.');
+}
 must(!/\$4\.99/.test(home), 'Homepage must not place legacy per-property checkout pricing in the core flow.');
 must(!/BUY PIECE|BUY WHOLE|guaranteed returns|guaranteed yield|risk[- ]free/i.test(home), 'Homepage must not make physical-property purchase or return claims.');
-must(/#6f42f5/i.test(homeCss) && /#c9ff55/i.test(homeCss), 'Homepage must use the new playful Voxel Vault color system.');
-must(/@media\(max-width:620px\)/.test(homeCss), 'Homepage must retain a dedicated mobile layout.');
 
 must(/label: 'Create'/.test(topNav) && /label: 'Inventory'/.test(topNav), 'Legacy shared product nav must remain focused where it is still used.');
 must(!/\$4\.99/.test(topNav), 'Shared product nav must not insert checkout pricing.');
@@ -154,5 +184,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ERROR ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('\nUI system invariants passed: photo -> address -> voxel preview -> explicit 3D build -> Inventory -> optional one-property mint, with consistent navigation, trust boundaries, accessibility, and responsive behavior.');
+  console.log(`\nUI system invariants passed: ${galacticHome ? 'Galactic Trust account-first banking demo with visible trust boundaries, fast actions, command navigation, onboarding, responsive behavior, and preserved legacy property safety surfaces.' : 'photo -> address -> voxel preview -> explicit 3D build -> Inventory -> optional one-property mint, with consistent navigation, trust boundaries, accessibility, and responsive behavior.'}`);
 }
