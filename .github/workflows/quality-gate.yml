@@ -46,6 +46,9 @@ jobs:
       - name: Crypto practice
         if: always()
         run: node scripts/test-galactic-trust-crypto-practice.mjs
+      - name: Header center
+        if: always()
+        run: node scripts/test-galactic-trust-header-center.mjs
       - name: Production build
         if: always()
         run: npm run build
