@@ -2,14 +2,14 @@ import { WalletIdentityProvider } from './components/WalletIdentity';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.voxelvault.io').replace(/\/$/, '');
 
-const TITLE = 'Galactic Trust | Digital Banking';
-const DESCRIPTION = 'Galactic Trust is a modern digital banking interface for balances, cards, transfers, activity, and account controls. Financial actions remain simulated until regulated provider rails are connected.';
+const TITLE = 'Galactic Trust | Financial App';
+const DESCRIPTION = 'Galactic Trust is a financial technology interface for balances, cards, transfers, activity, and account controls. Galactic Trust is not a bank; real deposits and money movement remain production-gated until an approved sponsor-bank program is live.';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: TITLE, template: '%s | Galactic Trust' },
   description: DESCRIPTION,
-  keywords: ['Galactic Trust', 'digital banking', 'banking dashboard', 'digital cards', 'money management'],
+  keywords: ['Galactic Trust', 'financial app', 'banking dashboard', 'digital cards', 'money management'],
   robots: { index: true, follow: true },
   openGraph: {
     title: TITLE,
