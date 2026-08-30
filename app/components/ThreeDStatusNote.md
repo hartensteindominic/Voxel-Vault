@@ -1,1 +1,0 @@
-Voxel Vault 3D runtime behavior: detect WebGL client-side, load the interactive viewer only in the browser, show a loading state, and fall back to the deterministic ArtPreview if WebGL or the external asset fails. Do not claim a 3D asset is loaded unless the viewer successfully mounts it.

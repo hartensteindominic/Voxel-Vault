@@ -1,1 +1,0 @@
-Final 3D runtime closeout note. CI and device testing are required before merge.

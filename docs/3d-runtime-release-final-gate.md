@@ -1,1 +1,0 @@
-Final gate: CI plus real-device QA must pass. The implementation remains additive and preserves the existing Voxel Vault shell.

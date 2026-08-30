@@ -27,12 +27,5 @@ export async function GET() {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
   const key = firstPublishableKey();
   const configured = Boolean(url && key);
-
-  return NextResponse.json({
-    configured,
-    url: configured ? url : '',
-    key: configured ? key : '',
-    keyType: key.startsWith('sb_publishable_') ? 'publishable' : key ? 'anon' : 'missing',
-    googleReturnPath: '/studio?auth=google#my-voxels',
-  }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ configured, url: configured ? url : '', key: configured ? key : '', keyType: key.startsWith('sb_publishable_') ? 'publishable' : key ? 'anon' : 'missing', googleReturnPath: '/bank' }, { headers: { 'Cache-Control': 'no-store' } });
 }

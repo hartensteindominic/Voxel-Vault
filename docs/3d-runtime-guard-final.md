@@ -1,1 +1,0 @@
-Final: interactive 3D is attempted when supported; failures are isolated and use a lightweight preview. No blank states, no fake ownership, no fake 3D-native claims.

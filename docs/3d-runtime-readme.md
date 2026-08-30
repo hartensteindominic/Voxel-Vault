@@ -1,1 +1,0 @@
-The viewer hardening layer is intended to make every collectible resilient: valid 3D assets load interactively; unsupported assets and device limitations use the deterministic fallback; failures stay isolated to the individual collectible.

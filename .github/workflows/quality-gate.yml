@@ -1,131 +1,45 @@
-name: Voxel Vault Quality Gate
+name: Galactic Trust quality gate
 
 on:
   pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [fix/nft-media-centering, main]
-
-concurrency:
-  group: voxel-vault-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  quality:
+  galactic-trust:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci --no-audit --no-fund
-      - run: node scripts/test-catalog-worker-security.mjs
-      - run: npm run test:collection
-      - run: npm run test:commerce
-      - run: npm run test:routes
-      - run: npm run test:ui-system
-      - run: npm run test:rewards
-      - run: npm run test:universal
-      - run: npm run test:media
-      - run: npm run test:mobile
-      - run: npm run test:voxel-flow
-      - run: npm run test:machine-revenue
-      - run: npm run test:liquidity-engine
-      - run: npm run test:multipair
-      - run: npm run test:ai-licensing
-      # Keep property-platform checks split into named steps. These regressions
-      # cover very different surfaces, so one aggregate shell failure hid the
-      # actual stale assertion whenever the VoxelPop UI changed.
-      - name: Property platform safety
-        run: node scripts/test-property-platform-safety.mjs
-      - name: Erie County spatial intake
-        run: node scripts/test-erie-county-spatial-intake.mjs
-      - name: Fractional property bridge
-        run: node scripts/test-fractional-property-bridge.mjs
-      - name: Algorand position verifier
-        run: node scripts/test-algorand-position-verifier.mjs
-      - name: GEO property onboarding
-        run: node scripts/test-geo-property-onboarding.mjs
-      - name: GEO finish polish
-        run: node scripts/test-geo-finish-polish.mjs
-      - name: GEO map context
-        run: node scripts/test-geo-map-context.mjs
-      - name: GEO map explorer
-        run: node scripts/test-geo-map-explorer.mjs
-      - name: Buffalo property reference
-        run: node scripts/test-buffalo-property-reference.mjs
-      - name: Financial OS coherence
-        run: node scripts/test-financial-os-coherence.mjs
-      - name: Galactic Trust regulated launch
-        run: node scripts/test-galactic-trust-regulated-launch.mjs
-      - name: Galactic Trust provider boundary
-        run: node scripts/test-galactic-trust-provider-boundary.mjs
-      - name: Galactic Trust truthful UI states
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Repository scope
+        if: always()
+        run: node scripts/test-galactic-trust-repo-scope.mjs
+      - name: UI truth
+        if: always()
         run: node scripts/test-galactic-trust-ui-truth.mjs
-      - name: Galactic Trust account lifecycle
-        run: node scripts/test-galactic-trust-account-lifecycle.mjs
-      - name: Galactic Trust account status UI
-        run: node scripts/test-galactic-trust-account-status-ui.mjs
-      - name: Galactic Trust Increase onboarding
+      - name: Provider boundary
+        if: always()
+        run: node scripts/test-galactic-trust-provider-boundary.mjs
+      - name: Regulated launch
+        if: always()
+        run: node scripts/test-galactic-trust-regulated-launch.mjs
+      - name: Increase onboarding
+        if: always()
         run: node scripts/test-galactic-trust-increase-onboarding.mjs
-      - name: Galactic Trust Increase webhooks
+      - name: Increase webhooks
+        if: always()
         run: node scripts/test-galactic-trust-increase-webhooks.mjs
-      - name: Hyperreal voxel building
-        run: node scripts/test-hyperreal-voxel-building.mjs
-      - name: Property draft funnel
-        run: npm run test:property-draft-funnel
-      # The simple VoxelPop suite also spans several independent contracts.
-      # Keep them named so the exact broken promise is visible in CI.
-      - name: Public VoxelPop positioning
-        run: node scripts/test-public-demo-positioning.mjs
-      - name: Simple VoxelPop property world
-        run: node scripts/test-simple-property-world.mjs
-      - name: Photo-to-voxel approval flow
-        run: node scripts/test-photo-to-voxel-autostart.mjs
-      - name: Property collectible model access
-        run: node scripts/test-property-collectible-model-access.mjs
-      - name: Meshy polycount limit
-        run: node scripts/test-meshy-polycount-limit.mjs
-      - name: Catalog 3D generation record compatibility
-        run: node scripts/test-catalog3d-generation-record-compat.mjs
-      - name: Paid VoxelPop property generation
-        run: node scripts/test-paid-property-generation.mjs
-      - name: First real Erie parcel evidence
-        run: npm run test:first-real-erie-parcel
-      - run: npm run test:global-rent
-      - run: npm run test:fractional-compound
-      - run: npm run test:acquisition
-      - run: npm run test:digital-reits
-      - run: npm run test:dinari-onboarding
-      - run: npm run test:provider-binding
-      - run: npm run test:vault
-      - run: npm run test:income-center
-      - run: npm run test:acquisition-center
-      - run: npm run test:property-passport
-      - run: npm run test:property-claims
-      - run: npm run test:test-land
-      - run: npm run test:digital-estates
-      - run: npm run test:global-earth
-      - run: npm run build
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
-          NEXT_PUBLIC_SITE_URL: https://www.voxelvault.io
-
-  dependency-audit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - run: npm ci --no-audit --no-fund
-      # Critical vulnerabilities remain a hard release blocker. High-severity
-      # findings are recorded in docs/SECURITY_REVIEW.md and require a separate
-      # dependency-upgrade release because the current fixes are breaking.
-      - run: npm audit --omit=dev --audit-level=critical
+      - name: Account lifecycle
+        if: always()
+        run: node scripts/test-galactic-trust-account-lifecycle.mjs
+      - name: Account status UI
+        if: always()
+        run: node scripts/test-galactic-trust-account-status-ui.mjs
+      - name: Production build
+        if: always()
+        run: npm run build

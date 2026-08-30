@@ -1,1 +1,0 @@
-The UI must never label a model 3D-native unless the interactive asset successfully loads. Fallback previews remain clearly procedural and do not imply an on-chain asset was loaded.

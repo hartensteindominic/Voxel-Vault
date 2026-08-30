@@ -1,1 +1,0 @@
-Voxel Vault 3D runtime: dynamic browser-only viewer, WebGL capability detection, loading state, React error boundary, procedural fallback, safe model URL validation, and mobile-safe cleanup. A broken model must never blank the gallery.

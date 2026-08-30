@@ -1,1 +1,0 @@
-Guarded 3D release notes finalized. CI and real-device QA are required before production merge.

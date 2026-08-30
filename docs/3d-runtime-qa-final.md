@@ -1,1 +1,0 @@
-A 3D card is accepted only if it renders interactively or explicitly falls back to the lightweight preview. Broken external assets, WebGL limitations, and navigation must not crash or blank the gallery.

@@ -1,1 +1,0 @@
-QA: valid GLB, valid GLTF, invalid URL, missing asset, WebGL unavailable, iPhone touch, fullscreen, navigation, and multiple simultaneous cards.

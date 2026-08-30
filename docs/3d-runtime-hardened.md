@@ -1,1 +1,0 @@
-3D runtime is hardened around graceful failure, safe asset URLs, client-only rendering, mobile-safe cleanup, and procedural fallback. Keep the public UI clean and avoid exposing engineering status unless a user needs recovery information.

@@ -1,1 +1,0 @@
-Acceptance criteria: external 3D model succeeds or falls back; no blank canvas; WebGL capability is detected client-side; Three.js is browser-only; loading state is visible; touch interaction is preserved; cleanup does not force context loss; unsupported URLs are rejected; one failed asset cannot crash the gallery.

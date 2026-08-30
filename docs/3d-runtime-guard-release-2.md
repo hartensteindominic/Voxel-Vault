@@ -1,1 +1,0 @@
-Release criteria: valid model or fallback, no blank viewer, no page crash, mobile-safe cleanup, safe external URL handling, and no fake 3D or ownership claims.

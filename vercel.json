@@ -1,11 +1,7 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run test:routes && npm run build",
+  "buildCommand": "npm run test:galactic && npm run build",
   "regions": ["iad1"],
-  "crons": [
-    { "path": "/api/cron/catalog-3d", "schedule": "* * * * *" },
-    { "path": "/api/cron/neural-core", "schedule": "*/30 * * * *" }
-  ],
   "headers": [
     {
       "source": "/(.*)",

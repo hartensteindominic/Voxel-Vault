@@ -1,1 +1,0 @@
-The guarded 3D layer is complete for CI review. It is additive and preserves the existing visual shell.

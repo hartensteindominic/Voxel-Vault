@@ -1,1 +1,0 @@
-Guarded 3D QA must cover valid and invalid assets, WebGL unavailable, iPhone Safari touch, fullscreen, navigation cleanup, and multiple cards.

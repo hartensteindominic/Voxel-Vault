@@ -1,1 +1,0 @@
-The guarded 3D implementation is additive and keeps the existing visual shell. It does not assert that every collectible has an external model; procedural fallback remains the recovery path.
