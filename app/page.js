@@ -3,6 +3,7 @@ import './bank/bank.css';
 import './bank/galactic.css';
 import './bank/galactic-trust.css';
 import './bank/auth.css';
+import './bank/enhancements.css';
 
 export const metadata = {
   alternates: { canonical: '/' },
