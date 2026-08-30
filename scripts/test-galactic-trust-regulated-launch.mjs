@@ -43,7 +43,7 @@ assert.equal(attemptedLive.liveBankingEnabled, false, 'environment assertions mu
 assert.equal(attemptedLive.liveCryptoEnabled, false, 'banking approval must never imply live crypto authority');
 
 assert.match(gate, /financial technology product, not a bank/i, 'onboarding must clearly identify Galactic Trust as a nonbank');
-assert.match(gate, /does not currently accept or hold real customer deposits/i, 'onboarding must keep real deposits disabled');
+assert.match(gate, /No real deposits are held and no real money moves/i, 'onboarding must keep real deposits and money movement disabled');
 assert.match(gate, /\/bank\/readiness/, 'onboarding must link to public regulated launch status');
 assert.match(gate, /GalacticDashboardEnhancements onSignOut=\{activeSignOut\}/, 'dashboard enhancements must receive the real account sign-out handler');
 
