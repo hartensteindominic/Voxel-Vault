@@ -12,6 +12,7 @@ const commands = [
   { id: 'cards', icon: '▤', label: 'Cards', hint: 'View Galactic cards' },
   { id: 'activity', icon: '≡', label: 'Transaction history', hint: 'Recent activity' },
   { id: 'security', icon: '✓', label: 'Security & privacy', hint: 'Protection details' },
+  { id: 'status', icon: '◉', label: 'Regulated launch status', hint: 'See what is required before live banking' },
   { id: 'rewards', icon: '✿', label: 'Rewards', hint: 'Galactic Stars' },
   { id: 'tour', icon: '✦', label: 'Explore the Stars', hint: 'Restart onboarding tour' },
 ];
@@ -26,7 +27,7 @@ const tourSteps = [
   { selector: '.gt-balance-hero', title: 'Your financial galaxy', body: 'Your total demo balance, trend and recent movement live here.' },
   { selector: '.gt-priority-actions', title: 'Three fast moves', body: 'Deposit, send and swap are always one tap away.' },
   { selector: '#activity', title: 'Clear transaction history', body: 'Recent activity keeps the amount, merchant and timing easy to scan.' },
-  { selector: '#security', title: 'Trust is visible', body: 'Security and privacy details stay easy to find before any live-money launch.' },
+  { selector: '#security', title: 'Trust is visible', body: 'Security, nonbank disclosures and launch status stay easy to find before any live-money launch.' },
 ];
 
 function scrollTo(selector) {
@@ -57,7 +58,7 @@ function PriorityActions({ run }) {
   return (
     <div className="gt-priority-actions" aria-label="Quick actions">
       <button type="button" onClick={() => run('deposit')}><span>＋</span><b>Deposit</b><small>Add demo money</small></button>
-      <button type="button" onClick={() => run('send')}><span>↗</span><b>Send</b><small>Transfer money</small></button>
+      <button type="button" onClick={() => run('send')}><span>↗</span><b>Send</b><small>Transfer demo money</small></button>
       <button type="button" onClick={() => run('swap')}><span>⇄</span><b>Swap</b><small>Demo crypto</small></button>
     </div>
   );
@@ -65,14 +66,14 @@ function PriorityActions({ run }) {
 
 function TrustStrip() {
   return (
-    <section className="gt-trust-strip" aria-label="How your funds are protected">
-      <div className="gt-trust-badges"><span>🔒 Protected session</span><span>▣ Masked card data</span><span>◈ Demo money only</span></div>
-      <p><b>How protection works:</b> this build holds no real deposits and moves no real money. Live custody, insurance eligibility and money-movement protections must come from approved regulated providers before launch.</p>
+    <section className="gt-trust-strip" aria-label="Galactic Trust regulated launch status">
+      <div className="gt-trust-badges"><span>🔒 Protected session</span><span>▣ Masked card data</span><span>◈ Live banking locked</span></div>
+      <p><b>Galactic Trust is a financial technology product, not a bank.</b> No real customer deposits are accepted or held in this build. Banking services can become live only through an approved sponsor-bank program with bank-approved disclosures and controls. <a href="/bank/readiness">View regulated launch status →</a></p>
     </section>
   );
 }
 
-export default function GalacticDashboardEnhancements() {
+export default function GalacticDashboardEnhancements({ onSignOut, accountLabel = 'Galactic member' }) {
   const [targets, setTargets] = useState({ hero: null, controls: null, nav: null, activity: null });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -117,6 +118,20 @@ export default function GalacticDashboardEnhancements() {
     input.addEventListener('focus', open);
     return () => input.removeEventListener('focus', open);
   }, [targets.hero]);
+
+  useEffect(() => {
+    if (!onSignOut) return undefined;
+    const buttons = Array.from(document.querySelectorAll('.gt-side-utilities button'));
+    const logout = buttons.find((button) => button.textContent?.toLowerCase().includes('log out'));
+    if (!logout) return undefined;
+    const handler = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onSignOut();
+    };
+    logout.addEventListener('click', handler, true);
+    return () => logout.removeEventListener('click', handler, true);
+  }, [onSignOut, targets.nav]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -177,6 +192,7 @@ export default function GalacticDashboardEnhancements() {
     else if (id === 'cards') scrollTo('#cards');
     else if (id === 'activity') scrollTo('#activity');
     else if (id === 'security') scrollTo('#security');
+    else if (id === 'status') window.location.assign('/bank/readiness');
     else if (id === 'rewards') scrollTo('#rewards');
     else if (id === 'tour') { setTourIndex(0); setTourOpen(true); }
   }
@@ -186,7 +202,7 @@ export default function GalacticDashboardEnhancements() {
       {targets.hero && createPortal(<BalanceTrend />, targets.hero)}
       {targets.controls && createPortal(<><PriorityActions run={run} /><TrustStrip /></>, targets.controls)}
       {targets.nav && createPortal(<button className="gt-command-launch" type="button" onClick={() => setPaletteOpen(true)}><span>⌕</span><b>Quick jump</b><kbd>⌘K</kbd></button>, targets.nav)}
-      {targets.activity && createPortal(<div className="gt-history-trust"><span>✓</span><p><b>Clear history</b><small>Demo transactions stay readable and separated from any future live ledger.</small></p></div>, targets.activity)}
+      {targets.activity && createPortal(<div className="gt-history-trust"><span>✓</span><p><b>Clear history</b><small>Demo transactions stay readable and separated from any future bank-authoritative ledger.</small></p></div>, targets.activity)}
 
       {paletteOpen && (
         <div className="gt-command-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPaletteOpen(false); }}>
@@ -196,7 +212,7 @@ export default function GalacticDashboardEnhancements() {
               {filtered.map((item) => <button key={item.id} type="button" onClick={() => run(item.id)}><span>{item.icon}</span><p><b>{item.label}</b><small>{item.hint}</small></p><i>↵</i></button>)}
               {!filtered.length && <div className="gt-command-empty">No matching destination.</div>}
             </div>
-            <footer><span>⌘K opens this anywhere</span><span>Galactic Trust · Demo banking</span></footer>
+            <footer><span>⌘K opens this anywhere</span><span>{accountLabel} · Production gated</span></footer>
           </section>
         </div>
       )}
