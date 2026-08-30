@@ -16,7 +16,30 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Galactic Trust regression suite
-        run: npm run test:galactic
+      - name: Repository scope
+        if: always()
+        run: node scripts/test-galactic-trust-repo-scope.mjs
+      - name: UI truth
+        if: always()
+        run: node scripts/test-galactic-trust-ui-truth.mjs
+      - name: Provider boundary
+        if: always()
+        run: node scripts/test-galactic-trust-provider-boundary.mjs
+      - name: Regulated launch
+        if: always()
+        run: node scripts/test-galactic-trust-regulated-launch.mjs
+      - name: Increase onboarding
+        if: always()
+        run: node scripts/test-galactic-trust-increase-onboarding.mjs
+      - name: Increase webhooks
+        if: always()
+        run: node scripts/test-galactic-trust-increase-webhooks.mjs
+      - name: Account lifecycle
+        if: always()
+        run: node scripts/test-galactic-trust-account-lifecycle.mjs
+      - name: Account status UI
+        if: always()
+        run: node scripts/test-galactic-trust-account-status-ui.mjs
       - name: Production build
+        if: always()
         run: npm run build
