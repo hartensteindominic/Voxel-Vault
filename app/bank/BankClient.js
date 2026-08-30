@@ -10,10 +10,7 @@ const navItems = [
   ['transfer', '⇄', 'Transfer'],
   ['add-money', '✣', 'Add Money'],
   ['cards', '▤', 'Cards'],
-  ['pay-bills', '▧', 'Pay Bills'],
-  ['investments', '▥', 'Investments'],
   ['crypto', '◈', 'Crypto'],
-  ['goals', '◇', 'Goals'],
   ['rewards', '✿', 'Rewards'],
 ];
 
@@ -30,6 +27,8 @@ const starterCrypto = [
   { symbol: 'ETH', name: 'Ethereum', price: 3648.72, holding: 0.63 },
   { symbol: 'USDC', name: 'USD Coin', price: 1, holding: 425.5 },
 ];
+
+const insightTones = ['purple', 'green', 'teal', 'coral', 'blue'];
 
 function money(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -70,7 +69,7 @@ function GalacticCard({ pink = false, frozen = false, onFreeze }) {
       {!pink && <div className="gt-card-planet" aria-hidden="true" />}
       <div className="gt-card-name">{pink ? 'Cosmic Pink' : 'Nebula Blue'}</div>
       <div className="gt-card-number">•••• {pink ? '8756' : '4532'}</div>
-      <div className="gt-card-footer"><span>DEBIT CARD</span><strong>{pink ? 'MC' : 'VISA'}</strong></div>
+      <div className="gt-card-footer"><span>DEMO CARD</span><strong>PREVIEW</strong></div>
       {frozen && <span className="gt-frozen-label">FROZEN</span>}
       {onFreeze && <button className="gt-card-freeze" type="button" onClick={onFreeze}>{frozen ? 'Unfreeze' : 'Freeze'}</button>}
     </article>
@@ -161,6 +160,22 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
   const cryptoUsd = Number(cryptoAmount);
   const cryptoUnits = Number.isFinite(cryptoUsd) && cryptoUsd > 0 ? cryptoUsd / activeCrypto.price : 0;
   const spending = useMemo(() => transactions.filter((item) => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0), [transactions]);
+  const spendingCategories = useMemo(() => {
+    const totals = new Map();
+    transactions.filter((item) => Number(item.amount) < 0).forEach((item) => {
+      const category = String(item.category || 'Other').trim() || 'Other';
+      totals.set(category, (totals.get(category) || 0) + Math.abs(Number(item.amount) || 0));
+    });
+    return [...totals.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 5)
+      .map(([category, amount], index) => ({
+        category,
+        amount,
+        percentage: spending > 0 ? Math.round((amount / spending) * 100) : 0,
+        tone: insightTones[index % insightTones.length],
+      }));
+  }, [transactions, spending]);
   const memberName = displayName(demoAccess && !galacticUser ? 'Demo Explorer' : accountLabel);
 
   function applySandboxSnapshot(payload) {
@@ -299,9 +314,8 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
     else if (id === 'transfer') openSheet('transfer');
     else if (id === 'add-money') openSheet('add-money');
     else if (id === 'cards') document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' });
-    else if (id === 'crypto' || id === 'investments') document.getElementById('crypto')?.scrollIntoView({ behavior: 'smooth' });
+    else if (id === 'crypto') document.getElementById('crypto')?.scrollIntoView({ behavior: 'smooth' });
     else if (id === 'rewards') document.getElementById('rewards')?.scrollIntoView({ behavior: 'smooth' });
-    else notify(`${id.replace('-', ' ')} is coming next. The current build keeps it in demo mode.`);
   }
 
   return (
@@ -323,9 +337,9 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
         </div>
         <div className="gt-astronaut" aria-hidden="true">🧑‍🚀</div>
         <section className="gt-rewards-card" id="rewards">
-          <strong>Galactic rewards<br />are waiting! ✨</strong>
-          <p>You have <b>2,450</b> stars</p>
-          <button type="button" onClick={() => notify('2,450 demo Galactic Stars are ready to explore.')}>Explore Rewards</button>
+          <strong>Demo rewards<br />are ready to explore ✨</strong>
+          <p>You have <b>2,450</b> demo stars</p>
+          <button type="button" onClick={() => notify('2,450 demo Galactic Stars are ready to explore.')}>Explore Demo Rewards</button>
         </section>
       </aside>
 
@@ -333,7 +347,7 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
         <header className="gt-dashboard-header">
           <div><h1>Welcome back, {memberName}! <span>👋</span></h1><p>Here&apos;s what&apos;s happening in your galaxy.</p></div>
           <div className="gt-header-tools">
-            <label className="gt-search"><span className="gt-sr-only">Search</span><input placeholder="Search anything..." aria-label="Search" /><span>⌕</span></label>
+            <label className="gt-search"><span className="gt-sr-only">Search</span><input placeholder="Search coming soon" aria-label="Search coming soon" disabled /><span>⌕</span></label>
             <button className="gt-round-button gt-notification" type="button" aria-label="Notifications" onClick={() => notify(sandboxConnected ? 'Increase sandbox is synced.' : 'You have 3 demo notifications.')}>♧<i>{sandboxConnected ? '✓' : '3'}</i></button>
             <button className="gt-profile" type="button" onClick={() => notify(galacticUser ? `Signed in as ${accountLabel}.` : 'Demo profile active.')}><span className="gt-avatar">◈</span><b>{memberName}</b><span>⌄</span></button>
           </div>
@@ -345,7 +359,7 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
               <div className="gt-balance-copy">
                 <div className="gt-balance-label">Total Balance <span>◉</span></div>
                 <div className="gt-balance-amount">{money(total)}</div>
-                <div className="gt-balance-growth">{sandboxConnected ? <><b>INCREASE SANDBOX</b> <span>provider test balance</span></> : <>↑ <b>12.4%</b> <span>vs last month</span></>}</div>
+                <div className="gt-balance-growth">{sandboxConnected ? <><b>INCREASE SANDBOX</b> <span>provider test balance</span></> : <><b>DEMO BALANCE</b> <span>illustrative funds only</span></>}</div>
               </div>
               <div className="gt-hero-stars">✦</div>
               <div className="gt-hero-planet big" />
@@ -357,10 +371,10 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
               <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>{sandboxConnected ? 'INCREASE SANDBOX' : 'DEMO BANKING'}</b><span>{sandboxConnected ? 'Provider-backed test data with pretend money only. No real money moves.' : 'No real deposits are held and no real money moves in this build.'}</span></div>
               {sandboxNotice && galacticUser && <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>SANDBOX STATUS</b><span>{sandboxNotice}</span></div>}
               <div className="gt-quick-actions">
-                <button type="button" onClick={() => openSheet('transfer')}><span className="gt-quick-icon send">↗</span><span><b>Transfer</b><small>{sandboxConnected ? 'Sandbox ACH' : 'Send money'}</small></span></button>
-                <button type="button" onClick={() => openSheet('add-money')}><span className="gt-quick-icon add">＋</span><span><b>Add Money</b><small>{sandboxConnected ? 'Sandbox inbound ACH' : 'Fund account'}</small></span></button>
-                <button type="button" onClick={() => { const next = !blueFrozen; setBlueFrozen(next); notify(next ? 'Demo card frozen.' : 'Demo card unfrozen.'); }}><span className="gt-quick-icon freeze">❄</span><span><b>{blueFrozen ? 'Unfreeze Card' : 'Freeze Card'}</b><small>Nebula Blue</small></span></button>
-                <button type="button" onClick={() => document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' })}><span className="gt-quick-icon card">▤</span><span><b>View Card</b><small>•••• 4532</small></span></button>
+                <button type="button" onClick={() => openSheet('transfer')}><span className="gt-quick-icon send">↗</span><span><b>Transfer</b><small>{sandboxConnected ? 'Sandbox ACH' : 'Simulate transfer'}</small></span></button>
+                <button type="button" onClick={() => openSheet('add-money')}><span className="gt-quick-icon add">＋</span><span><b>Add Money</b><small>{sandboxConnected ? 'Sandbox inbound ACH' : 'Add demo funds'}</small></span></button>
+                <button type="button" onClick={() => { const next = !blueFrozen; setBlueFrozen(next); notify(next ? 'Demo card frozen.' : 'Demo card unfrozen.'); }}><span className="gt-quick-icon freeze">❄</span><span><b>{blueFrozen ? 'Unfreeze Card' : 'Freeze Card'}</b><small>Demo Nebula Blue</small></span></button>
+                <button type="button" onClick={() => document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' })}><span className="gt-quick-icon card">▤</span><span><b>View Card</b><small>Demo card preview</small></span></button>
               </div>
 
               {sheet && (
@@ -386,8 +400,8 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
             </section>
 
             <div className="gt-account-grid" id="accounts">
-              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon blue">▤</span><span>{sandboxConnected ? (sandboxAccounts[0]?.name || 'Increase Sandbox Account') : 'Checking Account'}<strong>{money(checking)}</strong><small>{sandboxConnected ? `Available ${money(sandboxAccounts[0]?.availableBalance || 0)}` : '•••• 4532'}</small></span><button type="button" onClick={() => notify(sandboxConnected ? 'Balance is sourced from Increase sandbox. Pretend money only.' : 'Checking account details remain masked in demo mode.')}>›</button></div><Sparkline tone="blue" /></article>
-              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon teal">▣</span><span>{sandboxConnected ? (sandboxAccounts[1]?.name || 'Sandbox Reserve') : 'Savings Account'}<strong>{money(savings)}</strong><small>{sandboxConnected ? (sandboxAccounts[1] ? `Available ${money(sandboxAccounts[1]?.availableBalance || 0)}` : 'No second sandbox account') : '•••• 8756'}</small></span><button type="button" onClick={() => notify(sandboxConnected ? 'Second sandbox account is shown when available.' : 'Savings account details remain masked in demo mode.')}>›</button></div><Sparkline tone="teal" /></article>
+              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon blue">▤</span><span>{sandboxConnected ? (sandboxAccounts[0]?.name || 'Increase Sandbox Account') : 'Demo Checking'}<strong>{money(checking)}</strong><small>{sandboxConnected ? `Available ${money(sandboxAccounts[0]?.availableBalance || 0)}` : 'Illustrative account'}</small></span><button type="button" onClick={() => notify(sandboxConnected ? 'Balance is sourced from Increase sandbox. Pretend money only.' : 'This is an illustrative demo checking balance.')}>›</button></div><Sparkline tone="blue" /></article>
+              <article className="gt-account-card"><div className="gt-account-title"><span className="gt-account-icon teal">▣</span><span>{sandboxConnected ? (sandboxAccounts[1]?.name || 'Sandbox Reserve') : 'Demo Savings'}<strong>{money(savings)}</strong><small>{sandboxConnected ? (sandboxAccounts[1] ? `Available ${money(sandboxAccounts[1]?.availableBalance || 0)}` : 'No second sandbox account') : 'Illustrative account'}</small></span><button type="button" onClick={() => notify(sandboxConnected ? 'Second sandbox account is shown when available.' : 'This is an illustrative demo savings balance.')}>›</button></div><Sparkline tone="teal" /></article>
             </div>
 
             <section className="gt-activity-card" id="activity">
@@ -402,16 +416,23 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
 
           <aside className="gt-right-column">
             <section className="gt-cards-panel" id="cards">
-              <div className="gt-section-heading"><h2>My Cards</h2><button type="button" onClick={() => notify('Both demo cards are shown.')}>View All</button></div>
+              <div className="gt-section-heading"><h2>Demo Cards</h2><button type="button" onClick={() => notify('These are visual demo cards only. No live card has been issued.')}>About</button></div>
               <GalacticCard frozen={blueFrozen} onFreeze={() => setBlueFrozen((value) => !value)} />
               <GalacticCard pink frozen={pinkFrozen} onFreeze={() => setPinkFrozen((value) => !value)} />
             </section>
 
             <section className="gt-insights-panel">
-              <div className="gt-section-heading"><h2>Spending Insights</h2><span>This Month⌄</span></div>
-              <div className="gt-insights-total"><strong>{money(spending)}</strong><span>Total Spent <i>{sandboxConnected ? 'Increase sandbox activity' : '↓ 8.7% vs last month'}</i></span></div>
-              <div className="gt-insights-body"><div className="gt-legend"><div><span className="purple" />Shopping <b>$623.10&nbsp; 39%</b></div><div><span className="green" />Food & Drinks <b>$312.45&nbsp; 20%</b></div><div><span className="teal" />Transport <b>$210.75&nbsp; 13%</b></div><div><span className="coral" />Entertainment <b>$198.50&nbsp; 12%</b></div><div><span className="blue" />Bills & Utilities <b>$241.54&nbsp; 16%</b></div></div><div className="gt-donut" aria-label="Spending breakdown"><span>•ᴗ•</span></div></div>
-              <button className="gt-breakdown-button" type="button" onClick={() => notify('Detailed spending categories are coming next.')}><span>▥</span> See Full Breakdown <b>›</b></button>
+              <div className="gt-section-heading"><h2>Spending Insights</h2><span>Current activity</span></div>
+              <div className="gt-insights-total"><strong>{money(spending)}</strong><span>Total Spent <i>{sandboxConnected ? 'Derived from Increase sandbox activity' : 'Derived from demo activity'}</i></span></div>
+              <div className="gt-insights-body">
+                <div className="gt-legend">
+                  {spendingCategories.length ? spendingCategories.map((item) => (
+                    <div key={item.category}><span className={item.tone} />{item.category} <b>{money(item.amount)}&nbsp; {item.percentage}%</b></div>
+                  )) : <div><span className="blue" />No spending yet <b>{money(0)}&nbsp; 0%</b></div>}
+                </div>
+                <div className="gt-donut" aria-label="Spending breakdown"><span>•ᴗ•</span></div>
+              </div>
+              <button className="gt-breakdown-button" type="button" onClick={() => notify('The breakdown above is calculated from the currently loaded outgoing transactions.')}><span>▥</span> How This Is Calculated <b>›</b></button>
             </section>
 
             <section className="gt-crypto-panel" id="crypto">
