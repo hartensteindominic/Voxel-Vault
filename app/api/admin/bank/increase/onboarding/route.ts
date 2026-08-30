@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../../lib/admin-auth';
+import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
 import {
   bootstrapIncreaseSandboxAccount,
   completeIncreaseSandboxSetup,
@@ -26,14 +27,18 @@ function response(data: any, status = 200) {
 }
 
 function providerError(error: any) {
+  const fallback = error instanceof Error ? error.message : 'Increase sandbox onboarding action failed.';
+  const failure = describeIncreaseSandboxError(error, fallback);
   return response({
     ok: false,
     authorized: true,
     provider: 'Increase',
     environment: 'sandbox',
     canMoveRealMoney: false,
-    providerStatus: Number.isFinite(error?.status) ? error.status : null,
-    error: error instanceof Error ? error.message : 'Increase sandbox onboarding action failed.',
+    providerStatus: failure.providerStatus,
+    providerType: failure.providerType,
+    error: failure.error,
+    nextStep: failure.nextStep,
   }, Number.isFinite(error?.status) ? 502 : 400);
 }
 
