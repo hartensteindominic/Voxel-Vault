@@ -176,4 +176,16 @@ assert.match(routeSource, /complete_setup/, 'route should expose an explicit san
 assert.match(routeSource, /not a real KYC\/CIP\/AML decision/, 'sandbox validation simulation must be clearly disclosed');
 assert.equal(routeSource.includes('NEXT_PUBLIC_'), false, 'onboarding API must not use client-side provider credentials');
 
+const setupSource = await readFile(new URL('../app/bank/GalacticSandboxSetup.js', import.meta.url), 'utf8');
+assert.match(setupSource, /\/api\/admin\/bank\/increase\/onboarding/, 'owner UI must use the owner-only onboarding endpoint');
+assert.match(setupSource, /Start hosted sandbox onboarding/, 'owner UI should launch Increase-hosted onboarding');
+assert.match(setupSource, /This is not real KYC approval/, 'owner UI must label sandbox validation simulation honestly');
+assert.equal(setupSource.includes('INCREASE_SANDBOX_API_KEY'), false, 'client UI must never read the Increase API key');
+assert.equal(setupSource.includes('account_number'), false, 'client setup UI must not handle raw account-number data');
+assert.equal(setupSource.includes('routing_number'), false, 'client setup UI must not handle raw routing-number data');
+
+const gateSource = await readFile(new URL('../app/bank/GalacticBankGate.js', import.meta.url), 'utf8');
+assert.match(gateSource, /GalacticSandboxSetup/, 'bank gate should mount the sandbox setup control');
+assert.match(gateSource, /session\?\.user && <GalacticSandboxSetup/, 'sandbox setup control should only mount for signed-in sessions before server authorization');
+
 console.log('Galactic Trust Increase sandbox onboarding checks passed.');
