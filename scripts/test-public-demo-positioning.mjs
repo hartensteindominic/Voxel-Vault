@@ -32,6 +32,7 @@ if (galacticHome) {
   assert.match(bankGate, /signInWithOtp/, 'Galactic Trust onboarding must keep passwordless email sign-in');
   assert.match(bankGate, /Explore the Stars demo/, 'Galactic Trust onboarding must keep a low-friction demo path');
   assert.match(bankGate, /simulated banking experience/i, 'Galactic Trust onboarding must identify the simulated banking boundary');
+  assert.match(bankGate, /financial technology product, not a bank/i, 'Galactic Trust onboarding must identify the nonbank boundary');
   assert.match(bank, /DEMO BANKING/, 'dashboard must label demo banking visibly');
   assert.match(bank, /No real deposits are held and no real money moves in this build\./, 'dashboard must never imply that demo balances are real deposits');
   assert.match(bank, /Recent Activity/, 'dashboard must keep clear transaction history visible');
@@ -43,6 +44,7 @@ if (galacticHome) {
   assert.match(bankEnhancements, /Explore the Stars/, 'dashboard must include the guided Explore the Stars tour');
   assert.match(bankEnhancements, /metaKey \|\| event\.ctrlKey/, 'dashboard must include the command palette shortcut');
   assert.match(bankEnhancements, /visualViewport/, 'dashboard must respond to mobile soft-keyboard viewport changes');
+  assert.match(bankEnhancements, /\/bank\/readiness/, 'dashboard must expose regulated launch status');
   assert.match(bankEnhancementCss, /safe-area-inset-bottom/, 'dashboard must respect mobile safe areas');
   assert.match(bankEnhancementCss, /pointer:coarse/, 'dashboard must provide coarse-pointer mobile/VR behavior');
   assert.match(bankEnhancementCss, /gt-priority-actions/, 'priority actions must receive a dedicated responsive treatment');
@@ -100,10 +102,11 @@ assert.match(demo, /cannot prove hidden sides/i, 'demo must state what a single 
 assert.doesNotMatch(demo, /getSupabaseBrowserAsync|signInWithOAuth|checkout\.sessions|\/api\/property-generation\/checkout/, 'public demo must not hide an auth or payment gate');
 
 if (galacticHome) {
-  assert.match(layout, /Galactic Trust \| Digital Banking/, 'site metadata must identify Galactic Trust');
-  assert.match(layout, /modern digital banking interface/i, 'site metadata must describe the current banking interface');
-  assert.match(layout, /Financial actions remain simulated until regulated provider rails are connected/, 'metadata must preserve the simulated-money boundary');
-  assert.doesNotMatch(layout, /FDIC insured|insured deposits|bank charter/i, 'metadata must not imply unverified banking protections or charter status');
+  assert.match(layout, /Galactic Trust \| Financial App/, 'site metadata must identify Galactic Trust as a financial app');
+  assert.match(layout, /financial technology interface/i, 'site metadata must describe the current financial interface');
+  assert.match(layout, /Galactic Trust is not a bank/, 'metadata must preserve the nonbank boundary');
+  assert.match(layout, /approved sponsor-bank program/, 'metadata must preserve the provider-backed launch boundary');
+  assert.doesNotMatch(layout, /Member FDIC|FDIC[- ]insured bank|bank charter/i, 'metadata must not imply unverified banking protections or charter status');
   assert.match(og, /Galactic Trust/, 'social preview must match the Galactic Trust public front door');
   assert.match(og, /Your money/, 'social preview must use the Galactic Trust product story');
   assert.match(og, /SIMULATED BANKING/, 'social preview must preserve the demo-money boundary');
@@ -133,5 +136,5 @@ assert.match(readme, /Architecture at a glance/, 'README must document the archi
 assert.match(readme, /Repo scope/, 'README must separate experimental systems from the public product');
 assert.match(readme, /CONTRIBUTING\.md/, 'README must expose contribution guidance');
 
-console.log(`Public positioning checks passed: ${galacticHome ? 'Galactic Trust account-first banking demo, fast dashboard actions, interactive trend, command navigation, mobile/VR handling and visible trust boundaries' : 'branded property-collectible home'} plus high-fidelity voxel geometry and current trust surfaces remain aligned.`);
+console.log(`Public positioning checks passed: ${galacticHome ? 'Galactic Trust nonbank financial app, production-gated banking, fast dashboard actions, interactive trend, command navigation, mobile/VR handling and visible trust boundaries' : 'branded property-collectible home'} plus high-fidelity voxel geometry and current trust surfaces remain aligned.`);
 await import('./test-public-surface-coherence.mjs');
