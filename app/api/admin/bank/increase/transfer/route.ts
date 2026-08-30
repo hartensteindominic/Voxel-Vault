@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireVoxelVaultAdmin } from '../../../../../../lib/admin-auth';
-import { simulateIncreaseSandboxSend } from '../../../../../../lib/banking/increase-sandbox.js';
+import { simulateIncreaseSandboxSendForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
+import {
+  getProviderAccountBinding,
+  publicBindingSummary,
+} from '../../../../../../lib/real-estate/provider-account-binding.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,14 +33,43 @@ export async function POST(request: Request) {
   }
 
   try {
-    const snapshot = await simulateIncreaseSandboxSend(Math.round(amount * 100), recipient, process.env);
+    const bindingState = await getProviderAccountBinding(auth.admin, auth.user.id, {
+      provider: 'increase',
+      environment: 'sandbox',
+    });
+    if (bindingState.setupRequired) {
+      return response({
+        ok: false,
+        authorized: true,
+        setupRequired: true,
+        canMoveRealMoney: false,
+        error: bindingState.error || 'Provider identity binding storage is not ready.',
+      }, 503);
+    }
+    if (!bindingState.binding) {
+      return response({
+        ok: false,
+        authorized: true,
+        setupRequired: true,
+        canMoveRealMoney: false,
+        error: 'No Increase sandbox Account is bound to this signed-in Galactic Trust owner. Complete owner-scoped sandbox onboarding before simulating transfers.',
+      }, 409);
+    }
+
+    const snapshot = await simulateIncreaseSandboxSendForAccount(
+      Math.round(amount * 100),
+      recipient,
+      bindingState.binding.accountId,
+      process.env,
+    );
     return response({
       ok: true,
       authorized: true,
       ...snapshot,
+      binding: publicBindingSummary(bindingState.binding),
       action: 'sandbox-ach-transfer-simulation',
       canMoveRealMoney: false,
-      note: 'This transfer is routed only to Increase sandbox test coordinates. No real recipient or bank account is used.',
+      note: 'This transfer is scoped to the Increase sandbox Account bound server-side to this signed-in owner and routes only to sandbox test coordinates. No real recipient or bank account is used.',
     });
   } catch (error: any) {
     return response({
