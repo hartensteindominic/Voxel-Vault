@@ -3,30 +3,53 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const panelStyle = {
-  position: 'fixed',
-  left: '18px',
-  bottom: '18px',
-  zIndex: 80,
-  width: 'min(390px, calc(100vw - 36px))',
-  padding: '16px',
-  borderRadius: '18px',
+  width: 'min(440px, calc(100vw - 36px))',
+  padding: '18px',
+  borderRadius: '20px',
   border: '1px solid rgba(113, 86, 255, 0.22)',
-  background: 'rgba(255, 255, 255, 0.97)',
-  boxShadow: '0 18px 50px rgba(44, 34, 96, 0.18)',
+  background: 'rgba(255, 255, 255, 0.98)',
+  boxShadow: '0 22px 70px rgba(44, 34, 96, 0.22)',
   color: '#26213d',
   fontFamily: 'inherit',
 };
 
+const floatingPanelStyle = {
+  position: 'fixed',
+  left: '18px',
+  bottom: '18px',
+  zIndex: 80,
+};
+
+const blockingLayerStyle = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 120,
+  display: 'grid',
+  placeItems: 'center',
+  padding: '18px',
+  background: 'rgba(21, 16, 45, 0.66)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+};
+
 const buttonStyle = {
   width: '100%',
-  marginTop: '10px',
-  padding: '11px 14px',
+  marginTop: '12px',
+  padding: '12px 14px',
   border: 0,
   borderRadius: '12px',
   background: '#6f55f5',
   color: '#fff',
   fontWeight: 800,
   cursor: 'pointer',
+};
+
+const stepStyle = {
+  display: 'grid',
+  gridTemplateColumns: '30px 1fr',
+  gap: '10px',
+  alignItems: 'start',
+  padding: '9px 0',
 };
 
 function authHeaders(accessToken, json = false) {
@@ -43,6 +66,18 @@ function safeHostedSessionUrl(value) {
   return url.toString();
 }
 
+function SetupStep({ number, title, detail, state = 'pending' }) {
+  const marker = state === 'complete' ? '✓' : number;
+  const background = state === 'complete' ? '#eafaf2' : state === 'active' ? '#f1edff' : '#f5f3f9';
+  const color = state === 'complete' ? '#177245' : state === 'active' ? '#5e46d8' : '#817a96';
+  return (
+    <div style={stepStyle}>
+      <span style={{ width: '30px', height: '30px', borderRadius: '999px', display: 'grid', placeItems: 'center', background, color, fontWeight: 900 }}>{marker}</span>
+      <span><b style={{ display: 'block', fontSize: '13px' }}>{title}</b><small style={{ display: 'block', marginTop: '2px', color: '#6a6482', lineHeight: 1.4 }}>{detail}</small></span>
+    </div>
+  );
+}
+
 export default function GalacticSandboxSetup({ accessToken = '' }) {
   const [authorized, setAuthorized] = useState(null);
   const [status, setStatus] = useState(null);
@@ -56,6 +91,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   const connected = Boolean(status?.connected);
   const needsAccount = connected && accountCount === 0;
   const returnedFromOnboarding = Boolean(entityId);
+  const blockingSetup = returnedFromOnboarding || needsAccount;
 
   useEffect(() => {
     if (!accessToken) return;
@@ -102,7 +138,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   const heading = useMemo(() => {
     if (returnedFromOnboarding) return 'Finish Increase sandbox setup';
     if (!connected) return 'Increase sandbox setup';
-    return 'Create your sandbox account';
+    return 'Sandbox connected — account setup required';
   }, [connected, returnedFromOnboarding]);
 
   async function post(action, extra = {}) {
@@ -150,15 +186,23 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   if (!accessToken || authorized !== true) return null;
   if (!returnedFromOnboarding && connected && accountCount > 0) return null;
 
-  return (
-    <aside style={panelStyle} aria-label="Owner Increase sandbox setup">
+  const panel = (
+    <aside style={{ ...panelStyle, ...(blockingSetup ? {} : floatingPanelStyle) }} aria-label="Owner Increase sandbox setup" aria-modal={blockingSetup ? 'true' : undefined} role={blockingSetup ? 'dialog' : undefined}>
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <span aria-hidden="true" style={{ fontSize: '24px' }}>🪐</span>
+        <span aria-hidden="true" style={{ fontSize: '26px' }}>🪐</span>
         <div>
-          <strong style={{ display: 'block', fontSize: '15px' }}>{heading}</strong>
+          <strong style={{ display: 'block', fontSize: '16px' }}>{heading}</strong>
           <small style={{ display: 'block', marginTop: '2px', color: '#6a6482' }}>Owner-only · pretend money · production remains locked</small>
         </div>
       </div>
+
+      {blockingSetup && (
+        <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '14px', background: '#fbfaff', border: '1px solid #ece8ff' }}>
+          <SetupStep number="1" title="Increase sandbox connected" detail="The provider connection is active. No real money can move." state="complete" />
+          <SetupStep number="2" title="Account setup required" detail={returnedFromOnboarding ? 'A test Entity was returned. Complete the sandbox-only validation and account bootstrap.' : 'Use Increase-hosted onboarding to create the test Entity before an Account is created.'} state="active" />
+          <SetupStep number="3" title="Sandbox dashboard ready" detail="Demo balances and transfer controls stay blocked until a provider-backed test Account exists." state="pending" />
+        </div>
+      )}
 
       {!connected && (
         <p style={{ margin: '12px 0 0', fontSize: '13px', lineHeight: 1.45, color: '#5f5875' }}>
@@ -169,7 +213,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       {needsAccount && !returnedFromOnboarding && (
         <>
           <p style={{ margin: '12px 0 0', fontSize: '13px', lineHeight: 1.45, color: '#5f5875' }}>
-            Identity details are entered on Increase&apos;s hosted sandbox form, not inside Galactic Trust.
+            Identity details are entered on Increase&apos;s hosted sandbox form, not inside Galactic Trust. The dashboard behind this setup screen is intentionally blocked so illustrative demo balances cannot be confused with provider test data.
           </p>
           {programs.length > 1 && (
             <select
@@ -213,4 +257,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       {message && <p role="status" style={{ margin: '10px 0 0', fontSize: '12px', lineHeight: 1.4, color: '#9d2d55' }}>{message}</p>}
     </aside>
   );
+
+  if (!blockingSetup) return panel;
+  return <div style={blockingLayerStyle} aria-label="Increase sandbox setup required">{panel}</div>;
 }
