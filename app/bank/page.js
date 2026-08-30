@@ -7,7 +7,7 @@ import './enhancements.css';
 
 export const metadata = {
   title: 'Dashboard',
-  description: 'Galactic Trust digital banking dashboard with balances, digital cards, transfers, activity, and account controls. This build remains simulated until regulated provider rails are connected.',
+  description: 'Galactic Trust financial-app dashboard with simulated balances, cards, transfers, activity, and account controls. Galactic Trust is not a bank; live banking remains production-gated until an approved sponsor-bank program is active.',
   alternates: { canonical: '/bank' },
 };
 
