@@ -10,10 +10,8 @@ function userLabel(user) {
 }
 
 function returnUrl() {
-  if (typeof window === 'undefined') return '/';
-  const url = new URL('/', window.location.origin);
-  url.searchParams.set('auth', 'galactic');
-  return url.toString();
+  if (typeof window === 'undefined') return '/bank';
+  return new URL('/bank', window.location.origin).toString();
 }
 
 export default function GalacticBankGate() {
