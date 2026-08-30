@@ -24,7 +24,10 @@ export async function GET(request: Request) {
     const { data: { user }, error } = await admin.auth.getUser(token);
     if (error || !user) return response({ ok: false, error: 'Your Galactic Trust session is invalid or expired.', lifecycle: buildGalacticAccountLifecycle({ signedIn: false, env: process.env }) }, 401);
 
-    const bindingState = await getProviderAccountBinding(admin, user.id);
+    const bindingState = await getProviderAccountBinding(admin, user.id, {
+      provider: 'increase',
+      environment: 'sandbox',
+    });
     const lifecycle = buildGalacticAccountLifecycle({ signedIn: true, bindingState, env: process.env });
     return response({ ok: true, lifecycle, note: 'This lifecycle is derived server-side from verified authentication, trusted provider-binding state, and regulated-launch locks. It is not a bank-account approval or production eligibility decision.' });
   } catch (error) {
