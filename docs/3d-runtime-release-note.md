@@ -1,1 +1,0 @@
-This layer protects the user experience when 3D assets or WebGL fail. It does not replace the existing visual design.

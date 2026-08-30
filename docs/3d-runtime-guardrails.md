@@ -1,1 +1,0 @@
-Guardrails: browser-only Three.js, WebGL detection, safe external model URLs, bounded metadata inputs, loading skeleton, React boundary, procedural fallback, touch-safe container, and no forced context loss on unmount.

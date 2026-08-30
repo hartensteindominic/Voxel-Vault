@@ -1,1 +1,0 @@
-Ready for CI review after Safe3DViewer, URL guard, capability probe, fallback behavior, and QA criteria are included.

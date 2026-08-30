@@ -1,1 +1,0 @@
-QA scope: iPhone Safari, desktop Chrome, and WebGL-limited devices. Verify valid models, fallback behavior, touch controls, fullscreen, navigation cleanup, and isolation of failed assets.

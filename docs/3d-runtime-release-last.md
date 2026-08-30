@@ -1,1 +1,0 @@
-Guarded 3D rendering is ready for CI review. The main UI remains unchanged.

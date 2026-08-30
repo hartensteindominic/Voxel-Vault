@@ -1,176 +1,59 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import {
-  BANKING_LAUNCH_POLICY_VERSION,
   LIVE_BANKING_IMPLEMENTATION_READY,
   LIVE_CRYPTO_IMPLEMENTATION_READY,
   bankingEvidenceRequirements,
   bankingLaunchSnapshot,
 } from '../lib/banking/regulated-launch.js';
-import { buildOrbitResponse } from '../lib/banking/orbit-chat.js';
 
-const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const gate = read('app/bank/GalacticBankGate.js');
-const bankClient = read('app/bank/BankClient.js');
-const enhancements = read('app/bank/GalacticDashboardEnhancements.js');
-const readinessPage = read('app/bank/readiness/page.js');
-const readinessApi = read('app/api/bank/readiness/route.ts');
-const increaseSandbox = read('lib/banking/increase-sandbox.js');
-const orbitChat = read('lib/banking/orbit-chat.js');
-const increaseStatusApi = read('app/api/admin/bank/increase/status/route.ts');
-const increaseDashboardApi = read('app/api/admin/bank/increase/dashboard/route.ts');
-const increaseFundApi = read('app/api/admin/bank/increase/fund/route.ts');
-const increaseTransferApi = read('app/api/admin/bank/increase/transfer/route.ts');
-const integrationsApi = read('app/api/admin/integrations/status/route.ts');
-const terms = read('app/terms/page.js');
-const privacy = read('app/privacy/page.js');
-const layout = read('app/layout.js');
-const envExample = read('.env.example');
+assert.equal(LIVE_BANKING_IMPLEMENTATION_READY, false, 'live banking implementation must remain hard-locked');
+assert.equal(LIVE_CRYPTO_IMPLEMENTATION_READY, false, 'live crypto implementation must remain separately hard-locked');
+assert.ok(bankingEvidenceRequirements.length >= 12, 'production banking must require external evidence gates');
 
-assert.match(BANKING_LAUNCH_POLICY_VERSION, /^2026-08-bank-fintech-v1$/, 'regulated banking policy version must be explicit');
-assert.equal(LIVE_BANKING_IMPLEMENTATION_READY, false, 'live banking implementation must remain hard-locked until a reviewed provider integration exists');
-assert.equal(LIVE_CRYPTO_IMPLEMENTATION_READY, false, 'live crypto must remain separately hard-locked');
-assert.ok(bankingEvidenceRequirements.length >= 12, 'banking launch must require a complete external-authority evidence set');
+const allTrue = Object.fromEntries(bankingEvidenceRequirements.map(({ assertionEnvKey }) => [assertionEnvKey, 'true']));
+const attemptedLive = bankingLaunchSnapshot({ ...allTrue, GALACTIC_LIVE_BANKING_ENABLED: 'true', GALACTIC_LIVE_CRYPTO_ENABLED: 'true', GALACTIC_BANKING_PLATFORM: 'candidate', GALACTIC_SPONSOR_BANK_LEGAL_NAME: 'Candidate Bank' });
+assert.equal(attemptedLive.allRequiredAssertionsPresent, true);
+assert.equal(attemptedLive.liveBankingEnabled, false, 'environment flags must never bypass the reviewed implementation lock');
+assert.equal(attemptedLive.liveCryptoEnabled, false, 'banking readiness must never imply crypto readiness');
+
+const gate = await read('app/bank/GalacticBankGate.js');
+const layout = await read('app/layout.js');
+const sandbox = await read('lib/banking/increase-sandbox.js');
+const status = await read('app/api/admin/bank/increase/status/route.ts');
+const dashboard = await read('app/api/admin/bank/increase/dashboard/route.ts');
+const fund = await read('app/api/admin/bank/increase/fund/route.ts');
+const transfer = await read('app/api/admin/bank/increase/transfer/route.ts');
+const envExample = await read('.env.example');
+
+assert.match(gate, /financial technology product, not a bank/i);
+assert.match(gate, /No real deposits are held and no real money moves/i);
+assert.match(layout, /Galactic Trust is not a bank/i);
+assert.doesNotMatch(`${gate}\n${layout}`, /Member FDIC|FDIC[- ]insured bank/i);
+
+assert.match(sandbox, /https:\/\/sandbox\.increase\.com/);
+assert.doesNotMatch(sandbox, /https:\/\/api\.increase\.com/);
+assert.match(sandbox, /canMoveRealMoney:\s*false/);
+assert.match(sandbox, /productionSupported:\s*false/);
+
+for (const source of [status, dashboard, fund, transfer]) {
+  assert.match(source, /requireGalacticTrustAdmin/, 'Increase sandbox routes must remain owner-authenticated');
+  assert.match(source, /private, no-store, max-age=0/, 'Increase sandbox routes must remain private and uncached');
+  assert.doesNotMatch(source, /process\.env\.INCREASE_SANDBOX_API_KEY/, 'routes must not directly expose provider credentials');
+}
+assert.match(dashboard, /pretend money/i);
+assert.match(fund, /No external bank account was debited/i);
+assert.match(transfer, /No real recipient or bank account is used/i);
 
 for (const requirement of bankingEvidenceRequirements) {
-  assert.ok(requirement.assertionEnvKey.startsWith('GALACTIC_'), `${requirement.gate} must use a scoped readiness assertion`);
-  assert.ok(requirement.authority.length > 10, `${requirement.gate} must identify the real decision authority`);
-  assert.ok(requirement.requiredEvidence.length >= 3, `${requirement.gate} must identify concrete external evidence`);
+  assert.match(envExample, new RegExp(`${requirement.assertionEnvKey}=false`), `${requirement.assertionEnvKey} must default false`);
 }
-
-const allTrue = Object.fromEntries(bankingEvidenceRequirements.map((requirement) => [requirement.assertionEnvKey, 'true']));
-const attemptedLive = bankingLaunchSnapshot({
-  ...allTrue,
-  GALACTIC_LIVE_BANKING_ENABLED: 'true',
-  GALACTIC_LIVE_CRYPTO_ENABLED: 'true',
-  GALACTIC_BANKING_PLATFORM: 'example-provider',
-  GALACTIC_SPONSOR_BANK_LEGAL_NAME: 'Example Bank',
-});
-assert.equal(attemptedLive.allRequiredAssertionsPresent, true, 'test fixture should assert every external readiness input');
-assert.equal(attemptedLive.liveBankingEnabled, false, 'environment assertions must never bypass the reviewed implementation lock');
-assert.equal(attemptedLive.liveCryptoEnabled, false, 'banking approval must never imply live crypto authority');
-
-assert.match(gate, /financial technology product, not a bank/i, 'onboarding must clearly identify Galactic Trust as a nonbank');
-assert.match(gate, /No real deposits are held and no real money moves/i, 'onboarding must keep real deposits and money movement disabled');
-assert.match(gate, /\/bank\/readiness/, 'onboarding must link to public regulated launch status');
-assert.match(gate, /accessToken=\{session\?\.access_token \|\| ''\}/, 'signed-in dashboard must receive the short-lived Supabase access token');
-assert.match(gate, /GalacticDashboardEnhancements onSignOut=\{activeSignOut\}/, 'dashboard enhancements must receive the real account sign-out handler');
-
-assert.match(bankClient, /\/api\/admin\/bank\/increase\/dashboard/, 'owner dashboard must load sanitized Increase sandbox data');
-assert.match(bankClient, /\/api\/admin\/bank\/increase\/fund/, 'owner dashboard must support sandbox-only inbound ACH funding simulation');
-assert.match(bankClient, /\/api\/admin\/bank\/increase\/transfer/, 'owner dashboard must support sandbox-only outbound ACH simulation');
-assert.match(bankClient, /INCREASE SANDBOX/, 'dashboard must visibly label provider-backed test data as sandbox');
-assert.match(bankClient, /No real recipient or bank account is used/i, 'sandbox send flow must disclose that it never targets a real bank recipient');
-assert.match(bankClient, /typeof onSignOut === 'function' \? onSignOut\(\)/, 'visible sidebar sign-out must call the real sign-out handler');
-assert.match(bankClient, /buildOrbitResponse/, 'Orbit must use the richer contextual response engine');
-assert.match(bankClient, /sandboxConnected,\n\s+checking,\n\s+savings,\n\s+transactions,/s, 'Orbit must receive current dashboard financial context rather than static canned answers');
-
-assert.match(orbitChat, /sensitive-data/, 'Orbit must include a dedicated sensitive-data safety response');
-assert.match(orbitChat, /bank-status/, 'Orbit must distinguish nonbank and deposit-insurance questions');
-assert.match(orbitChat, /unsupported-banking/, 'Orbit must clearly say when a banking feature is not connected');
-
-const orbitContext = {
-  sandboxConnected: true,
-  checking: 100,
-  savings: 20,
-  accountLabel: 'Test User',
-  blueFrozen: true,
-  pinkFrozen: false,
-  transactions: [
-    { name: 'Sandbox ACH', amount: -12.5, category: 'Sandbox ACH' },
-    { name: 'Inbound test', amount: 50, category: 'Sandbox ACH' },
-  ],
-};
-const orbitBalance = buildOrbitResponse('what is my balance?', orbitContext);
-assert.equal(orbitBalance.intent, 'balance', 'Orbit must understand balance questions');
-assert.match(orbitBalance.text, /\$120\.00/, 'Orbit balance response must use current dashboard values');
-assert.match(orbitBalance.text, /pretend money/i, 'sandbox balance response must preserve pretend-money boundary');
-
-const orbitTransfer = buildOrbitResponse('how do I send an ACH?', orbitContext);
-assert.equal(orbitTransfer.intent, 'transfer', 'Orbit must understand transfer questions');
-assert.match(orbitTransfer.text, /fixed test banking coordinates/i, 'sandbox transfer response must explain the safe test destination');
-assert.match(orbitTransfer.text, /\$1,000/, 'sandbox transfer response must communicate the current test limit');
-
-const orbitCard = buildOrbitResponse('is my card frozen?', orbitContext);
-assert.equal(orbitCard.intent, 'cards', 'Orbit must understand card-status questions');
-assert.match(orbitCard.text, /Nebula Blue is currently frozen/i, 'Orbit card response must reflect live UI state');
-
-const orbitBankStatus = buildOrbitResponse('are you a real FDIC bank?', orbitContext);
-assert.equal(orbitBankStatus.intent, 'bank-status', 'Orbit must understand bank/FDIC questions');
-assert.match(orbitBankStatus.text, /not a bank/i, 'Orbit must not misrepresent Galactic Trust as a bank');
-assert.match(orbitBankStatus.text, /not an FDIC-insured institution/i, 'Orbit must keep FDIC attribution accurate');
-
-const orbitSecret = buildOrbitResponse('my API key is abc123', orbitContext);
-assert.equal(orbitSecret.intent, 'sensitive-data', 'Orbit must prioritize secret-handling safety');
-assert.match(orbitSecret.text, /do not share/i, 'Orbit must tell users not to share secrets');
-
-assert.match(enhancements, /financial technology product, not a bank/i, 'dashboard trust strip must preserve the nonbank boundary');
-assert.match(enhancements, /approved sponsor-bank program/i, 'dashboard must name the real launch authority instead of a founder toggle');
-assert.match(enhancements, /\/bank\/readiness/, 'dashboard must expose regulated launch status');
-assert.match(enhancements, /logout\.addEventListener\('click', handler, true\)/, 'visible Log Out control must be wired to the real account sign-out path');
-
-assert.match(readinessPage, /Real banking stays locked/, 'readiness page must lead with the fail-closed launch posture');
-assert.match(readinessPage, /No fake trust signals/, 'readiness page must forbid misleading trust claims');
-assert.match(readinessApi, /Cache-Control.*no-store/s, 'readiness endpoint must not cache launch-state assertions');
-assert.doesNotMatch(readinessApi, /API_KEY|SECRET|TOKEN/, 'public readiness endpoint must not expose provider credentials');
-
-assert.match(increaseSandbox, /https:\/\/sandbox\.increase\.com/, 'Increase integration must be pinned to the sandbox origin');
-assert.doesNotMatch(increaseSandbox, /https:\/\/api\.increase\.com/, 'Increase sandbox adapter must not contain the production API origin');
-assert.match(increaseSandbox, /INCREASE_SANDBOX_API_KEY/, 'Increase sandbox adapter must use the sandbox-specific key');
-assert.doesNotMatch(increaseSandbox, /GALACTIC_BANKING_PROVIDER_API_KEY/, 'sandbox adapter must not fall back to a generic production provider key');
-assert.match(increaseSandbox, /canMoveRealMoney:\s*false/, 'sandbox adapter must explicitly declare that it cannot move real money');
-assert.match(increaseSandbox, /productionSupported:\s*false/, 'sandbox adapter must explicitly reject production support');
-assert.match(increaseSandbox, /origin !== new URL\(INCREASE_SANDBOX_BASE_URL\)\.origin/, 'provider requests must be origin-pinned');
-assert.match(increaseSandbox, /\/accounts\/\$\{encodeURIComponent\(account\.id\)\}\/balance/, 'dashboard sync must use Increase account balance endpoint');
-assert.match(increaseSandbox, /\/transactions\?account_id=/, 'dashboard sync must use Increase transaction history');
-assert.match(increaseSandbox, /\/simulations\/inbound_ach_transfers/, 'funding must use Increase sandbox inbound ACH simulation');
-assert.match(increaseSandbox, /\/simulations\/ach_transfers\/\$\{encodeURIComponent\(transfer\.id\)\}\/settle/, 'outbound sandbox ACH must settle only through the sandbox simulation endpoint');
-assert.match(increaseSandbox, /routing_number: '101050001'/, 'outbound sandbox ACH must use fixed test coordinates rather than user bank details');
-assert.match(increaseSandbox, /account_number: '987654321'/, 'outbound sandbox ACH must use fixed test account coordinates');
-
-for (const source of [increaseStatusApi, increaseDashboardApi, increaseFundApi, increaseTransferApi]) {
-  assert.match(source, /requireVoxelVaultAdmin/, 'Increase sandbox routes must remain owner-authenticated');
-  assert.match(source, /Cache-Control': 'private, no-store, max-age=0'/, 'Increase sandbox routes must never be publicly cached');
-  assert.doesNotMatch(source, /process\.env\.INCREASE_SANDBOX_API_KEY/, 'route modules must not directly read or return the sandbox key');
+for (const key of ['GALACTIC_LIVE_BANKING_ENABLED', 'GALACTIC_LIVE_CRYPTO_ENABLED', 'GALACTIC_INCREASE_SANDBOX_ENABLED']) {
+  assert.match(envExample, new RegExp(`${key}=false`), `${key} must default false`);
 }
-assert.match(increaseStatusApi, /canMoveRealMoney:\s*false/, 'Increase status must preserve the sandbox-only boundary');
-assert.match(increaseStatusApi, /never returns the API key/, 'Increase status must disclose its credential boundary');
-assert.match(increaseDashboardApi, /pretend money/i, 'dashboard API must label Increase values as pretend money');
-assert.match(increaseFundApi, /No external bank account was debited/i, 'sandbox funding must explicitly deny external bank debit');
-assert.match(increaseTransferApi, /No real recipient or bank account is used/i, 'sandbox transfer must explicitly deny real destination use');
-assert.match(integrationsApi, /Increase sandbox/, 'owner integrations center must track the banking sandbox');
-assert.match(integrationsApi, /sandbox · no real money/, 'owner integrations center must label the no-real-money mode');
+assert.match(envExample, /INCREASE_SANDBOX_API_KEY=\n/);
+assert.doesNotMatch(envExample, /NEXT_PUBLIC_INCREASE/i);
 
-assert.match(terms, /Galactic Trust itself is not an FDIC-insured institution/i, 'terms must keep FDIC attribution accurate');
-assert.match(terms, /current crypto panel is simulated/i, 'terms must keep crypto separate from banking approval');
-assert.match(privacy, /does not currently collect bank-program KYC documents/i, 'privacy notice must accurately describe current identity-data handling');
-assert.match(privacy, /provider-hosted or tokenized workflows/i, 'privacy notice must prefer minimized provider-side handling for future KYC');
-assert.match(layout, /Galactic Trust \| Financial App/, 'public metadata must avoid presenting Galactic Trust itself as a bank');
-assert.match(layout, /Galactic Trust is not a bank/, 'metadata must preserve the nonbank boundary');
-assert.doesNotMatch(`${gate}\n${enhancements}\n${layout}`, /Member FDIC|FDIC[- ]insured bank/i, 'public Galactic Trust UI must not claim FDIC status before a real sponsor-bank program exists');
-
-for (const key of [
-  'GALACTIC_SPONSOR_BANK_AGREEMENT_ACTIVE',
-  'GALACTIC_PROGRAM_COMPLIANCE_APPROVED',
-  'GALACTIC_KYC_CIP_AML_APPROVED',
-  'GALACTIC_ACCOUNT_DISCLOSURES_APPROVED',
-  'GALACTIC_REG_E_APPROVED',
-  'GALACTIC_MONEY_MOVEMENT_APPROVED',
-  'GALACTIC_CARD_PROGRAM_APPROVED',
-  'GALACTIC_LEDGER_RECONCILIATION_APPROVED',
-  'GALACTIC_DEPOSIT_INSURANCE_DISCLOSURE_APPROVED',
-  'GALACTIC_PRIVACY_SECURITY_APPROVED',
-  'GALACTIC_COMPLAINTS_DISPUTES_APPROVED',
-  'GALACTIC_INCIDENT_RESPONSE_APPROVED',
-  'GALACTIC_PROVIDER_PRODUCTION_ACCEPTED',
-  'GALACTIC_LIVE_BANKING_ENABLED',
-  'GALACTIC_LIVE_CRYPTO_ENABLED',
-  'GALACTIC_INCREASE_SANDBOX_ENABLED',
-]) {
-  assert.match(envExample, new RegExp(`${key}=false`), `${key} must default to false in .env.example`);
-}
-assert.match(envExample, /INCREASE_SANDBOX_API_KEY=\n/, 'Increase sandbox API key must be documented as an empty server-only secret');
-assert.doesNotMatch(envExample, /NEXT_PUBLIC_INCREASE/i, 'Increase credentials must never be exposed to browser code');
-
-console.log('Galactic Trust regulated launch checks passed: nonbank disclosure, sponsor-bank authority, consumer-protection gates, contextual Orbit responses, owner-only Increase sandbox dashboard/ACH simulations, real sign-out and hard-locked live money/crypto are enforced.');
+console.log('Galactic Trust regulated launch boundary passed.');

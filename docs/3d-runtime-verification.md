@@ -1,1 +1,0 @@
-Runtime verification covers WebGL detection, dynamic Three.js loading, loading UI, error boundaries, asset URL validation, procedural fallback, touch-safe canvas behavior, and non-destructive cleanup.

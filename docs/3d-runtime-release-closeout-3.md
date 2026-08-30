@@ -1,1 +1,0 @@
-Guarded 3D changes are isolated on this branch and preserve the Voxel Vault visual shell.

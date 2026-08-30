@@ -1,1 +1,0 @@
-Summary: Safe3DViewer hardening, external asset guard, WebGL capability detection, procedural fallback, loading state, mobile-safe cleanup, and runtime QA criteria.

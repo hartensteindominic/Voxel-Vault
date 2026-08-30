@@ -1,1 +1,0 @@
-Complete final documentation for the guarded 3D runtime layer. CI and real-device verification remain the release gate.

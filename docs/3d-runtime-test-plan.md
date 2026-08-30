@@ -1,1 +1,0 @@
-Test valid GLB/GLTF, missing model, malformed model URL, no WebGL, iPhone Safari touch, fullscreen, navigation away, and simultaneous catalog cards. Expected: no blank gallery and no page-level crash.

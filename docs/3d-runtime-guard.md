@@ -1,1 +1,0 @@
-The 3D runtime layer validates external model URLs, lazy-loads browser-only Three.js, shows a loading state, and falls back to ArtPreview on WebGL or model failure. It intentionally avoids forced WebGL context loss during cleanup because that can be unnecessarily aggressive on mobile Safari.

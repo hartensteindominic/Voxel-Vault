@@ -1,1 +1,0 @@
-Never claim a collectible is 3D-native unless the asset is successfully loaded. If loading fails, show the procedural preview and explain only when useful. Keep the interface clean and avoid exposing engineering details on the main experience.

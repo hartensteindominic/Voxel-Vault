@@ -1,1 +1,0 @@
-The hardened viewer uses browser-only dynamic loading, capability detection, loading UI, error boundaries, procedural fallback, and safe external asset validation. It avoids forced WebGL context loss on cleanup to reduce mobile Safari instability.

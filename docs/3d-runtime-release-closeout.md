@@ -1,1 +1,0 @@
-3D runtime hardening closeout: safe external asset URLs, browser-only loading, WebGL detection, fallback rendering, loading state, error isolation, and mobile-safe cleanup. CI and real-device verification remain mandatory.

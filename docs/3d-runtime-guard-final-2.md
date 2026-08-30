@@ -1,1 +1,0 @@
-3D guard complete: safe URLs, browser-only viewer, WebGL fallback, error boundary, loading state, mobile-safe cleanup, and isolated failures.

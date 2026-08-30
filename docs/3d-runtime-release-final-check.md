@@ -1,1 +1,0 @@
-Final check: interactive model or explicit lightweight fallback; no fake state; no blank canvas; no page-level crash; mobile-safe cleanup.

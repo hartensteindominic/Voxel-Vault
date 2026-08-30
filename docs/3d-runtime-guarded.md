@@ -1,1 +1,0 @@
-Guarded viewer notes: use dynamic imports for Three.js, show a loading skeleton, catch rendering errors, fall back to ArtPreview, validate external asset URLs, and preserve touch behavior.

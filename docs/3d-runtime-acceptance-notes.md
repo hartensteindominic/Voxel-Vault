@@ -1,1 +1,0 @@
-A successful build is not enough for 3D. The runtime must be isolated from the page, use fallback rendering, and remain usable on mobile Safari.

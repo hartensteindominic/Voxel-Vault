@@ -1,1 +1,0 @@
-Gate: CI must pass before merge. Runtime must be checked on iPhone Safari and desktop. No model failure may blank the gallery.

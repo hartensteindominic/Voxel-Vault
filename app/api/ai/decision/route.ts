@@ -1,3 +1,0 @@
-import {NextResponse} from 'next/server';import {decide} from '../../../../lib/ai-agency';
-const actions=new Set(['research','organize_room','draft_listing','prepare_mint','prepare_transfer','run_quantum_simulation']);
-export async function POST(req:Request){try{const b=await req.json();const action=String(b?.action||'');const level=b?.level==='observe'||b?.level==='act'?'act'===b.level?'act':'observe':'suggest';if(!actions.has(action))return NextResponse.json({error:'Unsupported action.'},{status:400});return NextResponse.json(decide(action as any,level as any));}catch{return NextResponse.json({error:'Invalid decision request.'},{status:400})}}

@@ -1,1 +1,0 @@
-Acceptance: GLB/GLTF loads when valid; bad/missing model falls back; WebGL absence falls back; loading state appears; touch interactions remain responsive; viewer cleanup is mobile-safe; unsupported URLs are rejected; one bad NFT cannot crash the gallery.

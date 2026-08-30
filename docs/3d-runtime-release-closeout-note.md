@@ -1,1 +1,0 @@
-3D hardening is additive, keeps the existing visual shell, and requires CI plus real-device verification before production.

@@ -1,1 +1,0 @@
-3D runtime status is intentionally honest: if WebGL is unavailable or an asset fails, Voxel Vault uses a lightweight procedural preview rather than presenting a broken canvas or claiming a real 3D asset loaded.
