@@ -12,7 +12,8 @@ const commands = [
   { id: 'cards', icon: '▤', label: 'Cards', hint: 'View Galactic cards' },
   { id: 'activity', icon: '≡', label: 'Transaction history', hint: 'Recent activity' },
   { id: 'security', icon: '✓', label: 'Security & privacy', hint: 'Protection details' },
-  { id: 'status', icon: '◉', label: 'Regulated launch status', hint: 'See what is required before live banking' },
+  { id: 'account-status', icon: '◉', label: 'My account status', hint: 'See what your signed-in account can do right now' },
+  { id: 'launch-status', icon: '🔒', label: 'Regulated launch status', hint: 'See what is required before live banking' },
   { id: 'rewards', icon: '✿', label: 'Rewards', hint: 'Galactic Stars' },
   { id: 'tour', icon: '✦', label: 'Explore the Stars', hint: 'Restart onboarding tour' },
 ];
@@ -44,9 +45,9 @@ function BalanceTrend() {
   const [range, setRange] = useState('1M');
   const trend = trends[range];
   return (
-    <div className="gt-balance-interactive" aria-label="Demo balance trend">
-      <div className="gt-balance-trend-head"><span>Demo trend</span><b>{trend.change}</b></div>
-      <svg viewBox="0 0 220 50" role="img" aria-label={`${range} balance trend`}><path d={trend.path} /></svg>
+    <div className="gt-balance-interactive" aria-label="Illustrative demo balance trend">
+      <div className="gt-balance-trend-head"><span>Illustrative demo trend</span><b>{trend.change}</b></div>
+      <svg viewBox="0 0 220 50" role="img" aria-label={`${range} illustrative demo balance trend`}><path d={trend.path} /></svg>
       <div className="gt-balance-ranges">
         {Object.keys(trends).map((item) => <button key={item} type="button" className={item === range ? 'active' : ''} onClick={(event) => { event.stopPropagation(); setRange(item); }}>{item}</button>)}
       </div>
@@ -66,9 +67,9 @@ function PriorityActions({ run }) {
 
 function TrustStrip() {
   return (
-    <section className="gt-trust-strip" aria-label="Galactic Trust regulated launch status">
+    <section className="gt-trust-strip" aria-label="Galactic Trust account and regulated launch status">
       <div className="gt-trust-badges"><span>🔒 Protected session</span><span>▣ Masked card data</span><span>◈ Live banking locked</span></div>
-      <p><b>Galactic Trust is a financial technology product, not a bank.</b> No real customer deposits are accepted or held in this build. Banking services can become live only through an approved sponsor-bank program with bank-approved disclosures and controls. <a href="/bank/readiness">View regulated launch status →</a></p>
+      <p><b>Galactic Trust is a financial technology product, not a bank.</b> No real customer deposits are accepted or held in this build. Banking services can become live only through an approved sponsor-bank program with bank-approved disclosures and controls. <a href="/bank/status">View your account status →</a> <a href="/bank/readiness">View regulated launch status →</a></p>
     </section>
   );
 }
@@ -192,7 +193,8 @@ export default function GalacticDashboardEnhancements({ onSignOut, accountLabel 
     else if (id === 'cards') scrollTo('#cards');
     else if (id === 'activity') scrollTo('#activity');
     else if (id === 'security') scrollTo('#security');
-    else if (id === 'status') window.location.assign('/bank/readiness');
+    else if (id === 'account-status') window.location.assign('/bank/status');
+    else if (id === 'launch-status') window.location.assign('/bank/readiness');
     else if (id === 'rewards') scrollTo('#rewards');
     else if (id === 'tour') { setTourIndex(0); setTourOpen(true); }
   }
