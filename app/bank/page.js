@@ -1,4 +1,5 @@
 import GalacticBankGate from './GalacticBankGate';
+import GalacticIncreaseSandboxRecovery from './GalacticIncreaseSandboxRecovery';
 import './bank.css';
 import './galactic.css';
 import './galactic-trust.css';
@@ -12,5 +13,10 @@ export const metadata = {
 };
 
 export default function BankPage() {
-  return <GalacticBankGate />;
+  return (
+    <>
+      <GalacticBankGate />
+      <GalacticIncreaseSandboxRecovery />
+    </>
+  );
 }
