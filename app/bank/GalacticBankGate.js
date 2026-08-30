@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import BankClient from './BankClient';
+import GalacticDashboardEnhancements from './GalacticDashboardEnhancements';
 
 function userLabel(user) {
   return String(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'Galactic member');
@@ -149,7 +150,7 @@ export default function GalacticBankGate() {
               <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
               <button className="gt-auth-primary" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Email me a secure sign-in link'}</button>
             </form>
-            <button className="gt-auth-demo" type="button" onClick={() => setDemoAccess(true)}>Explore the demo first →</button>
+            <button className="gt-auth-demo" type="button" onClick={() => setDemoAccess(true)}>Explore the Stars demo →</button>
             {status && <p className="gt-auth-status" role="status">{status}</p>}
             <small className="gt-auth-legal">Galactic Trust is currently a simulated banking experience. No real deposits are held and no real money moves.</small>
           </section>
@@ -158,5 +159,10 @@ export default function GalacticBankGate() {
     );
   }
 
-  return <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={session?.user ? signOut : () => setDemoAccess(false)} accountLabel={session?.user ? userLabel(session.user) : 'Demo Explorer'} />;
+  return (
+    <>
+      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={session?.user ? signOut : () => setDemoAccess(false)} accountLabel={session?.user ? userLabel(session.user) : 'Demo Explorer'} />
+      <GalacticDashboardEnhancements />
+    </>
+  );
 }

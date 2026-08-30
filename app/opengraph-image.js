@@ -1,31 +1,40 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'Voxel Vault — turn a house photo into a 3D voxel';
+export const alt = 'Galactic Trust - your money, your galaxy';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 export default function Image() {
   return new ImageResponse(
-    <div style={{ width: '100%', height: '100%', display: 'flex', background: '#fffaf0', color: '#17131d', fontFamily: 'Arial, sans-serif', padding: 54, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', width: 430, height: 430, borderRadius: 999, background: '#e7dfff', top: -155, right: -70 }}/>
-      <div style={{ position: 'absolute', width: 390, height: 390, borderRadius: 999, background: '#e8ffb9', bottom: -190, left: -70 }}/>
-      <div style={{ width: '58%', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 3, color: '#7138f5', marginBottom: 18 }}>VOXEL VAULT · VOXELPOP</div>
-        <div style={{ fontSize: 68, lineHeight: .96, fontWeight: 900, letterSpacing: -4 }}>Turn a house photo into a movable 3D voxel.</div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 30 }}>
-          {['PHOTO', '3D VOXEL PHOTO', 'MOVABLE VOXEL'].map((label) => <div key={label} style={{ padding: '12px 16px', borderRadius: 999, background: label === 'MOVABLE VOXEL' ? '#7138f5' : '#ffffff', color: label === 'MOVABLE VOXEL' ? '#ffffff' : '#574e59', border: '1px solid #ded6e3', fontSize: 16, fontWeight: 800 }}>{label}</div>)}
+    <div style={{ width: '100%', height: '100%', display: 'flex', background: '#07103d', color: '#ffffff', fontFamily: 'Arial, sans-serif', padding: 58, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', width: 560, height: 560, borderRadius: 999, background: '#273cf0', opacity: .38, top: -260, right: -130 }} />
+      <div style={{ position: 'absolute', width: 440, height: 440, borderRadius: 999, background: '#7a3cff', opacity: .25, bottom: -260, left: 250 }} />
+      <div style={{ position: 'absolute', width: 11, height: 11, borderRadius: 99, background: '#b8c6ff', top: 72, right: 138 }} />
+      <div style={{ position: 'absolute', width: 7, height: 7, borderRadius: 99, background: '#ffffff', top: 160, right: 84 }} />
+      <div style={{ width: '59%', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 22 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 999, background: 'linear-gradient(135deg,#7d5cff,#2de1da)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 900 }}>GT</div>
+          <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: 2.5 }}>GALACTIC TRUST</div>
         </div>
-        <div style={{ marginTop: 20, fontSize: 20, color: '#746c76' }}>$4.99 digital creation · source photo stays on device · mint optional</div>
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 70, lineHeight: .98, fontWeight: 900, letterSpacing: -4 }}>
+          <div>Your money.</div>
+          <div>Your galaxy.</div>
+        </div>
+        <div style={{ marginTop: 24, fontSize: 22, lineHeight: 1.35, color: '#cfd7ff' }}>A clear, cosmic digital banking demo with fast actions, cards, spending insights, and Orbit assistance.</div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
+          {['DEPOSIT', 'SEND', 'SWAP'].map((label, index) => <div key={label} style={{ padding: '11px 15px', borderRadius: 999, background: index === 0 ? '#ffffff' : 'rgba(255,255,255,.10)', color: index === 0 ? '#25309d' : '#ffffff', border: '1px solid rgba(255,255,255,.22)', fontSize: 15, fontWeight: 900 }}>{label}</div>)}
+        </div>
+        <div style={{ marginTop: 20, fontSize: 15, color: '#aeb8e9' }}>SIMULATED BANKING - NO REAL DEPOSITS - NO REAL MONEY MOVES</div>
       </div>
-      <div style={{ width: '42%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-        <div style={{ width: 360, height: 360, borderRadius: 42, background: '#21172c', border: '8px solid #ffffff', boxShadow: '0 24px 50px rgba(62,36,96,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-          <div style={{ position: 'absolute', bottom: 42, width: 270, height: 74, borderRadius: 999, background: '#91cf54' }}/>
-          <div style={{ position: 'absolute', width: 210, height: 138, bottom: 90, background: '#f0d3a0', borderRadius: 10 }}/>
-          <div style={{ position: 'absolute', width: 258, height: 120, bottom: 199, background: '#6d47bc', clipPath: 'polygon(50% 0,100% 65%,82% 100%,18% 100%,0 65%)' }}/>
-          <div style={{ position: 'absolute', width: 42, height: 70, bottom: 90, background: '#925c37' }}/>
-          <div style={{ position: 'absolute', width: 42, height: 42, bottom: 148, left: 103, background: '#8ed8e8', border: '7px solid #fff5dc' }}/>
-          <div style={{ position: 'absolute', width: 42, height: 42, bottom: 148, right: 103, background: '#8ed8e8', border: '7px solid #fff5dc' }}/>
-          <div style={{ position: 'absolute', top: 18, left: 18, padding: '10px 14px', borderRadius: 999, background: '#c9ff54', color: '#2f4509', fontSize: 16, fontWeight: 900 }}>SEE IT FIRST</div>
+      <div style={{ width: '41%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+        <div style={{ width: 390, height: 250, borderRadius: 34, background: 'linear-gradient(145deg,#263bff,#7440e9)', border: '1px solid rgba(255,255,255,.28)', boxShadow: '0 28px 70px rgba(0,0,0,.28)', padding: 28, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', width: 190, height: 190, borderRadius: 999, background: 'rgba(255,255,255,.12)', right: -45, top: -62 }} />
+          <div style={{ fontSize: 15, color: '#dfe5ff' }}>TOTAL BALANCE</div>
+          <div style={{ marginTop: 12, fontSize: 48, fontWeight: 900 }}>$24,350.72</div>
+          <div style={{ marginTop: 9, display: 'flex', gap: 9, alignItems: 'center', fontSize: 16 }}><span style={{ color: '#bfffd2', fontWeight: 900 }}>+12.4%</span><span style={{ color: '#d3d9ff' }}>demo trend</span></div>
+          <div style={{ marginTop: 'auto', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            {[26, 36, 31, 48, 42, 62, 55, 74, 69, 91].map((height, index) => <div key={index} style={{ width: 22, height, borderRadius: 8, background: 'rgba(255,255,255,.78)' }} />)}
+          </div>
         </div>
       </div>
     </div>,

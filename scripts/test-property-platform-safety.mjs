@@ -21,6 +21,8 @@ const token = read('contracts/PropertyInterestToken.sol');
 const passport = read('contracts/PropertyPassport.sol');
 const distribution = read('contracts/PropertyDistributionVault.sol');
 const root = read('app/page.js');
+const bankGate = read('app/bank/GalacticBankGate.js');
+const bank = read('app/bank/BankClient.js');
 const productMap = read('lib/product-map.js');
 const home = read('app/real-estate/page.js');
 const vault = read('app/real-estate/property/[propertyId]/page.js');
@@ -111,19 +113,39 @@ requireMarkers(distribution, 'distribution vault', [
   'InvalidStatementHash',
 ]);
 
-// The public root is intentionally focused on the shipping property-voxel product.
-// Regulated property/investment disclosures belong on their advanced surfaces,
-// while the front door must still preserve optional minting and the digital-only
-// physical-property rights boundary.
-requireMarkers(root, 'simple root homepage', [
-  'PROPERTY → COLLECTIBLE',
-  'Create a property voxel',
-  'confirm the address',
-  'saved to Inventory first',
-  'Mint if you want',
-  'This collectible is digital only.',
-  'does not create or transfer deed, title',
-]);
+// The public root may be the Galactic Trust banking demo or the legacy focused
+// property collectible entry point. In either case, regulated property rails
+// remain isolated behind the dedicated advanced surfaces below.
+if (root.includes('GalacticBankGate')) {
+  requireMarkers(root, 'Galactic Trust root homepage', [
+    'GalacticBankGate',
+    'galactic-trust.css',
+    'enhancements.css',
+  ]);
+  requireMarkers(bankGate, 'Galactic Trust account gate', [
+    'Continue with Google',
+    'Explore the Stars demo',
+    'simulated banking experience',
+    'No real deposits are held',
+  ]);
+  requireMarkers(bank, 'Galactic Trust dashboard', [
+    'DEMO BANKING',
+    'No real deposits are held and no real money moves in this build.',
+    'Live-money guard',
+    'Real banking and crypto remain off until approved providers are configured.',
+  ]);
+  assert.doesNotMatch(root, /BUY PIECE|BUY WHOLE|guaranteed returns|guaranteed yield|risk[- ]free/i, 'Galactic Trust root must not expose property-investment purchase or return claims');
+} else {
+  requireMarkers(root, 'simple root homepage', [
+    'PROPERTY → COLLECTIBLE',
+    'Create a property voxel',
+    'confirm the address',
+    'saved to Inventory first',
+    'Mint if you want',
+    'This collectible is digital only.',
+    'does not create or transfer deed, title',
+  ]);
+}
 assert.doesNotMatch(root, /Create mine · \$4\.99|Create · \$4\.99/, 'the live property creator must not reintroduce the legacy checkout CTA');
 requireMarkers(productMap, 'advanced product directory', [
   "href: '/real-estate/reits'",
@@ -245,4 +267,4 @@ assert.equal(regulatedLaunchPacket.liveMoneyMovement, 'blocked', 'direct-propert
 assert.equal(regulatedLaunchPacket.liveOwnershipMinting, 'blocked', 'direct-property ownership minting must remain blocked');
 assert.ok(regulatedLaunchPacket.reviewDocuments.some((doc) => doc.path === 'docs/REGULATED_LAUNCH_PACKET.md'), 'launch packet doc should be listed for review');
 
-console.log('Property-platform safety checks passed: the live photo → confirmed address → voxel image → movable 3D voxel → Inventory → optional mint flow remains separate from regulated rails; provider-backed investment routes remain gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');
+console.log('Property-platform safety checks passed: the live property and investment rails remain separate from the Galactic Trust public front door; provider-backed investment routes stay gated, legal clearance is never claimed, Property Passport cannot act as a transferable deed proxy, direct-property investing and auto-reinvestment remain fail-closed, and property deployment remains Base Sepolia-only.');

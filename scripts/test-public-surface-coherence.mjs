@@ -15,6 +15,7 @@ const home = read('app/page.js');
 const checkout = read('app/api/checkout/route.ts');
 const secureCheckout = read('app/api/checkout-secure/route.ts');
 const productMap = read('lib/product-map.js');
+const galacticHome = /GalacticBankGate/.test(home);
 
 for (const [name, source] of [
   ['static index', staticIndex],
@@ -36,18 +37,32 @@ for (const [name, source, path] of [
   assert.doesNotMatch(source, /Ad-Revenue|voxel-vault\.vercel\.app|VoxelForge/, `${name} must not preserve an obsolete public identity.`);
 }
 
-for (const route of ['/', '/demo', '/property', '/world', '/more', '/about', '/privacy', '/terms']) {
-  const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  assert.match(appSitemap, new RegExp(`path:\\s*['"]${escaped}['"]`), `Next sitemap must include ${route}.`);
+if (galacticHome) {
+  for (const route of ['/', '/bank', '/about', '/privacy', '/terms']) {
+    const suffix = route === '/' ? '/' : route;
+    assert.ok(appSitemap.includes(`\`\${base}${suffix}\``), `Galactic Trust sitemap must include ${route}.`);
+  }
+  for (const retiredFrontDoor of ['/demo', '/property', '/world', '/more']) {
+    assert.ok(!appSitemap.includes(`\`\${base}${retiredFrontDoor}\``), `${retiredFrontDoor} must not compete with Galactic Trust in the public sitemap.`);
+  }
+} else {
+  for (const route of ['/', '/demo', '/property', '/world', '/more', '/about', '/privacy', '/terms']) {
+    const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(appSitemap, new RegExp(`path:\\s*['"]${escaped}['"]`), `Next sitemap must include ${route}.`);
+  }
+  assert.doesNotMatch(appSitemap, /path:\s*['"]\/studio['"]/, 'The optional Studio route must not replace the current property product in the public sitemap.');
 }
-assert.doesNotMatch(appSitemap, /path:\s*['"]\/studio['"]/, 'The optional Studio route must not replace the current property product in the public sitemap.');
 
-for (const privatePath of ['/admin/', '/api/', '/vault/', '/account/', '/checkout/', '/property/mint']) {
+for (const privatePath of ['/admin/', '/api/', '/vault/', '/account/', '/checkout/', '/property/']) {
   assert.match(appRobots, new RegExp(privatePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `robots metadata must keep ${privatePath} out of search crawling.`);
 }
 
 assert.doesNotMatch(layout, /alternates:\s*\{\s*canonical:\s*SITE_URL/, 'The root layout must not force the homepage canonical onto every child route.');
 assert.match(home, /alternates:\s*\{\s*canonical:\s*['"]\/['"]\s*\}/, 'The homepage must own its own canonical URL.');
+if (galacticHome) {
+  assert.match(layout, /Galactic Trust \| Digital Banking/, 'Galactic Trust metadata must match the public front door.');
+  assert.match(layout, /Financial actions remain simulated until regulated provider rails are connected/, 'Galactic Trust metadata must keep the demo-money boundary.');
+}
 
 for (const [name, source] of [['checkout', checkout], ['secure checkout', secureCheckout]]) {
   assert.match(source, /NEXT_PUBLIC_SITE_URL[\s\S]*NEXT_PUBLIC_APP_URL[\s\S]*https:\/\/www\.voxelvault\.io/, `${name} must use the canonical domain as its safe fallback.`);
@@ -57,4 +72,4 @@ for (const [name, source] of [['checkout', checkout], ['secure checkout', secure
 assert.match(productMap, /Authorized house photo → \$4\.99 → 3D voxel photo → approval → movable 3D voxel → save or optional mint\./, 'Canonical product-map copy must preserve the paid voxel-photo-before-movable-voxel ordering and keep minting optional.');
 assert.match(productMap, /included voxel for eligible purchases/, 'Product-map Digital Twin copy must preserve the purchased-twin voxel entitlement.');
 
-console.log('Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and the focused $4.99 voxel-photo-before-model product contract are aligned.');
+console.log(`Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and ${galacticHome ? 'the Galactic Trust public banking-demo surface' : 'the focused $4.99 voxel-photo-before-model product contract'} are aligned.`);

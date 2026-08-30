@@ -3,6 +3,7 @@ import './bank.css';
 import './galactic.css';
 import './galactic-trust.css';
 import './auth.css';
+import './enhancements.css';
 
 export const metadata = {
   title: 'Dashboard',
