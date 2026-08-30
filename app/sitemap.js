@@ -3,6 +3,7 @@ export default function sitemap() {
   return [
     { url: `${base}/`, changeFrequency: 'weekly', priority: 1 },
     { url: `${base}/bank`, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${base}/bank/readiness`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${base}/about`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${base}/privacy`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${base}/terms`, changeFrequency: 'monthly', priority: 0.5 },
