@@ -137,10 +137,10 @@ export default function GalacticBankGate() {
             <div><strong>Galactic Trust</strong><small>Your money. Your galaxy.</small></div>
           </div>
           <div className="gt-auth-copy">
-            <span className="gt-auth-kicker">✦ SECURE DIGITAL BANKING DEMO</span>
+            <span className="gt-auth-kicker">✦ FINANCIAL APP · PRODUCTION GATED</span>
             <h1>Welcome to your<br /><em>financial galaxy.</em></h1>
-            <p>Sign in to keep your Galactic Trust demo preferences and activity connected to your account across devices.</p>
-            <div className="gt-auth-trust-row"><span>🔒 Protected session</span><span>✦ Private by design</span><span>◈ Demo money only</span></div>
+            <p>Sign in to keep your Galactic Trust preferences and demo activity connected to your account across devices. Real banking remains locked until an approved sponsor-bank program is live.</p>
+            <div className="gt-auth-trust-row"><span>🔒 Protected session</span><span>✦ Account sign-in</span><span>◈ Live banking locked</span></div>
           </div>
           <section className="gt-auth-card">
             <div className="gt-auth-card-head"><span>🪐</span><div><h2>Enter Galactic Trust</h2><p>Create an account or sign back in.</p></div></div>
@@ -152,17 +152,20 @@ export default function GalacticBankGate() {
             </form>
             <button className="gt-auth-demo" type="button" onClick={() => setDemoAccess(true)}>Explore the Stars demo →</button>
             {status && <p className="gt-auth-status" role="status">{status}</p>}
-            <small className="gt-auth-legal">Galactic Trust is currently a simulated banking experience. No real deposits are held and no real money moves.</small>
+            <small className="gt-auth-legal">Galactic Trust is a financial technology product, not a bank. It does not currently accept or hold real customer deposits. <a href="/bank/readiness">View regulated launch status.</a></small>
           </section>
         </section>
       </main>
     );
   }
 
+  const activeSignOut = session?.user ? signOut : () => setDemoAccess(false);
+  const label = session?.user ? userLabel(session.user) : 'Demo Explorer';
+
   return (
     <>
-      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={session?.user ? signOut : () => setDemoAccess(false)} accountLabel={session?.user ? userLabel(session.user) : 'Demo Explorer'} />
-      <GalacticDashboardEnhancements />
+      <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} />
+      <GalacticDashboardEnhancements onSignOut={activeSignOut} accountLabel={label} />
     </>
   );
 }
