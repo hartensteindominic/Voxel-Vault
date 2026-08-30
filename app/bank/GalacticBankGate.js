@@ -6,6 +6,7 @@ import BankClient from './BankClient';
 import GalacticCryptoPractice from './GalacticCryptoPractice';
 import GalacticDashboardAccountState from './GalacticDashboardAccountState';
 import GalacticDashboardEnhancements from './GalacticDashboardEnhancements';
+import GalacticHeaderCenter from './GalacticHeaderCenter';
 import GalacticSandboxSetup from './GalacticSandboxSetup';
 
 function userLabel(user) {
@@ -170,6 +171,7 @@ export default function GalacticBankGate() {
       <GalacticCryptoPractice />
       <GalacticDashboardEnhancements onSignOut={activeSignOut} accountLabel={label} />
       <GalacticDashboardAccountState accessToken={accessToken} demoAccess={demoAccess} />
+      <GalacticHeaderCenter accessToken={accessToken} demoAccess={demoAccess} accountLabel={label} onSignOut={activeSignOut} />
       {session?.user && <GalacticSandboxSetup accessToken={accessToken} />}
     </>
   );
