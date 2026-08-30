@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserAsync } from '../../lib/supabase-browser';
 import BankClient from './BankClient';
+import GalacticCryptoPractice from './GalacticCryptoPractice';
 import GalacticDashboardAccountState from './GalacticDashboardAccountState';
 import GalacticDashboardEnhancements from './GalacticDashboardEnhancements';
 import GalacticSandboxSetup from './GalacticSandboxSetup';
@@ -166,6 +167,7 @@ export default function GalacticBankGate() {
   return (
     <>
       <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} accessToken={accessToken} />
+      <GalacticCryptoPractice />
       <GalacticDashboardEnhancements onSignOut={activeSignOut} accountLabel={label} />
       <GalacticDashboardAccountState accessToken={accessToken} demoAccess={demoAccess} />
       {session?.user && <GalacticSandboxSetup accessToken={accessToken} />}
