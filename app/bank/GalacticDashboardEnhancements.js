@@ -13,6 +13,7 @@ const commands = [
   { id: 'activity', icon: '≡', label: 'Transaction history', hint: 'Recent activity' },
   { id: 'security', icon: '✓', label: 'Security & privacy', hint: 'Protection details' },
   { id: 'account-status', icon: '◉', label: 'My account status', hint: 'See what your signed-in account can do right now' },
+  { id: 'integration-health', icon: '↻', label: 'Integration health', hint: 'Owner-only provider, webhook and reconciliation status' },
   { id: 'launch-status', icon: '🔒', label: 'Regulated launch status', hint: 'See what is required before live banking' },
   { id: 'rewards', icon: '✿', label: 'Rewards', hint: 'Galactic Stars' },
   { id: 'tour', icon: '✦', label: 'Explore the Stars', hint: 'Restart onboarding tour' },
@@ -194,6 +195,7 @@ export default function GalacticDashboardEnhancements({ onSignOut, accountLabel 
     else if (id === 'activity') scrollTo('#activity');
     else if (id === 'security') scrollTo('#security');
     else if (id === 'account-status') window.location.assign('/bank/status');
+    else if (id === 'integration-health') window.location.assign('/bank/integrations');
     else if (id === 'launch-status') window.location.assign('/bank/readiness');
     else if (id === 'rewards') scrollTo('#rewards');
     else if (id === 'tour') { setTourIndex(0); setTourOpen(true); }
