@@ -38,7 +38,7 @@ for (const [name, source, path] of [
 }
 
 if (galacticHome) {
-  for (const route of ['/', '/bank', '/about', '/privacy', '/terms']) {
+  for (const route of ['/', '/bank', '/bank/readiness', '/about', '/privacy', '/terms']) {
     const suffix = route === '/' ? '/' : route;
     assert.ok(appSitemap.includes(`\`\${base}${suffix}\``), `Galactic Trust sitemap must include ${route}.`);
   }
@@ -60,8 +60,9 @@ for (const privatePath of ['/admin/', '/api/', '/vault/', '/account/', '/checkou
 assert.doesNotMatch(layout, /alternates:\s*\{\s*canonical:\s*SITE_URL/, 'The root layout must not force the homepage canonical onto every child route.');
 assert.match(home, /alternates:\s*\{\s*canonical:\s*['"]\/['"]\s*\}/, 'The homepage must own its own canonical URL.');
 if (galacticHome) {
-  assert.match(layout, /Galactic Trust \| Digital Banking/, 'Galactic Trust metadata must match the public front door.');
-  assert.match(layout, /Financial actions remain simulated until regulated provider rails are connected/, 'Galactic Trust metadata must keep the demo-money boundary.');
+  assert.match(layout, /Galactic Trust \| Financial App/, 'Galactic Trust metadata must match the nonbank public front door.');
+  assert.match(layout, /Galactic Trust is not a bank/, 'Galactic Trust metadata must preserve the nonbank boundary.');
+  assert.match(layout, /approved sponsor-bank program/, 'Galactic Trust metadata must preserve the provider-backed launch boundary.');
 }
 
 for (const [name, source] of [['checkout', checkout], ['secure checkout', secureCheckout]]) {
@@ -72,4 +73,4 @@ for (const [name, source] of [['checkout', checkout], ['secure checkout', secure
 assert.match(productMap, /Authorized house photo → \$4\.99 → 3D voxel photo → approval → movable 3D voxel → save or optional mint\./, 'Canonical product-map copy must preserve the paid voxel-photo-before-movable-voxel ordering and keep minting optional.');
 assert.match(productMap, /included voxel for eligible purchases/, 'Product-map Digital Twin copy must preserve the purchased-twin voxel entitlement.');
 
-console.log(`Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and ${galacticHome ? 'the Galactic Trust public banking-demo surface' : 'the focused $4.99 voxel-photo-before-model product contract'} are aligned.`);
+console.log(`Public-surface coherence passed: canonical domain, static legal redirects, sitemap/robots, checkout fallbacks, canonical scoping, and ${galacticHome ? 'the Galactic Trust nonbank regulated-readiness surface' : 'the focused $4.99 voxel-photo-before-model product contract'} are aligned.`);
