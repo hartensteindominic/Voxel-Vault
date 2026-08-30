@@ -35,6 +35,14 @@ function authHeaders(accessToken, json = false) {
   return headers;
 }
 
+function safeHostedSessionUrl(value) {
+  const url = new URL(String(value || ''));
+  if (url.protocol !== 'https:' || !(url.hostname === 'increase.com' || url.hostname.endsWith('.increase.com'))) {
+    throw new Error('Increase did not return a safe hosted onboarding URL.');
+  }
+  return url.toString();
+}
+
 export default function GalacticSandboxSetup({ accessToken = '' }) {
   const [authorized, setAuthorized] = useState(null);
   const [status, setStatus] = useState(null);
@@ -55,7 +63,9 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
 
     const query = new URLSearchParams(window.location.search);
     const returnedEntity = String(query.get('entity_id') || '').trim();
+    const returnedProgram = String(query.get('increase_program_id') || '').trim();
     if (/^(sandbox_)?entity_[a-zA-Z0-9_-]+$/.test(returnedEntity)) setEntityId(returnedEntity);
+    if (/^(sandbox_)?program_[a-zA-Z0-9_-]+$/.test(returnedProgram)) setProgramId(returnedProgram);
 
     Promise.all([
       fetch('/api/admin/bank/increase/status', {
@@ -116,9 +126,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
     setMessage('');
     try {
       const payload = await post('create_session');
-      const sessionUrl = String(payload?.session?.sessionUrl || '');
-      if (!/^https:\/\/[a-z0-9.-]*increase\.com\//i.test(sessionUrl)) throw new Error('Increase did not return a safe hosted onboarding URL.');
-      window.location.assign(sessionUrl);
+      window.location.assign(safeHostedSessionUrl(payload?.session?.sessionUrl));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not start Increase sandbox onboarding.');
       setBusy(false);
