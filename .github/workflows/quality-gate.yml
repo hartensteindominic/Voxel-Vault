@@ -61,6 +61,8 @@ jobs:
         run: node scripts/test-buffalo-property-reference.mjs
       - name: Financial OS coherence
         run: node scripts/test-financial-os-coherence.mjs
+      - name: Galactic Trust regulated launch
+        run: node scripts/test-galactic-trust-regulated-launch.mjs
       - name: Hyperreal voxel building
         run: node scripts/test-hyperreal-voxel-building.mjs
       - name: Property draft funnel
