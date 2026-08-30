@@ -58,6 +58,7 @@ const productionSource = read('lib/banking/providers/increase/production.js');
 const resolverSource = read('lib/banking/providers/index.js');
 const gateSource = read('app/bank/GalacticBankGate.js');
 const vercelSource = read('vercel.json');
+const nextConfigSource = read('next.config.mjs');
 
 assert.doesNotMatch(productionSource, /increase-sandbox/i, 'production adapter must not import or reuse sandbox request code');
 assert.doesNotMatch(productionSource, /INCREASE_SANDBOX_API_KEY/, 'production adapter must not accept sandbox credentials');
@@ -69,9 +70,11 @@ assert.match(gateSource, /new URL\('\/bank', window\.location\.origin\)/, 'Googl
 
 assert.match(vercelSource, /"X-Frame-Options", "value": "DENY"/, 'Galactic Trust pages must deny framing to reduce clickjacking risk');
 assert.match(vercelSource, /"Strict-Transport-Security", "value": "max-age=31536000"/, 'Galactic Trust deployment must instruct browsers to keep using HTTPS');
-assert.match(vercelSource, /"Permissions-Policy", "value": "camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)"/, 'unused sensitive browser capabilities must be disabled by policy');
 assert.match(vercelSource, /"X-Permitted-Cross-Domain-Policies", "value": "none"/, 'legacy cross-domain policy files must be disabled');
 assert.match(vercelSource, /"X-Content-Type-Options", "value": "nosniff"/, 'MIME sniffing protection must remain enabled');
 assert.match(vercelSource, /"Referrer-Policy", "value": "strict-origin-when-cross-origin"/, 'referrer policy must remain privacy-conscious');
+assert.doesNotMatch(vercelSource, /Permissions-Policy/, 'parenthesized Permissions-Policy must stay out of vercel.json to avoid deployment-schema rejection');
+assert.match(nextConfigSource, /key: 'Permissions-Policy'/, 'Next response headers must set the browser permissions policy');
+assert.match(nextConfigSource, /camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)/, 'unused sensitive browser capabilities must be disabled by policy');
 
-console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and deployment security headers remain hardened.');
+console.log('Galactic Trust provider boundary checks passed: demo, Increase sandbox, and locked production remain explicitly separated, auth returns to /bank, and deployment security headers remain hardened without relying on a Vercel-incompatible Permissions-Policy value.');
