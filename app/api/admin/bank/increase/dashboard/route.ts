@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireGalacticTrustAdmin } from '../../../../../../lib/admin-auth';
+import { describeIncreaseSandboxError } from '../../../../../../lib/banking/increase-api-errors.js';
 import { getIncreaseSandboxDashboardForAccount } from '../../../../../../lib/banking/increase-sandbox.js';
 import { ensureIncreaseSandboxWebhookSubscription } from '../../../../../../lib/banking/increase-webhook-subscription.js';
 import { pollIncreaseSandboxEvents } from '../../../../../../lib/banking/increase-reconciliation';
@@ -43,6 +44,22 @@ export async function GET(request: Request) {
     const snapshot = await getIncreaseSandboxDashboardForAccount(bindingState.binding.accountId, process.env);
     return response({ ok: true, authorized: true, ...snapshot, binding: publicBindingSummary(bindingState.binding), webhookAutomation, reconciliationBackstop, automationIssue, note: 'Increase sandbox data is scoped to the Account bound server-side to this signed-in owner. Values are pretend money and cannot represent live customer funds.' });
   } catch (error: any) {
-    return response({ ok: false, authorized: true, provider: 'Increase', environment: 'sandbox', connected: false, canMoveRealMoney: false, binding: publicBindingSummary(bindingState.binding), webhookAutomation, reconciliationBackstop, automationIssue, providerStatus: Number.isFinite(error?.status) ? error.status : null, error: error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.' }, 502);
+    const provider = describeIncreaseSandboxError(error, error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.');
+    return response({
+      ok: false,
+      authorized: true,
+      provider: 'Increase',
+      environment: 'sandbox',
+      connected: false,
+      canMoveRealMoney: false,
+      binding: publicBindingSummary(bindingState.binding),
+      webhookAutomation,
+      reconciliationBackstop,
+      automationIssue,
+      providerStatus: provider.providerStatus,
+      providerType: provider.providerType,
+      error: provider.error,
+      nextStep: provider.nextStep,
+    }, 502);
   }
 }
