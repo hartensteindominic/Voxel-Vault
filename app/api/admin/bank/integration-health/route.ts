@@ -3,7 +3,7 @@ import { requireGalacticTrustAdmin } from '../../../../../lib/admin-auth';
 import { describeIncreaseSandboxError } from '../../../../../lib/banking/increase-api-errors.js';
 import { inspectIncreaseSandboxOnboarding } from '../../../../../lib/banking/increase-onboarding-sandbox.js';
 import { resolveIncreaseSandboxOwnerAccount } from '../../../../../lib/banking/increase-owner-account.js';
-import { getIncreaseReconciliationStatus, pollIncreaseSandboxEvents } from '../../../../../lib/banking/increase-reconciliation';
+import { getIncreaseReconciliationStatus, pollIncreaseSandboxEvents, reconcileIncreaseSandbox } from '../../../../../lib/banking/increase-reconciliation';
 import { getIncreaseSandboxConfig, inspectIncreaseSandbox } from '../../../../../lib/banking/increase-sandbox.js';
 import { ensureIncreaseSandboxWebhookSubscription } from '../../../../../lib/banking/increase-webhook-subscription.js';
 import { getProviderAccountBinding, publicBindingSummary } from '../../../../../lib/banking/provider-account-binding.js';
@@ -312,13 +312,43 @@ export async function POST(request: Request) {
         nextStep: 'Create the dedicated sandbox test account, then run reconciliation again.',
       }, 409);
     }
-    await ensureIncreaseSandboxWebhookSubscription(process.env);
-    const backstop = await pollIncreaseSandboxEvents({ accountId: resolution.accountId, maxPages: 5, forceReconcile: true });
+
+    let webhookSetupAvailable = true;
+    try {
+      await ensureIncreaseSandboxWebhookSubscription(process.env);
+    } catch {
+      webhookSetupAvailable = false;
+    }
+
+    let backstop: any;
+    try {
+      backstop = await pollIncreaseSandboxEvents({ accountId: resolution.accountId, maxPages: 5, forceReconcile: true });
+    } catch {
+      const direct = await reconcileIncreaseSandbox({ accountId: resolution.accountId, trigger: 'owner' });
+      backstop = {
+        ok: true,
+        environment: 'sandbox',
+        canMoveRealMoney: false,
+        scope: 'owner-account',
+        pages: 0,
+        scanned: 0,
+        observedEvents: 0,
+        newEvents: 0,
+        cursorStored: false,
+        eventPollingAvailable: false,
+        eventPollingIssue: 'poll_wrapper_unavailable',
+        mode: 'owner-snapshot-fallback',
+        reconciled: true,
+        reconciliation: direct,
+      };
+    }
+
     const health = await buildHealth(result.auth);
     return response({
       ...health,
       action: 'sandbox-reconciliation-complete',
       reconciliationRun: safeReconciliationRun(backstop),
+      webhookSetupAvailable,
     });
   } catch (error: any) {
     const issue = safeProviderError(error, 'Increase sandbox reconciliation could not run.');
