@@ -30,8 +30,9 @@ export async function GET(request: Request) {
   const auth = await requireGalacticTrustAdmin(request);
   if (auth.ok === false) return response({ ok: false, error: auth.error, setupRequired: auth.setupRequired || false }, auth.status);
 
+  let state: any = null;
   try {
-    const state = await bindingState(auth);
+    state = await bindingState(auth);
     const recovery = state.binding ? null : await getIncreaseSandboxOwnerRecoveryAccount(auth.user.id, process.env);
     const binding = state.binding
       ? publicBindingSummary(state.binding)
@@ -61,6 +62,8 @@ export async function GET(request: Request) {
       environment: 'sandbox',
       recoveryAvailable: false,
       setupRequired: true,
+      bindingStorageReady: state ? !state.setupRequired : false,
+      bindingStorageIssue: state?.setupRequired ? (state.error || 'Trusted provider-binding storage is not installed yet.') : '',
       canMoveRealMoney: false,
       providerStatus: provider.providerStatus,
       providerType: provider.providerType,
@@ -93,7 +96,7 @@ export async function POST(request: Request) {
 
     const recovered = await recoverIncreaseSandboxOwnerAccount(auth.user.id, process.env);
     let binding = null;
-    let bindingStorageReady = !before.setupRequired;
+    const bindingStorageReady = !before.setupRequired;
 
     if (bindingStorageReady) {
       const storedBinding = await bindIncreaseSandboxAccountOnly(auth.admin, auth.user.id, {
@@ -119,6 +122,8 @@ export async function POST(request: Request) {
       accountCreated: recovered.accountCreated,
       accountNumberReady: Boolean(recovered.accountNumber?.ready),
       accountNumberIssue: recovered.accountNumberIssue || '',
+      dashboardReady: Boolean(recovered.dashboard),
+      dashboardIssue: recovered.dashboardIssue || '',
       dashboard: recovered.dashboard,
       canMoveRealMoney: false,
       note: recovered.note,
