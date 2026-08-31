@@ -17,6 +17,13 @@
 .gt-app button:disabled,
 .gt-auth-page button:disabled {
   cursor: not-allowed;
+  opacity: 0.58;
+  transform: none !important;
+  box-shadow: none;
+}
+
+.gt-app button[aria-busy="true"] {
+  cursor: progress;
 }
 
 @media (prefers-reduced-motion: reduce) {

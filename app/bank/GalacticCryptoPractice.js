@@ -56,6 +56,12 @@ export default function GalacticCryptoPractice() {
   const estimatedUnits = Number.isFinite(usd) && usd > 0 ? usd / active.price : 0;
   const holdingsValue = useMemo(() => assets.reduce((sum, asset) => sum + (asset.holding * asset.price), 0), [assets]);
   const practiceTotal = practiceCash + holdingsValue;
+  const practiceTradeReady = Boolean(
+    Number.isFinite(usd)
+      && usd >= 1
+      && usd <= 5000
+      && (side === 'buy' ? usd <= practiceCash : estimatedUnits <= active.holding)
+  );
 
   function submitTrade(event) {
     event.preventDefault();
@@ -132,15 +138,15 @@ export default function GalacticCryptoPractice() {
 
       <form className={styles.trade} onSubmit={submitTrade}>
         <div className={styles.toggle}>
-          <button type="button" className={side === 'buy' ? styles.activeToggle : ''} onClick={() => setSide('buy')}>Practice Buy</button>
-          <button type="button" className={side === 'sell' ? styles.activeToggle : ''} onClick={() => setSide('sell')}>Practice Sell</button>
+          <button type="button" className={side === 'buy' ? styles.activeToggle : ''} aria-pressed={side === 'buy'} onClick={() => setSide('buy')}>Practice Buy</button>
+          <button type="button" className={side === 'sell' ? styles.activeToggle : ''} aria-pressed={side === 'sell'} onClick={() => setSide('sell')}>Practice Sell</button>
         </div>
         <label>
           <span>Practice amount in USD</span>
           <div className={styles.amount}><span>$</span><input type="number" min="1" max="5000" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
         </label>
         <div className={styles.estimate}><span>Estimated {active.symbol}</span><b>{units(estimatedUnits, active.symbol)}</b></div>
-        <button className={styles.submit} type="submit">Simulate {side === 'buy' ? 'Buy' : 'Sell'} {active.symbol}</button>
+        <button className={styles.submit} type="submit" disabled={!practiceTradeReady}>Simulate {side === 'buy' ? 'Buy' : 'Sell'} {active.symbol}</button>
       </form>
 
       {notice && <p className={styles.notice} role="status">{notice}</p>}
