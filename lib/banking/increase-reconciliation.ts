@@ -27,6 +27,14 @@ function safeError(error: unknown) {
   return error instanceof Error ? safeText(error.message, 160) : 'reconciliation_failed';
 }
 
+function safeStorageIssue(error: any) {
+  const code = safeText(error?.code, 40);
+  if (code) return code;
+  const status = Number(error?.status);
+  if (Number.isFinite(status)) return `status_${status}`;
+  return 'storage_unavailable';
+}
+
 function safeEventPollingIssue(error: unknown) {
   if (error && typeof error === 'object' && 'status' in error && Number.isFinite(Number((error as any).status))) {
     return `provider_status_${Number((error as any).status)}`;
@@ -282,30 +290,50 @@ export async function pollIncreaseSandboxEvents(options: {
 }
 
 export async function getIncreaseReconciliationStatus() {
-  const result = await withSupabaseAdmin(async (supabase) => {
-    const [stateResult, eventsResult] = await Promise.all([
-      supabase.from('galactic_increase_reconciliation_state').select('*').eq('environment', 'sandbox').maybeSingle(),
-      supabase
-        .from('galactic_increase_webhook_events')
-        .select('event_id,category,associated_object_type,source,provider_created_at,received_at,processed_at,processing_status,last_error')
-        .order('received_at', { ascending: false })
-        .limit(12),
-    ]);
-    return {
-      stateResult,
-      eventsResult,
-      error: stateResult?.error || eventsResult?.error || null,
-    };
-  });
+  let state: any = null;
+  let recentEvents: any[] = [];
+  let stateReadable = false;
+  let eventLedgerReadable = false;
+  let stateIssue = '';
+  let eventLedgerIssue = '';
 
-  const state = result?.stateResult?.data || null;
-  const events = result?.eventsResult?.data;
+  try {
+    const result = await withSupabaseAdmin((supabase) => supabase
+      .from('galactic_increase_reconciliation_state')
+      .select('*')
+      .eq('environment', 'sandbox')
+      .maybeSingle());
+    state = result?.data || null;
+    stateReadable = true;
+  } catch (error) {
+    stateIssue = safeStorageIssue(error);
+  }
+
+  try {
+    const result = await withSupabaseAdmin((supabase) => supabase
+      .from('galactic_increase_webhook_events')
+      .select('event_id,category,associated_object_type,source,provider_created_at,received_at,processed_at,processing_status,last_error')
+      .order('received_at', { ascending: false })
+      .limit(12));
+    recentEvents = Array.isArray(result?.data) ? result.data : [];
+    eventLedgerReadable = true;
+  } catch (error) {
+    eventLedgerIssue = safeStorageIssue(error);
+  }
+
+  if (!stateReadable && !eventLedgerReadable) {
+    throw new Error('Supabase reconciliation storage is unavailable.');
+  }
 
   return {
     environment: 'sandbox',
     canMoveRealMoney: false,
     scope: 'owner-account',
     state,
-    recentEvents: Array.isArray(events) ? events : [],
+    stateReadable,
+    stateIssue,
+    eventLedgerReadable,
+    eventLedgerIssue,
+    recentEvents,
   };
 }
