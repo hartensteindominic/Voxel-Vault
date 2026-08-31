@@ -44,7 +44,14 @@ export async function GET(request: Request) {
   let reconciliationBackstop: any = null;
   let automationIssue: string | null = null;
   try { webhookAutomation = await ensureIncreaseSandboxWebhookSubscription(process.env); } catch { automationIssue = 'Increase sandbox webhook subscription needs attention.'; }
-  try { reconciliationBackstop = await pollIncreaseSandboxEvents({ maxPages: 2 }); } catch { automationIssue = automationIssue || 'Increase sandbox reconciliation backstop needs attention.'; }
+  try {
+    reconciliationBackstop = await pollIncreaseSandboxEvents({
+      accountId: resolution.accountId,
+      maxPages: 2,
+    });
+  } catch {
+    automationIssue = automationIssue || 'Increase sandbox reconciliation backstop needs attention.';
+  }
 
   try {
     const snapshot = await getIncreaseSandboxDashboardForAccount(resolution.accountId, process.env);
@@ -59,7 +66,7 @@ export async function GET(request: Request) {
       webhookAutomation,
       reconciliationBackstop,
       automationIssue,
-      note: 'Increase sandbox data is scoped server-side to this signed-in Galactic Trust owner through either trusted database binding storage or the owner-specific Increase idempotency key. Values are pretend money only.',
+      note: 'Increase sandbox data and reconciliation are scoped server-side to this signed-in Galactic Trust owner through either trusted database binding storage or the owner-specific Increase idempotency key. Values are pretend money only.',
     });
   } catch (error: any) {
     const provider = describeIncreaseSandboxError(error, error instanceof Error ? error.message : 'Increase sandbox dashboard sync failed.');
