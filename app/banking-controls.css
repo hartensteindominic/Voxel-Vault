@@ -1,0 +1,249 @@
+.bankingControls {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.bankingModeBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 1px solid #dde3f8;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 26px rgba(48, 55, 120, 0.06);
+  color: #667098;
+  font-size: 0.76rem;
+}
+
+.bankingModeBanner b {
+  color: #20284f;
+  white-space: nowrap;
+}
+
+.bankingModeBanner.demo {
+  border-color: #eadfff;
+  background: linear-gradient(135deg, #fbf7ff, #f6f8ff);
+}
+
+.bankingModeBanner.partner {
+  border-color: #caeee5;
+  background: linear-gradient(135deg, #f4fffb, #f5f9ff);
+}
+
+.bankingModeDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #8c5cff;
+  box-shadow: 0 0 0 5px rgba(140, 92, 255, 0.12);
+}
+
+.bankingModeBanner.partner .bankingModeDot {
+  background: #20b998;
+  box-shadow: 0 0 0 5px rgba(32, 185, 152, 0.12);
+}
+
+.quickActions button:disabled,
+.bankingPrimary:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
+.bankingActionSheet {
+  padding: 18px;
+  border: 1px solid #e5e8f5;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 22px 60px rgba(33, 39, 102, 0.12);
+  animation: bankingSheetIn 160ms ease-out;
+}
+
+@keyframes bankingSheetIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bankingActionSheet form,
+.bankingActionSheet > div {
+  display: grid;
+  gap: 13px;
+}
+
+.bankingSheetHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.bankingSheetHeader small {
+  display: block;
+  margin-bottom: 3px;
+  color: #8b6cff;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+}
+
+.bankingSheetHeader h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  color: #171d45;
+}
+
+.sheetClose {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 10px;
+  background: #f1f3fb;
+  color: #747d9e;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.bankingActionSheet label {
+  display: grid;
+  gap: 6px;
+  color: #5f688e;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.bankingActionSheet input {
+  width: 100%;
+  border: 1px solid #e1e4f0;
+  border-radius: 13px;
+  outline: none;
+  background: #fafbff;
+  color: #171d45;
+  padding: 11px 12px;
+}
+
+.bankingActionSheet input:focus {
+  border-color: #7856ff;
+  box-shadow: 0 0 0 3px rgba(120, 86, 255, 0.1);
+}
+
+.moneyInput {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #e1e4f0;
+  border-radius: 13px;
+  background: #fafbff;
+  padding-left: 12px;
+}
+
+.moneyInput span {
+  color: #9299b3;
+  font-weight: 800;
+}
+
+.moneyInput input {
+  border: 0;
+  background: transparent;
+  box-shadow: none !important;
+  padding-left: 3px;
+}
+
+.bankingPrimary {
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  background: linear-gradient(135deg, #3159ff, #7b3cff 58%, #b93dff);
+  color: white;
+  padding: 12px 16px;
+  box-shadow: 0 12px 28px rgba(79, 61, 255, 0.25);
+  font-weight: 850;
+}
+
+.bankingFinePrint {
+  margin: 0;
+  color: #8189a7;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.fundingOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.fundingOptions button {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid #e4e7f3;
+  border-radius: 15px;
+  background: #fafbff;
+  padding: 13px;
+  text-align: left;
+  color: #20264d;
+}
+
+.fundingOptions button > span {
+  font-size: 1.1rem;
+}
+
+.fundingOptions button b {
+  font-size: 0.78rem;
+}
+
+.fundingOptions button small {
+  color: #8a91ac;
+  line-height: 1.35;
+}
+
+.safeCardDetails {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f7f8ff;
+}
+
+.safeCardDetails span {
+  color: #7b839f;
+  font-size: 0.76rem;
+}
+
+.safeCardDetails strong {
+  color: #20264d;
+  text-align: right;
+  font-size: 0.78rem;
+}
+
+.bankingToast {
+  border-radius: 12px;
+  background: #151b43;
+  color: white;
+  padding: 10px 12px;
+  box-shadow: 0 12px 30px rgba(19, 24, 65, 0.18);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 720px) {
+  .bankingModeBanner {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .bankingModeBanner > span:last-child {
+    width: 100%;
+    padding-left: 16px;
+  }
+
+  .fundingOptions {
+    grid-template-columns: 1fr;
+  }
+}

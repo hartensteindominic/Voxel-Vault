@@ -1,23 +1,26 @@
 {
   "name": "galactic-trust",
+  "version": "1.1.0",
   "private": true,
-  "version": "2.0.0",
-  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:galactic": "node scripts/test-galactic-trust-repo-scope.mjs && node scripts/test-galactic-trust-ui-truth.mjs && node scripts/test-galactic-trust-provider-boundary.mjs && node scripts/test-galactic-trust-regulated-launch.mjs && node scripts/test-galactic-trust-increase-onboarding.mjs && node scripts/test-galactic-trust-increase-webhooks.mjs && node scripts/test-galactic-trust-account-lifecycle.mjs && node scripts/test-galactic-trust-account-status-ui.mjs && node scripts/test-galactic-trust-integration-health.mjs && node scripts/test-galactic-trust-crypto-practice.mjs && node scripts/test-galactic-trust-header-center.mjs && node scripts/test-galactic-trust-increase-recovery.mjs && node scripts/test-galactic-trust-recovery-takeover.mjs && node scripts/test-galactic-trust-week3-polish.mjs && node scripts/test-galactic-trust-orbit.mjs"
+    "typecheck": "tsc --noEmit",
+    "test:safety": "node scripts/safety-check.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.54.0",
-    "next": "^16.3.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "@x402/core": "2.24.0",
+    "@x402/evm": "2.24.0",
+    "@x402/next": "2.24.0",
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@types/node": "20.17.6",
-    "@types/react": "19.1.10",
-    "typescript": "5.8.2"
+    "@types/node": "22.17.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "typescript": "5.9.2"
   }
 }

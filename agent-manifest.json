@@ -1,0 +1,47 @@
+{
+  "name": "Galactic x402 Machine Licensing API",
+  "version": "1.0.0",
+  "staticPreview": true,
+  "network": "Base",
+  "chainId": 8453,
+  "capabilities": [
+    "x402-usdc-pay-per-request",
+    "nft-machine-use-licensing",
+    "agent-readable-license-catalog",
+    "one-use-license-receipts",
+    "direct-human-base-usdc-paylink"
+  ],
+  "x402": {
+    "configured": true,
+    "payTo": "0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb",
+    "payToShort": "0x02f9...4cBb",
+    "facilitator": "https://x402.org/facilitator",
+    "network": "eip155:8453",
+    "protocol": "x402",
+    "asset": "USDC",
+    "price": "$0.01"
+  },
+  "licensing": {
+    "model": "single-machine-use-v1",
+    "repeatUseRequiresNewPayment": true,
+    "modelTrainingIncluded": false,
+    "nftOwnershipTransferred": false
+  },
+  "staticEndpoints": {
+    "paylink": "./paylink.json",
+    "publicLicenseCatalog": "./catalog.json",
+    "openapi": "./openapi.json"
+  },
+  "serverEndpoints": {
+    "paylink": "/api/paylink",
+    "health": "/api/agent/health",
+    "openapi": "/api/agent/openapi",
+    "publicLicenseCatalog": "/api/licenses/catalog",
+    "paidMachineUseLicense": "/api/licenses/use"
+  },
+  "requestExample": {
+    "tokenId": "1",
+    "clientId": "example-agent",
+    "useCase": "render this voxel in one generated scene"
+  }
+}

@@ -1,0 +1,79 @@
+.csvInput {
+  display: none;
+}
+
+.bizHeaderActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.bizHeaderActions .secondaryAction {
+  color: #596174;
+  background: #fff;
+  border: 1px solid #dfe4eb;
+  box-shadow: none;
+}
+
+.bizHeaderActions .secondaryAction:hover {
+  color: #171a2a;
+  background: #f8f9fc;
+}
+
+.dataStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  width: fit-content;
+  max-width: 100%;
+  margin: -10px 0 20px;
+  padding: 7px 11px;
+  border: 1px solid #e3e6ed;
+  border-radius: 10px;
+  color: #6a7180;
+  background: rgba(255, 255, 255, .76);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.dataStatus span {
+  color: #20ad79;
+  font-size: 8px;
+}
+
+@media (max-width: 1100px) {
+  .bizHeader {
+    flex-direction: column;
+  }
+
+  .bizHeaderActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 680px) {
+  .bizHeaderActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bizHeaderActions .livePill {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .bizHeaderActions button {
+    width: 100%;
+    padding: 0 10px;
+  }
+
+  .bizHeaderActions button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .dataStatus {
+    width: 100%;
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "Galactic Base USDC Paylink",
+  "purpose": "Direct human payment prompt plus x402 machine-use licensing route.",
+  "chainId": 8453,
+  "network": "Base",
+  "caip2Network": "eip155:8453",
+  "asset": {
+    "symbol": "USDC",
+    "contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "decimals": 6
+  },
+  "receiver": "0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb",
+  "amount": {
+    "display": "$0.01 USDC",
+    "atomic": "10000"
+  },
+  "paymentUri": "ethereum:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913@8453/transfer?address=0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb&uint256=10000",
+  "metamaskLink": "https://metamask.app.link/send/0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb@8453",
+  "serverEndpoints": {
+    "paidMachineUseLicense": "/api/licenses/use",
+    "freeCatalog": "/api/licenses/catalog",
+    "agentManifest": "/api/agent/manifest",
+    "openapi": "/api/agent/openapi"
+  },
+  "note": "Direct wallet transfers are payment prompts for human buyers. Automatic one-use license receipts are issued by the x402-paid endpoint after server deployment."
+}

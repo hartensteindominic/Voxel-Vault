@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galactic Trust</title>
+  <meta name="description" content="Galactic Trust digital banking dashboard demo.">
+  <link rel="stylesheet" href="./app/globals.css">
+  <link rel="stylesheet" href="./app/banking-controls.css">
+</head>
+<body>
+  <main class="bankApp">
+    <aside class="sidebar">
+      <div class="brandLockup">
+        <span class="planetLogo" aria-hidden="true"><span class="planetBody"></span><span class="planetRing"></span><span class="planetStar">★</span></span>
+        <span>Galactic<br>Trust</span>
+      </div>
+      <nav class="sideNav" aria-label="Primary navigation">
+        <a class="active" href="#dashboard"><span class="navIcon">⌂</span><span>Dashboard</span></a>
+        <a href="#accounts"><span class="navIcon">▣</span><span>Accounts</span></a>
+        <a href="#transfer"><span class="navIcon">⇄</span><span>Transfer</span></a>
+        <a href="#add-money"><span class="navIcon">✣</span><span>Add Money</span></a>
+        <a href="#cards"><span class="navIcon">▤</span><span>Cards</span></a>
+        <a href="#pay-bills"><span class="navIcon">▧</span><span>Pay Bills</span></a>
+        <a href="#investments"><span class="navIcon">▥</span><span>Investments</span></a>
+        <a href="#goals"><span class="navIcon">◇</span><span>Goals</span></a>
+        <a href="#rewards"><span class="navIcon">✿</span><span>Rewards</span></a>
+      </nav>
+      <div class="sidebarSpacer"></div>
+      <div class="sideUtilities">
+        <a href="#settings"><span class="navIcon">⚙</span><span>Settings</span></a>
+        <a href="#help"><span class="navIcon">?</span><span>Help Center</span></a>
+        <div class="sideRule"></div>
+        <a href="#logout"><span class="navIcon">↪</span><span>Log Out</span></a>
+      </div>
+      <div class="astronaut" aria-hidden="true">🧑‍🚀</div>
+      <section class="rewardsCard">
+        <strong>Galactic rewards<br>are waiting! ✨</strong>
+        <p>You have <b>2,450</b> stars</p>
+        <button type="button">Explore Rewards</button>
+      </section>
+    </aside>
+
+    <section class="dashboard" id="dashboard">
+      <header class="dashboardHeader">
+        <div>
+          <h1>Welcome back, Nova! <span>👋</span></h1>
+          <p>Here's what's happening in your galaxy.</p>
+        </div>
+        <div class="headerTools">
+          <label class="searchBox"><span class="srOnly">Search</span><input placeholder="Search anything..."><span>⌕</span></label>
+          <button class="iconButton notification" type="button" aria-label="Notifications">♧<i>3</i></button>
+          <button class="profileButton" type="button"><span class="avatar">◈</span><b>Nova Star</b><span>⌄</span></button>
+        </div>
+      </header>
+
+      <div class="bankingModeBanner demo" role="status">
+        <span class="bankingModeDot"></span>
+        <b>Demo Banking</b>
+        <span>Static preview only. These balances, cards, rewards and transactions are simulated; no real deposits are held and no real money moves.</span>
+      </div>
+
+      <div class="contentGrid">
+        <section class="mainColumn">
+          <article class="balanceHero">
+            <div class="balanceCopy">
+              <div class="balanceLabel">Total Balance <span>◉</span></div>
+              <div class="balanceAmount">$24,350.72</div>
+              <div class="balanceGrowth">↑ <b>12.4%</b> <span>vs last month</span></div>
+            </div>
+            <div class="heroStars">✦</div>
+            <div class="heroPlanet big"><span></span></div>
+            <div class="heroPlanet small"><span></span></div>
+            <div class="heroHorizon"></div>
+          </article>
+
+          <div class="quickActions" id="transfer">
+            <button type="button"><span class="quickIcon send">➤</span><span><b>Transfer</b><small>Demo preview</small></span></button>
+            <button type="button" id="add-money"><span class="quickIcon add">＋</span><span><b>Add Money</b><small>Demo preview</small></span></button>
+            <button type="button"><span class="quickIcon freeze">❄</span><span><b>Freeze Card</b><small>Demo preview</small></span></button>
+            <button type="button"><span class="quickIcon card">▣</span><span><b>View Card</b><small>Masked demo details</small></span></button>
+          </div>
+
+          <div class="accountGrid" id="accounts">
+            <article class="accountCard">
+              <div class="accountTitle"><span class="accountIcon blue">▤</span><span>Checking Account<strong>$15,230.45</strong><small>•••• 4532</small></span><button type="button">›</button></div>
+              <svg class="sparkline blue" viewBox="0 0 222 40" aria-label="Checking account balance trend"><path d="M2 34 C18 27, 24 39, 40 31 S62 32, 78 24 S98 30, 114 20 S134 14, 148 26 S165 9, 181 12 S199 6, 216 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></svg>
+            </article>
+            <article class="accountCard">
+              <div class="accountTitle"><span class="accountIcon teal">▣</span><span>Savings Account<strong>$9,120.27</strong><small>•••• 8756</small></span><button type="button">›</button></div>
+              <svg class="sparkline teal" viewBox="0 0 222 40" aria-label="Savings account balance trend"><path d="M2 35 C16 32, 26 39, 42 33 S64 36, 78 30 S96 33, 111 22 S126 27, 142 18 S157 23, 171 12 S188 5, 201 17 S212 10, 220 4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></svg>
+            </article>
+          </div>
+
+          <section class="activityCard">
+            <div class="sectionHeading"><h2>Recent Activity</h2><a href="#activity">View All</a></div>
+            <div class="activityList" id="activity">
+              <div class="activityRow"><span class="merchantIcon dark">a</span><span class="activityMeta"><b>Amazon.com</b><small>Shopping</small></span><span class="activityAmount"><b>−$89.32</b><small>Today</small></span></div>
+              <div class="activityRow"><span class="merchantIcon green">●</span><span class="activityMeta"><b>Spotify Premium</b><small>Entertainment</small></span><span class="activityAmount"><b>−$11.99</b><small>May 18</small></span></div>
+              <div class="activityRow"><span class="merchantIcon purple">↓</span><span class="activityMeta"><b>Transfer from Alex</b><small>Incoming Transfer</small></span><span class="activityAmount positive"><b>+$200.00</b><small>May 18</small></span></div>
+              <div class="activityRow"><span class="merchantIcon sage">☕</span><span class="activityMeta"><b>Star Coffee</b><small>Food &amp; Drinks</small></span><span class="activityAmount"><b>−$6.45</b><small>May 17</small></span></div>
+              <div class="activityRow"><span class="merchantIcon blue">▰</span><span class="activityMeta"><b>Payroll Direct Deposit</b><small>Income</small></span><span class="activityAmount positive"><b>+$2,850.00</b><small>May 15</small></span></div>
+            </div>
+          </section>
+        </section>
+
+        <aside class="rightColumn">
+          <section class="cardsPanel" id="cards">
+            <div class="sectionHeading"><h2>My Cards</h2><a href="#cards">View All</a></div>
+            <article class="bankCard blue">
+              <div class="cardTopline"><span>★ GALACTIC TRUST</span><span class="contactless">)))</span></div>
+              <div class="cardPlanet" aria-hidden="true"><span></span></div>
+              <div class="cardName">Nebula Blue</div><div class="cardNumber">•••• 4532</div>
+              <div class="cardFooter"><span>DEBIT CARD</span><strong>VISA</strong></div>
+            </article>
+            <article class="bankCard pink">
+              <div class="cardTopline"><span>★ GALACTIC TRUST</span><span class="contactless">)))</span></div>
+              <div class="cardName">Cosmic Pink</div><div class="cardNumber">•••• 8756</div>
+              <div class="cardFooter"><span>DEBIT CARD</span><span class="mastercard"><i></i><i></i></span></div>
+            </article>
+          </section>
+
+          <section class="insightsPanel" id="insights">
+            <div class="sectionHeading"><h2>Spending Insights</h2><button type="button">This Month⌄</button></div>
+            <div class="insightsTotal"><strong>$1,586.34</strong><span>Total Spent <i>↓ 8.7% vs last month</i></span></div>
+            <div class="insightsBody">
+              <div class="legend">
+                <div><span class="dot purple"></span>Shopping <b>$623.10&nbsp;&nbsp; 39%</b></div>
+                <div><span class="dot green"></span>Food &amp; Drinks <b>$312.45&nbsp;&nbsp; 20%</b></div>
+                <div><span class="dot teal"></span>Transport <b>$210.75&nbsp;&nbsp; 13%</b></div>
+                <div><span class="dot coral"></span>Entertainment <b>$198.50&nbsp;&nbsp; 12%</b></div>
+                <div><span class="dot blue"></span>Bills &amp; Utilities <b>$241.54&nbsp;&nbsp; 16%</b></div>
+              </div>
+              <div class="donut" aria-label="Spending breakdown chart"><span>•ᴗ•</span></div>
+            </div>
+            <button class="breakdownButton" type="button"><span>▥</span> See Full Breakdown <b>›</b></button>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
