@@ -1,0 +1,28 @@
+name: Replace Voxel Vault with Galactic Business Finance
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Voxel Vault
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+          fetch-depth: 0
+      - name: Replace repository contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/hartensteindominic/Galactic.git /tmp/galactic
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/galactic/. .
+          rm -rf .git
+          rm -f .github/workflows/replace-with-galactic.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace Voxel Vault with Galactic business finance app" || exit 0
+          git push origin HEAD:main
