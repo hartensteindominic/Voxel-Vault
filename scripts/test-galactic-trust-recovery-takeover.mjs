@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../app/bank/GalacticIncreaseSandboxRecovery.js', import.meta.url), 'utf8');
 const legacySetup = await readFile(new URL('../app/bank/GalacticSandboxSetup.js', import.meta.url), 'utf8');
 const recoveryRoute = await readFile(new URL('../app/api/admin/bank/increase/recovery/route.ts', import.meta.url), 'utf8');
+const recoveryLibrary = await readFile(new URL('../lib/banking/increase-sandbox-recovery.js', import.meta.url), 'utf8');
 
 assert.match(source, /const connected = Boolean\(statusResponse\.ok && status\?\.connected\)/, 'recovery takeover must require a confirmed Increase sandbox Accounts connection');
 assert.match(source, /recoveryResponse\.ok &&\s*recovery\?\.recoveryAvailable/, 'recovery takeover must honor the owner recovery endpoint instead of depending only on hosted-onboarding capability detection');
@@ -21,6 +22,10 @@ assert.match(recoveryRoute, /bindingStorageReady: state \? !state\.setupRequired
 assert.match(recoveryRoute, /dashboardReady: Boolean\(recovered\.dashboard\)/, 'recovery POST must report whether the owner sandbox dashboard was immediately readable');
 assert.match(recoveryRoute, /canMoveRealMoney: false/, 'recovery API must remain sandbox-only and fail-closed for real money');
 
+assert.match(recoveryLibrary, /let dashboard = null;/, 'dashboard enrichment must start as optional after the owner Account is created or recovered');
+assert.match(recoveryLibrary, /try \{\s*dashboard = await getIncreaseSandboxDashboardForAccount\(accountId, env\);\s*\} catch \(error\)/, 'dashboard refresh failures must not roll back a successfully recovered owner Account');
+assert.match(recoveryLibrary, /dashboardIssue,/, 'non-blocking dashboard refresh trouble must be reported to the server response');
+
 assert.match(legacySetup, /fetch\('\/api\/admin\/bank\/increase\/recovery'/, 'legacy hosted setup must consult the owner recovery endpoint directly');
 assert.match(legacySetup, /const \[statusPayload, onboardingPayload, recoveryPayload\]/, 'legacy setup must evaluate recovery status alongside its own read-only setup status');
 assert.match(legacySetup, /recoveryPayload\?\.binding\?\.status === 'verified' \|\| recoveryPayload\?\.recoveryAvailable/, 'verified or available owner recovery must own setup');
@@ -28,4 +33,4 @@ assert.match(legacySetup, /if \(!accessToken \|\| authorized !== true \|\| recov
 assert.match(legacySetup, /!returnedEntity/, 'a user returning from an already-started hosted onboarding session must still be allowed to finish that explicit flow');
 assert.equal(legacySetup.includes('NEXT_PUBLIC_INCREASE'), false, 'legacy setup must not introduce browser-exposed provider credentials');
 
-console.log('Galactic Trust recovery takeover regression passed: connected owner sandbox Accounts can use database-independent Account-only recovery, provider failures remain distinguishable, and the legacy hosted-onboarding panel defers to the dedicated owner path.');
+console.log('Galactic Trust recovery takeover regression passed: connected owner sandbox Accounts can use database-independent Account-only recovery, dashboard enrichment is non-blocking, provider failures remain distinguishable, and the legacy hosted-onboarding panel defers to the dedicated owner path.');
