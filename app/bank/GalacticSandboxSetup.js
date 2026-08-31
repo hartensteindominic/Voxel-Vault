@@ -104,6 +104,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
   const [onboardingRequestOk, setOnboardingRequestOk] = useState(true);
   const [providerMessage, setProviderMessage] = useState('');
   const [providerNextStep, setProviderNextStep] = useState('');
+  const [recoveryOwnsSetup, setRecoveryOwnsSetup] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -147,15 +148,20 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
         cache: 'no-store',
         headers: authHeaders(accessToken),
       }),
-    ]).then(async ([statusResponse, onboardingResponse]) => {
+      fetch('/api/admin/bank/increase/recovery', {
+        cache: 'no-store',
+        headers: authHeaders(accessToken),
+      }),
+    ]).then(async ([statusResponse, onboardingResponse, recoveryResponse]) => {
       if (!active) return;
-      if (statusResponse.status === 403 || onboardingResponse.status === 403) {
+      if (statusResponse.status === 403 || onboardingResponse.status === 403 || recoveryResponse.status === 403) {
         setAuthorized(false);
         return;
       }
-      const [statusPayload, onboardingPayload] = await Promise.all([
+      const [statusPayload, onboardingPayload, recoveryPayload] = await Promise.all([
         statusResponse.json().catch(() => ({})),
         onboardingResponse.json().catch(() => ({})),
+        recoveryResponse.json().catch(() => ({})),
       ]);
       if (!active) return;
       setAuthorized(Boolean(statusPayload?.authorized && onboardingPayload?.authorized));
@@ -166,6 +172,11 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
       setOnboardingRequestOk(onboardingResponse.ok);
       setProviderMessage(String(onboardingPayload?.error || statusPayload?.error || ''));
       setProviderNextStep(String(onboardingPayload?.nextStep || statusPayload?.nextStep || ''));
+      setRecoveryOwnsSetup(Boolean(
+        !returnedEntity
+          && recoveryResponse.ok
+          && (recoveryPayload?.binding?.status === 'verified' || recoveryPayload?.recoveryAvailable)
+      ));
       const nextPrograms = Array.isArray(onboardingPayload?.programs) ? onboardingPayload.programs : [];
       setPrograms(nextPrograms);
       if (nextPrograms.length === 1) setProgramId(nextPrograms[0].id);
@@ -238,7 +249,7 @@ export default function GalacticSandboxSetup({ accessToken = '' }) {
     }
   }
 
-  if (!accessToken || authorized !== true) return null;
+  if (!accessToken || authorized !== true || recoveryOwnsSetup) return null;
   if (!returnedFromOnboarding && connected && accountCount > 0 && bindingReady) return null;
 
   const canStartOwnerOnboarding = connected && onboardingReady && !returnedFromOnboarding && !needsBindingStorage && (needsAccount || needsBinding);
