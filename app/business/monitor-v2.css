@@ -1,0 +1,391 @@
+:root {
+  --gv-ink: #111532;
+  --gv-muted: #7780a5;
+  --gv-line: #e6e9f4;
+  --gv-bg: #f7f8fd;
+  --gv-blue: #3158ff;
+  --gv-violet: #733dff;
+  --gv-pink: #ff4abc;
+  --gv-teal: #18c8c9;
+  --gv-green: #1ca66f;
+  --gv-orange: #f0a126;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; background: var(--gv-bg); }
+button, input, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+
+.gvApp {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  color: var(--gv-ink);
+  background:
+    radial-gradient(circle at 78% 3%, rgba(112, 63, 255, .08), transparent 26rem),
+    linear-gradient(135deg, #fbfcff, #f6f7fd 60%, #f3f5fc);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.gvSidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  padding: 28px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  color: white;
+  background:
+    radial-gradient(circle at 20% 78%, rgba(84, 47, 255, .78) 0 12px, transparent 31px),
+    radial-gradient(circle at 80% 36%, rgba(255, 70, 222, .24) 0 8px, transparent 24px),
+    linear-gradient(180deg, #07103a 0%, #0a1856 52%, #101d6d 100%);
+  box-shadow: 14px 0 42px rgba(28, 35, 101, .12);
+  z-index: 8;
+}
+
+.gvSidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .7;
+  background-image:
+    radial-gradient(circle at 17% 9%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 77% 13%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 36% 28%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 84% 61%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 19% 67%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 64% 84%, #fff 0 1px, transparent 1.5px);
+  pointer-events: none;
+}
+
+.gvBrand,
+.gvSidebar nav,
+.gvSideSpacer,
+.gvMode,
+.gvConnection { position: relative; z-index: 1; }
+
+.gvBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  text-decoration: none;
+  font-weight: 900;
+  font-size: 21px;
+  line-height: .98;
+  letter-spacing: -.7px;
+  margin-bottom: 32px;
+}
+
+.gvLogo { position: relative; width: 52px; height: 52px; flex: 0 0 52px; display: block; }
+.gvLogo i {
+  position: absolute;
+  inset: 10px 9px 7px 10px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #35e8ff, #3267ff 52%, #8b42ff 77%, #ff4bd4);
+  box-shadow: 0 8px 18px rgba(62, 77, 255, .35), inset -7px -7px 13px rgba(54, 10, 147, .3);
+}
+.gvLogo::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 24px;
+  width: 48px;
+  height: 13px;
+  border: 5px solid #8f55ff;
+  border-left-color: #4be5ff;
+  border-right-color: #ff53c9;
+  border-radius: 50%;
+  transform: rotate(-18deg);
+}
+.gvLogo b { position: absolute; right: 0; top: 0; color: white; font-size: 12px; }
+
+.gvSidebar nav { display: grid; gap: 6px; }
+.gvSidebar nav a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 13px;
+  border-radius: 14px;
+  color: rgba(255,255,255,.9);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 730;
+  transition: .18s ease;
+}
+.gvSidebar nav a span { width: 23px; display: grid; place-items: center; font-size: 17px; }
+.gvSidebar nav a:hover { background: rgba(255,255,255,.08); }
+.gvSidebar nav a.active {
+  background: linear-gradient(90deg, #2968ff, #553dff 68%, #7d39ff);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 9px 24px rgba(35, 63, 218, .34);
+}
+
+.gvSideSpacer { flex: 1; min-height: 20px; }
+.gvMode, .gvConnection {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 13px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px;
+  background: rgba(50, 59, 184, .32);
+}
+.gvMode > span {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  background: linear-gradient(145deg, #31dff1, #5261ff 58%, #d842e6);
+  box-shadow: 0 6px 18px rgba(30, 45, 176, .4);
+}
+.gvMode b, .gvConnection b { display: block; font-size: 11px; }
+.gvMode small, .gvConnection small { display: block; margin-top: 4px; color: rgba(255,255,255,.7); font-size: 9px; line-height: 1.35; }
+.gvConnection { margin-top: 9px; align-items: center; background: rgba(8, 28, 89, .42); }
+.gvConnection > i { width: 9px; height: 9px; border-radius: 50%; background: #f2b94a; box-shadow: 0 0 0 4px rgba(242,185,74,.15); }
+
+.gvDashboard { min-width: 0; padding: 31px 30px 28px 34px; }
+.gvHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.gvEyebrow { margin: 0 0 5px; color: #5c63a0; font-size: 10px; font-weight: 900; letter-spacing: 1.5px; }
+.gvHeader h1 { margin: 0; font-size: clamp(28px, 3vw, 36px); line-height: 1; letter-spacing: -1.4px; }
+.gvHeader > div > span { display: block; margin-top: 9px; color: var(--gv-muted); font-size: 13px; }
+.gvHeaderTools { display: flex; gap: 12px; align-items: center; }
+.gvSearch {
+  width: 260px; height: 45px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; border-radius: 24px; background: #eff1f9; color: #586086;
+}
+.gvSearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #343b66; font-size: 12px; }
+.gvAlertButton {
+  position: relative; width: 44px; height: 44px; border: 0; border-radius: 50%; cursor: pointer;
+  background: white; color: #4a527a; box-shadow: 0 6px 18px rgba(31, 42, 104, .09);
+}
+.gvAlertButton i {
+  position: absolute; right: -2px; top: -3px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 10px; display: grid; place-items: center; background: #ff4d8a; color: white; font-style: normal; font-size: 9px;
+}
+
+.gvTopGrid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(290px, .75fr); gap: 17px; }
+.gvHero, .gvHealthCard, .gvPanel, .gvAiPanel, .gvDataCard {
+  border: 1px solid rgba(221, 225, 240, .95);
+  border-radius: 22px;
+  background: rgba(255,255,255,.95);
+  box-shadow: 0 14px 36px rgba(37, 46, 99, .07);
+}
+.gvHero {
+  position: relative; min-height: 215px; overflow: hidden; color: white; padding: 27px 30px 22px;
+  background:
+    radial-gradient(circle at 78% 25%, rgba(81, 207, 255, .28), transparent 8rem),
+    linear-gradient(135deg, #1838b4 0%, #3c37da 53%, #7834e7 100%);
+  box-shadow: 0 18px 38px rgba(56, 50, 189, .22);
+}
+.gvHero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 20% 20%, rgba(255,255,255,.14), transparent 15rem); pointer-events: none; }
+.gvHeroContent { position: relative; z-index: 2; }
+.gvHeroContent small { color: rgba(255,255,255,.7); font-size: 10px; font-weight: 850; letter-spacing: 1.3px; }
+.gvHeroContent > strong { display: block; margin-top: 10px; font-size: clamp(34px, 4.3vw, 48px); letter-spacing: -2px; line-height: 1; }
+.gvHeroContent p { margin: 13px 0 0; font-size: 12px; font-weight: 800; }
+.gvHeroContent p span { color: rgba(255,255,255,.67); font-weight: 600; }
+.positive { color: #37d797 !important; }
+.negative { color: #ff6f80 !important; }
+.gvPlanet { position: absolute; right: 46px; top: 25px; width: 150px; height: 140px; }
+.gvPlanet i { position: absolute; width: 96px; height: 96px; right: 17px; top: 17px; border-radius: 50%; background: linear-gradient(145deg, #69e7ff, #3955ff 48%, #9a3cff 74%, #f43ecb); box-shadow: inset -14px -12px 24px rgba(49, 15, 151, .4), 0 18px 40px rgba(15, 22, 115, .28); }
+.gvPlanet::after { content: ""; position: absolute; width: 142px; height: 32px; right: -5px; top: 54px; border: 10px solid rgba(150, 122, 255, .9); border-left-color: #62e0ff; border-right-color: #f457d4; border-radius: 50%; transform: rotate(-18deg); }
+.gvPlanet b { position: absolute; right: 0; top: 0; color: white; font-size: 16px; }
+.gvHeroFooter { position: absolute; z-index: 2; left: 30px; right: 30px; bottom: 20px; display: flex; gap: 28px; color: rgba(255,255,255,.68); font-size: 10px; }
+.gvHeroFooter b { color: white; margin-left: 5px; }
+
+.gvHealthCard { padding: 23px 24px; }
+.gvCardHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.gvCardHead small, .gvPanelHead small { color: #8a92b0; font-size: 9px; font-weight: 900; letter-spacing: 1.2px; }
+.gvCardHead h2 { margin: 5px 0 0; font-size: 34px; line-height: 1; letter-spacing: -1.5px; }
+.gvCardHead > span { padding: 6px 9px; border-radius: 999px; font-size: 9px; font-weight: 850; }
+.gvCardHead .good { background: #e7f8f0; color: #1a9568; }
+.gvCardHead .fair { background: #fff4d9; color: #a77116; }
+.gvCardHead .risk { background: #ffe7ec; color: #c64462; }
+.gvHealthTrack { height: 9px; margin: 20px 0 18px; overflow: hidden; border-radius: 8px; background: #edf0f7; }
+.gvHealthTrack i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2ec8c0, #3d66ff 52%, #7542ff); }
+.gvHealthStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.gvHealthStats span { padding: 10px; border-radius: 13px; background: #f7f8fc; }
+.gvHealthStats b { display: block; font-size: 12px; }
+.gvHealthStats small { display: block; margin-top: 3px; color: #939ab5; font-size: 8px; }
+
+.gvMetrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin-top: 14px; }
+.gvMetrics article {
+  min-width: 0; min-height: 115px; display: flex; gap: 12px; align-items: flex-start; padding: 18px;
+  border: 1px solid var(--gv-line); border-radius: 18px; background: white; box-shadow: 0 8px 24px rgba(39, 47, 98, .05);
+}
+.gvMetrics article > span { width: 35px; height: 35px; flex: 0 0 35px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; font-weight: 900; }
+.gvMetrics .blue { color: #2b55ff; background: #edf1ff; }
+.gvMetrics .pink { color: #e942a7; background: #fff0f8; }
+.gvMetrics .green { color: #179d6a; background: #eaf8f1; }
+.gvMetrics .orange { color: #d28716; background: #fff4dd; }
+.gvMetrics .violet { color: #7541ff; background: #f1ecff; }
+.gvMetrics small { color: #858dab; font-size: 9px; font-weight: 800; }
+.gvMetrics strong { display: block; margin-top: 6px; font-size: 20px; letter-spacing: -.6px; white-space: nowrap; }
+.gvMetrics p { margin: 6px 0 0; color: #9299b4; font-size: 9px; }
+
+.gvActionBar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0; }
+.gvActionBar button {
+  min-height: 70px; display: grid; grid-template-columns: 32px 1fr; grid-template-rows: 1fr 1fr; column-gap: 10px; align-items: center;
+  text-align: left; padding: 11px 14px; border: 1px solid var(--gv-line); border-radius: 16px; cursor: pointer; background: white; color: var(--gv-ink);
+}
+.gvActionBar button:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(42, 50, 100, .07); }
+.gvActionBar button > span { grid-row: 1 / 3; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: #6841ec; background: #f2efff; font-weight: 900; }
+.gvActionBar b { align-self: end; font-size: 11px; }
+.gvActionBar small { align-self: start; color: #9198b4; font-size: 8.5px; }
+
+.gvAddForm { display: grid; grid-template-columns: 1.6fr 1fr 1fr auto auto; gap: 10px; align-items: end; padding: 15px; margin-bottom: 14px; border: 1px solid var(--gv-line); border-radius: 16px; background: white; }
+.gvAddForm label > span { display: block; margin-bottom: 6px; color: #7f87a6; font-size: 9px; font-weight: 800; }
+.gvAddForm input, .gvAddForm select { width: 100%; height: 39px; border: 1px solid #e0e4ef; border-radius: 10px; padding: 0 10px; outline: 0; color: #353b63; background: #fafbfe; }
+.gvAddForm > button { height: 39px; border: 0; border-radius: 11px; padding: 0 15px; color: white; background: linear-gradient(90deg, #345dff, #7040ff); cursor: pointer; font-size: 10px; font-weight: 800; }
+.gvAddForm .gvCheck { height: 39px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #e0e4ef; border-radius: 10px; background: #fafbfe; }
+.gvAddForm .gvCheck input { width: 15px; height: 15px; }
+.gvAddForm .gvCheck span { margin: 0; white-space: nowrap; }
+
+.gvMainGrid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(330px, .72fr); gap: 15px; }
+.gvLeftStack, .gvRightStack { display: grid; align-content: start; gap: 15px; }
+.gvPanel { overflow: hidden; }
+.gvPanelHead { min-height: 72px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 17px 20px; border-bottom: 1px solid #edf0f6; }
+.gvPanelHead h2 { margin: 4px 0 0; font-size: 17px; letter-spacing: -.45px; }
+.gvPanelHead > b { color: #6f78a0; font-size: 10px; }
+.gvPill { padding: 6px 9px; border-radius: 999px; color: #5e3ad5; background: #f0ebff; font-size: 9px; font-weight: 850; }
+
+.gvFilters { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 16px 4px; }
+.gvFilters button { padding: 7px 10px; border: 1px solid #e6e8f2; border-radius: 999px; cursor: pointer; color: #727a9c; background: #fafbfe; font-size: 9px; font-weight: 750; }
+.gvFilters button.active { border-color: #4a5dff; color: #3750de; background: #eef1ff; }
+.gvTransactionList { padding: 8px 16px 14px; }
+.gvTransactionList article { min-height: 58px; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 11px; align-items: center; border-bottom: 1px solid #eef0f6; }
+.gvTransactionList article:last-of-type { border-bottom: 0; }
+.gvTxIcon { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-size: 13px; font-weight: 900; }
+.gvTxIcon.in { color: #1b9e71; background: #e9f8f1; }
+.gvTxIcon.out { color: #d44385; background: #fff0f6; }
+.gvTxMeta { min-width: 0; }
+.gvTxMeta b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+.gvTxMeta small { display: block; margin-top: 4px; color: #9aa1b8; font-size: 8.5px; }
+.gvTxAmount { text-align: right; }
+.gvTxAmount b { display: block; font-size: 10.5px; }
+.gvTxAmount.in b { color: #16966a; }
+.gvTxAmount.out b { color: #444b70; }
+.gvTxAmount small { display: block; margin-top: 4px; color: #a0a6ba; font-size: 8px; }
+.gvEmpty { margin: 18px; color: #8e96b3; text-align: center; font-size: 10px; }
+
+.gvScenarioControls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 18px 20px 12px; }
+.gvScenarioControls label > span { display: block; margin-bottom: 6px; color: #7e86a7; font-size: 9px; font-weight: 800; }
+.gvScenarioControls label > div { height: 42px; display: flex; align-items: center; gap: 4px; padding: 0 11px; border: 1px solid #e3e6f0; border-radius: 11px; background: #fafbfe; }
+.gvScenarioControls input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #30365f; font-weight: 800; }
+.gvScenarioControls b { color: #7780a2; }
+.gvScenarioResult { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 12px; }
+.gvScenarioResult > span { padding: 14px; border-radius: 14px; background: #f7f8fc; }
+.gvScenarioResult small { display: block; color: #8d95b0; font-size: 8px; }
+.gvScenarioResult b { display: block; margin-top: 6px; font-size: 17px; }
+.gvFine { margin: 0; padding: 0 20px 18px; color: #9aa1b5; font-size: 8.5px; line-height: 1.45; }
+
+.gvAiPanel { padding: 19px; color: white; border: 0; background: radial-gradient(circle at 80% 0%, rgba(65, 225, 255, .2), transparent 10rem), linear-gradient(145deg, #151a64, #3131a8 55%, #682ab4); box-shadow: 0 17px 38px rgba(42, 35, 143, .2); }
+.gvAiHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.gvAiHead > div { display: flex; gap: 10px; align-items: center; }
+.gvAiHead > div > span { width: 35px; height: 35px; display: grid; place-items: center; border-radius: 11px; background: linear-gradient(145deg, #31d7e9, #5163ff 58%, #cf43e7); box-shadow: 0 8px 18px rgba(22, 26, 118, .4); }
+.gvAiHead small { color: rgba(255,255,255,.63); font-size: 8px; font-weight: 900; letter-spacing: 1.2px; }
+.gvAiHead h2 { margin: 2px 0 0; font-size: 16px; }
+.gvAiHead > b { padding: 5px 7px; border-radius: 999px; color: #8ff4d2; background: rgba(26, 212, 143, .12); border: 1px solid rgba(111, 236, 195, .25); font-size: 7.5px; }
+.gvAiMessage { margin: 16px 0 11px; padding: 14px; min-height: 105px; border-radius: 15px; color: rgba(255,255,255,.93); background: rgba(255,255,255,.09); font-size: 10px; line-height: 1.55; }
+.gvAiChips { display: flex; gap: 6px; flex-wrap: wrap; }
+.gvAiChips button { border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 6px 8px; color: rgba(255,255,255,.83); background: rgba(255,255,255,.07); cursor: pointer; font-size: 8px; }
+.gvAiPanel form { height: 42px; display: flex; align-items: center; margin-top: 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 13px; overflow: hidden; background: rgba(6, 9, 54, .35); }
+.gvAiPanel form input { flex: 1; min-width: 0; height: 100%; padding: 0 12px; border: 0; outline: 0; color: white; background: transparent; font-size: 9px; }
+.gvAiPanel form input::placeholder { color: rgba(255,255,255,.5); }
+.gvAiPanel form button { width: 43px; height: 100%; border: 0; color: white; background: rgba(255,255,255,.09); cursor: pointer; }
+.gvAiPanel > p { margin: 9px 2px 0; color: rgba(255,255,255,.52); font-size: 7.5px; line-height: 1.4; }
+
+.gvWatchlist { display: grid; gap: 8px; padding: 13px; }
+.gvWatchlist article { display: grid; grid-template-columns: 30px 1fr; gap: 9px; padding: 11px; border-radius: 13px; }
+.gvWatchlist article > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; font-size: 10px; font-weight: 900; }
+.gvWatchlist article b { font-size: 9.5px; }
+.gvWatchlist article p { margin: 4px 0 0; color: #7e86a1; font-size: 8px; line-height: 1.4; }
+.gvWatchlist .warn { background: #fff8ed; }
+.gvWatchlist .warn > span { color: #c98721; background: #ffedc9; }
+.gvWatchlist .good { background: #effaf5; }
+.gvWatchlist .good > span { color: #178d62; background: #dff5ea; }
+.gvWatchlist .info { background: #f2f4ff; }
+.gvWatchlist .info > span { color: #4b55cb; background: #e3e7ff; }
+
+.gvCategories { padding: 12px 17px 17px; }
+.gvCategories article { margin: 11px 0; }
+.gvCategories article > div { display: flex; justify-content: space-between; gap: 10px; color: #4d5477; font-size: 9px; }
+.gvCategories article > i { display: block; height: 6px; margin: 6px 0 4px; overflow: hidden; border-radius: 6px; background: #eef0f6; }
+.gvCategories article > i > b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #435cff, #783cff, #e946bd); }
+.gvCategories article > small { color: #9ba2b8; font-size: 8px; }
+
+.gvDataCard { padding: 16px; border-style: dashed; background: #fafbfe; box-shadow: none; }
+.gvDataCard > div { display: flex; align-items: center; gap: 10px; }
+.gvDataCard > div > span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: #6e45e8; background: #f0ebff; }
+.gvDataCard small { display: block; color: #8a92ae; font-size: 8px; font-weight: 900; letter-spacing: 1px; }
+.gvDataCard b { display: block; margin-top: 2px; font-size: 11px; }
+.gvDataCard p { margin: 11px 0 0; color: #8d95ae; font-size: 8.5px; line-height: 1.48; }
+
+.gvStatus { min-height: 36px; display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 0 12px; border: 1px solid var(--gv-line); border-radius: 12px; color: #78809d; background: rgba(255,255,255,.75); font-size: 9px; }
+.gvStatus > span { color: #22a875; font-size: 8px; }
+.gvStatus button { margin-left: auto; border: 0; cursor: pointer; color: #6750cc; background: transparent; font-size: 8px; font-weight: 800; }
+.gvDashboard > footer { margin-top: 10px; color: #a1a7ba; font-size: 7.5px; line-height: 1.45; text-align: center; }
+
+@media (max-width: 1180px) {
+  .gvMetrics { grid-template-columns: repeat(2, 1fr); }
+  .gvMainGrid { grid-template-columns: 1fr; }
+  .gvRightStack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gvAiPanel { grid-column: 1 / -1; }
+}
+
+@media (max-width: 900px) {
+  .gvApp { display: block; }
+  .gvSidebar {
+    position: sticky; top: 0; width: 100%; height: auto; min-height: 66px; padding: 9px 12px;
+    flex-direction: row; align-items: center; overflow-x: auto; box-shadow: 0 8px 22px rgba(29, 34, 90, .13);
+  }
+  .gvBrand { margin: 0 13px 0 0; font-size: 0; }
+  .gvLogo { width: 44px; height: 44px; flex-basis: 44px; }
+  .gvLogo i { inset: 9px 8px 6px 9px; }
+  .gvLogo::after { width: 41px; left: 1px; top: 21px; height: 11px; border-width: 4px; }
+  .gvSidebar nav { display: flex; gap: 5px; }
+  .gvSidebar nav a { min-height: 40px; white-space: nowrap; padding: 0 10px; font-size: 10px; }
+  .gvSidebar nav a span { width: auto; }
+  .gvSideSpacer, .gvMode, .gvConnection { display: none; }
+  .gvDashboard { padding: 22px 16px; }
+  .gvHeader { align-items: flex-start; }
+  .gvHeaderTools { flex: 1; justify-content: flex-end; }
+  .gvSearch { width: min(240px, 100%); }
+  .gvTopGrid { grid-template-columns: 1fr; }
+  .gvHealthCard { min-height: 150px; }
+  .gvActionBar { grid-template-columns: repeat(2, 1fr); }
+  .gvAddForm { grid-template-columns: 1fr 1fr; }
+  .gvAddForm > button { grid-column: 1 / -1; }
+}
+
+@media (max-width: 620px) {
+  .gvDashboard { padding: 17px 11px 24px; }
+  .gvHeader { display: block; }
+  .gvHeader h1 { font-size: 29px; }
+  .gvHeader > div > span { font-size: 11px; line-height: 1.4; }
+  .gvHeaderTools { margin-top: 15px; }
+  .gvSearch { width: 100%; }
+  .gvHero { min-height: 235px; padding: 24px 21px; }
+  .gvPlanet { opacity: .55; right: -14px; top: 31px; transform: scale(.88); }
+  .gvHeroFooter { left: 21px; right: 21px; bottom: 18px; display: grid; gap: 6px; }
+  .gvMetrics { grid-template-columns: 1fr 1fr; }
+  .gvMetrics article { min-height: 105px; padding: 14px; }
+  .gvMetrics article > span { display: none; }
+  .gvMetrics strong { font-size: 17px; }
+  .gvActionBar { grid-template-columns: 1fr 1fr; }
+  .gvActionBar button { grid-template-columns: 28px 1fr; padding: 10px; }
+  .gvAddForm { grid-template-columns: 1fr; }
+  .gvAddForm > button { grid-column: auto; }
+  .gvRightStack { grid-template-columns: 1fr; }
+  .gvAiPanel { grid-column: auto; }
+  .gvScenarioControls, .gvScenarioResult { grid-template-columns: 1fr; }
+  .gvTransactionList article { grid-template-columns: 32px minmax(0, 1fr); }
+  .gvTxAmount { grid-column: 2; text-align: left; padding-bottom: 8px; }
+  .gvFilters { overflow-x: auto; flex-wrap: nowrap; }
+  .gvFilters button { white-space: nowrap; }
+}
