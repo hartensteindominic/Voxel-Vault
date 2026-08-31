@@ -27,6 +27,13 @@ function safeError(error: unknown) {
   return error instanceof Error ? safeText(error.message, 160) : 'reconciliation_failed';
 }
 
+function safeEventPollingIssue(error: unknown) {
+  if (error && typeof error === 'object' && 'status' in error && Number.isFinite(Number((error as any).status))) {
+    return `provider_status_${Number((error as any).status)}`;
+  }
+  return 'events_unavailable';
+}
+
 function dollarsToCents(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
@@ -206,34 +213,54 @@ export async function pollIncreaseSandboxEvents(options: {
   let newEvents = 0;
   let pages = 0;
   let scanned = 0;
+  let eventPollingAvailable = true;
+  let eventPollingIssue = '';
+  const pollAttemptedAt = new Date().toISOString();
 
-  while (pages < maxPages) {
-    const params = new URLSearchParams();
-    params.set('order_by.field', 'created_at');
-    params.set('order_by.direction', 'ascending');
-    params.set('limit', '100');
-    if (cursor) params.set('cursor', cursor);
+  try {
+    while (pages < maxPages) {
+      const params = new URLSearchParams();
+      params.set('order_by.field', 'created_at');
+      params.set('order_by.direction', 'ascending');
+      params.set('limit', '100');
+      if (cursor) params.set('cursor', cursor);
 
-    const payload = await increaseSandboxRequest(`/events?${params.toString()}`, {}, process.env);
-    const events = listData(payload);
-    pages += 1;
-    scanned += events.length;
+      const payload = await increaseSandboxRequest(`/events?${params.toString()}`, {}, process.env);
+      const events = listData(payload);
+      pages += 1;
+      scanned += events.length;
 
-    for (const event of events) {
-      const recorded = await recordIncreaseSandboxEvent(event, { source: 'poll' });
-      observedEventIds.push(recorded.eventId);
-      if (!recorded.duplicate) newEvents += 1;
+      for (const event of events) {
+        const recorded = await recordIncreaseSandboxEvent(event, { source: 'poll' });
+        observedEventIds.push(recorded.eventId);
+        if (!recorded.duplicate) newEvents += 1;
+      }
+
+      const nextCursor = safeText(payload?.next_cursor, 500);
+      if (nextCursor) cursor = nextCursor;
+      await updateReconciliationState({ event_cursor: cursor || null, last_poll_at: new Date().toISOString() });
+      if (!events.length) break;
     }
-
-    const nextCursor = safeText(payload?.next_cursor, 500);
-    if (nextCursor) cursor = nextCursor;
-    await updateReconciliationState({ event_cursor: cursor || null, last_poll_at: new Date().toISOString() });
-    if (!events.length) break;
+  } catch (error) {
+    eventPollingAvailable = false;
+    eventPollingIssue = safeEventPollingIssue(error);
+    try {
+      await updateReconciliationState({ last_poll_at: pollAttemptedAt });
+    } catch {
+      // Reconciliation below will surface a database failure if storage is actually unavailable.
+    }
   }
 
-  const shouldReconcile = observedEventIds.length > 0 || Boolean(options?.forceReconcile) || !state?.last_reconciled_at;
+  const shouldReconcile = observedEventIds.length > 0
+    || Boolean(options?.forceReconcile)
+    || !state?.last_reconciled_at
+    || !eventPollingAvailable;
   const reconciliation = shouldReconcile
-    ? await reconcileIncreaseSandbox({ accountId, eventIds: observedEventIds, trigger: 'poll' })
+    ? await reconcileIncreaseSandbox({
+        accountId,
+        eventIds: observedEventIds,
+        trigger: eventPollingAvailable ? 'poll' : 'owner',
+      })
     : null;
 
   return {
@@ -246,6 +273,9 @@ export async function pollIncreaseSandboxEvents(options: {
     observedEvents: observedEventIds.length,
     newEvents,
     cursorStored: Boolean(cursor),
+    eventPollingAvailable,
+    eventPollingIssue,
+    mode: eventPollingAvailable ? 'events-plus-owner-snapshot' : 'owner-snapshot-fallback',
     reconciled: Boolean(reconciliation),
     reconciliation,
   };
