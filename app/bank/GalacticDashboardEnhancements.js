@@ -32,6 +32,8 @@ const tourSteps = [
   { selector: '#security', title: 'Trust is visible', body: 'Security, nonbank disclosures and launch status stay easy to find before any live-money launch.' },
 ];
 
+const activityFilters = ['All', 'Transfers', 'Cards', 'Crypto'];
+
 function scrollTo(selector) {
   document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -40,6 +42,56 @@ function clickQuick(label) {
   const buttons = Array.from(document.querySelectorAll('.gt-quick-actions button'));
   const match = buttons.find((button) => button.textContent?.toLowerCase().includes(label.toLowerCase()));
   match?.click();
+}
+
+function activityKind(row) {
+  const category = row.querySelector('.gt-activity-meta small')?.textContent?.toLowerCase() || '';
+  const name = row.querySelector('.gt-activity-meta b')?.textContent?.toLowerCase() || '';
+  const text = `${category} ${name}`;
+  if (/crypto|bitcoin|ethereum|btc|eth|usdc/.test(text)) return 'Crypto';
+  if (/transfer|ach|funding|deposit|income/.test(text)) return 'Transfers';
+  return 'Cards';
+}
+
+function ActivityFilter({ activityRoot }) {
+  const [filter, setFilter] = useState('All');
+  const [empty, setEmpty] = useState(false);
+
+  useEffect(() => {
+    const list = activityRoot?.querySelector('.gt-activity-list');
+    if (!list) return undefined;
+
+    const apply = () => {
+      const rows = Array.from(list.querySelectorAll('.gt-activity-row'));
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const noActivityRow = /no .*transactions yet/i.test(row.textContent || '');
+        const visible = filter === 'All' || (!noActivityRow && activityKind(row) === filter);
+        row.hidden = !visible;
+        if (visible) visibleCount += 1;
+      });
+      setEmpty(filter !== 'All' && visibleCount === 0);
+    };
+
+    apply();
+    const observer = new MutationObserver(apply);
+    observer.observe(list, { childList: true, subtree: true, characterData: true });
+    return () => {
+      observer.disconnect();
+      list.querySelectorAll('.gt-activity-row').forEach((row) => { row.hidden = false; });
+    };
+  }, [activityRoot, filter]);
+
+  return (
+    <div className="gt-activity-filter-wrap">
+      <div className="gt-activity-filter" aria-label="Filter recent activity">
+        {activityFilters.map((item) => (
+          <button key={item} type="button" className={filter === item ? 'active' : ''} aria-pressed={filter === item} onClick={() => setFilter(item)}>{item}</button>
+        ))}
+      </div>
+      {empty && <p className="gt-activity-filter-empty" role="status">No {filter.toLowerCase()} activity in this demo view yet.</p>}
+    </div>
+  );
 }
 
 function BalanceTrend() {
@@ -77,6 +129,7 @@ function TrustStrip() {
 
 export default function GalacticDashboardEnhancements({ onSignOut, accountLabel = 'Galactic member' }) {
   const [targets, setTargets] = useState({ hero: null, controls: null, nav: null, activity: null });
+  const [activityFilterTarget, setActivityFilterTarget] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [tourOpen, setTourOpen] = useState(false);
@@ -99,6 +152,26 @@ export default function GalacticDashboardEnhancements({ onSignOut, accountLabel 
   }, []);
 
   useEffect(() => {
+    const activity = targets.activity;
+    if (!activity) return undefined;
+    let slot = activity.querySelector('.gt-activity-filter-slot');
+    let created = false;
+    if (!slot) {
+      slot = document.createElement('div');
+      slot.className = 'gt-activity-filter-slot';
+      const list = activity.querySelector('.gt-activity-list');
+      if (list) list.before(slot);
+      else activity.appendChild(slot);
+      created = true;
+    }
+    setActivityFilterTarget(slot);
+    return () => {
+      setActivityFilterTarget(null);
+      if (created) slot.remove();
+    };
+  }, [targets.activity]);
+
+  useEffect(() => {
     const keydown = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -107,6 +180,11 @@ export default function GalacticDashboardEnhancements({ onSignOut, accountLabel 
       if (event.key === 'Escape') {
         setPaletteOpen(false);
         setTourOpen(false);
+        const sheetClose = document.querySelector('.gt-action-sheet .gt-sheet-header > button');
+        if (sheetClose) {
+          event.preventDefault();
+          sheetClose.click();
+        }
       }
     };
     window.addEventListener('keydown', keydown);
@@ -206,6 +284,7 @@ export default function GalacticDashboardEnhancements({ onSignOut, accountLabel 
       {targets.hero && createPortal(<BalanceTrend />, targets.hero)}
       {targets.controls && createPortal(<><PriorityActions run={run} /><TrustStrip /></>, targets.controls)}
       {targets.nav && createPortal(<button className="gt-command-launch" type="button" onClick={() => setPaletteOpen(true)}><span>⌕</span><b>Quick jump</b><kbd>⌘K</kbd></button>, targets.nav)}
+      {activityFilterTarget && targets.activity && createPortal(<ActivityFilter activityRoot={targets.activity} />, activityFilterTarget)}
       {targets.activity && createPortal(<div className="gt-history-trust"><span>✓</span><p><b>Clear history</b><small>Demo transactions stay readable and separated from any future bank-authoritative ledger.</small></p></div>, targets.activity)}
 
       {paletteOpen && (

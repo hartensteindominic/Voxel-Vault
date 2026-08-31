@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:galactic": "node scripts/test-galactic-trust-repo-scope.mjs && node scripts/test-galactic-trust-ui-truth.mjs && node scripts/test-galactic-trust-provider-boundary.mjs && node scripts/test-galactic-trust-regulated-launch.mjs && node scripts/test-galactic-trust-increase-onboarding.mjs && node scripts/test-galactic-trust-increase-webhooks.mjs && node scripts/test-galactic-trust-account-lifecycle.mjs && node scripts/test-galactic-trust-account-status-ui.mjs && node scripts/test-galactic-trust-integration-health.mjs && node scripts/test-galactic-trust-crypto-practice.mjs && node scripts/test-galactic-trust-header-center.mjs && node scripts/test-galactic-trust-increase-recovery.mjs && node scripts/test-galactic-trust-recovery-takeover.mjs"
+    "test:galactic": "node scripts/test-galactic-trust-repo-scope.mjs && node scripts/test-galactic-trust-ui-truth.mjs && node scripts/test-galactic-trust-provider-boundary.mjs && node scripts/test-galactic-trust-regulated-launch.mjs && node scripts/test-galactic-trust-increase-onboarding.mjs && node scripts/test-galactic-trust-increase-webhooks.mjs && node scripts/test-galactic-trust-account-lifecycle.mjs && node scripts/test-galactic-trust-account-status-ui.mjs && node scripts/test-galactic-trust-integration-health.mjs && node scripts/test-galactic-trust-crypto-practice.mjs && node scripts/test-galactic-trust-header-center.mjs && node scripts/test-galactic-trust-increase-recovery.mjs && node scripts/test-galactic-trust-recovery-takeover.mjs && node scripts/test-galactic-trust-week3-polish.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
