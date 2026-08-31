@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireGalacticTrustAdmin } from '../../../../../lib/admin-auth';
 import { describeIncreaseSandboxError } from '../../../../../lib/banking/increase-api-errors.js';
 import { inspectIncreaseSandboxOnboarding } from '../../../../../lib/banking/increase-onboarding-sandbox.js';
+import { resolveIncreaseSandboxOwnerAccount } from '../../../../../lib/banking/increase-owner-account.js';
 import { getIncreaseReconciliationStatus, pollIncreaseSandboxEvents } from '../../../../../lib/banking/increase-reconciliation';
 import { getIncreaseSandboxConfig, inspectIncreaseSandbox } from '../../../../../lib/banking/increase-sandbox.js';
 import { ensureIncreaseSandboxWebhookSubscription } from '../../../../../lib/banking/increase-webhook-subscription.js';
@@ -103,7 +104,7 @@ async function buildHealth(auth: any) {
           entities: safeCapability(snapshot?.capabilities?.entities),
         },
         nextStep: restricted.length
-          ? `Increase sandbox is connected for Accounts, but ${restricted.join(' and ')} access is restricted. Use a sandbox key with the required permissions before owner onboarding.`
+          ? `Increase sandbox is connected for Accounts, but ${restricted.join(' and ')} access is restricted. Use the owner Account-only recovery path when hosted onboarding is unavailable.`
           : '',
       };
     } catch (error: any) {
@@ -118,7 +119,7 @@ async function buildHealth(auth: any) {
     validationKind: 'none',
     accountSuffix: '',
     verifiedAt: null,
-    nextStep: 'Complete owner-scoped Increase sandbox onboarding after the provider and binding migrations are ready.',
+    nextStep: 'Create the dedicated owner-scoped Increase sandbox test account.',
   };
   try {
     const state = await getProviderAccountBinding(auth.admin, auth.user.id, { provider: 'increase', environment: 'sandbox' });
@@ -131,17 +132,17 @@ async function buildHealth(auth: any) {
       accountSuffix: summary?.accountSuffix || '',
       verifiedAt: summary?.verifiedAt || null,
       nextStep: state.setupRequired
-        ? 'Apply the Galactic Trust provider-binding migrations before binding an Increase sandbox test account.'
+        ? 'Durable provider-binding storage is pending; Account-only recovery can still use the verified owner ID plus Increase idempotency-key scope.'
         : summary
           ? ''
-          : 'Complete owner-scoped Increase sandbox onboarding to bind a test account to this signed-in owner.',
+          : 'Create the dedicated owner-scoped Increase sandbox test account.',
     };
   } catch {
     binding = {
       ...binding,
       storageReady: false,
       status: 'unavailable',
-      nextStep: 'Verify the Supabase service-role configuration and Galactic Trust provider-binding migrations.',
+      nextStep: 'Verify the Supabase service-role configuration. Account-only recovery remains separate from production banking.',
     };
   }
 
@@ -149,7 +150,7 @@ async function buildHealth(auth: any) {
     available: false,
     programCount: 0,
     setupRequired: true,
-    nextStep: provider.connected ? 'Verify Increase sandbox Program access before owner onboarding.' : provider.nextStep,
+    nextStep: provider.connected ? 'Hosted onboarding is optional for Account-only sandbox recovery.' : provider.nextStep,
   };
   if (provider.connected) {
     try {
@@ -158,7 +159,7 @@ async function buildHealth(auth: any) {
         available: snapshot?.connected === true,
         programCount: Array.isArray(snapshot?.programs) ? snapshot.programs.length : 0,
         setupRequired: snapshot?.setupRequired === true,
-        nextStep: snapshot?.setupRequired ? 'Make at least one Increase sandbox Program available to the configured sandbox key.' : '',
+        nextStep: snapshot?.setupRequired ? 'Hosted onboarding is unavailable; use the dedicated Account-only owner recovery path instead.' : '',
       };
     } catch (error: any) {
       const issue = safeProviderError(error, 'Increase sandbox onboarding inspection failed.');
@@ -242,11 +243,10 @@ async function buildHealth(auth: any) {
     readyForSandboxOperations: Boolean(
       provider.connected
       && provider.capabilities?.accounts?.available
-      && binding.storageReady
       && reconciliation.databaseReady
     ),
     nextSteps: Array.from(new Set(nextSteps)).slice(0, 6),
-    note: 'Owner-only operational summary. Increase values are sandbox test data. SANDBOX_VALID_SIMULATION is not real KYC/CIP/AML approval, and production banking remains fail-closed.',
+    note: 'Owner-only operational summary. Increase values are sandbox test data. SANDBOX_VALID_SIMULATION and SANDBOX_ACCOUNT_ONLY are not real KYC/CIP/AML approval, and production banking remains fail-closed.',
   };
 }
 
@@ -266,8 +266,19 @@ export async function POST(request: Request) {
   const result = await authorize(request);
   if (!result.ok) return result.response;
   try {
+    const resolution = await resolveIncreaseSandboxOwnerAccount(result.auth.admin, result.auth.user.id, process.env);
+    if (!resolution.accountId) {
+      const health = await buildHealth(result.auth);
+      return response({
+        ...health,
+        ok: false,
+        action: 'sandbox-reconciliation-needs-owner-account',
+        error: 'No owner-scoped Increase sandbox Account exists yet.',
+        nextStep: 'Create the dedicated sandbox test account, then run reconciliation again.',
+      }, 409);
+    }
     await ensureIncreaseSandboxWebhookSubscription(process.env);
-    await pollIncreaseSandboxEvents({ maxPages: 5, forceReconcile: true });
+    await pollIncreaseSandboxEvents({ accountId: resolution.accountId, maxPages: 5, forceReconcile: true });
     const health = await buildHealth(result.auth);
     return response({ ...health, action: 'sandbox-reconciliation-complete' });
   } catch (error: any) {
