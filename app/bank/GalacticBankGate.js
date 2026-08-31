@@ -6,6 +6,7 @@ import BankClient from './BankClient';
 import GalacticCryptoPractice from './GalacticCryptoPractice';
 import GalacticDashboardAccountState from './GalacticDashboardAccountState';
 import GalacticDashboardEnhancements from './GalacticDashboardEnhancements';
+import GalacticDemoHint from './GalacticDemoHint';
 import GalacticHeaderCenter from './GalacticHeaderCenter';
 import GalacticIncreaseSandboxRecovery from './GalacticIncreaseSandboxRecovery';
 import GalacticSandboxSetup from './GalacticSandboxSetup';
@@ -169,6 +170,7 @@ export default function GalacticBankGate() {
   return (
     <>
       <BankClient galacticUser={session?.user || null} demoAccess={demoAccess} onSignOut={activeSignOut} accountLabel={label} accessToken={accessToken} />
+      <GalacticDemoHint />
       <GalacticCryptoPractice />
       <GalacticDashboardEnhancements onSignOut={activeSignOut} accountLabel={label} />
       <GalacticDashboardAccountState accessToken={accessToken} demoAccess={demoAccess} />
