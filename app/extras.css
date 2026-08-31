@@ -1,0 +1,832 @@
+.bankingControls {
+  display: grid;
+  gap: 10px;
+}
+
+.bankingModeBanner {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #e8ebf6;
+  border-radius: 13px;
+  color: #68739a;
+  font-size: 10px;
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 5px 14px rgba(44,53,112,.05);
+}
+
+.bankingModeBanner b {
+  color: #18204b;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.bankingModeBanner > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bankingModeDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #f0ad39;
+  box-shadow: 0 0 0 4px rgba(240,173,57,.12);
+}
+
+.bankingModeBanner.partner .bankingModeDot {
+  background: #27c878;
+  box-shadow: 0 0 0 4px rgba(39,200,120,.12);
+}
+
+.bankingActionSheet {
+  overflow: hidden;
+  border: 1px solid #e8ebf7;
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 12px 28px rgba(42,49,105,.09);
+}
+
+.bankingSheetHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 15px;
+}
+
+.bankingSheetHeader small {
+  display: block;
+  color: #7983a8;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  font-weight: 800;
+}
+
+.bankingSheetHeader h3 {
+  margin: 3px 0 0;
+  color: #11163b;
+  font-size: 18px;
+}
+
+.sheetClose {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  color: #626d93;
+  font-size: 22px;
+  cursor: pointer;
+  background: #f2f3fa;
+}
+
+.bankingActionSheet form,
+.bankingActionSheet > div {
+  display: grid;
+  gap: 12px;
+}
+
+.bankingActionSheet label {
+  display: grid;
+  gap: 6px;
+  color: #505a80;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.bankingActionSheet input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #e2e6f3;
+  border-radius: 13px;
+  outline: 0;
+  padding: 0 13px;
+  color: #11163b;
+  background: #fbfbff;
+}
+
+.bankingActionSheet input:focus,
+.cryptoTradeForm input:focus,
+.chatComposer input:focus {
+  border-color: #5d66ff;
+  box-shadow: 0 0 0 3px rgba(93,102,255,.12);
+}
+
+.moneyInput {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e2e6f3;
+  border-radius: 13px;
+  background: #fbfbff;
+  overflow: hidden;
+}
+
+.moneyInput span {
+  padding-left: 13px;
+  color: #52608a;
+  font-weight: 800;
+}
+
+.moneyInput input {
+  border: 0;
+  box-shadow: none !important;
+}
+
+.bankingPrimary {
+  min-height: 45px;
+  border: 0;
+  border-radius: 13px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  background: linear-gradient(90deg, #245eff, #6740ff 58%, #c642ee);
+  box-shadow: 0 9px 18px rgba(71,62,231,.2);
+}
+
+.bankingPrimary:disabled,
+.quickActions button:disabled,
+.cryptoSubmit:disabled,
+.chatComposer button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.bankingFinePrint {
+  margin: 0;
+  color: #7d87a9;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.fundingOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fundingOptions button {
+  min-height: 86px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid #e7eaf5;
+  border-radius: 14px;
+  padding: 10px;
+  cursor: pointer;
+  color: #24305d;
+  text-align: left;
+  background: #f9f9fe;
+}
+
+.fundingOptions button > span { font-size: 20px; }
+.fundingOptions button b { font-size: 10px; }
+.fundingOptions button small { color: #7e88a8; font-size: 8px; line-height: 1.3; }
+
+.safeCardDetails {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f4f5ff, #faf6ff);
+}
+
+.safeCardDetails span {
+  color: #7882a4;
+  font-size: 9px;
+}
+
+.safeCardDetails strong {
+  color: #17204f;
+  font-size: 10px;
+}
+
+.bankingToast,
+.cryptoMessage {
+  padding: 10px 12px;
+  border: 1px solid #dbe8ff;
+  border-radius: 12px;
+  color: #2f4e9f;
+  font-size: 10px;
+  background: #f2f6ff;
+}
+
+.cryptoPanel,
+.securityPanel {
+  border: 1px solid #eaedf7;
+  border-radius: 20px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 10px 25px rgba(57,64,119,.08);
+}
+
+.cryptoPanel {
+  padding: 18px;
+  overflow: hidden;
+  position: relative;
+}
+
+.cryptoPanel::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -54px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(107,56,255,.12), rgba(255,67,199,.04) 55%, transparent 70%);
+  pointer-events: none;
+}
+
+.cryptoHeading > div,
+.securityPanel .sectionHeading > div {
+  min-width: 0;
+}
+
+.cryptoHeading small,
+.securityPanel .sectionHeading small {
+  display: block;
+  margin-top: 3px;
+  color: #8a93b0;
+  font-size: 9px;
+}
+
+.modePill {
+  position: relative;
+  z-index: 1;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .7px;
+}
+
+.modePill.demo {
+  color: #9a6615;
+  background: #fff4d8;
+}
+
+.modePill.partner {
+  color: #0c8c50;
+  background: #e1faee;
+}
+
+.cryptoAssetTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.cryptoAssetTabs button {
+  min-width: 0;
+  min-height: 57px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #ebedf7;
+  border-radius: 14px;
+  padding: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: #313a67;
+  background: #fafaff;
+}
+
+.cryptoAssetTabs button.active {
+  border-color: #c9c8ff;
+  background: linear-gradient(135deg, #f2f2ff, #f9f1ff);
+  box-shadow: inset 0 0 0 1px rgba(98,65,255,.06);
+}
+
+.coinIcon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.coinIcon.btc { background: linear-gradient(145deg, #ffb539, #f08b15); }
+.coinIcon.eth { background: linear-gradient(145deg, #7e8cff, #5948d9); }
+.coinIcon.usdc { background: linear-gradient(145deg, #5b9eff, #2670da); }
+
+.cryptoAssetTabs b,
+.cryptoAssetTabs small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cryptoAssetTabs b { font-size: 9px; }
+.cryptoAssetTabs small { margin-top: 2px; color: #858fad; font-size: 7px; white-space: nowrap; }
+
+.cryptoHolding {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0 12px;
+  padding: 13px 14px;
+  border-radius: 15px;
+  color: #fff;
+  background: linear-gradient(110deg, #1727b8, #4335ec 52%, #8138df);
+  box-shadow: 0 9px 18px rgba(49,46,181,.16);
+}
+
+.cryptoHolding small,
+.cryptoHolding strong {
+  display: block;
+}
+
+.cryptoHolding small { color: #d9e0ff; font-size: 8px; }
+.cryptoHolding strong { margin-top: 3px; font-size: 13px; }
+.cryptoValue { font-size: 17px; font-weight: 900; }
+
+.cryptoTradeForm {
+  display: grid;
+  gap: 10px;
+}
+
+.tradeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: #f0f2f9;
+}
+
+.tradeToggle button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #7d86a7;
+  font-size: 10px;
+  font-weight: 850;
+  background: transparent;
+}
+
+.tradeToggle button.active {
+  color: #283266;
+  background: #fff;
+  box-shadow: 0 3px 9px rgba(47,55,105,.09);
+}
+
+.cryptoAmountLabel {
+  display: grid;
+  gap: 6px;
+  color: #68749a;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.cryptoAmountInput {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border: 1px solid #e3e6f2;
+  border-radius: 13px;
+  background: #fbfbff;
+}
+
+.cryptoAmountInput span {
+  padding-left: 13px;
+  color: #56628a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.cryptoAmountInput input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  outline: 0;
+  padding: 0 12px 0 5px;
+  color: #151b43;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.cryptoEstimate {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #7b84a5;
+  font-size: 9px;
+}
+
+.cryptoEstimate b { color: #3e476f; }
+
+.cryptoSubmit {
+  min-height: 43px;
+  border: 0;
+  border-radius: 13px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(57,60,195,.18);
+}
+
+.cryptoSubmit.buy { background: linear-gradient(90deg, #315cff, #6340ff 62%, #923cf0); }
+.cryptoSubmit.sell { background: linear-gradient(90deg, #ec4b8f, #d73ea7 58%, #9b42df); }
+
+.cryptoDisclosure {
+  margin: 10px 0 0;
+  color: #818baa;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.cryptoMessage { margin-top: 9px; }
+
+.securityPanel {
+  padding: 18px;
+}
+
+.shieldBadge {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px 12px 15px 15px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  background: linear-gradient(145deg, #2ed0d6, #2a74f5 57%, #6740e9);
+  box-shadow: 0 7px 14px rgba(40,94,211,.16);
+}
+
+.securityList {
+  display: grid;
+  gap: 2px;
+  margin-top: 11px;
+}
+
+.securityList > div {
+  display: grid;
+  grid-template-columns: 37px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid #edf0f7;
+}
+
+.securityList > div:last-child { border-bottom: 0; }
+
+.securityIcon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #4c5dc4;
+  background: linear-gradient(145deg, #eef2ff, #f7efff);
+  font-weight: 900;
+}
+
+.securityList b,
+.securityList small { display: block; }
+.securityList b { color: #333d6a; font-size: 10px; }
+.securityList small { margin-top: 2px; color: #858fac; font-size: 8px; line-height: 1.35; }
+
+.securityFootnote {
+  margin: 10px 0 0;
+  padding: 10px 11px;
+  border-radius: 11px;
+  color: #7b7697;
+  font-size: 8px;
+  line-height: 1.45;
+  background: #f7f5fd;
+}
+
+.galacticChat {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.chatLauncher,
+.chatPanel {
+  pointer-events: auto;
+}
+
+.chatLauncher {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border: 3px solid rgba(255,255,255,.9);
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  background:
+    radial-gradient(circle at 34% 27%, #52eaff 0 7%, transparent 8%),
+    radial-gradient(circle at 68% 68%, #f45cff 0 9%, transparent 10%),
+    linear-gradient(145deg, #243ee5, #5b3eef 57%, #d342d9);
+  box-shadow: 0 14px 31px rgba(44,48,163,.32), inset 0 1px 0 rgba(255,255,255,.3);
+}
+
+.launcherPlanet {
+  font-size: 23px;
+  text-shadow: 0 0 10px rgba(255,255,255,.8);
+}
+
+.launcherBadge {
+  position: absolute;
+  right: -2px;
+  top: -5px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  background: #ff43c7;
+}
+
+.launcherClose {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.chatPanel {
+  width: min(370px, calc(100vw - 32px));
+  max-height: min(590px, calc(100vh - 112px));
+  display: grid;
+  grid-template-rows: auto auto minmax(160px, 1fr) auto auto auto;
+  overflow: hidden;
+  border: 1px solid rgba(224,227,244,.95);
+  border-radius: 22px;
+  color: #161c49;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 24px 65px rgba(35,40,101,.24);
+  backdrop-filter: blur(16px);
+}
+
+.chatHeader {
+  min-height: 67px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 13px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 88% 20%, rgba(255,255,255,.13), transparent 54px),
+    linear-gradient(105deg, #151d94, #3144e2 49%, #743be7 100%);
+}
+
+.chatBotAvatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #2cdbe3, #4159ff 54%, #e54ed2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 15px rgba(23,28,104,.26);
+}
+
+.chatHeader strong,
+.chatHeader small { display: block; }
+.chatHeader strong { font-size: 13px; }
+.chatHeader small { margin-top: 2px; color: #d8e1ff; font-size: 8px; }
+.chatHeader small i {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #40edb0;
+}
+
+.chatHeader button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  font-size: 22px;
+  background: rgba(255,255,255,.11);
+}
+
+.chatSafetyNote {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #edf0f7;
+  color: #667096;
+  background: #fafaff;
+}
+
+.chatSafetyNote span { font-size: 12px; }
+.chatSafetyNote p { margin: 0; font-size: 8px; line-height: 1.35; }
+
+.chatMessages {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  background: linear-gradient(180deg, #f9faff 0%, #fff 100%);
+}
+
+.chatBubble {
+  max-width: 84%;
+  padding: 10px 12px;
+  border-radius: 15px;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chatBubble.assistant {
+  align-self: flex-start;
+  color: #3d4772;
+  background: #eef1fb;
+  border-bottom-left-radius: 5px;
+}
+
+.chatBubble.user {
+  align-self: flex-end;
+  color: #fff;
+  background: linear-gradient(100deg, #3556e9, #6940e9 68%, #a23ddb);
+  border-bottom-right-radius: 5px;
+  box-shadow: 0 5px 12px rgba(70,59,200,.12);
+}
+
+.chatBubble.typing {
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+}
+
+.chatBubble.typing span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7e88ab;
+  animation: orbitTyping 1s infinite ease-in-out;
+}
+
+.chatBubble.typing span:nth-child(2) { animation-delay: .14s; }
+.chatBubble.typing span:nth-child(3) { animation-delay: .28s; }
+
+@keyframes orbitTyping {
+  0%, 70%, 100% { transform: translateY(0); opacity: .55; }
+  35% { transform: translateY(-3px); opacity: 1; }
+}
+
+.chatSuggestions {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 9px 12px 5px;
+  scrollbar-width: none;
+}
+
+.chatSuggestions::-webkit-scrollbar { display: none; }
+
+.chatSuggestions button {
+  flex: 0 0 auto;
+  min-height: 31px;
+  border: 1px solid #dfe3f3;
+  border-radius: 999px;
+  padding: 0 10px;
+  cursor: pointer;
+  color: #4b5682;
+  font-size: 8px;
+  font-weight: 750;
+  background: #fff;
+}
+
+.chatComposer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 7px;
+  padding: 9px 11px;
+}
+
+.chatComposer input {
+  min-width: 0;
+  height: 40px;
+  border: 1px solid #dfe3f0;
+  border-radius: 13px;
+  outline: 0;
+  padding: 0 12px;
+  color: #252d5b;
+  background: #fafbff;
+  font-size: 10px;
+}
+
+.chatComposer button {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(145deg, #315ff4, #7441ea);
+  box-shadow: 0 5px 12px rgba(62,66,200,.16);
+}
+
+.chatPrivacyLine {
+  padding: 0 12px 10px;
+  color: #939ab4;
+  text-align: center;
+  font-size: 7px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cryptoAssetTabs button:hover,
+  .chatSuggestions button:hover,
+  .fundingOptions button:hover {
+    border-color: #cdd1e9;
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 1180px) {
+  .cryptoPanel,
+  .securityPanel {
+    min-height: 100%;
+  }
+}
+
+@media (max-width: 860px) {
+  .galacticChat {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .chatPanel {
+    max-height: calc(100vh - 96px);
+  }
+}
+
+@media (max-width: 640px) {
+  .fundingOptions {
+    grid-template-columns: 1fr;
+  }
+
+  .bankingModeBanner > span:last-child {
+    white-space: normal;
+  }
+
+  .cryptoAssetTabs {
+    grid-template-columns: 1fr;
+  }
+
+  .cryptoAssetTabs button {
+    min-height: 50px;
+  }
+
+  .chatLauncher {
+    width: 54px;
+    height: 54px;
+  }
+
+  .chatPanel {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 88px);
+    border-radius: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chatBubble.typing span,
+  .quickActions button,
+  .cryptoAssetTabs button,
+  .fundingOptions button {
+    animation: none;
+    transition: none;
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Galactic x402 Machine Licensing API",
+    "version": "1.0.0",
+    "description": "Free discovery plus x402-paid one-use machine license receipts for eligible Base VoxelFlip NFTs."
+  },
+  "servers": [
+    {
+      "url": "https://hartensteindominic.github.io/Galactic",
+      "description": "Static GitHub Pages preview."
+    },
+    {
+      "url": "https://your-next-host.example",
+      "description": "Replace with the server-capable Next.js deployment URL."
+    }
+  ],
+  "paths": {
+    "/paylink.json": {
+      "get": {
+        "summary": "Read direct Base USDC payment details.",
+        "responses": {
+          "200": {
+            "description": "Static paylink details."
+          }
+        }
+      }
+    },
+    "/api/paylink": {
+      "get": {
+        "summary": "Read dynamic direct Base USDC payment details.",
+        "responses": {
+          "200": {
+            "description": "Paylink details."
+          }
+        }
+      }
+    },
+    "/api/agent/manifest": {
+      "get": {
+        "summary": "Machine-readable service manifest.",
+        "responses": {
+          "200": {
+            "description": "Service manifest."
+          }
+        }
+      }
+    },
+    "/api/licenses/catalog": {
+      "get": {
+        "summary": "Free catalog of licensable assets.",
+        "responses": {
+          "200": {
+            "description": "Current catalog."
+          },
+          "503": {
+            "description": "Base RPC unavailable."
+          }
+        }
+      }
+    },
+    "/api/licenses/use": {
+      "post": {
+        "summary": "Buy one machine-use license for $0.01 USDC through x402.",
+        "description": "Returns HTTP 402 when no valid x402 payment is supplied. After a successful payment and a successful asset eligibility check, returns one non-transferable machine-use license receipt.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tokenId"
+                ],
+                "properties": {
+                  "tokenId": {
+                    "type": "string",
+                    "pattern": "^\\d+$",
+                    "examples": [
+                      "1"
+                    ]
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "examples": [
+                      "my-agent"
+                    ]
+                  },
+                  "useCase": {
+                    "type": "string",
+                    "maxLength": 240,
+                    "examples": [
+                      "render this voxel in one generated scene"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paid license receipt."
+          },
+          "402": {
+            "description": "x402 payment required."
+          },
+          "404": {
+            "description": "Token not eligible."
+          },
+          "503": {
+            "description": "Payment facilitator or Base RPC unavailable."
+          }
+        }
+      }
+    }
+  }
+}

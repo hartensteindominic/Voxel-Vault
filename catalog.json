@@ -1,0 +1,38 @@
+{
+  "name": "Galactic x402 AI Asset Licensing Catalog",
+  "version": "1.0.0",
+  "staticPreview": true,
+  "licenseKind": "single-machine-use-v1",
+  "model": "pay-per-machine-use",
+  "repeatUseRequiresNewPayment": true,
+  "price": "$0.01",
+  "chainId": 8453,
+  "network": "Base",
+  "licensor": "0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb",
+  "contract": "0xa00758b05f96ef4409d97c3ffebb6794b2eafbde",
+  "paidEndpoint": "/api/licenses/use",
+  "directPaylink": "./paylink.json",
+  "assets": [
+    {
+      "chainId": 8453,
+      "network": "Base",
+      "contract": "0xa00758b05f96ef4409d97c3ffebb6794b2eafbde",
+      "tokenId": "1",
+      "owner": "0x02f93c7547309ca50EEAB446DaEBE8ce8E694cBb",
+      "tokenURI": "Resolved live by GET /api/licenses/catalog after server deployment.",
+      "collectionName": "VoxelFlip",
+      "collectionSymbol": "VOXEL",
+      "displayName": "VoxelFlip #1",
+      "license": {
+        "kind": "single-machine-use-v1",
+        "units": 1,
+        "nonExclusive": true,
+        "nonTransferable": true,
+        "modelTrainingAllowed": false,
+        "ownershipTransferred": false,
+        "repeatUseRequiresNewPayment": true
+      }
+    }
+  ],
+  "rightsNotice": "Catalog inclusion means the token is currently owned by the configured licensor wallet. NFT ownership alone does not prove copyright ownership; licenses cover only rights the licensor actually controls."
+}

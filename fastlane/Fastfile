@@ -1,0 +1,111 @@
+require "securerandom"
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Create signing assets on the CI runner, archive Galactic Trust Business, and upload the IPA to App Store Connect"
+  lane :release do
+    required = %w[
+      APP_STORE_CONNECT_KEY_ID
+      APP_STORE_CONNECT_ISSUER_ID
+      APP_STORE_CONNECT_PRIVATE_KEY
+      APPLE_TEAM_ID
+    ]
+    missing = required.select { |name| ENV[name].to_s.strip.empty? }
+    UI.user_error!("Missing required CI secrets: #{missing.join(', ')}") unless missing.empty?
+
+    app_identifier = "com.hartensteindominic.galactictrustbusiness"
+    project_path = "ios/GalacticTrustBusiness/GalacticTrustBusiness.xcodeproj"
+    keychain_name = "galactic-trust-ci-#{ENV['GITHUB_RUN_ID'] || Time.now.to_i}"
+    keychain_password = SecureRandom.hex(24)
+
+    begin
+      api_key = app_store_connect_api_key(
+        key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+        issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+        key_content: ENV.fetch("APP_STORE_CONNECT_PRIVATE_KEY"),
+        duration: 1200,
+        in_house: false
+      )
+
+      create_keychain(
+        name: keychain_name,
+        password: keychain_password,
+        default_keychain: true,
+        unlock: true,
+        timeout: 3600,
+        lock_when_sleeps: false
+      )
+      keychain_path = Actions.lane_context[SharedValues::KEYCHAIN_PATH]
+
+      cert(
+        api_key: api_key,
+        team_id: ENV.fetch("APPLE_TEAM_ID"),
+        generate_apple_certs: true,
+        keychain_path: keychain_path,
+        keychain_password: keychain_password,
+        platform: "ios"
+      )
+      certificate_id = Actions.lane_context[SharedValues::CERT_CERTIFICATE_ID]
+
+      get_provisioning_profile(
+        api_key: api_key,
+        app_identifier: app_identifier,
+        team_id: ENV.fetch("APPLE_TEAM_ID"),
+        cert_id: certificate_id,
+        provisioning_name: "Galactic Trust Business App Store",
+        filename: "GalacticTrustBusiness_AppStore.mobileprovision",
+        output_path: "build_signing",
+        force: true,
+        platform: "ios"
+      )
+
+      profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
+      profile_uuid = Actions.lane_context[SharedValues::SIGH_UUID]
+
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: project_path,
+        team_id: ENV.fetch("APPLE_TEAM_ID"),
+        targets: ["GalacticTrustBusiness"],
+        build_configurations: ["Release"],
+        code_sign_identity: "Apple Distribution",
+        profile_name: profile_name,
+        profile_uuid: profile_uuid,
+        bundle_identifier: app_identifier
+      )
+
+      build_ios_app(
+        project: project_path,
+        scheme: "GalacticTrustBusiness",
+        configuration: "Release",
+        clean: true,
+        export_method: "app-store",
+        output_directory: "build",
+        output_name: "GalacticTrustBusiness.ipa",
+        export_options: {
+          method: "app-store",
+          signingStyle: "manual",
+          provisioningProfiles: {
+            app_identifier => profile_name
+          }
+        }
+      )
+
+      upload_to_app_store(
+        api_key: api_key,
+        app_identifier: app_identifier,
+        ipa: "build/GalacticTrustBusiness.ipa",
+        skip_metadata: true,
+        skip_screenshots: true,
+        precheck_include_in_app_purchases: false,
+        force: true,
+        submit_for_review: false
+      )
+
+      UI.success("Galactic Trust Business was uploaded to App Store Connect. Finish the listing and submit the processed build from App Store Connect.")
+    ensure
+      delete_keychain(name: keychain_name) rescue nil
+    end
+  end
+end
