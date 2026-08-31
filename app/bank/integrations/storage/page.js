@@ -53,6 +53,8 @@ export default function ReconciliationStorageReadinessPage() {
   }, [load]);
 
   const databaseReady = readiness?.databaseReady === true;
+  const stateWritable = readiness?.reconciliationStateWritable === true;
+  const writeBlocked = readiness?.migration024Status === 'write-blocked';
 
   return (
     <main className={styles.page}>
@@ -74,7 +76,7 @@ export default function ReconciliationStorageReadinessPage() {
           <div>
             <span className={styles.kicker}>✦ OWNER CHECK · DEPLOYED SERVER</span>
             <h1>Verify reconciliation storage<br /><em>from the app itself.</em></h1>
-            <p>This check uses the Supabase admin connection already available to the deployed Galactic Trust server. It does not rely on GitHub Actions secrets and never returns credentials to the browser.</p>
+            <p>This check uses the Supabase admin connection already available to the deployed Galactic Trust server. It verifies both table reads and the sandbox heartbeat write path without returning credentials to the browser.</p>
           </div>
           <div className={styles.heroLock}>
             <span>🔒</span>
@@ -103,36 +105,37 @@ export default function ReconciliationStorageReadinessPage() {
                 <div className={styles.cardHead}><span>◎</span><Badge ready={readiness.eventLedgerReady}>{readiness.eventLedgerReady ? 'READY' : 'CHECK'}</Badge></div>
                 <h2>Increase event ledger</h2>
                 <p>Service-only storage for verified Increase sandbox events.</p>
-                <Metric label="Event ledger" value={readiness.eventLedgerReady ? 'READY' : 'NOT READY'} ready={readiness.eventLedgerReady} />
+                <Metric label="Event ledger read" value={readiness.eventLedgerReady ? 'READY' : 'NOT READY'} ready={readiness.eventLedgerReady} />
               </article>
 
               <article>
-                <div className={styles.cardHead}><span>↻</span><Badge ready={readiness.reconciliationStateReady}>{readiness.reconciliationStateReady ? 'READY' : 'CHECK'}</Badge></div>
+                <div className={styles.cardHead}><span>↻</span><Badge ready={readiness.reconciliationStateReady && stateWritable}>{readiness.reconciliationStateReady && stateWritable ? 'WRITE READY' : 'CHECK'}</Badge></div>
                 <h2>Reconciliation state</h2>
                 <p>Stores the sandbox event cursor, heartbeat, and owner-scoped reconciliation checkpoint.</p>
-                <Metric label="State table" value={readiness.reconciliationStateReady ? 'READY' : 'NOT READY'} ready={readiness.reconciliationStateReady} />
+                <Metric label="State table read" value={readiness.reconciliationStateReady ? 'READY' : 'NOT READY'} ready={readiness.reconciliationStateReady} />
+                <Metric label="Heartbeat write" value={stateWritable ? 'READY' : 'BLOCKED'} ready={stateWritable} />
               </article>
 
               <article className={databaseReady ? '' : styles.lockedCard}>
-                <div className={styles.cardHead}><span>{databaseReady ? '✓' : '!'}</span><Badge ready={databaseReady}>{databaseReady ? 'MIGRATION 024 READY' : 'MIGRATION 024 NEEDED'}</Badge></div>
+                <div className={styles.cardHead}><span>{databaseReady ? '✓' : '!'}</span><Badge ready={databaseReady}>{databaseReady ? 'RECONCILIATION STORAGE READY' : writeBlocked ? 'WRITE REPAIR NEEDED' : 'STORAGE SETUP NEEDED'}</Badge></div>
                 <h2>Automatic reconciliation</h2>
-                <p>Both tables must exist before webhook persistence and missed-event reconciliation can be durable.</p>
-                <Metric label="Storage" value={databaseReady ? 'READY' : 'NOT READY'} ready={databaseReady} />
+                <p>The tables must be readable and the backend must be able to persist the sandbox heartbeat before reconciliation is considered ready.</p>
+                <Metric label="Storage" value={databaseReady ? 'READ + WRITE READY' : writeBlocked ? 'READABLE · WRITE BLOCKED' : 'NOT READY'} ready={databaseReady} />
                 <Metric label="Real-money movement" value="NO" ready={false} />
               </article>
             </section>
 
             <section className={styles.queue}>
               <div className={styles.queueHead}>
-                <div><span>NEXT STEP</span><h2>{databaseReady ? 'Reconciliation storage is ready' : 'One infrastructure step remains'}</h2></div>
+                <div><span>NEXT STEP</span><h2>{databaseReady ? 'Reconciliation storage is ready' : writeBlocked ? 'Backend write permission needs repair' : 'One infrastructure step remains'}</h2></div>
                 <Badge ready={databaseReady}>{databaseReady ? 'READY' : 'ACTION NEEDED'}</Badge>
               </div>
-              <p className={styles.clearMessage}>{databaseReady ? 'The deployed app can see both migration-024 tables. Return to Integration Health and run owner-scoped sandbox reconciliation.' : readiness.nextStep}</p>
+              <p className={styles.clearMessage}>{databaseReady ? 'The deployed app can read both migration-024 tables and persist the sandbox reconciliation heartbeat. Return to Integration Health and run owner-scoped sandbox reconciliation.' : readiness.nextStep}</p>
             </section>
 
             <section className={styles.truthStrip}>
               <span>✓</span>
-              <p><b>Safe verification only</b><small>This page checks table readiness using the deployed server connection. It does not expose Supabase credentials, raw database errors, provider identifiers, or enable production banking.</small></p>
+              <p><b>Safe verification only</b><small>This page checks table readiness and a sandbox-only reconciliation-state upsert using the deployed server connection. It does not expose Supabase credentials, raw database errors, provider identifiers, or enable production banking.</small></p>
               <Link href="/bank/integrations">Integration Health →</Link>
             </section>
 
