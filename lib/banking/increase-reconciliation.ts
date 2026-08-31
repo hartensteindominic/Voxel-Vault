@@ -27,6 +27,14 @@ function safeError(error: unknown) {
   return error instanceof Error ? safeText(error.message, 160) : 'reconciliation_failed';
 }
 
+function safeStorageIssue(error: any) {
+  const code = safeText(error?.code, 40);
+  if (code) return code;
+  const status = Number(error?.status);
+  if (Number.isFinite(status)) return `status_${status}`;
+  return 'storage_unavailable';
+}
+
 function safeEventPollingIssue(error: unknown) {
   if (error && typeof error === 'object' && 'status' in error && Number.isFinite(Number((error as any).status))) {
     return `provider_status_${Number((error as any).status)}`;
@@ -162,7 +170,15 @@ export async function reconcileIncreaseSandbox(options: {
       last_transaction_id: lastTransactionId,
       last_error: null,
     });
-    await markEvents(eventIds, 'processed');
+
+    let eventLedgerUpdated = true;
+    let eventLedgerIssue = '';
+    try {
+      await markEvents(eventIds, 'processed');
+    } catch (error) {
+      eventLedgerUpdated = false;
+      eventLedgerIssue = safeStorageIssue(error);
+    }
 
     return {
       ok: true,
@@ -177,6 +193,8 @@ export async function reconcileIncreaseSandbox(options: {
       currentBalanceCents,
       availableBalanceCents,
       lastTransactionId,
+      eventLedgerUpdated,
+      eventLedgerIssue,
     };
   } catch (error) {
     const code = safeError(error);
@@ -187,7 +205,11 @@ export async function reconcileIncreaseSandbox(options: {
         last_reconciliation_trigger: trigger,
         last_error: code,
       });
-      await markEvents(eventIds, 'failed', code);
+      try {
+        await markEvents(eventIds, 'failed', code);
+      } catch {
+        // Event-ledger failure must not replace the original reconciliation error.
+      }
     } catch {
       // Preserve the original provider/database error for the caller.
     }
@@ -202,11 +224,21 @@ export async function pollIncreaseSandboxEvents(options: {
 }) {
   const accountId = requireOwnerAccountId(options?.accountId);
   const maxPages = Math.max(1, Math.min(5, Number(options?.maxPages || 2)));
-  const { data: state } = await withSupabaseAdmin((supabase) => supabase
-    .from('galactic_increase_reconciliation_state')
-    .select('event_cursor,last_reconciled_at')
-    .eq('environment', 'sandbox')
-    .maybeSingle());
+
+  let state: any = null;
+  let stateReadAvailable = true;
+  let stateReadIssue = '';
+  try {
+    const result = await withSupabaseAdmin((supabase) => supabase
+      .from('galactic_increase_reconciliation_state')
+      .select('event_cursor,last_reconciled_at')
+      .eq('environment', 'sandbox')
+      .maybeSingle());
+    state = result?.data || null;
+  } catch (error) {
+    stateReadAvailable = false;
+    stateReadIssue = safeStorageIssue(error);
+  }
 
   let cursor = safeText(state?.event_cursor, 500);
   const observedEventIds: string[] = [];
@@ -217,38 +249,43 @@ export async function pollIncreaseSandboxEvents(options: {
   let eventPollingIssue = '';
   const pollAttemptedAt = new Date().toISOString();
 
-  try {
-    while (pages < maxPages) {
-      const params = new URLSearchParams();
-      params.set('order_by.field', 'created_at');
-      params.set('order_by.direction', 'ascending');
-      params.set('limit', '100');
-      if (cursor) params.set('cursor', cursor);
-
-      const payload = await increaseSandboxRequest(`/events?${params.toString()}`, {}, process.env);
-      const events = listData(payload);
-      pages += 1;
-      scanned += events.length;
-
-      for (const event of events) {
-        const recorded = await recordIncreaseSandboxEvent(event, { source: 'poll' });
-        observedEventIds.push(recorded.eventId);
-        if (!recorded.duplicate) newEvents += 1;
-      }
-
-      const nextCursor = safeText(payload?.next_cursor, 500);
-      if (nextCursor) cursor = nextCursor;
-      await updateReconciliationState({ event_cursor: cursor || null, last_poll_at: new Date().toISOString() });
-      if (!events.length) break;
-    }
-  } catch (error) {
-    eventPollingAvailable = false;
-    eventPollingIssue = safeEventPollingIssue(error);
+  if (stateReadAvailable) {
     try {
-      await updateReconciliationState({ last_poll_at: pollAttemptedAt });
-    } catch {
-      // Reconciliation below will surface a database failure if storage is actually unavailable.
+      while (pages < maxPages) {
+        const params = new URLSearchParams();
+        params.set('order_by.field', 'created_at');
+        params.set('order_by.direction', 'ascending');
+        params.set('limit', '100');
+        if (cursor) params.set('cursor', cursor);
+
+        const payload = await increaseSandboxRequest(`/events?${params.toString()}`, {}, process.env);
+        const events = listData(payload);
+        pages += 1;
+        scanned += events.length;
+
+        for (const event of events) {
+          const recorded = await recordIncreaseSandboxEvent(event, { source: 'poll' });
+          observedEventIds.push(recorded.eventId);
+          if (!recorded.duplicate) newEvents += 1;
+        }
+
+        const nextCursor = safeText(payload?.next_cursor, 500);
+        if (nextCursor) cursor = nextCursor;
+        await updateReconciliationState({ event_cursor: cursor || null, last_poll_at: new Date().toISOString() });
+        if (!events.length) break;
+      }
+    } catch (error) {
+      eventPollingAvailable = false;
+      eventPollingIssue = safeEventPollingIssue(error);
+      try {
+        await updateReconciliationState({ last_poll_at: pollAttemptedAt });
+      } catch {
+        // Reconciliation below will surface a database failure if storage is actually unavailable.
+      }
     }
+  } else {
+    eventPollingAvailable = false;
+    eventPollingIssue = stateReadIssue || 'state_unavailable';
   }
 
   const shouldReconcile = observedEventIds.length > 0
@@ -273,6 +310,8 @@ export async function pollIncreaseSandboxEvents(options: {
     observedEvents: observedEventIds.length,
     newEvents,
     cursorStored: Boolean(cursor),
+    stateReadAvailable,
+    stateReadIssue,
     eventPollingAvailable,
     eventPollingIssue,
     mode: eventPollingAvailable ? 'events-plus-owner-snapshot' : 'owner-snapshot-fallback',
@@ -282,30 +321,50 @@ export async function pollIncreaseSandboxEvents(options: {
 }
 
 export async function getIncreaseReconciliationStatus() {
-  const result = await withSupabaseAdmin(async (supabase) => {
-    const [stateResult, eventsResult] = await Promise.all([
-      supabase.from('galactic_increase_reconciliation_state').select('*').eq('environment', 'sandbox').maybeSingle(),
-      supabase
-        .from('galactic_increase_webhook_events')
-        .select('event_id,category,associated_object_type,source,provider_created_at,received_at,processed_at,processing_status,last_error')
-        .order('received_at', { ascending: false })
-        .limit(12),
-    ]);
-    return {
-      stateResult,
-      eventsResult,
-      error: stateResult?.error || eventsResult?.error || null,
-    };
-  });
+  let state: any = null;
+  let recentEvents: any[] = [];
+  let stateReadable = false;
+  let eventLedgerReadable = false;
+  let stateIssue = '';
+  let eventLedgerIssue = '';
 
-  const state = result?.stateResult?.data || null;
-  const events = result?.eventsResult?.data;
+  try {
+    const result = await withSupabaseAdmin((supabase) => supabase
+      .from('galactic_increase_reconciliation_state')
+      .select('*')
+      .eq('environment', 'sandbox')
+      .maybeSingle());
+    state = result?.data || null;
+    stateReadable = true;
+  } catch (error) {
+    stateIssue = safeStorageIssue(error);
+  }
+
+  try {
+    const result = await withSupabaseAdmin((supabase) => supabase
+      .from('galactic_increase_webhook_events')
+      .select('event_id,category,associated_object_type,source,provider_created_at,received_at,processed_at,processing_status,last_error')
+      .order('received_at', { ascending: false })
+      .limit(12));
+    recentEvents = Array.isArray(result?.data) ? result.data : [];
+    eventLedgerReadable = true;
+  } catch (error) {
+    eventLedgerIssue = safeStorageIssue(error);
+  }
+
+  if (!stateReadable && !eventLedgerReadable) {
+    throw new Error('Supabase reconciliation storage is unavailable.');
+  }
 
   return {
     environment: 'sandbox',
     canMoveRealMoney: false,
     scope: 'owner-account',
     state,
-    recentEvents: Array.isArray(events) ? events : [],
+    stateReadable,
+    stateIssue,
+    eventLedgerReadable,
+    eventLedgerIssue,
+    recentEvents,
   };
 }

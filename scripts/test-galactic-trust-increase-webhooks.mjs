@@ -58,6 +58,13 @@ assert.match(reconciliation, /eventPollingAvailable = false/, 'restricted Increa
 assert.match(reconciliation, /mode: eventPollingAvailable \? 'events-plus-owner-snapshot' : 'owner-snapshot-fallback'/, 'manual reconciliation must report when it safely fell back to the owner Account snapshot');
 assert.match(reconciliation, /trigger: eventPollingAvailable \? 'poll' : 'owner'/, 'fallback reconciliation must be recorded as an owner-scoped snapshot, not a successful Events poll');
 assert.match(reconciliation, /\|\| !eventPollingAvailable/, 'an unavailable Events endpoint must still force the owner Account snapshot reconciliation');
+assert.match(reconciliation, /let stateReadAvailable = true/, 'manual reconciliation must distinguish state-read availability from owner snapshot availability');
+assert.match(reconciliation, /stateReadAvailable = false/, 'a reconciliation-state read problem must degrade to the owner snapshot fallback rather than aborting before the snapshot');
+assert.match(reconciliation, /let eventLedgerUpdated = true/, 'owner snapshot success must track event-ledger update health separately');
+assert.match(reconciliation, /eventLedgerUpdated = false/, 'event-ledger update failure must not invalidate a successfully persisted owner snapshot');
+assert.match(reconciliation, /let stateReadable = false/, 'health reads must track reconciliation-state readability independently');
+assert.match(reconciliation, /let eventLedgerReadable = false/, 'health reads must track event-ledger readability independently');
+assert.match(reconciliation, /if \(!stateReadable && !eventLedgerReadable\)/, 'health should be globally unavailable only when both reconciliation storage reads fail');
 assert.doesNotMatch(reconciliation, /getIncreaseSandboxDashboard\(process\.env\)/, 'reconciliation must never aggregate every open Increase sandbox Account');
 assert.doesNotMatch(reconciliation, /raw_body|raw_payload|payload_json/i);
 assert.match(migration, /event_id text primary key/);
@@ -66,4 +73,4 @@ assert.match(migration, /payload_sha256/);
 assert.match(sandbox, /https:\/\/sandbox\.increase\.com/);
 assert.doesNotMatch(sandbox, /https:\/\/api\.increase\.com/);
 
-console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, authenticated reconciliation is scoped only to the signed-in owner sandbox Account, storage retries across server-only Supabase admin credentials, and restricted Events polling safely falls back to an owner snapshot.');
+console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, authenticated reconciliation is scoped only to the signed-in owner sandbox Account, partial storage health degrades safely, and event-ledger failures cannot invalidate a successful owner snapshot.');
