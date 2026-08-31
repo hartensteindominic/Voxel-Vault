@@ -54,6 +54,10 @@ assert.match(reconciliation, /scope: 'owner-account'/);
 assert.match(reconciliation, /getSupabaseAdminCandidates/, 'reconciliation storage must retry across the same server-side Supabase admin candidates as readiness checks');
 assert.match(reconciliation, /withSupabaseAdmin/, 'all reconciliation storage operations must use resilient admin fallback');
 assert.doesNotMatch(reconciliation, /getSupabaseAdmin\(\)/, 'reconciliation must not pin storage access to only the first configured admin credential');
+assert.match(reconciliation, /eventPollingAvailable = false/, 'restricted Increase Events polling must be represented separately instead of failing the entire owner reconciliation');
+assert.match(reconciliation, /mode: eventPollingAvailable \? 'events-plus-owner-snapshot' : 'owner-snapshot-fallback'/, 'manual reconciliation must report when it safely fell back to the owner Account snapshot');
+assert.match(reconciliation, /trigger: eventPollingAvailable \? 'poll' : 'owner'/, 'fallback reconciliation must be recorded as an owner-scoped snapshot, not a successful Events poll');
+assert.match(reconciliation, /\|\| !eventPollingAvailable/, 'an unavailable Events endpoint must still force the owner Account snapshot reconciliation');
 assert.doesNotMatch(reconciliation, /getIncreaseSandboxDashboard\(process\.env\)/, 'reconciliation must never aggregate every open Increase sandbox Account');
 assert.doesNotMatch(reconciliation, /raw_body|raw_payload|payload_json/i);
 assert.match(migration, /event_id text primary key/);
@@ -62,4 +66,4 @@ assert.match(migration, /payload_sha256/);
 assert.match(sandbox, /https:\/\/sandbox\.increase\.com/);
 assert.doesNotMatch(sandbox, /https:\/\/api\.increase\.com/);
 
-console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, authenticated reconciliation is scoped only to the signed-in owner sandbox Account, and storage retries across server-only Supabase admin credentials.');
+console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, authenticated reconciliation is scoped only to the signed-in owner sandbox Account, storage retries across server-only Supabase admin credentials, and restricted Events polling safely falls back to an owner snapshot.');
