@@ -5,6 +5,7 @@ import './galactic-trust.css';
 import './auth.css';
 import './enhancements.css';
 import './a11y.css';
+import './week3-polish.css';
 
 export const metadata = {
   title: 'Dashboard',
