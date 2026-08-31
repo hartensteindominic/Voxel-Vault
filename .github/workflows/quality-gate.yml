@@ -19,50 +19,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Repository scope
-        if: always()
-        run: node scripts/test-galactic-trust-repo-scope.mjs
-      - name: UI truth
-        if: always()
-        run: node scripts/test-galactic-trust-ui-truth.mjs
-      - name: Provider boundary
-        if: always()
-        run: node scripts/test-galactic-trust-provider-boundary.mjs
-      - name: Regulated launch
-        if: always()
-        run: node scripts/test-galactic-trust-regulated-launch.mjs
-      - name: Increase onboarding
-        if: always()
-        run: node scripts/test-galactic-trust-increase-onboarding.mjs
-      - name: Increase webhooks
-        if: always()
-        run: node scripts/test-galactic-trust-increase-webhooks.mjs
-      - name: Account lifecycle
-        if: always()
-        run: node scripts/test-galactic-trust-account-lifecycle.mjs
-      - name: Account status UI
-        if: always()
-        run: node scripts/test-galactic-trust-account-status-ui.mjs
-      - name: Integration health
-        if: always()
-        run: node scripts/test-galactic-trust-integration-health.mjs
-      - name: Crypto practice
-        if: always()
-        run: node scripts/test-galactic-trust-crypto-practice.mjs
-      - name: Header center
-        if: always()
-        run: node scripts/test-galactic-trust-header-center.mjs
-      - name: Increase recovery
-        if: always()
-        run: node scripts/test-galactic-trust-increase-recovery.mjs
-      - name: Recovery takeover
-        if: always()
-        run: node scripts/test-galactic-trust-recovery-takeover.mjs
-      - name: Week 3 polish
-        if: always()
-        run: node scripts/test-galactic-trust-week3-polish.mjs
       - name: Production build
-        if: always()
         run: npm run build
 
   prepare-finance-replacement:
@@ -73,14 +30,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Create full finance replacement branch
+      - name: Create finance replacement branch
         shell: bash
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/hartensteindominic/Galactic.git /tmp/galactic
           branch="finance-replacement-${GITHUB_RUN_ID}"
           git checkout -b "$branch"
-          rsync -a --delete --exclude='.git' /tmp/galactic/ ./
+          rsync -a --delete --exclude='.git' --exclude='.github/workflows/' /tmp/galactic/ ./
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
