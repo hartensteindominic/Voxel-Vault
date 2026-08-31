@@ -4,6 +4,9 @@ import { readFile } from 'node:fs/promises';
 const page = await readFile(new URL('../app/bank/integrations/page.js', import.meta.url), 'utf8');
 const route = await readFile(new URL('../app/api/admin/bank/integration-health/route.ts', import.meta.url), 'utf8');
 const enhancements = await readFile(new URL('../app/bank/GalacticDashboardEnhancements.js', import.meta.url), 'utf8');
+const storagePage = await readFile(new URL('../app/bank/integrations/storage/page.js', import.meta.url), 'utf8');
+const storageRoute = await readFile(new URL('../app/api/admin/bank/increase/reconciliation-readiness/route.ts', import.meta.url), 'utf8');
+const storageProbe = await readFile(new URL('../lib/banking/increase-reconciliation-readiness.ts', import.meta.url), 'utf8');
 
 assert.match(route, /requireGalacticTrustAdmin/, 'integration health API must be owner/admin authenticated');
 assert.match(route, /inspectIncreaseSandbox/, 'integration health must inspect the configured Increase sandbox server-side');
@@ -38,7 +41,23 @@ assert.equal(page.includes('entityId'), false, 'integration health UI must not h
 assert.equal(page.includes('programId'), false, 'integration health UI must not handle provider Program IDs');
 assert.equal(page.includes('apiKey'), false, 'integration health UI must never handle provider API keys');
 
+assert.match(storageRoute, /requireGalacticTrustAdmin/, 'storage readiness API must remain owner/admin authenticated');
+assert.match(storageRoute, /inspectIncreaseReconciliationStorage/, 'storage readiness API must use the deployed-server reconciliation probe');
+assert.match(storageRoute, /canMoveRealMoney: false/, 'storage readiness API must remain unable to move real money');
+assert.doesNotMatch(storageRoute, /SUPABASE_(?:SECRET|SERVICE|DB|ACCESS)/, 'storage readiness route must not embed secret environment variable names');
+assert.match(storageProbe, /getSupabaseAdminCandidates/, 'storage readiness must use the same server-side Supabase admin candidates as the deployed app');
+assert.match(storageProbe, /galactic_increase_webhook_events/, 'storage readiness must check the migration-024 event ledger');
+assert.match(storageProbe, /galactic_increase_reconciliation_state/, 'storage readiness must check the migration-024 reconciliation state table');
+assert.match(storageProbe, /migration024Status/, 'storage readiness must return a sanitized migration-024 status');
+assert.match(storageProbe, /canMoveRealMoney: false/, 'storage probe must preserve the sandbox-only boundary');
+assert.equal(storageProbe.includes('password'), false, 'storage probe must never expose or request database passwords');
+assert.match(storagePage, /DEPLOYED SERVER/, 'storage readiness UI must explain that it checks the deployed server configuration');
+assert.match(storagePage, /does not rely on GitHub Actions secrets/, 'storage readiness UI must distinguish deployed server configuration from GitHub Actions secrets');
+assert.match(storagePage, /MIGRATION 024/, 'storage readiness UI must make migration 024 status explicit');
+assert.match(storagePage, /REAL MONEY[^]*LOCKED/, 'storage readiness UI must keep the real-money lock visible');
+assert.equal(storagePage.includes('SUPABASE_'), false, 'storage readiness browser UI must not contain server secret names');
+
 assert.match(enhancements, /id: 'integration-health'[^]*label: 'Integration health'/, 'dashboard command palette must expose the owner integration-health destination');
 assert.match(enhancements, /window\.location\.assign\('\/bank\/integrations'\)/, 'integration health command must route to /bank/integrations');
 
-console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, while provider secrets/full identifiers stay out of browser responses and production remains fail-closed.');
+console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, deployed-server storage readiness is inspectable without exposing secrets, and production remains fail-closed.');
