@@ -1,0 +1,55 @@
+name: Galactic Trust Business iOS
+
+on:
+  push:
+    branches:
+      - main
+      - feat/business-finance-ios
+    paths:
+      - 'ios/GalacticTrustBusiness/**'
+      - '.github/workflows/ios-business.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ios/GalacticTrustBusiness/**'
+      - '.github/workflows/ios-business.yml'
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate App Store icon
+        working-directory: ios/GalacticTrustBusiness
+        run: python3 scripts/generate_app_icon.py
+
+      - name: Generate Xcode project
+        working-directory: ios/GalacticTrustBusiness
+        run: xcodegen generate
+
+      - name: Build for iOS Simulator
+        working-directory: ios/GalacticTrustBusiness
+        run: |
+          xcodebuild \
+            -project GalacticTrustBusiness.xcodeproj \
+            -scheme GalacticTrustBusiness \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Run unit tests
+        working-directory: ios/GalacticTrustBusiness
+        run: |
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(v["udid"] for runtime in d.values() for v in runtime if v["name"].startswith("iPhone") and v["isAvailable"]))')"
+          xcodebuild \
+            -project GalacticTrustBusiness.xcodeproj \
+            -scheme GalacticTrustBusiness \
+            -destination "platform=iOS Simulator,id=${DEVICE_ID}" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
