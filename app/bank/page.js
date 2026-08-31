@@ -1,10 +1,10 @@
 import GalacticBankGate from './GalacticBankGate';
-import GalacticIncreaseSandboxRecovery from './GalacticIncreaseSandboxRecovery';
 import './bank.css';
 import './galactic.css';
 import './galactic-trust.css';
 import './auth.css';
 import './enhancements.css';
+import './a11y.css';
 
 export const metadata = {
   title: 'Dashboard',
@@ -13,10 +13,5 @@ export const metadata = {
 };
 
 export default function BankPage() {
-  return (
-    <>
-      <GalacticBankGate />
-      <GalacticIncreaseSandboxRecovery />
-    </>
-  );
+  return <GalacticBankGate />;
 }
