@@ -20,6 +20,11 @@ assert.match(route, /safeReconciliationRun\(backstop\)/, 'manual owner reconcili
 assert.match(route, /owner-snapshot-fallback/, 'integration health must distinguish owner snapshot fallback from Events-backed reconciliation');
 assert.match(route, /events-plus-owner-snapshot/, 'integration health must identify Events plus owner snapshot mode');
 assert.match(route, /ok · owner snapshot/, 'persisted reconciliation status must identify owner snapshot fallback safely');
+assert.match(route, /let webhookSetupAvailable = true/, 'manual reconciliation must track webhook setup separately from owner reconciliation');
+assert.match(route, /try \{\s*await ensureIncreaseSandboxWebhookSubscription\(process\.env\);\s*\} catch \{\s*webhookSetupAvailable = false;/, 'restricted webhook setup must be non-blocking for manual owner reconciliation');
+assert.match(route, /const direct = await reconcileIncreaseSandbox\(\{ accountId: resolution\.accountId, trigger: 'owner' \}\)/, 'manual reconciliation must have a direct owner snapshot fallback if the polling wrapper fails');
+assert.match(route, /webhookSetupAvailable,/, 'manual reconciliation may expose only the safe webhook-setup boolean');
+assert.doesNotMatch(route, /await ensureIncreaseSandboxWebhookSubscription\(process\.env\);\s*const backstop = await pollIncreaseSandboxEvents/, 'webhook setup must never be a hard prerequisite for the owner reconciliation backstop');
 assert.match(route, /bankingLaunchSnapshot/, 'integration health must derive the production lock from the regulated-launch policy');
 assert.match(route, /canMoveRealMoney: false/, 'integration health must remain explicitly incapable of real-money movement');
 assert.match(route, /SANDBOX_VALID_SIMULATION and SANDBOX_ACCOUNT_ONLY are not real KYC\/CIP\/AML approval/, 'integration health API must preserve both sandbox-validation boundaries');
@@ -69,4 +74,4 @@ assert.equal(storagePage.includes('SUPABASE_'), false, 'storage readiness browse
 assert.match(enhancements, /id: 'integration-health'[^]*label: 'Integration health'/, 'dashboard command palette must expose the owner integration-health destination');
 assert.match(enhancements, /window\.location\.assign\('\/bank\/integrations'\)/, 'integration health command must route to /bank/integrations');
 
-console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, fallback path diagnostics are visible without secrets, deployed-server storage readiness is inspectable, and production remains fail-closed.');
+console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, webhook setup cannot block manual owner reconciliation, fallback path diagnostics are visible without secrets, deployed-server storage readiness is inspectable, and production remains fail-closed.');
