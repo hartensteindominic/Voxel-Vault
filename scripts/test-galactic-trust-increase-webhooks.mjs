@@ -21,6 +21,7 @@ assert.equal(verifyIncreaseSandboxWebhookSignature({ rawBody, webhookId: event.i
 
 const webhookRoute = await read('app/api/bank/increase/webhook/route.ts');
 const reconciliationRoute = await read('app/api/admin/bank/increase/reconciliation/route.ts');
+const dashboardRoute = await read('app/api/admin/bank/increase/dashboard/route.ts');
 const reconciliation = await read('lib/banking/increase-reconciliation.ts');
 const subscription = await read('lib/banking/increase-webhook-subscription.js');
 const sandbox = await read('lib/banking/increase-sandbox.js');
@@ -29,13 +30,17 @@ const migration = await read('supabase/migrations/024_galactic_increase_webhooks
 assert.match(webhookRoute, /const rawBody = await request\.text\(\)/);
 assert.match(webhookRoute, /event\.id !== verification\.webhookId/);
 assert.match(webhookRoute, /hashIncreaseWebhookPayload\(rawBody\)/);
-assert.match(webhookRoute, /reconcileIncreaseSandbox/);
+assert.doesNotMatch(webhookRoute, /reconcileIncreaseSandbox\(/, 'public webhooks must not choose a sandbox Account without authenticated owner context');
+assert.match(webhookRoute, /backstopRequired: true/);
 assert.match(webhookRoute, /canMoveRealMoney: false/);
 assert.doesNotMatch(webhookRoute, /INCREASE_SANDBOX_API_KEY/);
 
 assert.match(reconciliationRoute, /requireGalacticTrustAdmin/, 'reconciliation controls must be Galactic Trust owner-authenticated');
+assert.match(reconciliationRoute, /resolveIncreaseSandboxOwnerAccount/, 'owner reconciliation must resolve the signed-in owner Account first');
+assert.match(reconciliationRoute, /accountId: scope\.resolution\.accountId/, 'owner reconciliation polling must receive the resolved owner Account ID');
 assert.match(reconciliationRoute, /private, no-store, max-age=0/);
 assert.match(reconciliationRoute, /pollIncreaseSandboxEvents/);
+assert.match(dashboardRoute, /accountId: resolution\.accountId/, 'dashboard polling backstop must reconcile only the resolved owner Account');
 assert.match(subscription, /\/event_subscriptions/);
 assert.match(subscription, /shared_secret: secret/);
 assert.doesNotMatch(subscription, /api\.increase\.com/);
@@ -43,6 +48,10 @@ assert.doesNotMatch(subscription, /api\.increase\.com/);
 assert.match(reconciliation, /galactic_increase_webhook_events/);
 assert.match(reconciliation, /galactic_increase_reconciliation_state/);
 assert.match(reconciliation, /event_cursor/);
+assert.match(reconciliation, /getIncreaseSandboxDashboardForAccount\(accountId, process\.env\)/, 'reconciliation snapshot must be account-scoped');
+assert.match(reconciliation, /accountId: string/, 'reconciliation APIs must require an explicit owner Account ID');
+assert.match(reconciliation, /scope: 'owner-account'/);
+assert.doesNotMatch(reconciliation, /getIncreaseSandboxDashboard\(process\.env\)/, 'reconciliation must never aggregate every open Increase sandbox Account');
 assert.doesNotMatch(reconciliation, /raw_body|raw_payload|payload_json/i);
 assert.match(migration, /event_id text primary key/);
 assert.match(migration, /enable row level security/g);
@@ -50,4 +59,4 @@ assert.match(migration, /payload_sha256/);
 assert.match(sandbox, /https:\/\/sandbox\.increase\.com/);
 assert.doesNotMatch(sandbox, /https:\/\/api\.increase\.com/);
 
-console.log('Galactic Trust Increase webhook boundary passed.');
+console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, and authenticated reconciliation is scoped only to the signed-in owner sandbox Account.');
