@@ -51,6 +51,9 @@ assert.match(reconciliation, /event_cursor/);
 assert.match(reconciliation, /getIncreaseSandboxDashboardForAccount\(accountId, process\.env\)/, 'reconciliation snapshot must be account-scoped');
 assert.match(reconciliation, /accountId: string/, 'reconciliation APIs must require an explicit owner Account ID');
 assert.match(reconciliation, /scope: 'owner-account'/);
+assert.match(reconciliation, /getSupabaseAdminCandidates/, 'reconciliation storage must retry across the same server-side Supabase admin candidates as readiness checks');
+assert.match(reconciliation, /withSupabaseAdmin/, 'all reconciliation storage operations must use resilient admin fallback');
+assert.doesNotMatch(reconciliation, /getSupabaseAdmin\(\)/, 'reconciliation must not pin storage access to only the first configured admin credential');
 assert.doesNotMatch(reconciliation, /getIncreaseSandboxDashboard\(process\.env\)/, 'reconciliation must never aggregate every open Increase sandbox Account');
 assert.doesNotMatch(reconciliation, /raw_body|raw_payload|payload_json/i);
 assert.match(migration, /event_id text primary key/);
@@ -59,4 +62,4 @@ assert.match(migration, /payload_sha256/);
 assert.match(sandbox, /https:\/\/sandbox\.increase\.com/);
 assert.doesNotMatch(sandbox, /https:\/\/api\.increase\.com/);
 
-console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, and authenticated reconciliation is scoped only to the signed-in owner sandbox Account.');
+console.log('Galactic Trust Increase webhook boundary passed: verified Events are stored without selecting an Account, authenticated reconciliation is scoped only to the signed-in owner sandbox Account, and storage retries across server-only Supabase admin credentials.');
