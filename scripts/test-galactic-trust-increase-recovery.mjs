@@ -120,7 +120,8 @@ try {
   assert.match(gateSource, /session\?\.user && <GalacticIncreaseSandboxRecovery \/>/, 'recovery UI must actually be mounted for signed-in users');
 
   const uiSource = await readFile(new URL('../app/bank/GalacticIncreaseSandboxRecovery.js', import.meta.url), 'utf8');
-  assert.match(uiSource, /private_feature_error/, 'recovery UI must activate for the private-feature restriction');
+  assert.match(uiSource, /recoveryResponse\.ok && Boolean\(recovery\?\.recoveryAvailable\)/, 'recovery UI must use the owner recovery endpoint as the positive handoff signal');
+  assert.equal(uiSource.includes('hasPrivateFeatureRestriction'), false, 'recovery UI must not depend on one exact Increase private-feature error shape');
   assert.match(uiSource, /Create sandbox test account/, 'recovery UI must provide the one-click account action');
   assert.match(uiSource, /takeOverLegacySetup/, 'recovery UI must hide the legacy hosted-onboarding blocker while it owns the recovery state');
   assert.match(uiSource, /This is not KYC or a real bank account/, 'recovery UI must disclose the account-only boundary');
@@ -132,7 +133,7 @@ try {
   assert.match(lifecycleRouteSource, /SANDBOX_ACCOUNT_ONLY/, 'lifecycle fallback must stay explicitly account-only, not KYC');
   assert.equal(lifecycleRouteSource.includes('accountId'), false, 'lifecycle route must not expose provider Account IDs');
 
-  console.log('Galactic Trust Increase recovery checks passed: the mounted private-feature fallback creates and rediscovers one owner-scoped sandbox Account via Increase idempotency-key lookup without Programs, Entities, hosted onboarding, or migration 025, while KYC and production money movement remain locked.');
+  console.log('Galactic Trust Increase recovery checks passed: the mounted owner fallback is driven by the recovery endpoint, creates and rediscovers one owner-scoped sandbox Account via Increase idempotency-key lookup without Programs, Entities, hosted onboarding, or migration 025, while KYC and production money movement remain locked.');
 } finally {
   globalThis.fetch = originalFetch;
 }
