@@ -7,33 +7,53 @@ import styles from './status.module.css';
 
 const stageCopy = {
   'demo-only': {
-    eyebrow: 'DEMO ONLY',
-    title: 'Your Galactic Trust account is in demo mode.',
-    detail: 'You can explore the product, but no provider-backed bank account or real-money access is active for this signed-in account.',
+    eyebrow: 'DEMO MODE · SIMULATED',
+    title: 'Demo Mode — simulated balances and transfers.',
+    detail: 'You can explore Galactic Trust with illustrative balances, cards, transfers, rewards, and crypto practice. No provider-backed production bank account or real-money access is active for this signed-in account.',
     icon: '✦',
   },
   'sandbox-owner-bound': {
     eyebrow: 'INCREASE SANDBOX · TEST ACCOUNT',
-    title: 'Your signed-in account is bound to an Increase sandbox test account.',
-    detail: 'Provider balances and ACH simulations are scoped to your server-side test binding. The money is pretend. This is not a production bank account.',
+    title: 'Your signed-in account is scoped to an Increase sandbox test account.',
+    detail: 'Provider balances and ACH simulations are owner-scoped test data using pretend money. This is not a production bank account.',
     icon: '✓',
   },
   'infrastructure-setup-required': {
     eyebrow: 'SETUP REQUIRED',
     title: 'The trusted provider-binding infrastructure needs setup.',
-    detail: 'Galactic Trust is refusing to treat any provider account as yours until the required server-side database migrations are installed.',
+    detail: 'Galactic Trust is refusing to treat any provider account as yours until the required server-side account-scoping infrastructure is available.',
     icon: '!',
   },
   'signed-out': {
     eyebrow: 'SIGN IN REQUIRED',
     title: 'Sign in to view your Galactic Trust account status.',
-    detail: 'Account status is derived from your verified session and trusted provider binding, never from a browser-supplied user ID.',
+    detail: 'Account status is derived from your verified session and trusted server-side owner scope, never from a browser-supplied user ID.',
     icon: '◉',
   },
 };
 
-function statusCopy(stage) {
+function statusCopy(stage, validationKind) {
+  if (stage === 'sandbox-owner-bound' && validationKind === 'sandbox-account-only') {
+    return {
+      eyebrow: 'INCREASE SANDBOX · ACCOUNT-ONLY TEST',
+      title: 'Your owner-scoped Increase sandbox test account is ready.',
+      detail: 'This test Account was created or recovered without hosted identity onboarding. It uses pretend money only, is not KYC approval, and cannot enable production banking.',
+      icon: '✓',
+    };
+  }
+  if (stage === 'sandbox-owner-bound' && validationKind === 'sandbox-simulation') {
+    return {
+      ...stageCopy['sandbox-owner-bound'],
+      detail: 'Provider balances and ACH simulations are scoped to your signed-in user. Hosted sandbox validation is a test simulation, not real KYC, and the money is pretend.',
+    };
+  }
   return stageCopy[stage] || stageCopy['demo-only'];
+}
+
+function validationLabel(kind) {
+  if (kind === 'sandbox-account-only') return 'ACCOUNT-ONLY RECOVERY';
+  if (kind === 'sandbox-simulation') return 'SANDBOX SIMULATION';
+  return 'NONE';
 }
 
 function StatusRow({ label, value, state = 'neutral' }) {
@@ -89,7 +109,10 @@ export default function GalacticAccountStatusPage() {
     load();
   }, [load]);
 
-  const copy = useMemo(() => statusCopy(lifecycle?.stage), [lifecycle?.stage]);
+  const copy = useMemo(
+    () => statusCopy(lifecycle?.stage, lifecycle?.sandbox?.validationKind),
+    [lifecycle?.stage, lifecycle?.sandbox?.validationKind]
+  );
   const productionLocked = lifecycle?.production?.customerAccountOpeningSupported !== true
     && lifecycle?.production?.customerMoneyMovementSupported !== true
     && lifecycle?.canMoveRealMoney !== true;
@@ -109,7 +132,7 @@ export default function GalacticAccountStatusPage() {
         <div className={styles.intro}>
           <span className={styles.kicker}>✦ SERVER-DERIVED ACCOUNT STATE</span>
           <h1>Know exactly what your<br /><em>Galactic Trust account</em> can do.</h1>
-          <p>This page reads your verified session, trusted provider binding, and Galactic Trust&apos;s regulated-launch locks. It does not infer banking access from a button, balance card, environment switch, or marketing copy.</p>
+          <p>This page reads your verified session, trusted owner scope, and Galactic Trust&apos;s regulated-launch locks. It does not infer banking access from a button, balance card, environment switch, or marketing copy.</p>
         </div>
 
         <section className={styles.statusCard} aria-live="polite">
@@ -128,11 +151,11 @@ export default function GalacticAccountStatusPage() {
                 <article>
                   <span className={styles.cardIcon}>◈</span>
                   <h3>Provider test account</h3>
-                  <StatusRow label="Increase sandbox binding" value={lifecycle?.sandbox?.ownerBindingReady ? 'BOUND' : 'NOT BOUND'} state={lifecycle?.sandbox?.ownerBindingReady ? 'good' : 'neutral'} />
-                  <StatusRow label="Binding storage" value={lifecycle?.sandbox?.bindingStorageReady === false ? 'SETUP REQUIRED' : 'READY'} state={lifecycle?.sandbox?.bindingStorageReady === false ? 'warn' : 'good'} />
-                  <StatusRow label="Validation kind" value={lifecycle?.sandbox?.validationKind === 'sandbox-simulation' ? 'SANDBOX SIMULATION' : 'NONE'} />
+                  <StatusRow label="Owner sandbox scope" value={lifecycle?.sandbox?.ownerBindingReady ? 'READY' : 'NOT READY'} state={lifecycle?.sandbox?.ownerBindingReady ? 'good' : 'neutral'} />
+                  <StatusRow label="Scope infrastructure" value={lifecycle?.sandbox?.bindingStorageReady === false ? 'SETUP REQUIRED' : 'READY'} state={lifecycle?.sandbox?.bindingStorageReady === false ? 'warn' : 'good'} />
+                  <StatusRow label="Validation path" value={validationLabel(lifecycle?.sandbox?.validationKind)} />
                   <StatusRow label="Real money" value="NO" state="locked" />
-                  <p className={styles.cardNote}>A sandbox binding proves only that test data is scoped to the signed-in user. It is not KYC approval, a deposit account, or permission to move real money.</p>
+                  <p className={styles.cardNote}>An owner-scoped sandbox Account proves only that test data belongs to this signed-in test user. `ACCOUNT-ONLY RECOVERY` explicitly means hosted identity onboarding was not used. Neither sandbox path is KYC approval, a production deposit account, or permission to move real money.</p>
                 </article>
 
                 <article>
