@@ -17,6 +17,12 @@ function stateLabel(ok, ready = false) {
   return 'SETUP NEEDED';
 }
 
+function runModeLabel(mode) {
+  if (mode === 'owner-snapshot-fallback') return 'OWNER SNAPSHOT FALLBACK';
+  if (mode === 'events-plus-owner-snapshot') return 'EVENTS + OWNER SNAPSHOT';
+  return 'OWNER SNAPSHOT';
+}
+
 function HealthBadge({ tone = 'neutral', children }) {
   return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
 }
@@ -50,6 +56,7 @@ export default function GalacticIntegrationHealthPage() {
   const [health, setHealth] = useState(null);
   const [error, setError] = useState('');
   const [signedIn, setSignedIn] = useState(false);
+  const [reconciliationRun, setReconciliationRun] = useState(null);
 
   const requestHealth = useCallback(async (method = 'GET') => {
     const client = await getSupabaseBrowserAsync();
@@ -92,8 +99,10 @@ export default function GalacticIntegrationHealthPage() {
   const runReconciliation = useCallback(async () => {
     setRunning(true);
     setError('');
+    setReconciliationRun(null);
     try {
-      await requestHealth('POST');
+      const payload = await requestHealth('POST');
+      setReconciliationRun(payload?.reconciliationRun || null);
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : 'Sandbox reconciliation could not run.');
     } finally {
@@ -105,7 +114,7 @@ export default function GalacticIntegrationHealthPage() {
     const providerHealthy = health?.provider?.connected === true && health?.provider?.capabilities?.accounts?.available === true;
     const bindingHealthy = health?.binding?.storageReady === true && health?.binding?.bound === true;
     const webhookHealthy = health?.webhook?.active === true;
-    const reconciliationHealthy = health?.reconciliation?.databaseReady === true && health?.reconciliation?.status !== 'failed';
+    const reconciliationHealthy = health?.reconciliation?.databaseReady === true && health?.reconciliation?.status !== 'failed' && health?.reconciliation?.status !== 'unavailable';
     const productionLocked = health?.production?.liveBankingEnabled !== true && health?.production?.implementationReady !== true && health?.canMoveRealMoney !== true;
     return { providerHealthy, bindingHealthy, webhookHealthy, reconciliationHealthy, productionLocked };
   }, [health]);
@@ -218,16 +227,31 @@ export default function GalacticIntegrationHealthPage() {
                       <div><span>Recent events</span><b>{health.reconciliation?.recentEventCount || 0}</b></div>
                       <div><span>Transactions seen</span><b>{health.reconciliation?.transactionCount || 0}</b></div>
                     </div>
+                    {health.reconciliation?.lastTrigger && (
+                      <div className={styles.latestEvent}>
+                        <span>Last persisted reconciliation path</span>
+                        <p><b>{health.reconciliation.lastTrigger === 'owner' ? 'Owner account snapshot' : health.reconciliation.lastTrigger === 'poll' ? 'Events + owner snapshot' : `${health.reconciliation.lastTrigger} snapshot`}</b><small>{displayTime(health.reconciliation.lastReconciledAt)} · sandbox only</small></p>
+                      </div>
+                    )}
+                    {reconciliationRun && (
+                      <div className={styles.latestEvent} role="status">
+                        <span>Latest manual run</span>
+                        <p>
+                          <b>{runModeLabel(reconciliationRun.mode)}</b>
+                          <small>{reconciliationRun.reconciled ? 'Owner reconciliation completed' : 'Reconciliation did not complete'} · Events polling {reconciliationRun.eventPollingAvailable ? 'available' : 'restricted/unavailable'} · {reconciliationRun.observedEvents || 0} events observed</small>
+                        </p>
+                      </div>
+                    )}
                     {health.reconciliation?.latestEvent && (
                       <div className={styles.latestEvent}>
                         <span>Latest safe event summary</span>
                         <p><b>{health.reconciliation.latestEvent.category || 'Increase sandbox event'}</b><small>{health.reconciliation.latestEvent.source || 'provider'} · {health.reconciliation.latestEvent.processingStatus || 'received'} · {displayTime(health.reconciliation.latestEvent.receivedAt)}</small></p>
                       </div>
                     )}
-                    <button className={styles.reconcileButton} type="button" onClick={runReconciliation} disabled={running || !health.provider?.connected}>
+                    <button className={styles.reconcileButton} type="button" onClick={runReconciliation} disabled={running || !health.provider?.connected} aria-busy={running}>
                       {running ? 'Reconciling sandbox…' : '↻ Run sandbox reconciliation'}
                     </button>
-                    <small className={styles.buttonNote}>This checks pretend-money Increase sandbox events only. It cannot move real money.</small>
+                    <small className={styles.buttonNote}>This checks pretend-money Increase sandbox events and, when Events access is restricted, falls back to the signed-in owner sandbox Account snapshot. It cannot move real money.</small>
                   </article>
                 </section>
 
@@ -243,13 +267,13 @@ export default function GalacticIntegrationHealthPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className={styles.clearMessage}>Provider access, owner binding, webhook delivery, and reconciliation are ready for Galactic Trust sandbox testing. Production banking still remains separately locked.</p>
+                    <p className={styles.clearMessage}>Provider access, owner scope, reconciliation storage, and the owner snapshot backstop are ready for Galactic Trust sandbox testing. Webhook/Event availability remains a separate provider capability. Production banking still remains separately locked.</p>
                   )}
                 </section>
 
                 <section className={styles.truthStrip}>
                   <span>✓</span>
-                  <p><b>Truthful operating boundary</b><small>Increase data shown here is sandbox test data. SANDBOX_VALID_SIMULATION is not real KYC/CIP/AML approval. Galactic Trust is a financial technology product, not a bank, and this build cannot accept or move real customer deposits.</small></p>
+                  <p><b>Truthful operating boundary</b><small>Increase data shown here is sandbox test data. SANDBOX_VALID_SIMULATION and SANDBOX_ACCOUNT_ONLY are not real KYC/CIP/AML approval. Galactic Trust is a financial technology product, not a bank, and this build cannot accept or move real customer deposits.</small></p>
                   <Link href="/bank/readiness">Review production gates →</Link>
                 </section>
 
