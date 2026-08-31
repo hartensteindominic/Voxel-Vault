@@ -10,8 +10,12 @@ const lifecycleRoute = await readFile(new URL('../app/api/bank/lifecycle/route.t
 assert.match(page, /getSupabaseBrowserAsync/, 'account status UI must derive its bearer session from the authenticated Supabase browser session');
 assert.match(page, /fetch\('\/api\/bank\/lifecycle'/, 'account status UI must read the server-derived lifecycle endpoint');
 assert.match(page, /Authorization: `Bearer \$\{token\}`/, 'lifecycle request must send the authenticated session token');
-assert.match(page, /DEMO ONLY/, 'account status UI must explicitly represent demo-only users');
+assert.match(page, /DEMO MODE · SIMULATED/, 'account status UI must explicitly identify simulated demo mode');
+assert.match(page, /Demo Mode — simulated balances and transfers/, 'demo status must explain what is simulated');
 assert.match(page, /INCREASE SANDBOX · TEST ACCOUNT/, 'owner-scoped sandbox state must be labeled as a test account');
+assert.match(page, /INCREASE SANDBOX · ACCOUNT-ONLY TEST/, 'account-only owner recovery must have a distinct sandbox-only state');
+assert.match(page, /sandbox-account-only/, 'account status UI must recognize the lifecycle account-only validation kind');
+assert.match(page, /ACCOUNT-ONLY RECOVERY/, 'account-only recovery must never fall through to a NONE validation label');
 assert.match(page, /SETUP REQUIRED/, 'binding infrastructure failure must have a visible setup-required state');
 assert.match(page, /This is not a production bank account/, 'sandbox-bound state must disclaim production banking');
 assert.match(page, /Real money[^]*NO/, 'sandbox provider card must explicitly deny real-money capability');
@@ -51,4 +55,4 @@ assert.match(lifecycleRoute, /admin\.auth\.getUser\(token\)/, 'status UI source 
 assert.match(lifecycleRoute, /getProviderAccountBinding\(admin, user\.id/, 'status UI source endpoint must scope binding to the verified user');
 assert.match(lifecycleRoute, /not a bank-account approval or production eligibility decision/, 'server lifecycle source must retain the production-eligibility disclaimer');
 
-console.log('Galactic Trust account status UI checks passed: personal lifecycle and regulated launch readiness stay distinct, the main dashboard shows server-derived demo/sandbox/setup state, production banking remains visibly unsupported, provider IDs/secrets stay out of the client, and the dashboard exposes the correct status destinations.');
+console.log('Galactic Trust account status UI checks passed: demo, hosted sandbox simulation, and account-only recovery states are distinct; personal lifecycle and regulated launch readiness stay separate; production banking remains visibly unsupported; and provider IDs/secrets stay out of the client.');
