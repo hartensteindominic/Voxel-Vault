@@ -31,7 +31,7 @@ export default function PrivacyPage() {
 
         <section style={sectionStyle}>
           <h2>2. Demo data stays demo data</h2>
-          <p style={{ color: '#cbd3ff', lineHeight: 1.75 }}>Illustrative balances, cards, rewards, activity, crypto practice, and ordinary demo transfers are simulated product data. The current application does not hold real customer deposits, execute real crypto trades, or move real customer money.</p>
+          <p style={{ color: '#cbd3ff', lineHeight: 1.75 }}>Illustrative balances, cards, rewards, activity, crypto practice, and ordinary demo transfers are simulated product data. Galactic Trust does not currently use this application to hold real customer deposits or move real customer money. The current application also does not execute real crypto trades.</p>
         </section>
 
         <section style={sectionStyle}>
