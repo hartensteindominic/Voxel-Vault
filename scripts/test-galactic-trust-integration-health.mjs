@@ -16,6 +16,10 @@ assert.match(route, /resolveIncreaseSandboxOwnerAccount\(result\.auth\.admin, re
 assert.match(route, /ensureIncreaseSandboxWebhookSubscription/, 'integration health must inspect/ensure the sandbox webhook subscription server-side');
 assert.match(route, /getIncreaseReconciliationStatus/, 'integration health must report reconciliation state');
 assert.match(route, /pollIncreaseSandboxEvents\(\{ accountId: resolution\.accountId, maxPages: 5, forceReconcile: true \}\)/, 'owner health center must run bounded reconciliation only for the resolved owner Account');
+assert.match(route, /safeReconciliationRun\(backstop\)/, 'manual owner reconciliation must return sanitized path diagnostics');
+assert.match(route, /owner-snapshot-fallback/, 'integration health must distinguish owner snapshot fallback from Events-backed reconciliation');
+assert.match(route, /events-plus-owner-snapshot/, 'integration health must identify Events plus owner snapshot mode');
+assert.match(route, /ok · owner snapshot/, 'persisted reconciliation status must identify owner snapshot fallback safely');
 assert.match(route, /bankingLaunchSnapshot/, 'integration health must derive the production lock from the regulated-launch policy');
 assert.match(route, /canMoveRealMoney: false/, 'integration health must remain explicitly incapable of real-money movement');
 assert.match(route, /SANDBOX_VALID_SIMULATION and SANDBOX_ACCOUNT_ONLY are not real KYC\/CIP\/AML approval/, 'integration health API must preserve both sandbox-validation boundaries');
@@ -32,7 +36,12 @@ assert.match(page, /OWNER OPERATIONS · SANDBOX ONLY/, 'owner operations surface
 assert.match(page, /REAL MONEY[^]*LOCKED/, 'integration health UI must visibly show real money as locked');
 assert.match(page, /Production banking remains fail-closed/, 'integration health UI must preserve fail-closed production messaging');
 assert.match(page, /Run sandbox reconciliation/, 'owner operations UI must expose the safe sandbox reconciliation action');
-assert.match(page, /SANDBOX_VALID_SIMULATION is not real KYC\/CIP\/AML approval/, 'integration UI must not portray sandbox validation as regulated approval');
+assert.match(page, /Latest manual run/, 'manual reconciliation must surface immediate sanitized diagnostics');
+assert.match(page, /OWNER SNAPSHOT FALLBACK/, 'UI must clearly label owner snapshot fallback mode');
+assert.match(page, /Events polling[^]*restricted\/unavailable/, 'UI must truthfully distinguish restricted Events polling from successful owner snapshot reconciliation');
+assert.match(page, /Last persisted reconciliation path/, 'UI must show the durable reconciliation path from stored state');
+assert.match(page, /aria-busy=\{running\}/, 'manual reconciliation button must expose busy state accessibly');
+assert.match(page, /SANDBOX_VALID_SIMULATION and SANDBOX_ACCOUNT_ONLY are not real KYC\/CIP\/AML approval/, 'integration UI must not portray sandbox validation as regulated approval');
 assert.equal(page.includes('/api/admin/bank/increase/onboarding'), false, 'browser must not consume the raw onboarding payload');
 assert.equal(page.includes('/api/admin/bank/increase/reconciliation'), false, 'browser must not consume the raw reconciliation payload');
 assert.equal(page.includes('/api/admin/bank/increase/status'), false, 'browser must consume only the sanitized integration-health summary');
@@ -60,4 +69,4 @@ assert.equal(storagePage.includes('SUPABASE_'), false, 'storage readiness browse
 assert.match(enhancements, /id: 'integration-health'[^]*label: 'Integration health'/, 'dashboard command palette must expose the owner integration-health destination');
 assert.match(enhancements, /window\.location\.assign\('\/bank\/integrations'\)/, 'integration health command must route to /bank/integrations');
 
-console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, deployed-server storage readiness is inspectable without exposing secrets, and production remains fail-closed.');
+console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, fallback path diagnostics are visible without secrets, deployed-server storage readiness is inspectable, and production remains fail-closed.');
