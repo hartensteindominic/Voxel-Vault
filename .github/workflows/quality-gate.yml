@@ -55,6 +55,9 @@ jobs:
       - name: Recovery takeover
         if: always()
         run: node scripts/test-galactic-trust-recovery-takeover.mjs
+      - name: Week 3 polish
+        if: always()
+        run: node scripts/test-galactic-trust-week3-polish.mjs
       - name: Production build
         if: always()
         run: npm run build
