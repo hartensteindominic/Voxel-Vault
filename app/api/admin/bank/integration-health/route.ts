@@ -34,13 +34,26 @@ function safeProviderError(error: any, fallback: string) {
   };
 }
 
+function safeReconciliationStatus(state: any) {
+  const status = String(state?.last_reconciliation_status || 'not-run');
+  if (status !== 'ok') return status;
+  const trigger = String(state?.last_reconciliation_trigger || '');
+  if (trigger === 'owner') return 'ok · owner snapshot';
+  if (trigger === 'poll') return 'ok · events + snapshot';
+  if (trigger === 'dashboard') return 'ok · dashboard snapshot';
+  if (trigger === 'webhook') return 'ok · webhook snapshot';
+  return 'ok';
+}
+
 function safeReconciliationState(payload: any) {
   const state = payload?.state || null;
   const recentEvents = Array.isArray(payload?.recentEvents) ? payload.recentEvents : [];
   const latest = recentEvents[0] || null;
+  const trigger = String(state?.last_reconciliation_trigger || '').slice(0, 24);
   return {
     databaseReady: true,
-    status: String(state?.last_reconciliation_status || 'not-run'),
+    status: safeReconciliationStatus(state),
+    lastTrigger: trigger,
     lastReconciledAt: state?.last_reconciled_at || null,
     lastWebhookAt: state?.last_webhook_at || null,
     lastPollAt: state?.last_poll_at || null,
@@ -55,6 +68,27 @@ function safeReconciliationState(payload: any) {
       processingStatus: String(latest.processing_status || '').slice(0, 40),
       receivedAt: latest.received_at || null,
     } : null,
+  };
+}
+
+function safeReconciliationRun(backstop: any) {
+  const rawMode = String(backstop?.mode || '');
+  const mode = rawMode === 'owner-snapshot-fallback'
+    ? 'owner-snapshot-fallback'
+    : rawMode === 'events-plus-owner-snapshot'
+      ? 'events-plus-owner-snapshot'
+      : 'owner-snapshot';
+  const issue = String(backstop?.eventPollingIssue || '').slice(0, 80);
+  return {
+    mode,
+    eventPollingAvailable: backstop?.eventPollingAvailable === true,
+    eventPollingIssue: issue,
+    reconciled: backstop?.reconciled === true,
+    pages: Number.isFinite(Number(backstop?.pages)) ? Number(backstop.pages) : 0,
+    scanned: Number.isFinite(Number(backstop?.scanned)) ? Number(backstop.scanned) : 0,
+    observedEvents: Number.isFinite(Number(backstop?.observedEvents)) ? Number(backstop.observedEvents) : 0,
+    newEvents: Number.isFinite(Number(backstop?.newEvents)) ? Number(backstop.newEvents) : 0,
+    canMoveRealMoney: false,
   };
 }
 
@@ -191,6 +225,7 @@ async function buildHealth(auth: any) {
   let reconciliation: any = {
     databaseReady: false,
     status: 'unavailable',
+    lastTrigger: '',
     lastReconciledAt: null,
     lastWebhookAt: null,
     lastPollAt: null,
@@ -278,9 +313,13 @@ export async function POST(request: Request) {
       }, 409);
     }
     await ensureIncreaseSandboxWebhookSubscription(process.env);
-    await pollIncreaseSandboxEvents({ accountId: resolution.accountId, maxPages: 5, forceReconcile: true });
+    const backstop = await pollIncreaseSandboxEvents({ accountId: resolution.accountId, maxPages: 5, forceReconcile: true });
     const health = await buildHealth(result.auth);
-    return response({ ...health, action: 'sandbox-reconciliation-complete' });
+    return response({
+      ...health,
+      action: 'sandbox-reconciliation-complete',
+      reconciliationRun: safeReconciliationRun(backstop),
+    });
   } catch (error: any) {
     const issue = safeProviderError(error, 'Increase sandbox reconciliation could not run.');
     const health = await buildHealth(result.auth);
