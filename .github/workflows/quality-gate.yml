@@ -52,6 +52,9 @@ jobs:
       - name: Increase recovery
         if: always()
         run: node scripts/test-galactic-trust-increase-recovery.mjs
+      - name: Recovery takeover
+        if: always()
+        run: node scripts/test-galactic-trust-recovery-takeover.mjs
       - name: Production build
         if: always()
         run: npm run build
