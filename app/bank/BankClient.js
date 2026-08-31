@@ -71,7 +71,7 @@ function GalacticCard({ pink = false, frozen = false, onFreeze }) {
       <div className="gt-card-number">•••• {pink ? '8756' : '4532'}</div>
       <div className="gt-card-footer"><span>DEMO CARD</span><strong>PREVIEW</strong></div>
       {frozen && <span className="gt-frozen-label">FROZEN</span>}
-      {onFreeze && <button className="gt-card-freeze" type="button" onClick={onFreeze}>{frozen ? 'Unfreeze' : 'Freeze'}</button>}
+      {onFreeze && <button className="gt-card-freeze" type="button" aria-pressed={frozen} onClick={onFreeze}>{frozen ? 'Unfreeze' : 'Freeze'}</button>}
     </article>
   );
 }
@@ -159,6 +159,22 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
   const activeCrypto = cryptoAssets.find((asset) => asset.symbol === cryptoSymbol) || cryptoAssets[0];
   const cryptoUsd = Number(cryptoAmount);
   const cryptoUnits = Number.isFinite(cryptoUsd) && cryptoUsd > 0 ? cryptoUsd / activeCrypto.price : 0;
+  const transferAmount = Number(transfer.amount);
+  const transferMin = sandboxConnected ? 1 : 0.01;
+  const transferMax = sandboxConnected ? 1000 : 10000;
+  const transferReady = Boolean(
+    transfer.recipient.trim()
+      && Number.isFinite(transferAmount)
+      && transferAmount >= transferMin
+      && transferAmount <= transferMax
+      && transferAmount <= checking
+  );
+  const cryptoTradeReady = Boolean(
+    Number.isFinite(cryptoUsd)
+      && cryptoUsd >= 1
+      && cryptoUsd <= 10000
+      && (cryptoSide !== 'sell' || cryptoUnits <= activeCrypto.holding)
+  );
   const spending = useMemo(() => transactions.filter((item) => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0), [transactions]);
   const spendingCategories = useMemo(() => {
     const totals = new Map();
@@ -371,9 +387,9 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
               <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>{sandboxConnected ? 'INCREASE SANDBOX' : 'DEMO BANKING'}</b><span>{sandboxConnected ? 'Provider-backed test data with pretend money only. No real money moves.' : 'No real deposits are held and no real money moves in this build.'}</span></div>
               {sandboxNotice && galacticUser && <div className="gt-mode-banner"><span className="gt-mode-dot" /><b>SANDBOX STATUS</b><span>{sandboxNotice}</span></div>}
               <div className="gt-quick-actions">
-                <button type="button" onClick={() => openSheet('transfer')}><span className="gt-quick-icon send">↗</span><span><b>Transfer</b><small>{sandboxConnected ? 'Sandbox ACH' : 'Simulate transfer'}</small></span></button>
-                <button type="button" onClick={() => openSheet('add-money')}><span className="gt-quick-icon add">＋</span><span><b>Add Money</b><small>{sandboxConnected ? 'Sandbox inbound ACH' : 'Add demo funds'}</small></span></button>
-                <button type="button" onClick={() => { const next = !blueFrozen; setBlueFrozen(next); notify(next ? 'Demo card frozen.' : 'Demo card unfrozen.'); }}><span className="gt-quick-icon freeze">❄</span><span><b>{blueFrozen ? 'Unfreeze Card' : 'Freeze Card'}</b><small>Demo Nebula Blue</small></span></button>
+                <button type="button" disabled={sandboxBusy} onClick={() => openSheet('transfer')}><span className="gt-quick-icon send">↗</span><span><b>Transfer</b><small>{sandboxConnected ? 'Sandbox ACH' : 'Simulate transfer'}</small></span></button>
+                <button type="button" disabled={sandboxBusy} onClick={() => openSheet('add-money')}><span className="gt-quick-icon add">＋</span><span><b>Add Money</b><small>{sandboxConnected ? 'Sandbox inbound ACH' : 'Add demo funds'}</small></span></button>
+                <button type="button" aria-pressed={blueFrozen} onClick={() => { const next = !blueFrozen; setBlueFrozen(next); notify(next ? 'Demo card frozen.' : 'Demo card unfrozen.'); }}><span className="gt-quick-icon freeze">❄</span><span><b>{blueFrozen ? 'Unfreeze Card' : 'Freeze Card'}</b><small>Demo Nebula Blue</small></span></button>
                 <button type="button" onClick={() => document.getElementById('cards')?.scrollIntoView({ behavior: 'smooth' })}><span className="gt-quick-icon card">▤</span><span><b>View Card</b><small>Demo card preview</small></span></button>
               </div>
 
@@ -384,14 +400,14 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
                     <form onSubmit={submitTransfer}>
                       <label>Recipient<input value={transfer.recipient} onChange={(event) => setTransfer((current) => ({ ...current, recipient: event.target.value }))} maxLength={80} placeholder="Sandbox recipient name" /></label>
                       <label>Amount<div className="gt-money-input"><span>$</span><input type="number" min={sandboxConnected ? '1' : '0.01'} max={sandboxConnected ? '1000' : '10000'} step="0.01" value={transfer.amount} onChange={(event) => setTransfer((current) => ({ ...current, amount: event.target.value }))} placeholder="0.00" /></div></label>
-                      <button className="gt-primary" type="submit" disabled={sandboxBusy}>{sandboxBusy ? 'Processing sandbox…' : sandboxConnected ? 'Run Sandbox ACH' : 'Simulate Transfer'}</button>
+                      <button className="gt-primary" type="submit" disabled={sandboxBusy || !transferReady} aria-busy={sandboxBusy}>{sandboxBusy ? 'Processing sandbox…' : sandboxConnected ? 'Run Sandbox ACH' : 'Simulate Transfer'}</button>
                       <p>{sandboxConnected ? 'Routes only to Increase sandbox test coordinates. No real recipient or bank account is used.' : 'Demo transfers never move real money.'}</p>
                     </form>
                   ) : (
                     <div className="gt-funding-options">
-                      <button type="button" disabled={sandboxBusy} onClick={addDemoMoney}><span>▣</span><b>{sandboxConnected ? 'Increase sandbox ACH' : 'Bank transfer'}</b><small>{sandboxConnected ? 'Simulate +$500' : 'Add $500 demo funds'}</small></button>
-                      <button type="button" disabled={sandboxConnected || sandboxBusy} onClick={addDemoMoney}><span>▤</span><b>Debit card</b><small>{sandboxConnected ? 'Not wired to sandbox yet' : 'Simulated funding'}</small></button>
-                      <button type="button" disabled={sandboxConnected || sandboxBusy} onClick={addDemoMoney}><span>↯</span><b>Direct deposit</b><small>{sandboxConnected ? 'Not wired to sandbox yet' : 'Preview flow'}</small></button>
+                      <button type="button" disabled={sandboxBusy} aria-busy={sandboxBusy} onClick={addDemoMoney}><span>▣</span><b>{sandboxConnected ? 'Increase sandbox ACH' : 'Bank transfer'}</b><small>{sandboxBusy ? 'Processing sandbox…' : sandboxConnected ? 'Simulate +$500' : 'Add $500 demo funds'}</small></button>
+                      <button type="button" disabled={sandboxConnected || sandboxBusy} aria-busy={sandboxBusy} onClick={addDemoMoney}><span>▤</span><b>Debit card</b><small>{sandboxConnected ? 'Not wired to sandbox yet' : 'Simulated funding'}</small></button>
+                      <button type="button" disabled={sandboxConnected || sandboxBusy} aria-busy={sandboxBusy} onClick={addDemoMoney}><span>↯</span><b>Direct deposit</b><small>{sandboxConnected ? 'Not wired to sandbox yet' : 'Preview flow'}</small></button>
                     </div>
                   )}
                 </div>
@@ -445,7 +461,7 @@ export default function GalacticApp({ galacticUser = null, demoAccess = false, o
                 <div className="gt-trade-toggle"><button type="button" className={cryptoSide === 'buy' ? 'active' : ''} onClick={() => setCryptoSide('buy')}>Buy</button><button type="button" className={cryptoSide === 'sell' ? 'active' : ''} onClick={() => setCryptoSide('sell')}>Sell</button></div>
                 <label>Amount in USD<div className="gt-crypto-amount"><span>$</span><input type="number" min="1" max="10000" step="1" value={cryptoAmount} onChange={(event) => setCryptoAmount(event.target.value)} /></div></label>
                 <div className="gt-crypto-estimate"><span>Estimated {activeCrypto.symbol}</span><b>{cryptoUnits.toLocaleString(undefined, { maximumFractionDigits: activeCrypto.symbol === 'BTC' ? 8 : 6 })}</b></div>
-                <button className={`gt-crypto-submit ${cryptoSide}`} type="submit">Simulate {cryptoSide === 'buy' ? 'Buy' : 'Sell'} {activeCrypto.symbol}</button>
+                <button className={`gt-crypto-submit ${cryptoSide}`} type="submit" disabled={!cryptoTradeReady}>Simulate {cryptoSide === 'buy' ? 'Buy' : 'Sell'} {activeCrypto.symbol}</button>
               </form>
               <p className="gt-crypto-disclosure">Crypto trading is in demo mode. No real assets are purchased or sold. Crypto can lose value and returns are never guaranteed.</p>
             </section>
