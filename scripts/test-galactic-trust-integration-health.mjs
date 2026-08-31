@@ -9,17 +9,18 @@ assert.match(route, /requireGalacticTrustAdmin/, 'integration health API must be
 assert.match(route, /inspectIncreaseSandbox/, 'integration health must inspect the configured Increase sandbox server-side');
 assert.match(route, /getProviderAccountBinding\(auth\.admin, auth\.user\.id/, 'owner binding health must be scoped to the verified signed-in owner');
 assert.match(route, /publicBindingSummary/, 'provider binding returned to the client must use the masked public summary');
+assert.match(route, /resolveIncreaseSandboxOwnerAccount\(result\.auth\.admin, result\.auth\.user\.id/, 'forced reconciliation must resolve the authenticated owner sandbox Account');
 assert.match(route, /ensureIncreaseSandboxWebhookSubscription/, 'integration health must inspect/ensure the sandbox webhook subscription server-side');
 assert.match(route, /getIncreaseReconciliationStatus/, 'integration health must report reconciliation state');
-assert.match(route, /pollIncreaseSandboxEvents\(\{ maxPages: 5, forceReconcile: true \}\)/, 'owner health center must support a bounded forced sandbox reconciliation');
+assert.match(route, /pollIncreaseSandboxEvents\(\{ accountId: resolution\.accountId, maxPages: 5, forceReconcile: true \}\)/, 'owner health center must run bounded reconciliation only for the resolved owner Account');
 assert.match(route, /bankingLaunchSnapshot/, 'integration health must derive the production lock from the regulated-launch policy');
 assert.match(route, /canMoveRealMoney: false/, 'integration health must remain explicitly incapable of real-money movement');
-assert.match(route, /SANDBOX_VALID_SIMULATION is not real KYC\/CIP\/AML approval/, 'integration health API must preserve the sandbox-validation boundary');
+assert.match(route, /SANDBOX_VALID_SIMULATION and SANDBOX_ACCOUNT_ONLY are not real KYC\/CIP\/AML approval/, 'integration health API must preserve both sandbox-validation boundaries');
 assert.equal(route.includes('INCREASE_SANDBOX_API_KEY'), false, 'integration health route must not embed or return provider secret names/values');
 assert.equal(route.includes('eventId:'), false, 'client health payload must not expose provider event IDs');
 assert.equal(route.includes('programId:'), false, 'client health payload must not expose provider Program IDs');
 assert.equal(route.includes('entityId:'), false, 'client health payload must not expose provider Entity IDs');
-assert.equal(route.includes('accountId:'), false, 'client health payload must not expose full provider Account IDs');
+assert.doesNotMatch(route, /response\(\{[^}]*accountId:/, 'client health responses must not expose full provider Account IDs');
 
 assert.match(page, /getSupabaseBrowserAsync/, 'integration health page must derive its bearer token from the authenticated Supabase session');
 assert.match(page, /fetch\('\/api\/admin\/bank\/integration-health'/, 'integration health page must use the sanitized owner API');
@@ -40,4 +41,4 @@ assert.equal(page.includes('apiKey'), false, 'integration health UI must never h
 assert.match(enhancements, /id: 'integration-health'[^]*label: 'Integration health'/, 'dashboard command palette must expose the owner integration-health destination');
 assert.match(enhancements, /window\.location\.assign\('\/bank\/integrations'\)/, 'integration health command must route to /bank/integrations');
 
-console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health, binding status, webhook/reconciliation operations, and fail-closed production state are available without exposing provider secrets or full provider identifiers to the browser.');
+console.log('Galactic Trust integration health checks passed: owner-only sanitized provider health and reconciliation are Account-scoped, while provider secrets/full identifiers stay out of browser responses and production remains fail-closed.');
