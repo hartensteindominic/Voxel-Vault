@@ -6,6 +6,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   galactic-trust:
     runs-on: ubuntu-latest
@@ -61,3 +64,25 @@ jobs:
       - name: Production build
         if: always()
         run: npm run build
+
+  prepare-finance-replacement:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Voxel Vault
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create full finance replacement branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/hartensteindominic/Galactic.git /tmp/galactic
+          branch="finance-replacement-${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          rsync -a --delete --exclude='.git' /tmp/galactic/ ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace Voxel Vault with Galactic business finance app"
+          git push origin "$branch"
