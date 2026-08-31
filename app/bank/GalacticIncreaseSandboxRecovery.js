@@ -32,6 +32,7 @@ export default function GalacticIncreaseSandboxRecovery() {
   const [accountCount, setAccountCount] = useState(0);
   const [recoveryAvailable, setRecoveryAvailable] = useState(false);
   const [bindingStorageBlocked, setBindingStorageBlocked] = useState(false);
+  const [restrictionDetected, setRestrictionDetected] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -69,18 +70,32 @@ export default function GalacticIncreaseSandboxRecovery() {
           return;
         }
 
-        const privateFeatureBlocked = statusResponse.ok && status?.connected && hasPrivateFeatureRestriction(status);
-        if (!privateFeatureBlocked) return;
-
+        const connected = Boolean(statusResponse.ok && status?.connected);
+        const privateFeatureBlocked = connected && hasPrivateFeatureRestriction(status);
         const storageBlocked = Boolean(recovery?.setupRequired);
-        const canRecover = recoveryResponse.ok && recovery?.recoveryAvailable && !storageBlocked;
+        const canRecover = Boolean(
+          connected &&
+          recoveryResponse.ok &&
+          recovery?.recoveryAvailable &&
+          !storageBlocked
+        );
+
+        // Account-only recovery is intentionally not coupled to hosted-onboarding capability
+        // detection. Increase can permit Programs/Entities reads while rejecting the hosted
+        // onboarding session itself as a private feature. If Accounts are connected and the
+        // owner recovery route confirms a safe dedicated Account can be created, prefer that
+        // path immediately instead of leaving the owner trapped behind hosted onboarding.
+        if (!canRecover && !privateFeatureBlocked) return;
 
         setAccountCount(Number(status?.counts?.accounts || 0));
         setBindingStorageBlocked(storageBlocked);
-        setRecoveryAvailable(Boolean(canRecover));
+        setRestrictionDetected(privateFeatureBlocked);
+        setRecoveryAvailable(canRecover);
         setMessage(storageBlocked
           ? String(recovery?.error || 'Trusted provider binding storage is not installed yet. Galactic Trust cannot safely bind the Increase sandbox Account until the required Supabase migration is applied.')
-          : '');
+          : canRecover
+            ? ''
+            : String(recovery?.nextStep || recovery?.error || status?.nextStep || 'Owner sandbox Account recovery is not available yet.'));
         setVisible(true);
         takeOverLegacySetup();
       } catch {
@@ -122,7 +137,9 @@ export default function GalacticIncreaseSandboxRecovery() {
   if (!visible) return null;
 
   const storageTitle = 'Galactic Trust database setup is the blocker.';
-  const recoveryTitle = 'We can bypass the blocked hosted-onboarding feature.';
+  const recoveryTitle = restrictionDetected
+    ? 'We can bypass the blocked hosted-onboarding feature.'
+    : 'Create your dedicated sandbox test account.';
 
   return (
     <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="Increase sandbox recovery">
@@ -134,7 +151,9 @@ export default function GalacticIncreaseSandboxRecovery() {
             <h2>{bindingStorageBlocked ? storageTitle : recoveryTitle}</h2>
             <p>{bindingStorageBlocked
               ? 'Increase Accounts access is connected. The restricted hosted-onboarding feature is no longer the actionable blocker; trusted provider-binding storage must be installed before Galactic Trust can safely attach a sandbox Account to your signed-in user.'
-              : 'Increase Accounts access is connected. Galactic Trust can create a dedicated owner test Account without requiring the restricted Programs/Entities onboarding screen.'}</p>
+              : restrictionDetected
+                ? 'Increase Accounts access is connected. Galactic Trust can create a dedicated owner test Account without requiring the restricted Programs/Entities onboarding screen.'
+                : 'Increase Accounts access is connected and the owner recovery endpoint is ready. Galactic Trust can create a dedicated owner test Account without relying on hosted onboarding.'}</p>
           </div>
         </div>
 
@@ -150,7 +169,7 @@ export default function GalacticIncreaseSandboxRecovery() {
             ) : (
               <>
                 <li>Creates or reuses one idempotent Increase sandbox checking Account for your signed-in owner.</li>
-                <li>Binds only that Account to your Galactic Trust user on the server.</li>
+                <li>Scopes only that dedicated Account to your Galactic Trust user on the server.</li>
                 <li>Keeps all balances and ACH activity pretend-money sandbox data.</li>
               </>
             )}
