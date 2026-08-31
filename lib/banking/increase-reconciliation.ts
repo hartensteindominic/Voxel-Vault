@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '../supabase-admin';
+import { getSupabaseAdminCandidates } from '../supabase-admin';
 import { getIncreaseSandboxDashboardForAccount, increaseSandboxRequest } from './increase-sandbox.js';
 
 type IncreaseEvent = {
@@ -38,6 +38,26 @@ function requireOwnerAccountId(value: unknown) {
   return accountId;
 }
 
+async function withSupabaseAdmin(
+  operation: (client: any) => Promise<any>,
+  accept: (result: any) => boolean = (result) => !result?.error,
+) {
+  let lastError: any = null;
+  const candidates = getSupabaseAdminCandidates();
+
+  for (const client of candidates) {
+    try {
+      const result = await operation(client);
+      if (accept(result)) return result;
+      lastError = result?.error || lastError;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Supabase reconciliation storage is unavailable.');
+}
+
 function validateEvent(event: IncreaseEvent) {
   const eventId = safeText(event?.id, 200);
   const category = safeText(event?.category, 160);
@@ -52,13 +72,11 @@ function validateEvent(event: IncreaseEvent) {
 }
 
 async function updateReconciliationState(values: Record<string, unknown>) {
-  const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from('galactic_increase_reconciliation_state').upsert({
+  await withSupabaseAdmin((supabase) => supabase.from('galactic_increase_reconciliation_state').upsert({
     environment: 'sandbox',
     ...values,
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'environment' });
-  if (error) throw error;
+  }, { onConflict: 'environment' }));
 }
 
 export async function recordIncreaseSandboxEvent(event: IncreaseEvent, options: {
@@ -67,21 +85,24 @@ export async function recordIncreaseSandboxEvent(event: IncreaseEvent, options: 
   payloadSha256?: string | null;
 }): Promise<{ duplicate: boolean; eventId: string }> {
   const normalized = validateEvent(event);
-  const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
-  const { error } = await supabase.from('galactic_increase_webhook_events').insert({
-    event_id: normalized.eventId,
-    category: normalized.category,
-    associated_object_type: normalized.associatedObjectType,
-    associated_object_id: normalized.associatedObjectId,
-    source: options.source,
-    webhook_message_id: safeText(options.webhookMessageId, 200) || null,
-    payload_sha256: safeText(options.payloadSha256, 64) || null,
-    provider_created_at: normalized.providerCreatedAt,
-    received_at: now,
-    processing_status: 'received',
-  });
+  const result = await withSupabaseAdmin(
+    (supabase) => supabase.from('galactic_increase_webhook_events').insert({
+      event_id: normalized.eventId,
+      category: normalized.category,
+      associated_object_type: normalized.associatedObjectType,
+      associated_object_id: normalized.associatedObjectId,
+      source: options.source,
+      webhook_message_id: safeText(options.webhookMessageId, 200) || null,
+      payload_sha256: safeText(options.payloadSha256, 64) || null,
+      provider_created_at: normalized.providerCreatedAt,
+      received_at: now,
+      processing_status: 'received',
+    }),
+    (candidateResult) => !candidateResult?.error || candidateResult?.error?.code === '23505',
+  );
 
+  const error = result?.error;
   if (error?.code === '23505') return { duplicate: true, eventId: normalized.eventId };
   if (error) throw error;
 
@@ -96,14 +117,12 @@ export async function recordIncreaseSandboxEvent(event: IncreaseEvent, options: 
 async function markEvents(eventIds: string[], status: 'processed' | 'failed', lastError: string | null = null) {
   const ids = Array.from(new Set(eventIds.map((id) => safeText(id, 200)).filter(Boolean)));
   if (!ids.length) return;
-  const supabase = getSupabaseAdmin();
   const update: Record<string, unknown> = {
     processing_status: status,
     processed_at: new Date().toISOString(),
     last_error: lastError,
   };
-  const { error } = await supabase.from('galactic_increase_webhook_events').update(update).in('event_id', ids);
-  if (error) throw error;
+  await withSupabaseAdmin((supabase) => supabase.from('galactic_increase_webhook_events').update(update).in('event_id', ids));
 }
 
 export async function reconcileIncreaseSandbox(options: {
@@ -176,13 +195,11 @@ export async function pollIncreaseSandboxEvents(options: {
 }) {
   const accountId = requireOwnerAccountId(options?.accountId);
   const maxPages = Math.max(1, Math.min(5, Number(options?.maxPages || 2)));
-  const supabase = getSupabaseAdmin();
-  const { data: state, error: stateError } = await supabase
+  const { data: state } = await withSupabaseAdmin((supabase) => supabase
     .from('galactic_increase_reconciliation_state')
     .select('event_cursor,last_reconciled_at')
     .eq('environment', 'sandbox')
-    .maybeSingle();
-  if (stateError) throw stateError;
+    .maybeSingle());
 
   let cursor = safeText(state?.event_cursor, 500);
   const observedEventIds: string[] = [];
@@ -235,23 +252,30 @@ export async function pollIncreaseSandboxEvents(options: {
 }
 
 export async function getIncreaseReconciliationStatus() {
-  const supabase = getSupabaseAdmin();
-  const [{ data: state, error: stateError }, { data: events, error: eventsError }] = await Promise.all([
-    supabase.from('galactic_increase_reconciliation_state').select('*').eq('environment', 'sandbox').maybeSingle(),
-    supabase
-      .from('galactic_increase_webhook_events')
-      .select('event_id,category,associated_object_type,source,provider_created_at,received_at,processed_at,processing_status,last_error')
-      .order('received_at', { ascending: false })
-      .limit(12),
-  ]);
-  if (stateError) throw stateError;
-  if (eventsError) throw eventsError;
+  const result = await withSupabaseAdmin(async (supabase) => {
+    const [stateResult, eventsResult] = await Promise.all([
+      supabase.from('galactic_increase_reconciliation_state').select('*').eq('environment', 'sandbox').maybeSingle(),
+      supabase
+        .from('galactic_increase_webhook_events')
+        .select('event_id,category,associated_object_type,source,provider_created_at,received_at,processed_at,processing_status,last_error')
+        .order('received_at', { ascending: false })
+        .limit(12),
+    ]);
+    return {
+      stateResult,
+      eventsResult,
+      error: stateResult?.error || eventsResult?.error || null,
+    };
+  });
+
+  const state = result?.stateResult?.data || null;
+  const events = result?.eventsResult?.data;
 
   return {
     environment: 'sandbox',
     canMoveRealMoney: false,
     scope: 'owner-account',
-    state: state || null,
+    state,
     recentEvents: Array.isArray(events) ? events : [],
   };
 }
