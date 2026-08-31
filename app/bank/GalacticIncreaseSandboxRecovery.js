@@ -10,12 +10,6 @@ function authHeaders(token, json = false) {
   return headers;
 }
 
-function hasPrivateFeatureRestriction(status) {
-  return Object.values(status?.capabilities || {}).some((capability) => (
-    capability?.available === false && capability?.issue?.type === 'private_feature_error'
-  ));
-}
-
 function hideLegacyBlockingSetup() {
   const panel = document.querySelector('[aria-label="Owner Increase sandbox setup"]');
   if (!panel) return;
@@ -69,17 +63,19 @@ export default function GalacticIncreaseSandboxRecovery() {
           return;
         }
 
-        const privateFeatureBlocked = statusResponse.ok && status?.connected && hasPrivateFeatureRestriction(status);
-        if (!privateFeatureBlocked) return;
-
-        const storageBlocked = Boolean(recovery?.setupRequired);
-        const canRecover = recoveryResponse.ok && recovery?.recoveryAvailable && !storageBlocked;
+        // The recovery endpoint is the source of truth for whether this signed-in owner can use
+        // Account-only sandbox recovery. Do not require Programs/Entities to fail with one exact
+        // provider error shape before offering the safe owner-scoped fallback.
+        const providerConnected = statusResponse.ok && Boolean(status?.connected);
+        const storageBlocked = recoveryResponse.ok && Boolean(recovery?.setupRequired);
+        const canRecover = providerConnected && recoveryResponse.ok && Boolean(recovery?.recoveryAvailable) && !storageBlocked;
+        if (!canRecover && !storageBlocked) return;
 
         setAccountCount(Number(status?.counts?.accounts || 0));
         setBindingStorageBlocked(storageBlocked);
         setRecoveryAvailable(Boolean(canRecover));
         setMessage(storageBlocked
-          ? String(recovery?.error || 'Trusted provider binding storage is not installed yet. Galactic Trust cannot safely bind the Increase sandbox Account until the required Supabase migration is applied.')
+          ? String(recovery?.error || recovery?.bindingStorageIssue || 'Trusted provider binding storage needs attention before owner recovery can continue.')
           : '');
         setVisible(true);
         takeOverLegacySetup();
@@ -121,8 +117,8 @@ export default function GalacticIncreaseSandboxRecovery() {
 
   if (!visible) return null;
 
-  const storageTitle = 'Galactic Trust database setup is the blocker.';
-  const recoveryTitle = 'We can bypass the blocked hosted-onboarding feature.';
+  const storageTitle = 'Galactic Trust sandbox storage needs attention.';
+  const recoveryTitle = 'Create your owner-scoped sandbox test account.';
 
   return (
     <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="Increase sandbox recovery">
@@ -133,8 +129,8 @@ export default function GalacticIncreaseSandboxRecovery() {
           <div>
             <h2>{bindingStorageBlocked ? storageTitle : recoveryTitle}</h2>
             <p>{bindingStorageBlocked
-              ? 'Increase Accounts access is connected. The restricted hosted-onboarding feature is no longer the actionable blocker; trusted provider-binding storage must be installed before Galactic Trust can safely attach a sandbox Account to your signed-in user.'
-              : 'Increase Accounts access is connected. Galactic Trust can create a dedicated owner test Account without requiring the restricted Programs/Entities onboarding screen.'}</p>
+              ? 'Increase Accounts access is connected, but the owner recovery route reports that its trusted server-side state needs attention before it can continue.'
+              : 'Increase Accounts access is connected. Galactic Trust can create or reuse one dedicated owner test Account without requiring Programs, Entities, or hosted onboarding for this sandbox-only path.'}</p>
           </div>
         </div>
 
@@ -143,14 +139,14 @@ export default function GalacticIncreaseSandboxRecovery() {
           <ul>
             {bindingStorageBlocked ? (
               <>
-                <li>Apply the pending Galactic Trust Supabase provider-binding migration, including migration 025.</li>
-                <li>Keep database credentials in GitHub Actions secrets only; never paste them into chat or client code.</li>
-                <li>After the migration is actually applied, this panel will offer the one-click Increase sandbox Account recovery automatically.</li>
+                <li>Open Integration Health to review the sanitized server-side recovery status.</li>
+                <li>Keep provider and database credentials server-only; never paste them into chat or client code.</li>
+                <li>Production banking remains locked while this sandbox-only state is resolved.</li>
               </>
             ) : (
               <>
                 <li>Creates or reuses one idempotent Increase sandbox checking Account for your signed-in owner.</li>
-                <li>Binds only that Account to your Galactic Trust user on the server.</li>
+                <li>Scopes that Account to your verified Galactic Trust user on the server.</li>
                 <li>Keeps all balances and ACH activity pretend-money sandbox data.</li>
               </>
             )}
@@ -162,7 +158,7 @@ export default function GalacticIncreaseSandboxRecovery() {
           <p><b>This is not KYC or a real bank account.</b> Account-only recovery is stored as <code>SANDBOX_ACCOUNT_ONLY</code>. Production money movement remains locked.</p>
         </div>
 
-        {!bindingStorageBlocked && accountCount > 0 && <p className={styles.existing}>Existing unbound sandbox Accounts will not be adopted automatically; recovery creates/reuses a dedicated owner-scoped Account instead.</p>}
+        {!bindingStorageBlocked && accountCount > 0 && <p className={styles.existing}>Existing unbound sandbox Accounts will not be adopted automatically; recovery creates or reuses a dedicated owner-scoped Account instead.</p>}
 
         {recoveryAvailable && (
           <button className={styles.primary} type="button" onClick={recover} disabled={busy}>
