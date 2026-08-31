@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-admin';
-import { getIncreaseSandboxDashboard, increaseSandboxRequest } from './increase-sandbox.js';
+import { getIncreaseSandboxDashboardForAccount, increaseSandboxRequest } from './increase-sandbox.js';
 
 type IncreaseEvent = {
   id?: string;
@@ -30,6 +30,12 @@ function safeError(error: unknown) {
 function dollarsToCents(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
+}
+
+function requireOwnerAccountId(value: unknown) {
+  const accountId = safeText(value, 200);
+  if (!accountId) throw new Error('Owner-scoped Increase sandbox Account is required for reconciliation.');
+  return accountId;
 }
 
 function validateEvent(event: IncreaseEvent) {
@@ -101,15 +107,17 @@ async function markEvents(eventIds: string[], status: 'processed' | 'failed', la
 }
 
 export async function reconcileIncreaseSandbox(options: {
+  accountId: string;
   eventIds?: string[];
   trigger?: 'webhook' | 'poll' | 'owner' | 'dashboard';
-} = {}) {
-  const eventIds = Array.isArray(options.eventIds) ? options.eventIds : [];
-  const trigger = options.trigger || 'owner';
+}) {
+  const accountId = requireOwnerAccountId(options?.accountId);
+  const eventIds = Array.isArray(options?.eventIds) ? options.eventIds : [];
+  const trigger = options?.trigger || 'owner';
   const startedAt = new Date().toISOString();
 
   try {
-    const snapshot = await getIncreaseSandboxDashboard(process.env);
+    const snapshot = await getIncreaseSandboxDashboardForAccount(accountId, process.env);
     const accounts = Array.isArray(snapshot?.accounts) ? snapshot.accounts : [];
     const transactions = Array.isArray(snapshot?.transactions) ? snapshot.transactions : [];
     const currentBalanceCents = accounts.reduce((sum: number, account: any) => sum + dollarsToCents(account?.currentBalance), 0);
@@ -134,6 +142,7 @@ export async function reconcileIncreaseSandbox(options: {
       ok: true,
       environment: 'sandbox',
       canMoveRealMoney: false,
+      scope: 'owner-account',
       trigger,
       startedAt,
       reconciledAt,
@@ -160,8 +169,13 @@ export async function reconcileIncreaseSandbox(options: {
   }
 }
 
-export async function pollIncreaseSandboxEvents(options: { maxPages?: number; forceReconcile?: boolean } = {}) {
-  const maxPages = Math.max(1, Math.min(5, Number(options.maxPages || 2)));
+export async function pollIncreaseSandboxEvents(options: {
+  accountId: string;
+  maxPages?: number;
+  forceReconcile?: boolean;
+}) {
+  const accountId = requireOwnerAccountId(options?.accountId);
+  const maxPages = Math.max(1, Math.min(5, Number(options?.maxPages || 2)));
   const supabase = getSupabaseAdmin();
   const { data: state, error: stateError } = await supabase
     .from('galactic_increase_reconciliation_state')
@@ -171,7 +185,8 @@ export async function pollIncreaseSandboxEvents(options: { maxPages?: number; fo
   if (stateError) throw stateError;
 
   let cursor = safeText(state?.event_cursor, 500);
-  const newEventIds: string[] = [];
+  const observedEventIds: string[] = [];
+  let newEvents = 0;
   let pages = 0;
   let scanned = 0;
 
@@ -189,7 +204,8 @@ export async function pollIncreaseSandboxEvents(options: { maxPages?: number; fo
 
     for (const event of events) {
       const recorded = await recordIncreaseSandboxEvent(event, { source: 'poll' });
-      if (!recorded.duplicate) newEventIds.push(recorded.eventId);
+      observedEventIds.push(recorded.eventId);
+      if (!recorded.duplicate) newEvents += 1;
     }
 
     const nextCursor = safeText(payload?.next_cursor, 500);
@@ -198,18 +214,20 @@ export async function pollIncreaseSandboxEvents(options: { maxPages?: number; fo
     if (!events.length) break;
   }
 
-  const shouldReconcile = newEventIds.length > 0 || Boolean(options.forceReconcile) || !state?.last_reconciled_at;
+  const shouldReconcile = observedEventIds.length > 0 || Boolean(options?.forceReconcile) || !state?.last_reconciled_at;
   const reconciliation = shouldReconcile
-    ? await reconcileIncreaseSandbox({ eventIds: newEventIds, trigger: 'poll' })
+    ? await reconcileIncreaseSandbox({ accountId, eventIds: observedEventIds, trigger: 'poll' })
     : null;
 
   return {
     ok: true,
     environment: 'sandbox',
     canMoveRealMoney: false,
+    scope: 'owner-account',
     pages,
     scanned,
-    newEvents: newEventIds.length,
+    observedEvents: observedEventIds.length,
+    newEvents,
     cursorStored: Boolean(cursor),
     reconciled: Boolean(reconciliation),
     reconciliation,
@@ -232,6 +250,7 @@ export async function getIncreaseReconciliationStatus() {
   return {
     environment: 'sandbox',
     canMoveRealMoney: false,
+    scope: 'owner-account',
     state: state || null,
     recentEvents: Array.isArray(events) ? events : [],
   };

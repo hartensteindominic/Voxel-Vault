@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { hashIncreaseWebhookPayload, verifyIncreaseSandboxWebhookSignature } from '../../../../../lib/banking/increase-webhook-signature.js';
-import { reconcileIncreaseSandbox, recordIncreaseSandboxEvent } from '../../../../../lib/banking/increase-reconciliation';
+import { recordIncreaseSandboxEvent } from '../../../../../lib/banking/increase-reconciliation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,34 +58,26 @@ export async function POST(request: Request) {
   }
 
   if (recorded.duplicate) {
-    return response({ received: true, duplicate: true, environment: 'sandbox', canMoveRealMoney: false });
-  }
-
-  try {
-    const reconciliation = await reconcileIncreaseSandbox({ eventIds: [recorded.eventId], trigger: 'webhook' });
     return response({
       received: true,
-      duplicate: false,
-      reconciled: true,
-      environment: 'sandbox',
-      canMoveRealMoney: false,
-      reconciledAt: reconciliation.reconciledAt,
-    });
-  } catch (error) {
-    // Increase does not retry failed sandbox webhooks. The durable Event row stays
-    // marked failed and the owner reconciliation poll can backfill from /events.
-    console.error('Galactic Trust Increase webhook reconciliation deferred', {
-      eventId: event.id,
-      category: event.category,
-      error: error instanceof Error ? error.message : 'unknown',
-    });
-    return response({
-      received: true,
-      duplicate: false,
+      duplicate: true,
       reconciled: false,
       backstopRequired: true,
       environment: 'sandbox',
       canMoveRealMoney: false,
     });
   }
+
+  // The public webhook has no authenticated Galactic Trust user context, so it must never
+  // choose a sandbox Account on its own. Persist the verified Event and let the owner-only
+  // dashboard/reconciliation route resolve the signed-in owner's Account before snapshotting.
+  return response({
+    received: true,
+    duplicate: false,
+    reconciled: false,
+    backstopRequired: true,
+    environment: 'sandbox',
+    canMoveRealMoney: false,
+    note: 'Verified Increase sandbox Event stored. Owner-scoped reconciliation is deferred until an authenticated Galactic Trust owner route resolves the dedicated sandbox Account.',
+  });
 }
