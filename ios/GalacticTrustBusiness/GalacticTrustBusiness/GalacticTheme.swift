@@ -14,7 +14,7 @@ struct GalacticTheme {
     static let page = Color(red: 0.963, green: 0.968, blue: 0.995)
     static let panel = Color.white
     static let softPanel = Color(red: 0.982, green: 0.984, blue: 1.0)
-    static let mutedText = Color(red: 0.31, green: 0.33, blue: 0.46)
+    static let mutedText = Color(red: 0.39, green: 0.41, blue: 0.54)
     static let divider = Color(red: 0.89, green: 0.90, blue: 0.95)
 
     static let heroGradient = LinearGradient(
@@ -84,18 +84,18 @@ struct MetricTile: View {
                     .background(tint.gradient)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(GalacticTheme.mutedText)
                     Text(value)
-                        .font(.title2.bold())
+                        .font(.title3.bold())
                         .foregroundStyle(GalacticTheme.navy)
                         .contentTransition(.numericText())
                         .minimumScaleFactor(0.72)
                         .lineLimit(1)
                     Text(subtitle)
-                        .font(.caption.weight(.medium))
+                        .font(.caption2)
                         .foregroundStyle(GalacticTheme.mutedText)
                 }
                 Spacer(minLength: 0)
@@ -112,12 +112,12 @@ struct SectionHeader: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.headline.bold())
+                .font(.headline)
                 .foregroundStyle(GalacticTheme.navy)
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.caption.weight(.bold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(GalacticTheme.indigo)
             }
         }
