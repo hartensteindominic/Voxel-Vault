@@ -37,4 +37,29 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(rows[0].kind, .expense)
         XCTAssertEqual(rows[1].kind, .income)
     }
+
+    func testCSVImportHandlesParenthesizedExpenses() throws {
+        let csv = """
+        Date,Description,Amount
+        08/31/2026,Office Lease,"($3,400.00)"
+        """
+
+        let rows = try CSVImportService.parse(csv)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].kind, .expense)
+        XCTAssertEqual(rows[0].category, .rentUtilities)
+        XCTAssertEqual(rows[0].amount, 3_400, accuracy: 0.001)
+    }
+
+    func testCSVImportHandlesEscapedQuotes() throws {
+        let csv = """
+        Date,Description,Amount
+        08/31/2026,"Northstar ""Enterprise"" Client",2500
+        """
+
+        let rows = try CSVImportService.parse(csv)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].merchant, "Northstar \"Enterprise\" Client")
+        XCTAssertEqual(rows[0].kind, .income)
+    }
 }
