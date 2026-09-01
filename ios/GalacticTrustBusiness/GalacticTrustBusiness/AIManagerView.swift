@@ -4,16 +4,18 @@ struct AIManagerView: View {
     @EnvironmentObject private var store: FinancialStore
     @State private var question = ""
     @State private var messages: [FinanceChatMessage] = [
-        .init(role: .assistant, text: "I’m your read-only business financial manager. I can explain money received, spending, invoices, recurring costs, cash balance, and runway using the records in this app.")
+        .init(role: .assistant, text: "I’m your read-only business financial manager. I can explain money received, spending changes, invoices, recurring costs, cash balance, runway, forecasts, and business health using the records in this app.")
     ]
     @State private var selectedInsight: FinancialInsight?
 
     private let suggestions = [
+        "How healthy is my business?",
         "Why did spending change?",
+        "What needs attention?",
         "How much revenue came in?",
         "What invoices are overdue?",
         "What are my recurring costs?",
-        "How long is my cash runway?"
+        "What is my 30-day forecast?"
     ]
 
     var body: some View {
@@ -21,6 +23,7 @@ struct AIManagerView: View {
             ScrollView {
                 LazyVStack(spacing: 14) {
                     intelligenceHeader
+                    healthSnapshot
                     insightsStrip
 
                     ForEach(messages) { message in
@@ -71,6 +74,80 @@ struct AIManagerView: View {
         }
         .frame(height: 150)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private var healthSnapshot: some View {
+        GalacticCard(padding: 16, radius: 20) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Business Health")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(GalacticTheme.mutedText)
+                        Text("\(store.businessHealthScore)/100")
+                            .font(.title2.bold())
+                            .foregroundStyle(GalacticTheme.navy)
+                    }
+                    Spacer()
+                    Text(store.businessHealthLabel)
+                        .font(.caption.bold())
+                        .foregroundStyle(healthTint)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(healthTint.opacity(0.10))
+                        .clipShape(Capsule())
+                }
+
+                ProgressView(value: Double(store.businessHealthScore), total: 100)
+                    .tint(healthTint)
+
+                HStack(spacing: 12) {
+                    healthMetric(
+                        title: "Cash flow",
+                        value: store.currency(store.currentMonthNet),
+                        positive: store.currentMonthNet >= 0
+                    )
+                    healthMetric(
+                        title: "Expense coverage",
+                        value: "\(store.expenseCoverageMonths.formatted(.number.precision(.fractionLength(1)))) mo",
+                        positive: store.expenseCoverageMonths >= 3
+                    )
+                    healthMetric(
+                        title: "Overdue",
+                        value: store.currency(store.overdueInvoices.reduce(0) { $0 + $1.amount }),
+                        positive: store.overdueInvoices.isEmpty
+                    )
+                }
+
+                Text("Health is a planning signal derived only from the records stored in this app; it is not a credit score or financial guarantee.")
+                    .font(.caption2)
+                    .foregroundStyle(GalacticTheme.mutedText)
+            }
+        }
+    }
+
+    private func healthMetric(title: String, value: String, positive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(GalacticTheme.mutedText)
+                .lineLimit(1)
+            Text(value)
+                .font(.caption.bold())
+                .foregroundStyle(positive ? GalacticTheme.green : GalacticTheme.orange)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var healthTint: Color {
+        switch store.businessHealthScore {
+        case 80...: GalacticTheme.green
+        case 65..<80: GalacticTheme.teal
+        case 50..<65: GalacticTheme.orange
+        default: GalacticTheme.pink
+        }
     }
 
     private var insightsStrip: some View {
@@ -209,7 +286,7 @@ struct AIManagerView: View {
 
     private func ask(_ text: String) {
         messages.append(.init(role: .user, text: text))
-        messages.append(.init(role: .assistant, text: store.answer(text)))
+        messages.append(.init(role: .assistant, text: store.smartAnswer(text)))
     }
 }
 
