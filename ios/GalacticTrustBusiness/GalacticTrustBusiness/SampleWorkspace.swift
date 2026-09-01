@@ -3,9 +3,6 @@ import Foundation
 @MainActor
 extension FinancialStore {
     func loadBundledSampleWorkspace() {
-        clearFinancialData()
-        updateProfile(name: "Nova Enterprises")
-
         let calendar = Calendar.current
         let now = Date()
         let currentDay = max(1, calendar.component(.day, from: now))
@@ -17,10 +14,11 @@ extension FinancialStore {
             return calendar.date(from: components) ?? shifted
         }
 
+        var sampleTransactions: [BusinessTransaction] = []
         for monthOffset in -5 ... 0 {
             let incomeScale = 1.0 + Double(monthOffset) * 0.04
 
-            addTransaction(BusinessTransaction(
+            sampleTransactions.append(BusinessTransaction(
                 date: sampleDate(monthOffset: monthOffset, preferredDay: 3),
                 merchant: "Northstar Client",
                 memo: "Monthly client services",
@@ -29,7 +27,7 @@ extension FinancialStore {
                 category: .services,
                 source: "Sample"
             ))
-            addTransaction(BusinessTransaction(
+            sampleTransactions.append(BusinessTransaction(
                 date: sampleDate(monthOffset: monthOffset, preferredDay: 9),
                 merchant: "Orbit Retail",
                 memo: "Monthly product revenue",
@@ -38,7 +36,7 @@ extension FinancialStore {
                 category: .sales,
                 source: "Sample"
             ))
-            addTransaction(BusinessTransaction(
+            sampleTransactions.append(BusinessTransaction(
                 date: sampleDate(monthOffset: monthOffset, preferredDay: 12),
                 merchant: "Team Payroll",
                 memo: "Employee and contractor payroll",
@@ -48,7 +46,7 @@ extension FinancialStore {
                 isRecurring: true,
                 source: "Sample"
             ))
-            addTransaction(BusinessTransaction(
+            sampleTransactions.append(BusinessTransaction(
                 date: sampleDate(monthOffset: monthOffset, preferredDay: 16),
                 merchant: "Cloud & Software",
                 memo: "Business software services",
@@ -58,7 +56,7 @@ extension FinancialStore {
                 isRecurring: true,
                 source: "Sample"
             ))
-            addTransaction(BusinessTransaction(
+            sampleTransactions.append(BusinessTransaction(
                 date: sampleDate(monthOffset: monthOffset, preferredDay: 20),
                 merchant: "Growth Marketing",
                 memo: "Business marketing spend",
@@ -67,7 +65,7 @@ extension FinancialStore {
                 category: .marketing,
                 source: "Sample"
             ))
-            addTransaction(BusinessTransaction(
+            sampleTransactions.append(BusinessTransaction(
                 date: sampleDate(monthOffset: monthOffset, preferredDay: 24),
                 merchant: "Office Lease",
                 memo: "Office rent and utilities",
@@ -79,26 +77,35 @@ extension FinancialStore {
             ))
         }
 
-        addInvoice(BusinessInvoice(
-            client: "Acme Corp",
-            invoiceNumber: "INV-1004",
-            amount: 3_250,
-            dueDate: calendar.date(byAdding: .day, value: -4, to: now) ?? now,
-            status: .overdue
-        ))
-        addInvoice(BusinessInvoice(
-            client: "Stellar LLC",
-            invoiceNumber: "INV-1007",
-            amount: 2_600,
-            dueDate: calendar.date(byAdding: .day, value: 8, to: now) ?? now,
-            status: .sent
-        ))
-        addInvoice(BusinessInvoice(
-            client: "Orbit Technologies",
-            invoiceNumber: "INV-1009",
-            amount: 1_000,
-            dueDate: calendar.date(byAdding: .day, value: 15, to: now) ?? now,
-            status: .draft
-        ))
+        let sampleInvoices = [
+            BusinessInvoice(
+                client: "Acme Corp",
+                invoiceNumber: "INV-1004",
+                amount: 3_250,
+                dueDate: calendar.date(byAdding: .day, value: -4, to: now) ?? now,
+                status: .overdue
+            ),
+            BusinessInvoice(
+                client: "Stellar LLC",
+                invoiceNumber: "INV-1007",
+                amount: 2_600,
+                dueDate: calendar.date(byAdding: .day, value: 8, to: now) ?? now,
+                status: .sent
+            ),
+            BusinessInvoice(
+                client: "Orbit Technologies",
+                invoiceNumber: "INV-1009",
+                amount: 1_000,
+                dueDate: calendar.date(byAdding: .day, value: 15, to: now) ?? now,
+                status: .draft
+            )
+        ]
+
+        _ = replaceWorkspace(
+            profile: BusinessProfile(name: "Nova Enterprises", currencyCode: "USD", fiscalYearStartMonth: 1),
+            transactions: sampleTransactions,
+            invoices: sampleInvoices,
+            openingBalance: 0
+        )
     }
 }
