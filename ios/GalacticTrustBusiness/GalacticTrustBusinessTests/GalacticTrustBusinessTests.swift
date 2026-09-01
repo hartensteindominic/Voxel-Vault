@@ -37,4 +37,42 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(rows[0].kind, .expense)
         XCTAssertEqual(rows[1].kind, .income)
     }
+
+    func testCSVImportDoesNotTreatDebitAmountAsGenericAmount() throws {
+        let csv = """
+        Date,Description,Debit Amount,Credit Amount
+        2026-08-31,Payroll,1200,
+        2026-08-31,Client Payment,,2400
+        """
+
+        let rows = try CSVImportService.parse(csv)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].kind, .expense)
+        XCTAssertEqual(rows[0].amount, 1200, accuracy: 0.001)
+        XCTAssertEqual(rows[1].kind, .income)
+        XCTAssertEqual(rows[1].amount, 2400, accuracy: 0.001)
+    }
+
+    func testCSVImportSkipsRowsWithInvalidExplicitDates() throws {
+        let csv = """
+        Date,Description,Amount
+        2026-08-31,Valid Client,1000
+        definitely-not-a-date,Bad Row,-400
+        """
+
+        let rows = try CSVImportService.parse(csv)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].merchant, "Valid Client")
+    }
+
+    func testCSVImportDeduplicatesRepeatedRowsWithinFile() throws {
+        let csv = """
+        Date,Description,Amount
+        2026-08-31,Same Client,1000
+        2026-08-31,Same Client,1000
+        """
+
+        let rows = try CSVImportService.parse(csv)
+        XCTAssertEqual(rows.count, 1)
+    }
 }
