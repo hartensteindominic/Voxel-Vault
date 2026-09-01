@@ -19,10 +19,12 @@ targets:
           - PrivacyInfo.xcprivacy
           - Localizable.strings
           - en.lproj
-    resources:
       - path: GalacticTrustBusiness/Assets.xcassets
+        buildPhase: resources
       - path: GalacticTrustBusiness/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: GalacticTrustBusiness/en.lproj/Localizable.strings
+        buildPhase: resources
     preBuildScripts:
       - name: Generate Galactic App Icon
         script: |
