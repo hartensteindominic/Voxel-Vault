@@ -81,8 +81,11 @@ final class FinancialStore: ObservableObject {
     }
 
     var overdueInvoices: [BusinessInvoice] {
-        invoices.filter {
-            $0.status == .overdue || ($0.status == .sent && $0.dueDate < Date())
+        let today = calendar.startOfDay(for: Date())
+        return invoices.filter { invoice in
+            if invoice.status == .overdue { return true }
+            guard invoice.status == .sent else { return false }
+            return calendar.startOfDay(for: invoice.dueDate) < today
         }
     }
 
@@ -111,14 +114,14 @@ final class FinancialStore: ObservableObject {
 
     var insights: [FinancialInsight] {
         var output: [FinancialInsight] = []
-        let previous = totalsForMonth(offset: -1)
+        let previous = comparablePreviousMonthTotals()
         let incomeChange = percentChange(current: currentMonthIncome, previous: previous.income)
         let expenseChange = percentChange(current: currentMonthExpenses, previous: previous.expense)
 
         if incomeChange > 4 {
             output.append(FinancialInsight(
                 title: "Revenue is up \(incomeChange.formatted(.number.precision(.fractionLength(0))))%",
-                detail: "Income is higher than last month. Open the evidence to see the transactions driving the change.",
+                detail: "Income is higher than at the same point last month. Open the evidence to see the transactions driving the change.",
                 severity: .positive,
                 amountImpact: currentMonthIncome - previous.income,
                 evidenceTransactionIDs: currentMonthTransactions.filter { $0.kind == .income }.map(\.id)
@@ -126,7 +129,7 @@ final class FinancialStore: ObservableObject {
         } else if incomeChange < -4 {
             output.append(FinancialInsight(
                 title: "Revenue is down \(abs(incomeChange).formatted(.number.precision(.fractionLength(0))))%",
-                detail: "Income is lower than last month. Review customers and receivables before changing spending.",
+                detail: "Income is lower than at the same point last month. Review customers and receivables before changing spending.",
                 severity: .warning,
                 amountImpact: currentMonthIncome - previous.income,
                 evidenceTransactionIDs: currentMonthTransactions.filter { $0.kind == .income }.map(\.id)
@@ -156,7 +159,7 @@ final class FinancialStore: ObservableObject {
         if expenseChange > 15 {
             output.append(FinancialInsight(
                 title: "Spending increased quickly",
-                detail: "Expenses are \(expenseChange.formatted(.number.precision(.fractionLength(0))))% higher than last month. Review large and recurring charges.",
+                detail: "Expenses are \(expenseChange.formatted(.number.precision(.fractionLength(0))))% higher than at the same point last month. Review large and recurring charges.",
                 severity: .warning,
                 amountImpact: -(currentMonthExpenses - previous.expense),
                 evidenceTransactionIDs: currentMonthTransactions.filter { $0.kind == .expense }.map(\.id)
@@ -175,6 +178,31 @@ final class FinancialStore: ObservableObject {
         }
 
         return Array(output.prefix(6))
+    }
+
+    func comparablePreviousMonthTotals(asOf now: Date = Date()) -> (income: Double, expense: Double) {
+        guard let previousMonth = calendar.date(byAdding: .month, value: -1, to: now) else { return (0, 0) }
+
+        var startComponents = calendar.dateComponents([.year, .month], from: previousMonth)
+        startComponents.day = 1
+        guard let start = calendar.date(from: startComponents) else { return (0, 0) }
+
+        let currentDay = calendar.component(.day, from: now)
+        let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)?.count ?? currentDay
+        let comparableDay = min(currentDay, daysInPreviousMonth)
+
+        var cutoffComponents = calendar.dateComponents([.year, .month], from: previousMonth)
+        cutoffComponents.day = comparableDay
+        guard let cutoffDay = calendar.date(from: cutoffComponents),
+              let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: cutoffDay)) else {
+            return (0, 0)
+        }
+
+        let items = transactions.filter { $0.date >= start && $0.date < endExclusive }
+        return (
+            items.filter { $0.kind == .income }.reduce(0) { $0 + $1.amount },
+            items.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount }
+        )
     }
 
     func addTransaction(_ transaction: BusinessTransaction) {
@@ -321,8 +349,6 @@ final class FinancialStore: ObservableObject {
         )
 
         do {
-            // Data.write(.atomic) replaces the unreadable file only after the new file
-            // has been written successfully, so a failed reset does not first delete it.
             try vault.save(replacement)
             apply(replacement)
             requiresStorageRecovery = false
@@ -372,18 +398,6 @@ final class FinancialStore: ObservableObject {
             storageNotice = "That change could not be saved, so Galactic Trust Business rolled it back to protect your local financial data. Check available device storage and try again."
             return false
         }
-    }
-
-    private func totalsForMonth(offset: Int) -> (income: Double, expense: Double) {
-        let now = Date()
-        guard let month = calendar.date(byAdding: .month, value: offset, to: now) else { return (0, 0) }
-        let items = transactions.filter {
-            $0.date <= now && calendar.isDate($0.date, equalTo: month, toGranularity: .month)
-        }
-        return (
-            items.filter { $0.kind == .income }.reduce(0) { $0 + $1.amount },
-            items.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount }
-        )
     }
 
     private func percentChange(current: Double, previous: Double) -> Double {
