@@ -113,6 +113,9 @@ struct FirstRunGuideView: View {
                 Text("Welcome to\nGalactic Trust Business")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text("Know what came in, what went out, and what needs attention—without giving AI permission to move your money.")
                     .font(.subheadline.weight(.medium))
