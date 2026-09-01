@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct MoreView: View {
     @EnvironmentObject private var store: FinancialStore
@@ -47,6 +48,12 @@ struct MoreView: View {
                     BusinessProfileView()
                 } label: {
                     moreRow("Business profile", icon: "building.2.fill", tint: GalacticTheme.indigo)
+                }
+
+                NavigationLink {
+                    StartingCashView()
+                } label: {
+                    moreRow("Starting cash", icon: "banknote.fill", tint: GalacticTheme.green)
                 }
 
                 NavigationLink {
@@ -463,6 +470,10 @@ struct AboutView: View {
     @EnvironmentObject private var store: FinancialStore
     @State private var confirmingReset = false
 
+    private var appVersion: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.0"
+    }
+
     var body: some View {
         List {
             Section {
@@ -484,7 +495,7 @@ struct AboutView: View {
             }
 
             Section("Version") {
-                LabeledContent("App", value: "1.0.0")
+                LabeledContent("App", value: appVersion)
                 LabeledContent("Data mode", value: "Local")
             }
 
