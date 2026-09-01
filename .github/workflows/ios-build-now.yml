@@ -136,16 +136,19 @@ jobs:
           capture() {
             tab="$1"
             filename="$2"
+            temp_png="$RUNNER_TEMP/${filename%.jpg}.png"
             xcrun simctl terminate "$IPHONE_ID" "$BUNDLE_ID" 2>/dev/null || true
             xcrun simctl launch "$IPHONE_ID" "$BUNDLE_ID" -AppStoreScreenshots -ScreenshotTab "$tab"
             sleep 4
-            xcrun simctl io "$IPHONE_ID" screenshot "$RUNNER_TEMP/$filename"
+            xcrun simctl io "$IPHONE_ID" screenshot "$temp_png"
+            sips -s format jpeg -s formatOptions best "$temp_png" --out "$RUNNER_TEMP/$filename" >/dev/null
+            rm -f "$temp_png"
           }
 
-          capture dashboard "iPhone-01-Dashboard.png"
-          capture transactions "iPhone-02-Transactions.png"
-          capture cashflow "iPhone-03-Cash-Flow.png"
-          capture ai "iPhone-04-AI-Manager.png"
+          capture dashboard "iPhone-01-Dashboard.jpg"
+          capture transactions "iPhone-02-Transactions.jpg"
+          capture cashflow "iPhone-03-Cash-Flow.jpg"
+          capture ai "iPhone-04-AI-Manager.jpg"
 
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$RUNNER_TEMP/GalacticTrustBusiness-Simulator.zip"
 
@@ -162,21 +165,53 @@ jobs:
           xcrun simctl install "$IPAD_ID" "$APP_PATH"
           xcrun simctl launch "$IPAD_ID" "$BUNDLE_ID" -AppStoreScreenshots -ScreenshotTab dashboard
           sleep 4
-          xcrun simctl io "$IPAD_ID" screenshot "$RUNNER_TEMP/iPad-01-Dashboard.png"
+          temp_png="$RUNNER_TEMP/iPad-01-Dashboard.png"
+          xcrun simctl io "$IPAD_ID" screenshot "$temp_png"
+          sips -s format jpeg -s formatOptions best "$temp_png" --out "$RUNNER_TEMP/iPad-01-Dashboard.jpg" >/dev/null
+          rm -f "$temp_png"
 
-      - name: Verify screenshot files
+      - name: Verify App Store screenshot files
         shell: bash
         run: |
           set -euo pipefail
-          for file in \
-            "$RUNNER_TEMP/iPhone-01-Dashboard.png" \
-            "$RUNNER_TEMP/iPhone-02-Transactions.png" \
-            "$RUNNER_TEMP/iPhone-03-Cash-Flow.png" \
-            "$RUNNER_TEMP/iPhone-04-AI-Manager.png" \
-            "$RUNNER_TEMP/iPad-01-Dashboard.png"; do
-            test -s "$file"
-            sips -g pixelWidth -g pixelHeight "$file"
-          done
+          python3 - <<'PY'
+          import os
+          import subprocess
+
+          temp = os.environ['RUNNER_TEMP']
+          iphone_files = [
+              'iPhone-01-Dashboard.jpg',
+              'iPhone-02-Transactions.jpg',
+              'iPhone-03-Cash-Flow.jpg',
+              'iPhone-04-AI-Manager.jpg',
+          ]
+          ipad_files = ['iPad-01-Dashboard.jpg']
+          accepted_iphone = {(1260, 2736), (1290, 2796), (1320, 2868)}
+          accepted_ipad = {(2064, 2752), (2048, 2732)}
+
+          def dimensions(path):
+              width = int(subprocess.check_output(['sips', '-g', 'pixelWidth', path], text=True).split(':')[-1].strip())
+              height = int(subprocess.check_output(['sips', '-g', 'pixelHeight', path], text=True).split(':')[-1].strip())
+              return width, height
+
+          for name in iphone_files:
+              path = os.path.join(temp, name)
+              if not os.path.isfile(path) or os.path.getsize(path) == 0:
+                  raise SystemExit(f'Missing screenshot: {name}')
+              size = dimensions(path)
+              if size not in accepted_iphone:
+                  raise SystemExit(f'{name} has unsupported App Store iPhone dimensions: {size}')
+              print(name, size, 'JPEG/no alpha')
+
+          for name in ipad_files:
+              path = os.path.join(temp, name)
+              if not os.path.isfile(path) or os.path.getsize(path) == 0:
+                  raise SystemExit(f'Missing screenshot: {name}')
+              size = dimensions(path)
+              if size not in accepted_ipad:
+                  raise SystemExit(f'{name} has unsupported App Store iPad dimensions: {size}')
+              print(name, size, 'JPEG/no alpha')
+          PY
 
       - name: Upload build and screenshots
         uses: actions/upload-artifact@v4
@@ -184,10 +219,10 @@ jobs:
           name: GalacticTrustBusiness-native-preview
           path: |
             ${{ runner.temp }}/GalacticTrustBusiness-Simulator.zip
-            ${{ runner.temp }}/iPhone-01-Dashboard.png
-            ${{ runner.temp }}/iPhone-02-Transactions.png
-            ${{ runner.temp }}/iPhone-03-Cash-Flow.png
-            ${{ runner.temp }}/iPhone-04-AI-Manager.png
-            ${{ runner.temp }}/iPad-01-Dashboard.png
+            ${{ runner.temp }}/iPhone-01-Dashboard.jpg
+            ${{ runner.temp }}/iPhone-02-Transactions.jpg
+            ${{ runner.temp }}/iPhone-03-Cash-Flow.jpg
+            ${{ runner.temp }}/iPhone-04-AI-Manager.jpg
+            ${{ runner.temp }}/iPad-01-Dashboard.jpg
           if-no-files-found: error
           retention-days: 7
