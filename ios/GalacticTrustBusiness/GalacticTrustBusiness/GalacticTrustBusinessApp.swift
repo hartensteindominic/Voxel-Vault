@@ -103,9 +103,13 @@ private struct StorageRecoveryView: View {
 
 struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject private var store: FinancialStore
     @EnvironmentObject private var subscription: SubscriptionManager
+    @AppStorage("hasSeenFirstRunGuide") private var hasSeenFirstRunGuide = false
+
     @State private var selection: AppTab
     @State private var compactPresentedTab: AppTab?
+    @State private var showingFirstRunGuide = false
 
     init() {
         _selection = State(initialValue: Self.requestedLaunchTab())
@@ -131,8 +135,18 @@ struct RootView: View {
             }
         }
         .tint(GalacticTheme.indigo)
+        .onAppear {
+            presentFirstRunGuideIfNeeded()
+        }
         .sheet(item: $compactPresentedTab) { tab in
             destination(for: tab)
+        }
+        .fullScreenCover(isPresented: $showingFirstRunGuide) {
+            FirstRunGuideView(selection: $selection) {
+                hasSeenFirstRunGuide = true
+                showingFirstRunGuide = false
+            }
+            .environmentObject(store)
         }
     }
 
@@ -224,6 +238,18 @@ struct RootView: View {
         case .help:
             NavigationStack { BusinessModuleView(kind: .help) }
         }
+    }
+
+    private func presentFirstRunGuideIfNeeded() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard !arguments.contains("-AppStoreScreenshots"),
+              !hasSeenFirstRunGuide,
+              store.transactions.isEmpty,
+              store.invoices.isEmpty,
+              abs(store.openingBalance) < 0.005 else {
+            return
+        }
+        showingFirstRunGuide = true
     }
 
     private static func requestedLaunchTab() -> AppTab {
