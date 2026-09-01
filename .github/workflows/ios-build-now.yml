@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           APP_PATH="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'GalacticTrustBusiness.app' -print -quit)"
           test -n "$APP_PATH"
-          python3 "$IOS_DIR/scripts/verify_app_bundle.py" "$APP_PATH"
+          python3 "ios/GalacticTrustBusiness/scripts/verify_app_bundle.py" "$APP_PATH"
 
       - name: Select App Store screenshot devices
         shell: bash
