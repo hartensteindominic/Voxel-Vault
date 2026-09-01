@@ -6,13 +6,41 @@ struct CashFlowView: View {
     @EnvironmentObject private var subscription: SubscriptionManager
     @State private var showingPro = false
 
-    private var projectedThirtyDayBalance: Double {
-        store.balance + store.currentMonthNet
+    private let calendar = Calendar.current
+
+    private var forecastWindow: ForecastWindow? {
+        let now = Date()
+        let eligible = store.transactions.filter { $0.date <= now }
+        guard let earliestDate = eligible.map(\.date).min() else { return nil }
+
+        let today = calendar.startOfDay(for: now)
+        let thirtyDayStart = calendar.date(byAdding: .day, value: -29, to: today) ?? today
+        let earliestDay = calendar.startOfDay(for: earliestDate)
+        let start = max(earliestDay, thirtyDayStart)
+        let items = eligible.filter { $0.date >= start }
+        guard !items.isEmpty else { return nil }
+
+        let elapsedDays = (calendar.dateComponents([.day], from: start, to: today).day ?? 0) + 1
+        let daysObserved = max(1, elapsedDays)
+        let net = items.reduce(0) { $0 + $1.signedAmount }
+        let expenses = items.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount }
+
+        return ForecastWindow(daysObserved: daysObserved, net: net, expenses: expenses)
+    }
+
+    private var projectedThirtyDayBalance: Double? {
+        guard let forecastWindow else { return nil }
+        return store.balance + (forecastWindow.net / Double(forecastWindow.daysObserved)) * 30
+    }
+
+    private var estimatedThirtyDayExpenses: Double? {
+        guard let forecastWindow, forecastWindow.expenses > 0 else { return nil }
+        return (forecastWindow.expenses / Double(forecastWindow.daysObserved)) * 30
     }
 
     private var burnMultiple: Double? {
-        guard store.currentMonthExpenses > 0 else { return nil }
-        return max(store.balance, 0) / store.currentMonthExpenses
+        guard let estimatedThirtyDayExpenses, estimatedThirtyDayExpenses > 0 else { return nil }
+        return max(store.balance, 0) / estimatedThirtyDayExpenses
     }
 
     private var cashFlowStatus: (label: String, color: Color) {
@@ -206,17 +234,11 @@ struct CashFlowView: View {
                         .clipShape(Capsule())
                 }
 
-                if store.transactions.isEmpty {
-                    ContentUnavailableView(
-                        "Not enough activity yet",
-                        systemImage: "chart.line.uptrend.xyaxis",
-                        description: Text("Add or import transactions to generate a 30-day cash-flow estimate.")
-                    )
-                } else {
+                if let projectedThirtyDayBalance, let forecastWindow {
                     Text(store.currency(projectedThirtyDayBalance))
                         .font(.title.bold())
                         .foregroundStyle(GalacticTheme.navy)
-                    Text("Projected recorded cash if this month’s net cash flow repeats once more.")
+                    Text("Projected recorded cash in 30 days if the average daily net cash flow from the last \(forecastWindow.daysObserved) recorded calendar day\(forecastWindow.daysObserved == 1 ? "" : "s") continues.")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(GalacticTheme.mutedText)
 
@@ -225,7 +247,7 @@ struct CashFlowView: View {
                     if let burnMultiple {
                         HStack {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Expense coverage")
+                                Text("Estimated expense coverage")
                                     .font(.caption.weight(.medium))
                                     .foregroundStyle(GalacticTheme.mutedText)
                                 Text("\(burnMultiple.formatted(.number.precision(.fractionLength(1)))) months")
@@ -241,6 +263,12 @@ struct CashFlowView: View {
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(GalacticTheme.mutedText)
                     }
+                } else {
+                    ContentUnavailableView(
+                        "Not enough activity yet",
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        description: Text("Add or import dated transactions to generate a 30-day cash-flow estimate.")
+                    )
                 }
             }
         }
@@ -311,10 +339,16 @@ struct CashFlowView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "info.circle.fill")
                 .foregroundStyle(GalacticTheme.indigo)
-            Text("Forecasts use only the transactions recorded in this app. They are planning estimates, not accounting, tax, lending, or investment advice.")
+            Text("Forecasts use a rolling daily average from up to the most recent 30 calendar days of transactions recorded in this app. They are planning estimates, not accounting, tax, lending, or investment advice.")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(GalacticTheme.mutedText)
         }
         .padding(.horizontal, 6)
     }
+}
+
+private struct ForecastWindow {
+    let daysObserved: Int
+    let net: Double
+    let expenses: Double
 }
