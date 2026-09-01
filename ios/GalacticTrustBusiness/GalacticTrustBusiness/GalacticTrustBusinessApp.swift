@@ -9,6 +9,9 @@ struct GalacticTrustBusinessApp: App {
             RootView()
                 .environmentObject(store)
                 .preferredColorScheme(.light)
+                .task {
+                    store.ensureDemoPreviewIsCurrent()
+                }
         }
     }
 }

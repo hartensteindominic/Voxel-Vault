@@ -4,16 +4,17 @@ struct AIManagerView: View {
     @EnvironmentObject private var store: FinancialStore
     @State private var question = ""
     @State private var messages: [FinanceChatMessage] = [
-        .init(role: .assistant, text: "I’m your read-only business financial manager. I can explain money received, spending, invoices, recurring costs, cash balance, and runway using the records in this app.")
+        .init(role: .assistant, text: "I’m your read-only business financial manager. I can explain money received, spending changes, invoices, recurring costs, cash coverage, top vendors, and what-if scenarios using the records in this app.")
     ]
     @State private var selectedInsight: FinancialInsight?
 
     private let suggestions = [
         "Why did spending change?",
-        "How much revenue came in?",
+        "What needs my attention?",
+        "What is my biggest expense?",
         "What invoices are overdue?",
-        "What are my recurring costs?",
-        "How long is my cash runway?"
+        "How long is my cash runway?",
+        "Can I afford $5,000?"
     ]
 
     var body: some View {
@@ -209,7 +210,7 @@ struct AIManagerView: View {
 
     private func ask(_ text: String) {
         messages.append(.init(role: .user, text: text))
-        messages.append(.init(role: .assistant, text: store.answer(text)))
+        messages.append(.init(role: .assistant, text: store.smartAnswer(text)))
     }
 }
 

@@ -23,6 +23,24 @@ struct MoreView: View {
 
             Section {
                 NavigationLink {
+                    BusinessHealthView()
+                } label: {
+                    moreRow("Business health", icon: "heart.text.square.fill", tint: GalacticTheme.green)
+                }
+
+                NavigationLink {
+                    ScenarioPlannerView()
+                } label: {
+                    moreRow("Scenario planner", icon: "slider.horizontal.3", tint: GalacticTheme.blue)
+                }
+            } header: {
+                Text("Intelligence")
+            } footer: {
+                Text("Read-only planning tools calculated from the records stored in this app.")
+            }
+
+            Section {
+                NavigationLink {
                     ImportGuideView()
                 } label: {
                     moreRow("Import financial data", icon: "square.and.arrow.down.fill", tint: GalacticTheme.green)
