@@ -190,12 +190,7 @@ final class FinancialStore: ObservableObject {
     }
 
     func resetToDemo() {
-        let demo = Self.demoState()
-        profile = demo.profile
-        transactions = demo.transactions
-        invoices = demo.invoices
-        openingBalance = demo.openingBalance
-        save()
+        loadBundledSampleWorkspace()
     }
 
     func clearFinancialData() {
