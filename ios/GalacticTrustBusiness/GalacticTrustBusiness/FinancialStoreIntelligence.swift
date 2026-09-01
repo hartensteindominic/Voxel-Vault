@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 extension FinancialStore {
     func refreshBundledDemoForCurrentMonthIfNeeded() {
-        guard currentMonthTransactions.isEmpty else { return }
+        guard currentMonthTransactions.isEmpty, transactions.count == 45 else { return }
 
         let bundledMarkers = ["Stellar Labs", "Acme Corp", "Northstar Client"]
         let markerMatches = bundledMarkers.filter { marker in
