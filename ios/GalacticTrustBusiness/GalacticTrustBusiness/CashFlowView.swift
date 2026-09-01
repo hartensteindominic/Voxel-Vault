@@ -43,6 +43,7 @@ struct CashFlowView: View {
                         showingPro = true
                     }
                 }
+                startingCashLink
                 assumptionsCard
             }
             .padding(16)
@@ -264,6 +265,37 @@ struct CashFlowView: View {
                         Text("Open your six-month Pro operating report")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(GalacticTheme.mutedText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(GalacticTheme.mutedText)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var startingCashLink: some View {
+        NavigationLink {
+            StartingCashView()
+        } label: {
+            GalacticCard {
+                HStack(spacing: 13) {
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(GalacticTheme.green.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Starting Cash")
+                            .font(.headline.bold())
+                            .foregroundStyle(GalacticTheme.navy)
+                        Text(store.openingBalance == 0 ? "Set existing business cash without counting it as revenue" : "Currently \(store.currency(store.openingBalance))")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(GalacticTheme.mutedText)
+                            .multilineTextAlignment(.leading)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
