@@ -26,6 +26,7 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var subscription: SubscriptionManager
     @State private var selection: AppTab
+    @State private var compactPresentedTab: AppTab?
 
     init() {
         _selection = State(initialValue: Self.requestedLaunchTab())
@@ -51,6 +52,9 @@ struct RootView: View {
             }
         }
         .tint(GalacticTheme.indigo)
+        .sheet(item: $compactPresentedTab) { tab in
+            destination(for: tab)
+        }
     }
 
     private var compactTabs: some View {
@@ -76,6 +80,11 @@ struct RootView: View {
                 .tag(AppTab.more)
         }
         .tint(GalacticTheme.indigo)
+        .onChange(of: selection) { oldSelection, newSelection in
+            guard horizontalSizeClass != .regular, !newSelection.supportsCompactTab else { return }
+            compactPresentedTab = newSelection
+            selection = oldSelection.supportsCompactTab ? oldSelection : .dashboard
+        }
     }
 
     @ViewBuilder
@@ -157,7 +166,7 @@ struct RootView: View {
     }
 }
 
-enum AppTab: Hashable {
+enum AppTab: Hashable, Identifiable {
     case dashboard
     case accounts
     case transactions
@@ -176,6 +185,8 @@ enum AppTab: Hashable {
     case integrations
     case help
     case more
+
+    var id: String { String(describing: self) }
 
     var supportsCompactTab: Bool {
         switch self {
