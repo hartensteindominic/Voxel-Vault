@@ -152,10 +152,20 @@ final class FinancialStore: ObservableObject {
 
     @discardableResult
     func addTransactions(_ imported: [BusinessTransaction]) -> Int {
-        let existing = Set(transactions.map { "\($0.date.timeIntervalSince1970)|\($0.merchant)|\($0.amount)|\($0.kind.rawValue)" })
-        let unique = imported.filter {
-            !existing.contains("\($0.date.timeIntervalSince1970)|\($0.merchant)|\($0.amount)|\($0.kind.rawValue)")
+        var knownSourceRecordIDs = Set(transactions.compactMap(\.sourceRecordID))
+        var fallbackKeys = Set(transactions.filter { $0.sourceRecordID == nil }.map(Self.fallbackDuplicateKey))
+        var unique: [BusinessTransaction] = []
+
+        for transaction in imported {
+            if let sourceRecordID = transaction.sourceRecordID {
+                guard knownSourceRecordIDs.insert(sourceRecordID).inserted else { continue }
+            } else {
+                let key = Self.fallbackDuplicateKey(transaction)
+                guard fallbackKeys.insert(key).inserted else { continue }
+            }
+            unique.append(transaction)
         }
+
         transactions.append(contentsOf: unique)
         transactions.sort { $0.date > $1.date }
         save()
@@ -233,6 +243,10 @@ final class FinancialStore: ObservableObject {
     private func percentChange(current: Double, previous: Double) -> Double {
         guard previous > 0 else { return 0 }
         return ((current - previous) / previous) * 100
+    }
+
+    private static func fallbackDuplicateKey(_ transaction: BusinessTransaction) -> String {
+        "\(transaction.date.timeIntervalSince1970)|\(transaction.merchant)|\(transaction.amount)|\(transaction.kind.rawValue)"
     }
 
     private func save() {
