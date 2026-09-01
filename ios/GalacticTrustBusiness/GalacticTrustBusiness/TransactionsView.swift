@@ -193,7 +193,7 @@ struct AddTransactionView: View {
 
     private var canSave: Bool {
         guard let amount else { return false }
-        return !merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && amount > 0 && amount.isFinite
+        return !merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && amount > 0 && amount.isFinite && date <= Date()
     }
 
     var body: some View {
@@ -210,7 +210,7 @@ struct AddTransactionView: View {
                     TextField("Merchant or customer", text: $merchant)
                     TextField("Amount", text: $amountText)
                         .keyboardType(.decimalPad)
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                    DatePicker("Date", selection: $date, in: ...Date(), displayedComponents: .date)
                     Picker("Category", selection: $category) {
                         ForEach(FinanceCategory.allCases) { category in
                             Text(category.rawValue).tag(category)
@@ -242,7 +242,7 @@ struct AddTransactionView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard let amount, amount > 0, amount.isFinite else { return }
+                        guard let amount, amount > 0, amount.isFinite, date <= Date() else { return }
                         store.addTransaction(BusinessTransaction(
                             date: date,
                             merchant: merchant.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -275,7 +275,7 @@ enum CSVImportError: LocalizedError {
         case .missingDate: "The CSV needs a date column so imported activity is not assigned to the wrong month."
         case .missingAmount: "The CSV needs an amount column, or separate debit/credit columns."
         case .malformedCSV: "The CSV contains an unclosed quoted field."
-        case .noValidRows: "No valid transaction rows were found."
+        case .noValidRows: "No valid dated transaction rows were found. Future-dated, malformed, or zero-value rows are skipped."
         }
     }
 }
@@ -308,9 +308,11 @@ struct CSVImportService {
             throw CSVImportError.missingAmount
         }
 
+        let now = Date()
         var output: [BusinessTransaction] = []
+        var sourceOccurrences: [String: Int] = [:]
 
-        for (rowOffset, fields) in rows.dropFirst().enumerated() where !fields.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+        for fields in rows.dropFirst() where !fields.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             func value(_ idx: Int?) -> String {
                 guard let idx, fields.indices.contains(idx) else { return "" }
                 return fields[idx].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -346,11 +348,14 @@ struct CSVImportService {
             guard rawAmount > 0, rawAmount.isFinite else { continue }
 
             let dateText = value(dateIndex)
-            guard !dateText.isEmpty, let date = parseDate(dateText) else { continue }
+            guard !dateText.isEmpty, let date = parseDate(dateText), date <= now else { continue }
 
             let categoryText = value(categoryIndex)
             let category = categoryFrom(categoryText.isEmpty ? description : categoryText, kind: kind)
-            let sourceRecordID = makeSourceRecordID(rowNumber: rowOffset + 2, fields: fields)
+            let sourceKey = makeSourceKey(date: date, description: description, amount: rawAmount, kind: kind)
+            let occurrence = (sourceOccurrences[sourceKey] ?? 0) + 1
+            sourceOccurrences[sourceKey] = occurrence
+            let sourceRecordID = "csv:\(sourceKey):\(occurrence)"
 
             output.append(BusinessTransaction(
                 date: date,
@@ -378,11 +383,11 @@ struct CSVImportService {
             .replacingOccurrences(of: "  ", with: " ")
     }
 
-    private static func makeSourceRecordID(rowNumber: Int, fields: [String]) -> String {
-        let canonical = fields
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .joined(separator: "\u{1F}")
-        return "csv:\(rowNumber):\(canonical)"
+    private static func makeSourceKey(date: Date, description: String, amount: Double, kind: TransactionKind) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let dateKey = "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
+        let descriptionKey = description.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return "\(dateKey)|\(descriptionKey)|\(amount.bitPattern)|\(kind.rawValue)"
     }
 
     private static func parseMoney(_ value: String) -> Double? {
