@@ -109,4 +109,31 @@ final class GalacticTrustBusinessTests: XCTestCase {
 
         store.clearFinancialData()
     }
+
+    @MainActor
+    func testTrendAlertsRequirePriorMonthBaseline() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        store.addTransaction(BusinessTransaction(
+            date: Date(),
+            merchant: "First Client",
+            memo: "First recorded revenue",
+            amount: 2_000,
+            kind: .income,
+            category: .services
+        ))
+        store.addTransaction(BusinessTransaction(
+            date: Date(),
+            merchant: "First Vendor",
+            memo: "First recorded expense",
+            amount: 500,
+            kind: .expense,
+            category: .software
+        ))
+
+        XCTAssertFalse(store.insights.contains { $0.title.hasPrefix("Revenue is up") })
+        XCTAssertFalse(store.insights.contains { $0.title == "Spending increased quickly" })
+
+        store.clearFinancialData()
+    }
 }
