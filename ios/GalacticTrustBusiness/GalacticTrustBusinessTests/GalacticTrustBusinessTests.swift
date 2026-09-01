@@ -69,8 +69,11 @@ final class GalacticTrustBusinessTests: XCTestCase {
         let csv = "Description,Amount\nClient Payment,1000\n"
 
         XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
-            guard case CSVImportError.missingDate = error else {
-                return XCTFail("Expected missingDate, got \(error)")
+            guard let csvError = error as? CSVImportError else {
+                return XCTFail("Expected CSVImportError, got \(error)")
+            }
+            guard case .missingDate = csvError else {
+                return XCTFail("Expected missingDate, got \(csvError)")
             }
         }
     }
@@ -79,8 +82,11 @@ final class GalacticTrustBusinessTests: XCTestCase {
         let csv = "Date,Description,Amount\n2026-08-31,\"Broken field,1000\n"
 
         XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
-            guard case CSVImportError.malformedCSV = error else {
-                return XCTFail("Expected malformedCSV, got \(error)")
+            guard let csvError = error as? CSVImportError else {
+                return XCTFail("Expected CSVImportError, got \(error)")
+            }
+            guard case .malformedCSV = csvError else {
+                return XCTFail("Expected malformedCSV, got \(csvError)")
             }
         }
     }
@@ -89,8 +95,11 @@ final class GalacticTrustBusinessTests: XCTestCase {
         let csv = "Date,Description,Amount\n2026-08-31,Invalid Amount,NaN\n"
 
         XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
-            guard case CSVImportError.noValidRows = error else {
-                return XCTFail("Expected noValidRows, got \(error)")
+            guard let csvError = error as? CSVImportError else {
+                return XCTFail("Expected CSVImportError, got \(error)")
+            }
+            guard case .noValidRows = csvError else {
+                return XCTFail("Expected noValidRows, got \(csvError)")
             }
         }
     }
@@ -103,8 +112,11 @@ final class GalacticTrustBusinessTests: XCTestCase {
         let csv = "Date,Description,Amount\n\(formatter.string(from: future)),Future Charge,-100\n"
 
         XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
-            guard case CSVImportError.noValidRows = error else {
-                return XCTFail("Expected noValidRows, got \(error)")
+            guard let csvError = error as? CSVImportError else {
+                return XCTFail("Expected CSVImportError, got \(error)")
+            }
+            guard case .noValidRows = csvError else {
+                return XCTFail("Expected noValidRows, got \(csvError)")
             }
         }
     }
