@@ -75,4 +75,38 @@ final class GalacticTrustBusinessTests: XCTestCase {
         let rows = try CSVImportService.parse(csv)
         XCTAssertEqual(rows.count, 1)
     }
+
+    @MainActor
+    func testStartingCashDoesNotCountAsRevenueOrExpense() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        store.updateOpeningBalance(5_000)
+
+        XCTAssertEqual(store.openingBalance, 5_000, accuracy: 0.001)
+        XCTAssertEqual(store.balance, 5_000, accuracy: 0.001)
+        XCTAssertEqual(store.currentMonthIncome, 0, accuracy: 0.001)
+        XCTAssertEqual(store.currentMonthExpenses, 0, accuracy: 0.001)
+        XCTAssertEqual(store.currentMonthNet, 0, accuracy: 0.001)
+
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testDraftInvoiceIsNotOutstandingOrOverdue() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        store.addInvoice(BusinessInvoice(
+            client: "Draft Client",
+            invoiceNumber: "DRAFT-1",
+            amount: 900,
+            dueDate: yesterday,
+            status: .draft
+        ))
+
+        XCTAssertEqual(store.outstandingInvoices, 0, accuracy: 0.001)
+        XCTAssertTrue(store.overdueInvoices.isEmpty)
+
+        store.clearFinancialData()
+    }
 }
