@@ -156,10 +156,15 @@ jobs:
           python3 - <<'PY'
           import base64, os
           from pathlib import Path
+
+          def decode_secret(name):
+              compact = ''.join(os.environ[name].split())
+              return base64.b64decode(compact, validate=True)
+
           temp = Path(os.environ['RUNNER_TEMP'])
           try:
-              temp.joinpath('galactic-distribution.p12').write_bytes(base64.b64decode(os.environ['APPLE_DISTRIBUTION_P12_BASE64'], validate=True))
-              temp.joinpath('galactic.mobileprovision').write_bytes(base64.b64decode(os.environ['APPLE_PROVISIONING_PROFILE_BASE64'], validate=True))
+              temp.joinpath('galactic-distribution.p12').write_bytes(decode_secret('APPLE_DISTRIBUTION_P12_BASE64'))
+              temp.joinpath('galactic.mobileprovision').write_bytes(decode_secret('APPLE_PROVISIONING_PROFILE_BASE64'))
           except Exception as exc:
               raise SystemExit(f'Invalid base64 signing material: {exc}')
           PY
