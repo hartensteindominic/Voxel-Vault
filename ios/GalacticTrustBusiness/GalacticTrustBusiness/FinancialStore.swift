@@ -150,7 +150,8 @@ final class FinancialStore: ObservableObject {
         save()
     }
 
-    func addTransactions(_ imported: [BusinessTransaction]) {
+    @discardableResult
+    func addTransactions(_ imported: [BusinessTransaction]) -> Int {
         let existing = Set(transactions.map { "\($0.date.timeIntervalSince1970)|\($0.merchant)|\($0.amount)|\($0.kind.rawValue)" })
         let unique = imported.filter {
             !existing.contains("\($0.date.timeIntervalSince1970)|\($0.merchant)|\($0.amount)|\($0.kind.rawValue)")
@@ -158,6 +159,7 @@ final class FinancialStore: ObservableObject {
         transactions.append(contentsOf: unique)
         transactions.sort { $0.date > $1.date }
         save()
+        return unique.count
     }
 
     func deleteTransactions(at offsets: IndexSet, from items: [BusinessTransaction]) {
