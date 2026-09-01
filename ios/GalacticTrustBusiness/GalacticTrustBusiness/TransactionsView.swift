@@ -151,8 +151,14 @@ struct TransactionsView: View {
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             let text = try String(contentsOf: url, encoding: .utf8)
             let transactions = try CSVImportService.parse(text)
-            store.addTransactions(transactions)
-            importMessage = "Processed \(transactions.count) transaction\(transactions.count == 1 ? "" : "s"). Exact duplicates already in your workspace are ignored."
+            let insertedCount = store.addTransactions(transactions)
+            let duplicateCount = transactions.count - insertedCount
+
+            if duplicateCount > 0 {
+                importMessage = "Imported \(insertedCount) new transaction\(insertedCount == 1 ? "" : "s") and skipped \(duplicateCount) exact duplicate\(duplicateCount == 1 ? "" : "s")."
+            } else {
+                importMessage = "Imported \(insertedCount) transaction\(insertedCount == 1 ? "" : "s")."
+            }
         } catch {
             importMessage = "Could not import that CSV: \(error.localizedDescription)"
         }
@@ -367,6 +373,7 @@ struct CSVImportService {
 
     private static func normalize(_ text: String) -> String {
         text
+            .replacingOccurrences(of: "\u{FEFF}", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .replacingOccurrences(of: "_", with: " ")
