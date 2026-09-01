@@ -202,6 +202,64 @@ final class GalacticTrustBusinessTests: XCTestCase {
     }
 
     @MainActor
+    func testSentInvoiceDueTodayIsNotOverdue() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let today = Calendar.current.startOfDay(for: Date())
+        store.addInvoice(BusinessInvoice(
+            client: "Today Client",
+            invoiceNumber: "TODAY-1",
+            amount: 450,
+            dueDate: today,
+            status: .sent
+        ))
+
+        XCTAssertEqual(store.outstandingInvoices, 450, accuracy: 0.001)
+        XCTAssertTrue(store.overdueInvoices.isEmpty)
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testSentInvoiceFromYesterdayIsOverdue() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date())) ?? Date().addingTimeInterval(-86_400)
+        store.addInvoice(BusinessInvoice(
+            client: "Late Client",
+            invoiceNumber: "LATE-1",
+            amount: 775,
+            dueDate: yesterday,
+            status: .sent
+        ))
+
+        XCTAssertEqual(store.overdueInvoices.count, 1)
+        XCTAssertEqual(store.overdueInvoices.first?.amount ?? 0, 775, accuracy: 0.001)
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testComparablePreviousMonthTotalsStopsAtSameCalendarDay() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let calendar = Calendar(identifier: .gregorian)
+        let asOf = calendar.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 12))!
+        let august3 = calendar.date(from: DateComponents(year: 2026, month: 8, day: 3, hour: 12))!
+        let august4 = calendar.date(from: DateComponents(year: 2026, month: 8, day: 4, hour: 12))!
+        let august12 = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12, hour: 12))!
+        let august20 = calendar.date(from: DateComponents(year: 2026, month: 8, day: 20, hour: 12))!
+
+        store.addTransaction(BusinessTransaction(date: august3, merchant: "Early Client", memo: "", amount: 100, kind: .income, category: .services))
+        store.addTransaction(BusinessTransaction(date: august20, merchant: "Late Client", memo: "", amount: 900, kind: .income, category: .services))
+        store.addTransaction(BusinessTransaction(date: august4, merchant: "Early Vendor", memo: "", amount: 40, kind: .expense, category: .software))
+        store.addTransaction(BusinessTransaction(date: august12, merchant: "Late Vendor", memo: "", amount: 60, kind: .expense, category: .software))
+
+        let previous = store.comparablePreviousMonthTotals(asOf: asOf)
+        XCTAssertEqual(previous.income, 100, accuracy: 0.001)
+        XCTAssertEqual(previous.expense, 40, accuracy: 0.001)
+        store.clearFinancialData()
+    }
+
+    @MainActor
     func testInvalidInvoiceAmountIsRejected() {
         let store = FinancialStore()
         store.clearFinancialData()
