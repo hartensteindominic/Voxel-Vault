@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct StartingCashView: View {
     @EnvironmentObject private var store: FinancialStore
