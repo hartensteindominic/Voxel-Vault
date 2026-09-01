@@ -17,9 +17,11 @@ targets:
         excludes:
           - Assets.xcassets
           - PrivacyInfo.xcprivacy
+          - Localizable.strings
     resources:
       - path: GalacticTrustBusiness/Assets.xcassets
       - path: GalacticTrustBusiness/PrivacyInfo.xcprivacy
+      - path: GalacticTrustBusiness/Localizable.strings
     preBuildScripts:
       - name: Generate Galactic App Icon
         script: |
