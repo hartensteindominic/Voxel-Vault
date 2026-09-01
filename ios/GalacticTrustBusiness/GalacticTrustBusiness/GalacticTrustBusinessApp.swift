@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct GalacticTrustBusinessApp: App {
     @StateObject private var store = FinancialStore()
+    @StateObject private var subscription = SubscriptionManager()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
+                .environmentObject(subscription)
                 .preferredColorScheme(.light)
         }
     }
