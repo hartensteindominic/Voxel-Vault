@@ -65,15 +65,16 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(rows[0].merchant, "Valid Client")
     }
 
-    func testCSVImportDeduplicatesRepeatedRowsWithinFile() throws {
+    func testCSVImportPreservesLegitimateIdenticalRows() throws {
         let csv = """
         Date,Description,Amount
-        2026-08-31,Same Client,1000
-        2026-08-31,Same Client,1000
+        2026-08-31,Same Vendor,-25
+        2026-08-31,Same Vendor,-25
         """
 
         let rows = try CSVImportService.parse(csv)
-        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertNotEqual(rows[0].sourceRecordID, rows[1].sourceRecordID)
     }
 
     func testCSVImportAcceptsUTF8BOMHeader() throws {
@@ -153,22 +154,20 @@ final class GalacticTrustBusinessTests: XCTestCase {
     }
 
     @MainActor
-    func testWorkspaceDuplicateImportReportsOnlyNewRows() {
+    func testWorkspaceDuplicateImportReportsOnlyNewRows() throws {
         let store = FinancialStore()
         store.clearFinancialData()
-        let row = BusinessTransaction(
-            date: Date(timeIntervalSince1970: 1_800_000_000),
-            merchant: "Duplicate Vendor",
-            memo: "Imported from CSV",
-            amount: 42,
-            kind: .expense,
-            category: .other,
-            source: "CSV"
-        )
+        let csv = """
+        Date,Description,Amount
+        2026-08-31,Duplicate Vendor,-42
+        2026-08-31,Duplicate Vendor,-42
+        """
+        let rows = try CSVImportService.parse(csv)
 
-        XCTAssertEqual(store.addTransactions([row]), 1)
-        XCTAssertEqual(store.addTransactions([row]), 0)
-        XCTAssertEqual(store.transactions.count, 1)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(store.addTransactions(rows), 2)
+        XCTAssertEqual(store.addTransactions(rows), 0)
+        XCTAssertEqual(store.transactions.count, 2)
 
         store.clearFinancialData()
     }
