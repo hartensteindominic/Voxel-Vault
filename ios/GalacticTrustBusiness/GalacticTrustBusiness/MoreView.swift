@@ -2,9 +2,46 @@ import SwiftUI
 
 struct MoreView: View {
     @EnvironmentObject private var store: FinancialStore
+    @EnvironmentObject private var subscription: SubscriptionManager
+    @State private var showingPro = false
 
     var body: some View {
         List {
+            Section {
+                Button {
+                    showingPro = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: subscription.isPro ? "checkmark.seal.fill" : "sparkles")
+                            .foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .background(GalacticTheme.heroGradient)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(subscription.isPro ? "Galactic Pro active" : "Upgrade to Galactic Pro")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(GalacticTheme.navy)
+                            Text(subscription.isPro ? "Your premium finance tools are unlocked" : "Unlimited AI, forecasts, reports, and alerts")
+                                .font(.caption)
+                                .foregroundStyle(GalacticTheme.mutedText)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(GalacticTheme.mutedText)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if subscription.isPro {
+                    Link(destination: URL(string: "https://apps.apple.com/account/subscriptions")!) {
+                        Label("Manage Apple subscription", systemImage: "creditcard.fill")
+                    }
+                }
+            } header: {
+                Text("Subscription")
+            }
+
             Section {
                 NavigationLink {
                     BusinessProfileView()
@@ -50,6 +87,10 @@ struct MoreView: View {
         .scrollContentBackground(.hidden)
         .background(GalacticTheme.page)
         .navigationTitle("More")
+        .sheet(isPresented: $showingPro) {
+            GalacticProPaywallView()
+                .environmentObject(subscription)
+        }
     }
 
     private func moreRow(_ title: String, icon: String, tint: Color) -> some View {
