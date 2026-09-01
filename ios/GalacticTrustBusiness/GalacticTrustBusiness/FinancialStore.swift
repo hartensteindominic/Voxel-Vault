@@ -193,6 +193,12 @@ final class FinancialStore: ObservableObject {
         save()
     }
 
+    func updateOpeningBalance(_ value: Double) {
+        guard value.isFinite else { return }
+        openingBalance = max(0, value)
+        save()
+    }
+
     func resetToDemo() {
         loadBundledSampleWorkspace()
     }
