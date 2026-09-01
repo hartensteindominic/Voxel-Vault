@@ -95,6 +95,20 @@ final class GalacticTrustBusinessTests: XCTestCase {
         }
     }
 
+    func testCSVImportRejectsFutureDatedRows() {
+        let future = Calendar.current.date(byAdding: .day, value: 3, to: Date()) ?? Date().addingTimeInterval(259_200)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let csv = "Date,Description,Amount\n\(formatter.string(from: future)),Future Charge,-100\n"
+
+        XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
+            guard case CSVImportError.noValidRows = error else {
+                return XCTFail("Expected noValidRows, got \(error)")
+            }
+        }
+    }
+
     func testCSVImportPreservesLegitimateIdenticalRows() throws {
         let csv = """
         Date,Description,Amount
@@ -105,6 +119,25 @@ final class GalacticTrustBusinessTests: XCTestCase {
         let rows = try CSVImportService.parse(csv)
         XCTAssertEqual(rows.count, 2)
         XCTAssertNotEqual(rows[0].sourceRecordID, rows[1].sourceRecordID)
+    }
+
+    func testCSVImportKeepsSourceIDsStableWhenExportAddsAnotherIdenticalRow() throws {
+        let original = """
+        Date,Description,Amount
+        2026-08-31,Same Vendor,-25
+        2026-08-31,Same Vendor,-25
+        """
+        let extended = """
+        Date,Description,Amount
+        2026-08-31,Same Vendor,-25
+        2026-08-31,Same Vendor,-25
+        2026-08-31,Same Vendor,-25
+        """
+
+        let first = try CSVImportService.parse(original)
+        let second = try CSVImportService.parse(extended)
+        XCTAssertEqual(first.map(\.sourceRecordID), Array(second.prefix(2)).map(\.sourceRecordID))
+        XCTAssertNotEqual(second[1].sourceRecordID, second[2].sourceRecordID)
     }
 
     func testCSVImportAcceptsUTF8BOMHeader() throws {
@@ -233,6 +266,29 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(store.addTransactions(rows), 2)
         XCTAssertEqual(store.addTransactions(rows), 0)
         XCTAssertEqual(store.transactions.count, 2)
+
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testExtendedCSVImportAddsOnlyNewRepeatedOccurrence() throws {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let original = """
+        Date,Description,Amount
+        2026-08-31,Duplicate Vendor,-42
+        2026-08-31,Duplicate Vendor,-42
+        """
+        let extended = """
+        Date,Description,Amount
+        2026-08-31,Duplicate Vendor,-42
+        2026-08-31,Duplicate Vendor,-42
+        2026-08-31,Duplicate Vendor,-42
+        """
+
+        XCTAssertEqual(store.addTransactions(try CSVImportService.parse(original)), 2)
+        XCTAssertEqual(store.addTransactions(try CSVImportService.parse(extended)), 1)
+        XCTAssertEqual(store.transactions.count, 3)
 
         store.clearFinancialData()
     }
