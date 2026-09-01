@@ -13,16 +13,9 @@ extension FinancialStore {
 
         let calendar = Calendar.current
         let now = Date()
-        let previousMonthDate = calendar.date(byAdding: .month, value: -1, to: now) ?? now
-        let previousMonthItems = transactions.filter {
-            $0.date <= now && calendar.isDate($0.date, equalTo: previousMonthDate, toGranularity: .month)
-        }
-        let previousIncome = previousMonthItems
-            .filter { $0.kind == .income }
-            .reduce(0) { $0 + $1.amount }
-        let previousExpenses = previousMonthItems
-            .filter { $0.kind == .expense }
-            .reduce(0) { $0 + $1.amount }
+        let previous = comparablePreviousMonthTotals(asOf: now)
+        let previousIncome = previous.income
+        let previousExpenses = previous.expense
 
         if containsAny(normalized, ["why did spending change", "spending change", "expenses change", "expense change", "spending increase", "spending decrease"]) {
             let top = expenseByCategory.first
@@ -31,24 +24,24 @@ extension FinancialStore {
                     return "No expenses are recorded this month, so there isn’t a spending change to explain yet."
                 }
                 let topText = top.map { " The largest current category is \($0.category.rawValue) at \(currency($0.amount))." } ?? ""
-                return "You recorded \(currency(currentMonthExpenses)) of expenses this month, but there isn’t a prior-month expense baseline to calculate a meaningful percentage change.\(topText)"
+                return "You recorded \(currency(currentMonthExpenses)) of expenses this month, but there isn’t a comparable prior-month expense baseline yet.\(topText)"
             }
 
             let difference = currentMonthExpenses - previousExpenses
             let percent = difference / previousExpenses * 100
             let direction = difference > 0 ? "up" : (difference < 0 ? "down" : "unchanged")
             let topText = top.map { " Your largest current category is \($0.category.rawValue) at \(currency($0.amount))." } ?? ""
-            return "Spending is \(direction) \(abs(percent).formatted(.number.precision(.fractionLength(1))))% from last month: \(currency(previousExpenses)) then versus \(currency(currentMonthExpenses)) now.\(topText)"
+            return "Spending is \(direction) \(abs(percent).formatted(.number.precision(.fractionLength(1))))% versus the same point last month: \(currency(previousExpenses)) then versus \(currency(currentMonthExpenses)) now.\(topText)"
         }
 
         if containsAny(normalized, ["revenue change", "income change", "revenue trend", "income trend", "revenue up", "revenue down"]) {
             if previousIncome <= 0 {
-                return "You recorded \(currency(currentMonthIncome)) of income this month, but there isn’t a prior-month income baseline to calculate a meaningful percentage change."
+                return "You recorded \(currency(currentMonthIncome)) of income this month, but there isn’t a comparable prior-month income baseline yet."
             }
             let difference = currentMonthIncome - previousIncome
             let percent = difference / previousIncome * 100
             let direction = difference > 0 ? "up" : (difference < 0 ? "down" : "unchanged")
-            return "Revenue is \(direction) \(abs(percent).formatted(.number.precision(.fractionLength(1))))% from last month: \(currency(previousIncome)) then versus \(currency(currentMonthIncome)) now."
+            return "Revenue is \(direction) \(abs(percent).formatted(.number.precision(.fractionLength(1))))% versus the same point last month: \(currency(previousIncome)) then versus \(currency(currentMonthIncome)) now."
         }
 
         if containsAny(normalized, ["subscription", "recurring", "repeat charge", "monthly cost"]) {
