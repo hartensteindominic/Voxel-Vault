@@ -8,7 +8,7 @@ Use this as the copy/paste checklist for the first native iOS submission.
 - **Subtitle:** AI Business Finance Manager
 - **Bundle ID:** `com.hartensteindominic.galactictrustbusiness`
 - **Version:** 1.0.0
-- **Build:** 1
+- **Build:** assigned by the release workflow
 - **Primary category:** Finance
 - **Secondary category:** Business
 - **Age rating:** Complete the App Store Connect questionnaire truthfully; the app itself contains no gambling, alcohol, tobacco, sexual, violent, or user-generated social content.
@@ -27,9 +27,9 @@ See the business at a glance:
 • Monitor net cash flow and recorded cash balance
 • See expenses grouped by business category
 • Surface recurring operating costs
-• Watch invoices and overdue receivables
+• Add and monitor invoices and overdue receivables
 • Review six-month income vs. expense trends
-• Get a simple 30-day planning forecast
+• Get a simple 30-day planning forecast with Galactic Pro
 
 ASK YOUR FINANCES
 
@@ -41,17 +41,19 @@ Use the AI Financial Manager to ask plain-language questions such as:
 • What are my recurring costs?
 • How long could my current cash cover this expense pace?
 
+Free users receive a limited monthly AI allowance. Galactic Pro unlocks unlimited AI Financial Manager questions plus advanced forecasts, reports, and alerts.
+
 EXPLAINABLE AI
 
 Important insights include a Show Evidence view so you can inspect the transactions behind the analysis instead of relying on an unexplained answer.
 
 IMPORT OR ENTER DATA
 
-Add income and expenses manually or import a CSV exported from many banks and bookkeeping tools. Common date, description, amount, debit, credit, type, and category columns are supported.
+Add income and expenses manually or import a CSV exported from many banks and bookkeeping tools. Common date, description, amount, debit, credit, type, and category columns are supported. New workspaces intentionally begin at $0 with no fabricated business activity.
 
 PRIVATE BY DESIGN
 
-Version 1.0 analyzes the financial records stored in the app on your device. It does not include an advertising SDK or cross-app tracking, and the AI Financial Manager does not have permission to send payments or move money.
+Version 1.0 analyzes the financial records stored in the app on your device. It does not include an advertising SDK or cross-app tracking, and the AI Financial Manager does not have permission to send payments or move money. Galactic Pro purchases are processed by Apple through StoreKit.
 
 Galactic Trust Business is financial-management software. It is not a bank, accounting firm, tax preparer, lender, or investment adviser. Forecasts and AI summaries are planning aids and may be incomplete when the data you enter or import is incomplete.
 
@@ -61,43 +63,59 @@ Galactic Trust Business is financial-management software. It is not a bank, acco
 
 ## URLs
 
-Publish these pages from the production Galactic deployment before submitting:
+Intended production URLs:
 
-- **Privacy Policy URL:** `https://<YOUR-PRODUCTION-DOMAIN>/business/privacy`
-- **Support URL:** `https://<YOUR-PRODUCTION-DOMAIN>/business/support`
+- **Privacy Policy URL:** `https://voxelvault.io/business/privacy`
+- **Support URL:** `https://voxelvault.io/business/support`
 
-The Support page should include a real app-support contact method before App Review. Do not use a private/personal email unless you intentionally want it public.
+Both routes exist in the repository. Before submission, verify that both URLs respond publicly on the production domain and do not redirect to an error, login, placeholder, or staging page. The app also links to the privacy policy and support page from **More → Security & Privacy**.
 
 ## App Privacy answers for native version 1.0
 
-The native target currently has no analytics SDK, ad SDK, cloud AI call, account system, or Galactic backend request. Its imported/manual financial records remain in protected local app storage.
+The native target currently has no analytics SDK, ad SDK, cloud AI call, account system, or Galactic backend request. Imported/manual financial records remain in protected local app storage. Galactic Pro purchase and restore flows use Apple StoreKit; the developer does not receive the business financial records through that flow.
 
-For this exact 1.0 build, review the App Privacy questionnaire against the final binary and select the answers consistent with **no data collected by the developer**. Re-evaluate the answers before release if any network SDK or service is added.
+For this exact 1.0 build, review the App Privacy questionnaire against the final binary and select answers consistent with **no data collected by the developer** if the final binary remains on-device as described above. Re-evaluate before release if any analytics, cloud AI, authentication, bank connection, telemetry, or developer-operated backend is added.
 
 Do not reuse the web banking demo's privacy answers automatically; this iOS target has a separate data flow.
 
 ## Export compliance
 
-The project currently sets `ITSAppUsesNonExemptEncryption = NO` because it does not implement its own non-exempt encryption. Revisit this declaration if cryptography or networking dependencies change.
+The project sets `ITSAppUsesNonExemptEncryption = NO` because it does not implement its own non-exempt encryption. Revisit this declaration if cryptography or networking dependencies change.
+
+## Galactic Pro subscriptions
+
+The native app expects these exact auto-renewable subscription product IDs:
+
+- Monthly: `com.hartensteindominic.galactictrustbusiness.pro.monthly`
+- Annual: `com.hartensteindominic.galactictrustbusiness.pro.yearly`
+
+The paywall loads localized price and subscription information directly from StoreKit and includes Restore Purchases, Terms of Use, Privacy Policy, and Apple subscription-management access.
+
+Before review, confirm both products are complete in App Store Connect, have localization and pricing, are attached to the 1.0 submission as required, and can be seen in a sandbox/TestFlight build.
 
 ## App Review notes
 
 Copy/edit this for Review Notes:
 
-> Galactic Trust Business 1.0 is a business financial-monitoring app, not a bank or money-movement product. No login is required. The first launch includes sample business data so all dashboard, transaction, cash-flow, invoice, and AI insight screens can be reviewed immediately. Reviewers can also add manual transactions or import a CSV through the system file picker. The AI Financial Manager in this release is read-only local financial intelligence over records stored in the app; it cannot initiate payments, transfers, lending, investing, crypto activity, or bank-account changes. Tap any insight with transaction evidence to inspect the records supporting the analysis. More → Security & Privacy includes a control to clear local financial data.
+> Galactic Trust Business 1.0 is business financial-management software, not a bank or money-movement product. No login is required. A new workspace intentionally starts at $0 with no fabricated user activity. To review a populated workspace, open More → About → Restore sample business data; this loads bundled local example records for the dashboard, transactions, cash flow, invoices, and AI insights. Reviewers can also add transactions, add and update invoice tracking records, or import a CSV through the system file picker. The AI Financial Manager is read-only local financial intelligence over records stored in the app and cannot initiate payments, transfers, lending, investing, crypto activity, or bank-account changes. Tap an insight with transaction evidence to inspect the records supporting it. Galactic Pro uses Apple StoreKit auto-renewable subscriptions. Free users receive 3 AI questions per calendar month; Pro unlocks unlimited AI questions plus the 30-day forecast, advanced reports, and advanced alerts. Purchase and Restore Purchases are available from the Galactic Pro paywall. More → Security & Privacy includes the public Privacy Policy, Support link, and a control to clear local financial data.
 
 ## Screenshot plan
 
-Capture current iPhone screenshots from the real native build, not the concept image. Recommended sequence:
+Use screenshots from the real native simulator build. Do not fabricate product UI.
 
-1. **Business dashboard** — cash balance, money received/spent, AI Financial Brief
-2. **AI Financial Manager** — plain-language finance question and answer
-3. **Cash Flow** — six-month income vs expense chart
-4. **Spending Breakdown** — expense categories and recurring-cost insight
-5. **Transactions** — income/expense list and categories
-6. **Invoices** — outstanding and overdue receivables
+The GitHub workflow `.github/workflows/ios-build-now.yml` now captures:
 
-Suggested screenshot headlines for the marketing artwork (outside the device screenshot):
+1. **iPhone — Dashboard**
+2. **iPhone — Transactions**
+3. **iPhone — Cash Flow**
+4. **iPhone — AI Financial Manager**
+5. **iPad 13-inch — Dashboard**
+
+The screenshot-only launch argument loads bundled sample records solely in the simulator used by the workflow. Normal customer installs still begin at $0.
+
+Because the target supports both iPhone and iPad (`TARGETED_DEVICE_FAMILY = 1,2`), keep a valid 13-inch iPad screenshot in App Store Connect as well as the required iPhone screenshots.
+
+Suggested screenshot headlines for optional marketing artwork outside the captured device content:
 
 - Your business finances, explained
 - Ask your numbers anything
@@ -106,27 +124,41 @@ Suggested screenshot headlines for the marketing artwork (outside the device scr
 - Import transactions in seconds
 - Catch overdue revenue sooner
 
-## Archive and upload
+## No-Mac archive and upload
 
-1. On a Mac, open Terminal and go to `ios/GalacticTrustBusiness`.
-2. Run `bash bootstrap.sh`.
-3. In Xcode select the `GalacticTrustBusiness` target → Signing & Capabilities → select your Apple Developer Team.
-4. Confirm the final bundle identifier is available in your developer account.
-5. Run the app on at least one recent iPhone simulator/device and review every tab.
-6. Choose **Any iOS Device (arm64)** as the run destination.
-7. Choose **Product → Archive**.
-8. In Organizer choose **Distribute App → App Store Connect → Upload**.
-9. Select the uploaded build in App Store Connect.
-10. Add the final privacy URL, support URL, screenshots, privacy answers, age-rating answers, pricing/availability, and review notes.
-11. Submit for review.
+The intended release path uses GitHub Actions hosted macOS rather than a local Mac.
 
-## Remaining account-owned items
+1. Merge the final reviewed iOS changes to `main` only after the native build, unit tests, screenshot capture, and quality gate are green.
+2. Confirm the required Apple signing/upload secrets exist in GitHub Actions.
+3. Run the App Store release workflow on GitHub’s hosted Mac.
+4. The workflow must build with Xcode 26 or newer, archive, sign, validate, and upload the `.ipa` to App Store Connect.
+5. Wait for Apple to process the uploaded build, then select it under version 1.0.
+6. Upload the real native iPhone and iPad screenshots.
+7. Attach/review the Galactic Pro subscriptions.
+8. Confirm Privacy, age rating, pricing/availability, export compliance, App Review contact information, and Review Notes.
+9. Submit for App Review.
 
-These cannot safely live in GitHub and must be completed with the app owner's Apple account:
+## Final pre-submit blockers
+
+Do not press Submit for Review until all of these are true:
+
+- native iOS workflow is green on the exact commit being submitted
+- unit tests are green
+- App Store screenshot artifact exists and has valid iPhone and 13-inch iPad images
+- signed App Store build validates and appears in App Store Connect
+- both Galactic Pro products load in sandbox/TestFlight
+- Privacy Policy and Support URLs are publicly reachable
+- App Privacy answers still match the final binary
+- Paid Applications agreement, tax, and banking setup are complete if subscription proceeds are expected
+- App Review contact information is current
+- Review Notes describe the $0 first launch and sample-data path accurately
+
+## Account-owned items
+
+These remain tied to the app owner’s Apple account and cannot safely live in a public repository:
 
 - Apple Developer Team / distribution signing identity
-- App Store Connect app record and agreements
-- Final public support contact
-- Final production domain used for Support and Privacy URLs
-- App Store screenshots captured from the signed/native build
-- Final App Privacy, age-rating, pricing, and availability selections
+- App Store Connect agreements, tax, and banking status
+- final App Store Connect subscription metadata and pricing
+- final public support contact decision
+- final App Privacy, age-rating, pricing, availability, and review selections
