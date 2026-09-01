@@ -39,6 +39,7 @@ struct BusinessTransaction: Identifiable, Codable, Equatable {
     var category: FinanceCategory
     var isRecurring: Bool = false
     var source: String = "Manual"
+    var sourceRecordID: String? = nil
 
     var signedAmount: Double {
         kind == .income ? amount : -amount
