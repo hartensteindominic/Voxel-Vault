@@ -49,7 +49,9 @@ final class FinancialStore: ObservableObject {
     }
 
     var overdueInvoices: [BusinessInvoice] {
-        invoices.filter { $0.status == .overdue || ($0.status != .paid && $0.dueDate < Date()) }
+        invoices.filter {
+            $0.status == .overdue || ($0.status == .sent && $0.dueDate < Date())
+        }
     }
 
     var expenseByCategory: [CategoryTotal] {
