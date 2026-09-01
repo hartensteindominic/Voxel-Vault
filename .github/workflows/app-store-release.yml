@@ -12,10 +12,11 @@ concurrency:
 
 env:
   IOS_DIR: ios/GalacticTrustBusiness
+  BUNDLE_ID: com.hartensteindominic.galactictrustbusiness
 
 jobs:
   release:
-    name: Build, sign, and upload Galactic Trust Business
+    name: Build, cloud sign, and upload Galactic Trust Business
     runs-on: macos-15
     timeout-minutes: 45
 
@@ -73,10 +74,8 @@ jobs:
             }
           done
 
-      - name: Install build tools
-        run: |
-          brew install xcodegen
-          sudo gem install fastlane -NV
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Generate app icon and Xcode project
         working-directory: ${{ env.IOS_DIR }}
@@ -95,7 +94,7 @@ jobs:
           version="$(awk -F ' = ' '/MARKETING_VERSION = / { print $2; exit }' <<< "$settings")"
           bundle_id="$(awk -F ' = ' '/PRODUCT_BUNDLE_IDENTIFIER = / { print $2; exit }' <<< "$settings")"
           [[ "$version" == "1.0" ]] || { echo "::error::Expected marketing version 1.0, got $version"; exit 1; }
-          [[ "$bundle_id" == "com.hartensteindominic.galactictrustbusiness" ]] || { echo "::error::Unexpected bundle ID: $bundle_id"; exit 1; }
+          [[ "$bundle_id" == "$BUNDLE_ID" ]] || { echo "::error::Unexpected bundle ID: $bundle_id"; exit 1; }
 
       - name: Build for iOS Simulator
         working-directory: ${{ env.IOS_DIR }}
@@ -122,16 +121,80 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test
 
-      - name: Create signing assets and upload to App Store Connect
+      - name: Write App Store Connect API key
+        shell: bash
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          grep -q -- '-----BEGIN PRIVATE KEY-----' "$KEY_PATH" || {
+            echo "::error::APP_STORE_CONNECT_PRIVATE_KEY is not a valid .p8 private-key payload."
+            exit 1
+          }
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Create unsigned release archive
+        working-directory: ${{ env.IOS_DIR }}
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project GalacticTrustBusiness.xcodeproj \
+            -scheme GalacticTrustBusiness \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/GalacticTrustBusiness.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean archive
+
+      - name: Cloud sign and upload to App Store Connect
         shell: bash
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          fastlane ios release
+          EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
+          EXPORT_PATH="$RUNNER_TEMP/app-store-export"
+          cat > "$EXPORT_OPTIONS" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/GalacticTrustBusiness.xcarchive" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "$EXPORT_OPTIONS" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Remove temporary API key
+        if: always()
+        shell: bash
+        run: rm -f "${ASC_KEY_PATH:-}"
 
       - name: Upload summary
         if: success()
@@ -140,5 +203,5 @@ jobs:
           {
             echo '### Galactic Trust Business uploaded'
             echo ''
-            echo 'The signed build was uploaded to App Store Connect. Apple still needs to process it before it can be selected for submission.'
+            echo 'Xcode cloud-signed and uploaded the build to App Store Connect. Apple still needs to process it before it can be selected for submission.'
           } >> "$GITHUB_STEP_SUMMARY"
