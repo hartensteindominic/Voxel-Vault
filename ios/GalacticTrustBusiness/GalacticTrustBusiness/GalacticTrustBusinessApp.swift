@@ -11,6 +11,13 @@ struct GalacticTrustBusinessApp: App {
                 .environmentObject(store)
                 .environmentObject(subscription)
                 .preferredColorScheme(.light)
+                .task {
+                    // Used only by the GitHub simulator screenshot workflow. Normal installs
+                    // still start with an empty $0 workspace.
+                    if ProcessInfo.processInfo.arguments.contains("-AppStoreScreenshots") {
+                        store.resetToDemo()
+                    }
+                }
         }
     }
 }
