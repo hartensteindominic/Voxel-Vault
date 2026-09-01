@@ -152,12 +152,22 @@ jobs:
         run: |
           set -euo pipefail
           KEY_PATH="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"
+          export KEY_PATH
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"]
+          raw = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+          if raw.startswith(('"', "'")) and raw.endswith(raw[0]):
+              raw = raw[1:-1].strip()
+          if "\\n" in raw:
+              raw = raw.replace("\\r\\n", "\n").replace("\\n", "\n")
+          Path(os.environ["KEY_PATH"]).write_text(raw.strip() + "\n")
+          PY
           chmod 600 "$KEY_PATH"
-          grep -q -- '-----BEGIN PRIVATE KEY-----' "$KEY_PATH" || {
-            echo "::error::APP_STORE_CONNECT_PRIVATE_KEY is not a valid .p8 private-key payload."
-            exit 1
-          }
+          grep -q -- '-----BEGIN PRIVATE KEY-----' "$KEY_PATH" || { echo "::error::APP_STORE_CONNECT_PRIVATE_KEY is missing the BEGIN PRIVATE KEY marker."; exit 1; }
+          grep -q -- '-----END PRIVATE KEY-----' "$KEY_PATH" || { echo "::error::APP_STORE_CONNECT_PRIVATE_KEY is missing the END PRIVATE KEY marker."; exit 1; }
+          openssl pkey -in "$KEY_PATH" -noout >/dev/null 2>&1 || { echo "::error::APP_STORE_CONNECT_PRIVATE_KEY could not be parsed as a valid private key."; exit 1; }
           echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
 
       - name: Create unsigned release archive
@@ -203,7 +213,6 @@ jobs:
             <key>uploadSymbols</key><true/>
           </dict></plist>
           EOF
-
           xcodebuild \
             -exportArchive \
             -archivePath "$RUNNER_TEMP/GalacticTrustBusiness.xcarchive" \
