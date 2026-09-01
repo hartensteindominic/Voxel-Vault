@@ -221,8 +221,10 @@ final class FinancialStore: ObservableObject {
             return "You have \(currency(outstandingInvoices)) in unpaid invoices. \(currency(overdueInvoices.reduce(0) { $0 + $1.amount })) is overdue."
         }
         if q.contains("cash") || q.contains("balance") || q.contains("runway") {
-            let monthlyBurn = max(currentMonthExpenses, 1)
-            let runway = max(balance, 0) / monthlyBurn
+            guard currentMonthExpenses > 0 else {
+                return "Your recorded cash balance is \(currency(balance)). No expenses are recorded this month, so there is not enough spending data to estimate runway yet."
+            }
+            let runway = max(balance, 0) / currentMonthExpenses
             return "Your recorded cash balance is \(currency(balance)). At this month’s expense pace, that is about \(runway.formatted(.number.precision(.fractionLength(1)))) months of coverage. This is a simple estimate, not a liquidity guarantee."
         }
         if q.contains("subscription") || q.contains("recurring") {
