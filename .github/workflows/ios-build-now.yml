@@ -125,7 +125,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test
 
-      - name: Capture real App Store iPhone screenshots
+      - name: Capture first-run QA and real App Store iPhone screenshots
         shell: bash
         run: |
           set -euo pipefail
@@ -136,6 +136,16 @@ jobs:
           xcrun simctl boot "$IPHONE_ID" 2>/dev/null || true
           xcrun simctl bootstatus "$IPHONE_ID" -b
           xcrun simctl install "$IPHONE_ID" "$APP_PATH"
+
+          # Fresh install without screenshot arguments: this verifies the exact onboarding
+          # shown to a new customer. It is QA-only and is not an App Store listing image.
+          xcrun simctl launch "$IPHONE_ID" "$BUNDLE_ID"
+          sleep 4
+          first_run_png="$RUNNER_TEMP/QA-iPhone-First-Run.png"
+          xcrun simctl io "$IPHONE_ID" screenshot "$first_run_png"
+          sips -s format jpeg -s formatOptions best "$first_run_png" --out "$RUNNER_TEMP/QA-iPhone-First-Run.jpg" >/dev/null
+          rm -f "$first_run_png"
+          xcrun simctl terminate "$IPHONE_ID" "$BUNDLE_ID" 2>/dev/null || true
 
           capture() {
             tab="$1"
@@ -190,6 +200,7 @@ jobs:
               'iPhone-04-AI-Manager.jpg',
           ]
           ipad_files = ['iPad-01-Dashboard.jpg']
+          qa_files = ['QA-iPhone-First-Run.jpg']
           accepted_iphone = {(1260, 2736), (1290, 2796), (1320, 2868)}
           accepted_ipad = {(2064, 2752), (2048, 2732)}
 
@@ -215,6 +226,15 @@ jobs:
               if size not in accepted_ipad:
                   raise SystemExit(f'{name} has unsupported App Store iPad dimensions: {size}')
               print(name, size, 'JPEG/no alpha')
+
+          for name in qa_files:
+              path = os.path.join(temp, name)
+              if not os.path.isfile(path) or os.path.getsize(path) == 0:
+                  raise SystemExit(f'Missing QA screenshot: {name}')
+              size = dimensions(path)
+              if size not in accepted_iphone:
+                  raise SystemExit(f'{name} has unexpected iPhone dimensions: {size}')
+              print(name, size, 'QA onboarding capture')
           PY
 
       - name: Upload build and screenshots
@@ -223,6 +243,7 @@ jobs:
           name: GalacticTrustBusiness-native-preview
           path: |
             ${{ runner.temp }}/GalacticTrustBusiness-Simulator.zip
+            ${{ runner.temp }}/QA-iPhone-First-Run.jpg
             ${{ runner.temp }}/iPhone-01-Dashboard.jpg
             ${{ runner.temp }}/iPhone-02-Transactions.jpg
             ${{ runner.temp }}/iPhone-03-Cash-Flow.jpg
