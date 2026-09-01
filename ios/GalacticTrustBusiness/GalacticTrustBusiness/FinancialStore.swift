@@ -200,35 +200,6 @@ final class FinancialStore: ObservableObject {
         save()
     }
 
-    func answer(_ question: String) -> String {
-        let q = question.lowercased()
-        if q.contains("revenue") || q.contains("income") || q.contains("received") {
-            return "You received \(currency(currentMonthIncome)) this month. Net cash flow after recorded expenses is \(currency(currentMonthNet))."
-        }
-        if q.contains("spend") || q.contains("expense") || q.contains("cost") {
-            let top = expenseByCategory.first
-            if let top {
-                return "You spent \(currency(currentMonthExpenses)) this month. Your largest category is \(top.category.rawValue) at \(currency(top.amount))."
-            }
-            return "No expenses are recorded for this month yet."
-        }
-        if q.contains("invoice") || q.contains("owe") || q.contains("receivable") {
-            return "You have \(currency(outstandingInvoices)) in unpaid invoices. \(currency(overdueInvoices.reduce(0) { $0 + $1.amount })) is overdue."
-        }
-        if q.contains("cash") || q.contains("balance") || q.contains("runway") {
-            guard currentMonthExpenses > 0 else {
-                return "Your recorded cash balance is \(currency(balance)). No expenses are recorded this month, so there is not enough spending data to estimate runway yet."
-            }
-            let runway = max(balance, 0) / currentMonthExpenses
-            return "Your recorded cash balance is \(currency(balance)). At this month’s expense pace, that is about \(runway.formatted(.number.precision(.fractionLength(1)))) months of coverage. This is a simple estimate, not a liquidity guarantee."
-        }
-        if q.contains("subscription") || q.contains("recurring") {
-            let recurring = currentMonthTransactions.filter { $0.kind == .expense && $0.isRecurring }
-            return "Recurring expenses total \(currency(recurring.reduce(0) { $0 + $1.amount })) this month across \(recurring.count) recorded charge\(recurring.count == 1 ? "" : "s")."
-        }
-        return "This month: \(currency(currentMonthIncome)) received, \(currency(currentMonthExpenses)) spent, and \(currency(currentMonthNet)) net cash flow. Ask me about revenue, spending, invoices, recurring costs, cash balance, or runway."
-    }
-
     func evidence(for insight: FinancialInsight) -> [BusinessTransaction] {
         let ids = Set(insight.evidenceTransactionIDs)
         return transactions.filter { ids.contains($0.id) }
@@ -254,59 +225,6 @@ final class FinancialStore: ObservableObject {
 
     private func save() {
         try? vault.save(AppState(profile: profile, transactions: transactions, invoices: invoices, openingBalance: openingBalance))
-    }
-
-    private static func demoState() -> AppState {
-        let cal = Calendar.current
-        let now = Date()
-        func day(_ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: now) ?? now }
-        func month(_ n: Int, day d: Int) -> Date {
-            let base = cal.date(byAdding: .month, value: n, to: now) ?? now
-            var comps = cal.dateComponents([.year, .month], from: base)
-            comps.day = d
-            return cal.date(from: comps) ?? base
-        }
-
-        var tx: [BusinessTransaction] = [
-            .init(date: day(-1), merchant: "Stellar Labs", memo: "Client payment", amount: 12_500, kind: .income, category: .services),
-            .init(date: day(-2), merchant: "Payroll", memo: "Employee salaries", amount: 9_800, kind: .expense, category: .payroll, isRecurring: true),
-            .init(date: day(-3), merchant: "Amazon Business", memo: "Office supplies", amount: 312.45, kind: .expense, category: .office),
-            .init(date: day(-4), merchant: "Notion", memo: "Team subscription", amount: 240, kind: .expense, category: .software, isRecurring: true),
-            .init(date: day(-5), merchant: "Google Ads", memo: "Growth campaign", amount: 1_250.75, kind: .expense, category: .marketing),
-            .init(date: day(-6), merchant: "Bright Agency", memo: "Customer refund", amount: 480, kind: .income, category: .services),
-            .init(date: day(-7), merchant: "Acme Corp", memo: "Invoice payment", amount: 18_950, kind: .income, category: .sales),
-            .init(date: day(-8), merchant: "AWS", memo: "Cloud infrastructure", amount: 2_140, kind: .expense, category: .software, isRecurring: true),
-            .init(date: day(-10), merchant: "Office Lease", memo: "Monthly rent", amount: 3_400, kind: .expense, category: .rentUtilities, isRecurring: true),
-            .init(date: day(-12), merchant: "Northstar Client", memo: "Project milestone", amount: 24_900, kind: .income, category: .services),
-            .init(date: day(-14), merchant: "Figma", memo: "Design subscription", amount: 180, kind: .expense, category: .software, isRecurring: true),
-            .init(date: day(-16), merchant: "City Electric", memo: "Utilities", amount: 620, kind: .expense, category: .rentUtilities, isRecurring: true),
-            .init(date: day(-19), merchant: "Orbit Retail", memo: "Product revenue", amount: 15_200, kind: .income, category: .sales),
-            .init(date: day(-21), merchant: "Meta Ads", memo: "Paid social", amount: 2_870, kind: .expense, category: .marketing),
-            .init(date: day(-23), merchant: "Payroll", memo: "Contractor payouts", amount: 6_200, kind: .expense, category: .payroll)
-        ]
-
-        for offset in -5 ... -1 {
-            let scale = Double(6 + offset) * 0.06 + 0.72
-            tx.append(.init(date: month(offset, day: 4), merchant: "Monthly Clients", memo: "Client revenue", amount: 51_000 * scale, kind: .income, category: .services))
-            tx.append(.init(date: month(offset, day: 9), merchant: "Product Sales", memo: "Monthly sales", amount: 19_000 * scale, kind: .income, category: .sales))
-            tx.append(.init(date: month(offset, day: 12), merchant: "Payroll", memo: "Payroll", amount: 18_000 * scale, kind: .expense, category: .payroll, isRecurring: true))
-            tx.append(.init(date: month(offset, day: 16), merchant: "Cloud & Software", memo: "Software services", amount: 5_200 * scale, kind: .expense, category: .software, isRecurring: true))
-            tx.append(.init(date: month(offset, day: 21), merchant: "Marketing", memo: "Marketing spend", amount: 6_600 * scale, kind: .expense, category: .marketing))
-            tx.append(.init(date: month(offset, day: 25), merchant: "Operations", memo: "Office and utilities", amount: 4_100 * scale, kind: .expense, category: .rentUtilities, isRecurring: true))
-        }
-
-        tx.sort { $0.date > $1.date }
-
-        return AppState(
-            profile: BusinessProfile(),
-            transactions: tx,
-            invoices: [
-                .init(client: "Acme Corp", invoiceNumber: "INV-1004", amount: 3_250, dueDate: day(-4), status: .overdue),
-                .init(client: "Stellar LLC", invoiceNumber: "INV-1007", amount: 2_600, dueDate: day(-1), status: .overdue),
-                .init(client: "Orbit Technologies", invoiceNumber: "INV-1009", amount: 1_000, dueDate: day(6), status: .sent)
-            ],
-            openingBalance: 42_000
-        )
     }
 }
 
