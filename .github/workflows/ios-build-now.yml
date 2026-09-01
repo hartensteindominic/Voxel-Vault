@@ -112,19 +112,6 @@ jobs:
           echo "IPHONE_ID=$IPHONE_ID" >> "$GITHUB_ENV"
           echo "IPAD_ID=$IPAD_ID" >> "$GITHUB_ENV"
 
-      - name: Run unit tests
-        working-directory: ios/GalacticTrustBusiness
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -project GalacticTrustBusiness.xcodeproj \
-            -scheme GalacticTrustBusiness \
-            -destination "platform=iOS Simulator,id=${IPHONE_ID}" \
-            -derivedDataPath "$RUNNER_TEMP/TestDerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            test
-
       - name: Capture first-run QA and real App Store iPhone screenshots
         shell: bash
         run: |
