@@ -7,7 +7,7 @@ Use this as the copy/paste checklist for the first native iOS submission.
 - **App name:** Galactic Trust Business
 - **Subtitle:** AI Business Finance Manager
 - **Bundle ID:** `com.hartensteindominic.galactictrustbusiness`
-- **Version:** 1.0.0
+- **Version:** 1.0
 - **Build:** assigned by the release workflow
 - **Primary category:** Finance
 - **Secondary category:** Business
@@ -36,7 +36,7 @@ ASK YOUR FINANCES
 Use the AI Financial Manager to ask plain-language questions such as:
 
 • How much revenue came in this month?
-• What is my largest expense category?
+• Why did spending change?
 • Which invoices are overdue?
 • What are my recurring costs?
 • How long could my current cash cover this expense pace?
@@ -76,6 +76,8 @@ The native target currently has no analytics SDK, ad SDK, cloud AI call, account
 
 For this exact 1.0 build, review the App Privacy questionnaire against the final binary and select answers consistent with **no data collected by the developer** if the final binary remains on-device as described above. Re-evaluate before release if any analytics, cloud AI, authentication, bank connection, telemetry, or developer-operated backend is added.
 
+The privacy manifest declares the app-only UserDefaults required-reason API used by the free AI allowance counters.
+
 Do not reuse the web banking demo's privacy answers automatically; this iOS target has a separate data flow.
 
 ## Export compliance
@@ -91,7 +93,7 @@ The native app expects these exact auto-renewable subscription product IDs:
 
 The paywall loads localized price and subscription information directly from StoreKit and includes Restore Purchases, Terms of Use, Privacy Policy, and Apple subscription-management access.
 
-Before review, confirm both products are complete in App Store Connect, have localization and pricing, are attached to the 1.0 submission as required, and can be seen in a sandbox/TestFlight build.
+Before review, confirm both products are complete in App Store Connect, have localization and pricing, have the required App Review screenshot/review information, are attached to the 1.0 submission as required, and can be seen in a sandbox/TestFlight build.
 
 ## App Review notes
 
@@ -103,7 +105,7 @@ Copy/edit this for Review Notes:
 
 Use screenshots from the real native simulator build. Do not fabricate product UI.
 
-The GitHub workflow `.github/workflows/ios-build-now.yml` now captures:
+The GitHub workflow `.github/workflows/ios-build-now.yml` captures:
 
 1. **iPhone — Dashboard**
 2. **iPhone — Transactions**
@@ -111,7 +113,7 @@ The GitHub workflow `.github/workflows/ios-build-now.yml` now captures:
 4. **iPhone — AI Financial Manager**
 5. **iPad 13-inch — Dashboard**
 
-The screenshot-only launch argument loads bundled sample records solely in the simulator used by the workflow. Normal customer installs still begin at $0.
+The screenshot-only launch argument loads bundled sample records solely in the simulator used by the workflow. Normal customer installs still begin at $0. The workflow converts simulator captures to high-quality JPEG so the App Store assets contain no alpha channel, and it validates accepted 6.9-inch iPhone and 13-inch iPad dimensions before uploading the artifact.
 
 Because the target supports both iPhone and iPad (`TARGETED_DEVICE_FAMILY = 1,2`), keep a valid 13-inch iPad screenshot in App Store Connect as well as the required iPhone screenshots.
 
@@ -144,8 +146,8 @@ Do not press Submit for Review until all of these are true:
 
 - native iOS workflow is green on the exact commit being submitted
 - unit tests are green
-- App Store screenshot artifact exists and has valid iPhone and 13-inch iPad images
-- signed App Store build validates and appears in App Store Connect
+- App Store screenshot artifact exists and has valid iPhone and 13-inch iPad JPEG images with no alpha channel
+- signed App Store build validates and appears in App Store Connect under version 1.0
 - both Galactic Pro products load in sandbox/TestFlight
 - Privacy Policy and Support URLs are publicly reachable
 - App Privacy answers still match the final binary
