@@ -192,7 +192,8 @@ struct AddTransactionView: View {
     }
 
     private var canSave: Bool {
-        !merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (amount ?? 0) > 0
+        guard let amount else { return false }
+        return !merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && amount > 0 && amount.isFinite
     }
 
     var body: some View {
@@ -241,7 +242,7 @@ struct AddTransactionView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard let amount else { return }
+                        guard let amount, amount > 0, amount.isFinite else { return }
                         store.addTransaction(BusinessTransaction(
                             date: date,
                             merchant: merchant.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -263,13 +264,17 @@ struct AddTransactionView: View {
 
 enum CSVImportError: LocalizedError {
     case missingHeader
+    case missingDate
     case missingAmount
+    case malformedCSV
     case noValidRows
 
     var errorDescription: String? {
         switch self {
         case .missingHeader: "The CSV does not contain a header row."
+        case .missingDate: "The CSV needs a date column so imported activity is not assigned to the wrong month."
         case .missingAmount: "The CSV needs an amount column, or separate debit/credit columns."
+        case .malformedCSV: "The CSV contains an unclosed quoted field."
         case .noValidRows: "No valid transaction rows were found."
         }
     }
@@ -277,7 +282,7 @@ enum CSVImportError: LocalizedError {
 
 struct CSVImportService {
     static func parse(_ text: String) throws -> [BusinessTransaction] {
-        let rows = csvRows(text)
+        let rows = try csvRows(text)
         guard let first = rows.first, !first.isEmpty else { throw CSVImportError.missingHeader }
         let headers = first.map(normalize)
 
@@ -298,6 +303,7 @@ struct CSVImportService {
         let typeIndex = index(["type", "transaction type"])
         let categoryIndex = index(["category"])
 
+        guard dateIndex != nil else { throw CSVImportError.missingDate }
         guard amountIndex != nil || debitIndex != nil || creditIndex != nil else {
             throw CSVImportError.missingAmount
         }
@@ -337,17 +343,10 @@ struct CSVImportService {
                 continue
             }
 
-            guard rawAmount > 0 else { continue }
+            guard rawAmount > 0, rawAmount.isFinite else { continue }
 
             let dateText = value(dateIndex)
-            let date: Date
-            if dateText.isEmpty {
-                date = Date()
-            } else if let parsed = parseDate(dateText) {
-                date = parsed
-            } else {
-                continue
-            }
+            guard !dateText.isEmpty, let date = parseDate(dateText) else { continue }
 
             let categoryText = value(categoryIndex)
             let category = categoryFrom(categoryText.isEmpty ? description : categoryText, kind: kind)
@@ -395,7 +394,7 @@ struct CSVImportService {
             .replacingOccurrences(of: "(", with: "")
             .replacingOccurrences(of: ")", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let number = Double(cleaned) else { return nil }
+        guard let number = Double(cleaned), number.isFinite else { return nil }
         return negativeByParentheses ? -abs(number) : number
     }
 
@@ -433,7 +432,7 @@ struct CSVImportService {
         return .other
     }
 
-    private static func csvRows(_ text: String) -> [[String]] {
+    private static func csvRows(_ text: String) throws -> [[String]] {
         var rows: [[String]] = []
         var row: [String] = []
         var field = ""
@@ -463,6 +462,8 @@ struct CSVImportService {
             }
             i += 1
         }
+
+        guard !inQuotes else { throw CSVImportError.malformedCSV }
 
         if !field.isEmpty || !row.isEmpty {
             row.append(field)
