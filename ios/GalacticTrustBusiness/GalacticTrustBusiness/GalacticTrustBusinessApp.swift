@@ -17,6 +17,7 @@ struct GalacticTrustBusinessApp: App {
 
 struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject private var subscription: SubscriptionManager
     @State private var selection: AppTab = .dashboard
 
     var body: some View {
@@ -88,7 +89,17 @@ struct RootView: View {
         case .cashFlow:
             NavigationStack { CashFlowView() }
         case .reports:
-            NavigationStack { BusinessModuleView(kind: .reports) }
+            if subscription.isPro {
+                NavigationStack { BusinessModuleView(kind: .reports) }
+            } else {
+                NavigationStack {
+                    ProFeatureGateScreen(
+                        title: "Unlock advanced reports",
+                        detail: "Galactic Pro adds six-month operating reports and deeper financial trend analysis.",
+                        icon: "chart.bar.doc.horizontal.fill"
+                    )
+                }
+            }
         case .budgets:
             NavigationStack { BusinessModuleView(kind: .budgets) }
         case .forecasting:
@@ -96,7 +107,17 @@ struct RootView: View {
         case .ai:
             NavigationStack { AIManagerView() }
         case .alerts:
-            NavigationStack { BusinessModuleView(kind: .alerts) }
+            if subscription.isPro {
+                NavigationStack { BusinessModuleView(kind: .alerts) }
+            } else {
+                NavigationStack {
+                    ProFeatureGateScreen(
+                        title: "Unlock advanced alerts",
+                        detail: "Galactic Pro unlocks the full explainable alerts center for spending, revenue, recurring costs, and overdue invoices.",
+                        icon: "bell.badge.fill"
+                    )
+                }
+            }
         case .settings, .more:
             NavigationStack { MoreView() }
         case .integrations:
