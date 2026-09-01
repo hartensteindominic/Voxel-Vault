@@ -18,11 +18,10 @@ final class FinancialStore: ObservableObject {
             invoices = state.invoices
             openingBalance = state.openingBalance
         } else {
-            let demo = Self.demoState()
-            profile = demo.profile
-            transactions = demo.transactions
-            invoices = demo.invoices
-            openingBalance = demo.openingBalance
+            profile = BusinessProfile(name: "My Business", currencyCode: "USD", fiscalYearStartMonth: 1)
+            transactions = []
+            invoices = []
+            openingBalance = 0
             save()
         }
     }
