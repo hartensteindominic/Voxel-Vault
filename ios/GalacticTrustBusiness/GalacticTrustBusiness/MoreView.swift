@@ -146,6 +146,7 @@ struct BusinessProfileView: View {
 
 struct InvoicesView: View {
     @EnvironmentObject private var store: FinancialStore
+    @State private var showingAddInvoice = false
 
     var body: some View {
         List {
@@ -153,8 +154,8 @@ struct InvoicesView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Outstanding")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(GalacticTheme.mutedText)
                         Text(store.currency(store.outstandingInvoices))
                             .font(.title2.bold())
                             .foregroundStyle(GalacticTheme.navy)
@@ -162,8 +163,8 @@ struct InvoicesView: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Overdue")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(GalacticTheme.mutedText)
                         Text(store.currency(store.overdueInvoices.reduce(0) { $0 + $1.amount }))
                             .font(.title3.bold())
                             .foregroundStyle(GalacticTheme.pink)
@@ -174,39 +175,87 @@ struct InvoicesView: View {
 
             Section("Receivables") {
                 if store.invoices.isEmpty {
-                    ContentUnavailableView("No invoices", systemImage: "doc.text")
+                    ContentUnavailableView(
+                        "No invoices yet",
+                        systemImage: "doc.text",
+                        description: Text("Add an invoice to monitor what customers owe and when payment is due.")
+                    )
                 } else {
                     ForEach(store.invoices) { invoice in
-                        HStack {
+                        HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(invoice.client)
                                     .font(.subheadline.bold())
+                                    .foregroundStyle(GalacticTheme.navy)
                                 Text("\(invoice.invoiceNumber) • due \(invoice.dueDate.formatted(date: .abbreviated, time: .omitted))")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(GalacticTheme.mutedText)
                             }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 4) {
+
+                            Spacer(minLength: 8)
+
+                            VStack(alignment: .trailing, spacing: 5) {
                                 Text(store.currency(invoice.amount))
                                     .font(.subheadline.bold())
-                                Text(invoice.status.rawValue)
+                                    .foregroundStyle(GalacticTheme.navy)
+
+                                Menu {
+                                    ForEach(BusinessInvoice.Status.allCases, id: \.self) { status in
+                                        Button {
+                                            store.updateInvoiceStatus(id: invoice.id, status: status)
+                                        } label: {
+                                            if status == invoice.status {
+                                                Label(status.rawValue, systemImage: "checkmark")
+                                            } else {
+                                                Text(status.rawValue)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(invoice.status.rawValue)
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 8, weight: .bold))
+                                    }
                                     .font(.caption2.bold())
                                     .foregroundStyle(statusColor(invoice.status))
+                                }
                             }
                         }
-                        .padding(.vertical, 3)
+                        .padding(.vertical, 4)
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                store.deleteInvoice(id: invoice.id)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
 
             Section {
-                Label("Invoice monitoring is read-only in this first App Store build. It does not send invoices, debit customers, or initiate payments.", systemImage: "info.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Label("Invoice monitoring is read-only. Adding or updating an invoice here does not send it, debit a customer, or initiate payment.", systemImage: "info.circle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(GalacticTheme.mutedText)
             }
         }
         .navigationTitle("Invoices")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingAddInvoice = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Add invoice")
+            }
+        }
+        .sheet(isPresented: $showingAddInvoice) {
+            AddInvoiceView()
+                .environmentObject(store)
+        }
     }
 
     private func statusColor(_ status: BusinessInvoice.Status) -> Color {
@@ -215,6 +264,79 @@ struct InvoicesView: View {
         case .sent: GalacticTheme.indigo
         case .overdue: GalacticTheme.pink
         case .draft: .secondary
+        }
+    }
+}
+
+struct AddInvoiceView: View {
+    @EnvironmentObject private var store: FinancialStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var client = ""
+    @State private var invoiceNumber = ""
+    @State private var amountText = ""
+    @State private var dueDate = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+    @State private var status: BusinessInvoice.Status = .sent
+
+    private var amount: Double? {
+        Double(
+            amountText
+                .replacingOccurrences(of: ",", with: "")
+                .replacingOccurrences(of: "$", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private var canSave: Bool {
+        !client.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !invoiceNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (amount ?? 0) > 0
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Invoice") {
+                    TextField("Customer or client", text: $client)
+                    TextField("Invoice number", text: $invoiceNumber)
+                        .textInputAutocapitalization(.characters)
+                    TextField("Amount", text: $amountText)
+                        .keyboardType(.decimalPad)
+                    DatePicker("Due date", selection: $dueDate, displayedComponents: .date)
+                    Picker("Status", selection: $status) {
+                        ForEach(BusinessInvoice.Status.allCases, id: \.self) { status in
+                            Text(status.rawValue).tag(status)
+                        }
+                    }
+                }
+
+                Section {
+                    Label("This creates a local tracking record only. Galactic Trust Business does not send the invoice or collect payment.", systemImage: "lock.shield.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Add Invoice")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard let amount else { return }
+                        store.addInvoice(BusinessInvoice(
+                            client: client.trimmingCharacters(in: .whitespacesAndNewlines),
+                            invoiceNumber: invoiceNumber.trimmingCharacters(in: .whitespacesAndNewlines),
+                            amount: amount,
+                            dueDate: dueDate,
+                            status: status
+                        ))
+                        dismiss()
+                    }
+                    .disabled(!canSave)
+                }
+            }
         }
     }
 }
@@ -285,6 +407,15 @@ struct SecurityPrivacyView: View {
                 privacyRow("Protected local file", detail: "Financial records are stored in the app container with iOS complete file protection.", icon: "lock.fill")
                 privacyRow("Read-only intelligence", detail: "The AI manager analyzes and explains records. It cannot send money or approve payments.", icon: "sparkles")
                 privacyRow("No ad tracking", detail: "This native build includes no advertising SDK or cross-app tracking.", icon: "hand.raised.fill")
+            }
+
+            Section("Policies & support") {
+                Link(destination: URL(string: "https://voxelvault.io/business/privacy")!) {
+                    Label("Privacy Policy", systemImage: "doc.text.fill")
+                }
+                Link(destination: URL(string: "https://voxelvault.io/business/support")!) {
+                    Label("Support", systemImage: "questionmark.circle.fill")
+                }
             }
 
             Section("Your data") {
