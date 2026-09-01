@@ -155,7 +155,7 @@ struct TransactionsView: View {
             let duplicateCount = transactions.count - insertedCount
 
             if duplicateCount > 0 {
-                importMessage = "Imported \(insertedCount) new transaction\(insertedCount == 1 ? "" : "s") and skipped \(duplicateCount) exact duplicate\(duplicateCount == 1 ? "" : "s")."
+                importMessage = "Imported \(insertedCount) new transaction\(insertedCount == 1 ? "" : "s") and skipped \(duplicateCount) previously imported record\(duplicateCount == 1 ? "" : "s")."
             } else {
                 importMessage = "Imported \(insertedCount) transaction\(insertedCount == 1 ? "" : "s")."
             }
@@ -303,9 +303,8 @@ struct CSVImportService {
         }
 
         var output: [BusinessTransaction] = []
-        var seenRows: Set<String> = []
 
-        for fields in rows.dropFirst() where !fields.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+        for (rowOffset, fields) in rows.dropFirst().enumerated() where !fields.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             func value(_ idx: Int?) -> String {
                 guard let idx, fields.indices.contains(idx) else { return "" }
                 return fields[idx].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -352,8 +351,7 @@ struct CSVImportService {
 
             let categoryText = value(categoryIndex)
             let category = categoryFrom(categoryText.isEmpty ? description : categoryText, kind: kind)
-            let rowKey = "\(date.timeIntervalSince1970)|\(description.lowercased())|\(rawAmount)|\(kind.rawValue)"
-            guard seenRows.insert(rowKey).inserted else { continue }
+            let sourceRecordID = makeSourceRecordID(rowNumber: rowOffset + 2, fields: fields)
 
             output.append(BusinessTransaction(
                 date: date,
@@ -363,7 +361,8 @@ struct CSVImportService {
                 kind: kind,
                 category: category,
                 isRecurring: false,
-                source: "CSV"
+                source: "CSV",
+                sourceRecordID: sourceRecordID
             ))
         }
 
@@ -378,6 +377,13 @@ struct CSVImportService {
             .lowercased()
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "  ", with: " ")
+    }
+
+    private static func makeSourceRecordID(rowNumber: Int, fields: [String]) -> String {
+        let canonical = fields
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .joined(separator: "\u{1F}")
+        return "csv:\(rowNumber):\(canonical)"
     }
 
     private static func parseMoney(_ value: String) -> Double? {
