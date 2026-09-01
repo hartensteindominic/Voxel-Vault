@@ -166,10 +166,10 @@ struct CashFlowView: View {
         GalacticCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label("Simple 30-day forecast", systemImage: "sparkles")
+                    Label("30-day planning estimate", systemImage: "sparkles")
                         .font(.headline)
                     Spacer()
-                    Text("AI assist")
+                    Text("Read-only")
                         .font(.caption2.bold())
                         .foregroundStyle(GalacticTheme.indigo)
                 }
@@ -177,7 +177,7 @@ struct CashFlowView: View {
                 Text(store.currency(projectedThirtyDayBalance))
                     .font(.title.bold())
                     .foregroundStyle(GalacticTheme.navy)
-                Text("Projected recorded cash if this month’s net cash flow repeats once more.")
+                Text("Estimated recorded cash if this month’s net cash flow repeats once more.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
