@@ -21,7 +21,7 @@ struct GalacticSidebar: View {
                     SidebarButton(title: "Dashboard", icon: "house.fill", tab: .dashboard, selection: $selection)
 
                     SidebarGroup(title: "MANAGE") {
-                        SidebarButton(title: "Accounts", icon: "creditcard.fill", tab: .accounts, selection: $selection)
+                        SidebarButton(title: "Cash Overview", icon: "wallet.pass.fill", tab: .accounts, selection: $selection)
                         SidebarButton(title: "Transactions", icon: "list.bullet.rectangle.fill", tab: .transactions, selection: $selection)
                         SidebarButton(title: "Invoices", icon: "doc.text.fill", tab: .invoices, selection: $selection)
                         SidebarButton(title: "Expenses", icon: "receipt.fill", tab: .expenses, selection: $selection)
