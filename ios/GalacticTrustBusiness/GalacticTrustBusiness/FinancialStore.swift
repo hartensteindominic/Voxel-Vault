@@ -45,7 +45,9 @@ final class FinancialStore: ObservableObject {
     var currentMonthNet: Double { currentMonthIncome - currentMonthExpenses }
 
     var outstandingInvoices: Double {
-        invoices.filter { $0.status != .paid }.reduce(0) { $0 + $1.amount }
+        invoices
+            .filter { $0.status == .sent || $0.status == .overdue }
+            .reduce(0) { $0 + $1.amount }
     }
 
     var overdueInvoices: [BusinessInvoice] {
