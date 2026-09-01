@@ -3,6 +3,8 @@ import Charts
 
 struct CashFlowView: View {
     @EnvironmentObject private var store: FinancialStore
+    @EnvironmentObject private var subscription: SubscriptionManager
+    @State private var showingPro = false
 
     private var projectedThirtyDayBalance: Double {
         store.balance + store.currentMonthNet
@@ -19,7 +21,17 @@ struct CashFlowView: View {
                 cashFlowHero
                 trendCard
                 categoryCard
-                forecastCard
+                if subscription.isPro {
+                    forecastCard
+                } else {
+                    ProLockedCard(
+                        title: "Unlock 30-day forecasting",
+                        detail: "Galactic Pro adds cash-flow projection and runway analysis using your recorded business activity.",
+                        buttonTitle: "Unlock Galactic Pro"
+                    ) {
+                        showingPro = true
+                    }
+                }
                 assumptionsCard
             }
             .padding(16)
@@ -28,13 +40,17 @@ struct CashFlowView: View {
         .background(GalacticTheme.page.ignoresSafeArea())
         .navigationTitle("Cash Flow")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingPro) {
+            GalacticProPaywallView()
+                .environmentObject(subscription)
+        }
     }
 
     private var cashFlowHero: some View {
         GalacticCard {
             VStack(alignment: .leading, spacing: 14) {
                 Label("This month", systemImage: "chart.xyaxis.line")
-                    .font(.headline)
+                    .font(.headline.bold())
                     .foregroundStyle(GalacticTheme.navy)
 
                 HStack(alignment: .firstTextBaseline) {
@@ -61,7 +77,7 @@ struct CashFlowView: View {
 
     private func flowPill(_ title: String, value: Double, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(.caption.weight(.medium)).foregroundStyle(GalacticTheme.mutedText)
             Text(store.currency(value)).font(.subheadline.bold()).foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -75,12 +91,12 @@ struct CashFlowView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text("Income vs expenses")
-                        .font(.headline)
+                        .font(.headline.bold())
                         .foregroundStyle(GalacticTheme.navy)
                     Spacer()
                     Text("6 months")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(GalacticTheme.mutedText)
                 }
 
                 Chart(store.monthlyPoints) { point in
@@ -104,12 +120,12 @@ struct CashFlowView: View {
                         AxisValueLabel {
                             if let number = value.as(Double.self) {
                                 Text(number.formatted(.currency(code: store.profile.currencyCode).precision(.fractionLength(0))))
-                                    .font(.caption2)
+                                    .font(.caption2.weight(.medium))
                             }
                         }
                     }
                 }
-                .chartXAxis { AxisMarks { AxisValueLabel().font(.caption2) } }
+                .chartXAxis { AxisMarks { AxisValueLabel().font(.caption2.weight(.medium)) } }
                 .frame(height: 230)
 
                 HStack(spacing: 18) {
@@ -123,7 +139,7 @@ struct CashFlowView: View {
     private func legendDot(_ title: String, color: Color) -> some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 8, height: 8)
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(.caption.weight(.medium)).foregroundStyle(GalacticTheme.mutedText)
         }
     }
 
@@ -134,7 +150,7 @@ struct CashFlowView: View {
                 if store.expenseByCategory.isEmpty {
                     Text("No expenses recorded for this month.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(GalacticTheme.mutedText)
                 } else {
                     ForEach(store.expenseByCategory) { item in
                         VStack(spacing: 6) {
@@ -167,29 +183,33 @@ struct CashFlowView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Label("Simple 30-day forecast", systemImage: "sparkles")
-                        .font(.headline)
+                        .font(.headline.bold())
                     Spacer()
-                    Text("AI assist")
+                    Text("PRO")
                         .font(.caption2.bold())
-                        .foregroundStyle(GalacticTheme.indigo)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(GalacticTheme.heroGradient)
+                        .clipShape(Capsule())
                 }
 
                 Text(store.currency(projectedThirtyDayBalance))
                     .font(.title.bold())
                     .foregroundStyle(GalacticTheme.navy)
                 Text("Projected recorded cash if this month’s net cash flow repeats once more.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(GalacticTheme.mutedText)
 
                 Divider()
 
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Expense coverage")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(GalacticTheme.mutedText)
                         Text("\(burnMultiple.formatted(.number.precision(.fractionLength(1)))) months")
-                            .font(.headline)
+                            .font(.headline.bold())
                     }
                     Spacer()
                     Image(systemName: burnMultiple >= 3 ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
@@ -205,8 +225,8 @@ struct CashFlowView: View {
             Image(systemName: "info.circle.fill")
                 .foregroundStyle(GalacticTheme.indigo)
             Text("Forecasts use only the transactions recorded in this app. They are planning estimates, not accounting, tax, lending, or investment advice.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(GalacticTheme.mutedText)
         }
         .padding(.horizontal, 6)
     }
