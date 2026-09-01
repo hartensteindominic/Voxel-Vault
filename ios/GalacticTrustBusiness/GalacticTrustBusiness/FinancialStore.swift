@@ -229,7 +229,7 @@ final class FinancialStore: ObservableObject {
     }
 
     private func percentChange(current: Double, previous: Double) -> Double {
-        guard previous > 0 else { return current > 0 ? 100 : 0 }
+        guard previous > 0 else { return 0 }
         return ((current - previous) / previous) * 100
     }
 
