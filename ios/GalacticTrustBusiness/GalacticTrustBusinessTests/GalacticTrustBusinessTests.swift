@@ -65,6 +65,36 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(rows[0].merchant, "Valid Client")
     }
 
+    func testCSVImportRequiresDateColumn() {
+        let csv = "Description,Amount\nClient Payment,1000\n"
+
+        XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
+            guard case CSVImportError.missingDate = error else {
+                return XCTFail("Expected missingDate, got \(error)")
+            }
+        }
+    }
+
+    func testCSVImportRejectsUnclosedQuotedField() {
+        let csv = "Date,Description,Amount\n2026-08-31,\"Broken field,1000\n"
+
+        XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
+            guard case CSVImportError.malformedCSV = error else {
+                return XCTFail("Expected malformedCSV, got \(error)")
+            }
+        }
+    }
+
+    func testCSVImportRejectsNonFiniteAmounts() {
+        let csv = "Date,Description,Amount\n2026-08-31,Invalid Amount,NaN\n"
+
+        XCTAssertThrowsError(try CSVImportService.parse(csv)) { error in
+            guard case CSVImportError.noValidRows = error else {
+                return XCTFail("Expected noValidRows, got \(error)")
+            }
+        }
+    }
+
     func testCSVImportPreservesLegitimateIdenticalRows() throws {
         let csv = """
         Date,Description,Amount
@@ -123,6 +153,41 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(store.outstandingInvoices, 0, accuracy: 0.001)
         XCTAssertTrue(store.overdueInvoices.isEmpty)
 
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testInvalidInvoiceAmountIsRejected() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        store.addInvoice(BusinessInvoice(
+            client: "Invalid Client",
+            invoiceNumber: "BAD-1",
+            amount: .infinity,
+            dueDate: Date(),
+            status: .sent
+        ))
+
+        XCTAssertTrue(store.invoices.isEmpty)
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testFutureDatedTransactionIsRejected() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let future = Calendar.current.date(byAdding: .day, value: 2, to: Date()) ?? Date().addingTimeInterval(172_800)
+        store.addTransaction(BusinessTransaction(
+            date: future,
+            merchant: "Future Vendor",
+            memo: "Should not affect actual cash activity",
+            amount: 100,
+            kind: .expense,
+            category: .other
+        ))
+
+        XCTAssertTrue(store.transactions.isEmpty)
+        XCTAssertEqual(store.balance, 0, accuracy: 0.001)
         store.clearFinancialData()
     }
 
