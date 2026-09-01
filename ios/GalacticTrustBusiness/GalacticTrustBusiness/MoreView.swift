@@ -1,59 +1,15 @@
 import SwiftUI
-import Foundation
 
 struct MoreView: View {
     @EnvironmentObject private var store: FinancialStore
-    @EnvironmentObject private var subscription: SubscriptionManager
-    @State private var showingPro = false
 
     var body: some View {
         List {
-            Section {
-                Button {
-                    showingPro = true
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: subscription.isPro ? "checkmark.seal.fill" : "sparkles")
-                            .foregroundStyle(.white)
-                            .frame(width: 34, height: 34)
-                            .background(GalacticTheme.heroGradient)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(subscription.isPro ? "Galactic Pro active" : "Upgrade to Galactic Pro")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(GalacticTheme.navy)
-                            Text(subscription.isPro ? "Your premium finance tools are unlocked" : "Unlimited AI, forecasts, reports, and alerts")
-                                .font(.caption)
-                                .foregroundStyle(GalacticTheme.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.bold())
-                            .foregroundStyle(GalacticTheme.mutedText)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                if subscription.isPro {
-                    Link(destination: URL(string: "https://apps.apple.com/account/subscriptions")!) {
-                        Label("Manage Apple subscription", systemImage: "creditcard.fill")
-                    }
-                }
-            } header: {
-                Text("Subscription")
-            }
-
             Section {
                 NavigationLink {
                     BusinessProfileView()
                 } label: {
                     moreRow("Business profile", icon: "building.2.fill", tint: GalacticTheme.indigo)
-                }
-
-                NavigationLink {
-                    StartingCashView()
-                } label: {
-                    moreRow("Starting cash", icon: "banknote.fill", tint: GalacticTheme.green)
                 }
 
                 NavigationLink {
@@ -94,10 +50,6 @@ struct MoreView: View {
         .scrollContentBackground(.hidden)
         .background(GalacticTheme.page)
         .navigationTitle("More")
-        .sheet(isPresented: $showingPro) {
-            GalacticProPaywallView()
-                .environmentObject(subscription)
-        }
     }
 
     private func moreRow(_ title: String, icon: String, tint: Color) -> some View {
@@ -153,7 +105,6 @@ struct BusinessProfileView: View {
 
 struct InvoicesView: View {
     @EnvironmentObject private var store: FinancialStore
-    @State private var showingAddInvoice = false
 
     var body: some View {
         List {
@@ -161,8 +112,8 @@ struct InvoicesView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Outstanding")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(GalacticTheme.mutedText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         Text(store.currency(store.outstandingInvoices))
                             .font(.title2.bold())
                             .foregroundStyle(GalacticTheme.navy)
@@ -170,8 +121,8 @@ struct InvoicesView: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Overdue")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(GalacticTheme.mutedText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         Text(store.currency(store.overdueInvoices.reduce(0) { $0 + $1.amount }))
                             .font(.title3.bold())
                             .foregroundStyle(GalacticTheme.pink)
@@ -182,87 +133,39 @@ struct InvoicesView: View {
 
             Section("Receivables") {
                 if store.invoices.isEmpty {
-                    ContentUnavailableView(
-                        "No invoices yet",
-                        systemImage: "doc.text",
-                        description: Text("Add an invoice to monitor what customers owe and when payment is due.")
-                    )
+                    ContentUnavailableView("No invoices", systemImage: "doc.text")
                 } else {
                     ForEach(store.invoices) { invoice in
-                        HStack(spacing: 12) {
+                        HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(invoice.client)
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(GalacticTheme.navy)
                                 Text("\(invoice.invoiceNumber) • due \(invoice.dueDate.formatted(date: .abbreviated, time: .omitted))")
                                     .font(.caption)
-                                    .foregroundStyle(GalacticTheme.mutedText)
+                                    .foregroundStyle(.secondary)
                             }
-
-                            Spacer(minLength: 8)
-
-                            VStack(alignment: .trailing, spacing: 5) {
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 4) {
                                 Text(store.currency(invoice.amount))
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(GalacticTheme.navy)
-
-                                Menu {
-                                    ForEach(BusinessInvoice.Status.allCases, id: \.self) { status in
-                                        Button {
-                                            store.updateInvoiceStatus(id: invoice.id, status: status)
-                                        } label: {
-                                            if status == invoice.status {
-                                                Label(status.rawValue, systemImage: "checkmark")
-                                            } else {
-                                                Text(status.rawValue)
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Text(invoice.status.rawValue)
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 8, weight: .bold))
-                                    }
+                                Text(invoice.status.rawValue)
                                     .font(.caption2.bold())
                                     .foregroundStyle(statusColor(invoice.status))
-                                }
                             }
                         }
-                        .padding(.vertical, 4)
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                store.deleteInvoice(id: invoice.id)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
+                        .padding(.vertical, 3)
                     }
                 }
             }
 
             Section {
-                Label("Invoice monitoring is read-only. Adding or updating an invoice here does not send it, debit a customer, or initiate payment.", systemImage: "info.circle.fill")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(GalacticTheme.mutedText)
+                Label("Invoice monitoring is read-only in this first App Store build. It does not send invoices, debit customers, or initiate payments.", systemImage: "info.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Invoices")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingAddInvoice = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add invoice")
-            }
-        }
-        .sheet(isPresented: $showingAddInvoice) {
-            AddInvoiceView()
-                .environmentObject(store)
-        }
     }
 
     private func statusColor(_ status: BusinessInvoice.Status) -> Color {
@@ -271,79 +174,6 @@ struct InvoicesView: View {
         case .sent: GalacticTheme.indigo
         case .overdue: GalacticTheme.pink
         case .draft: .secondary
-        }
-    }
-}
-
-struct AddInvoiceView: View {
-    @EnvironmentObject private var store: FinancialStore
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var client = ""
-    @State private var invoiceNumber = ""
-    @State private var amountText = ""
-    @State private var dueDate = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
-    @State private var status: BusinessInvoice.Status = .sent
-
-    private var amount: Double? {
-        Double(
-            amountText
-                .replacingOccurrences(of: ",", with: "")
-                .replacingOccurrences(of: "$", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-    }
-
-    private var canSave: Bool {
-        !client.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !invoiceNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        (amount ?? 0) > 0
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Invoice") {
-                    TextField("Customer or client", text: $client)
-                    TextField("Invoice number", text: $invoiceNumber)
-                        .textInputAutocapitalization(.characters)
-                    TextField("Amount", text: $amountText)
-                        .keyboardType(.decimalPad)
-                    DatePicker("Due date", selection: $dueDate, displayedComponents: .date)
-                    Picker("Status", selection: $status) {
-                        ForEach(BusinessInvoice.Status.allCases, id: \.self) { status in
-                            Text(status.rawValue).tag(status)
-                        }
-                    }
-                }
-
-                Section {
-                    Label("This creates a local tracking record only. Galactic Trust Business does not send the invoice or collect payment.", systemImage: "lock.shield.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Add Invoice")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard let amount else { return }
-                        store.addInvoice(BusinessInvoice(
-                            client: client.trimmingCharacters(in: .whitespacesAndNewlines),
-                            invoiceNumber: invoiceNumber.trimmingCharacters(in: .whitespacesAndNewlines),
-                            amount: amount,
-                            dueDate: dueDate,
-                            status: status
-                        ))
-                        dismiss()
-                    }
-                    .disabled(!canSave)
-                }
-            }
         }
     }
 }
@@ -416,15 +246,6 @@ struct SecurityPrivacyView: View {
                 privacyRow("No ad tracking", detail: "This native build includes no advertising SDK or cross-app tracking.", icon: "hand.raised.fill")
             }
 
-            Section("Policies & support") {
-                Link(destination: URL(string: "https://voxelvault.io/business/privacy")!) {
-                    Label("Privacy Policy", systemImage: "doc.text.fill")
-                }
-                Link(destination: URL(string: "https://voxelvault.io/business/support")!) {
-                    Label("Support", systemImage: "questionmark.circle.fill")
-                }
-            }
-
             Section("Your data") {
                 Button("Clear local financial data", role: .destructive) {
                     confirmingClear = true
@@ -470,10 +291,6 @@ struct AboutView: View {
     @EnvironmentObject private var store: FinancialStore
     @State private var confirmingReset = false
 
-    private var appVersion: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.0"
-    }
-
     var body: some View {
         List {
             Section {
@@ -495,7 +312,7 @@ struct AboutView: View {
             }
 
             Section("Version") {
-                LabeledContent("App", value: appVersion)
+                LabeledContent("App", value: "1.0.0")
                 LabeledContent("Data mode", value: "Local")
             }
 
