@@ -2,6 +2,40 @@ import Foundation
 
 @MainActor
 extension FinancialStore {
+    func refreshBundledDemoForCurrentMonthIfNeeded() {
+        guard currentMonthTransactions.isEmpty else { return }
+
+        let bundledMarkers = ["Stellar Labs", "Acme Corp", "Northstar Client"]
+        let markerMatches = bundledMarkers.filter { marker in
+            transactions.contains { $0.merchant == marker }
+        }.count
+        let hasBundledInvoice = invoices.contains { $0.invoiceNumber == "INV-1004" }
+
+        guard profile.name == "Nova Enterprises", markerMatches == bundledMarkers.count, hasBundledInvoice else {
+            return
+        }
+
+        let now = Date()
+        let sample: [BusinessTransaction] = [
+            .init(date: now, merchant: "Stellar Labs", memo: "Current-month client payment", amount: 22_500, kind: .income, category: .services, source: "Bundled Sample"),
+            .init(date: now, merchant: "Acme Corp", memo: "Current-month invoice payment", amount: 28_950, kind: .income, category: .sales, source: "Bundled Sample"),
+            .init(date: now, merchant: "Northstar Client", memo: "Current-month project milestone", amount: 34_900, kind: .income, category: .services, source: "Bundled Sample"),
+            .init(date: now, merchant: "Orbit Retail", memo: "Current-month product revenue", amount: 26_200, kind: .income, category: .sales, source: "Bundled Sample"),
+            .init(date: now, merchant: "Payroll", memo: "Current-month employee salaries", amount: 14_800, kind: .expense, category: .payroll, isRecurring: true, source: "Bundled Sample"),
+            .init(date: now, merchant: "Amazon Business", memo: "Office supplies", amount: 1_312.45, kind: .expense, category: .office, source: "Bundled Sample"),
+            .init(date: now, merchant: "Notion", memo: "Team subscription", amount: 1_240, kind: .expense, category: .software, isRecurring: true, source: "Bundled Sample"),
+            .init(date: now, merchant: "Google Ads", memo: "Growth campaign", amount: 4_250.75, kind: .expense, category: .marketing, source: "Bundled Sample"),
+            .init(date: now, merchant: "AWS", memo: "Cloud infrastructure", amount: 3_140, kind: .expense, category: .software, isRecurring: true, source: "Bundled Sample"),
+            .init(date: now, merchant: "Office Lease", memo: "Monthly rent", amount: 6_400, kind: .expense, category: .rentUtilities, isRecurring: true, source: "Bundled Sample"),
+            .init(date: now, merchant: "Figma", memo: "Design subscription", amount: 1_180, kind: .expense, category: .software, isRecurring: true, source: "Bundled Sample"),
+            .init(date: now, merchant: "City Electric", memo: "Utilities", amount: 1_620, kind: .expense, category: .rentUtilities, isRecurring: true, source: "Bundled Sample"),
+            .init(date: now, merchant: "Meta Ads", memo: "Paid social", amount: 4_870, kind: .expense, category: .marketing, source: "Bundled Sample"),
+            .init(date: now, merchant: "Payroll", memo: "Contractor payouts", amount: 6_200, kind: .expense, category: .payroll, source: "Bundled Sample")
+        ]
+
+        addTransactions(sample)
+    }
+
     var expenseCoverageMonths: Double {
         guard currentMonthExpenses > 0 else { return balance > 0 ? 6 : 0 }
         return max(balance, 0) / currentMonthExpenses
