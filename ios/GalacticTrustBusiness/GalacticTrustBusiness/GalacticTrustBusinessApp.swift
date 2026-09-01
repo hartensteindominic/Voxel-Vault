@@ -25,7 +25,11 @@ struct GalacticTrustBusinessApp: App {
 struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var subscription: SubscriptionManager
-    @State private var selection: AppTab = .dashboard
+    @State private var selection: AppTab
+
+    init() {
+        _selection = State(initialValue: Self.requestedLaunchTab())
+    }
 
     var body: some View {
         Group {
@@ -131,6 +135,24 @@ struct RootView: View {
             NavigationStack { ImportGuideView() }
         case .help:
             NavigationStack { BusinessModuleView(kind: .help) }
+        }
+    }
+
+    private static func requestedLaunchTab() -> AppTab {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let marker = arguments.firstIndex(of: "-ScreenshotTab"), arguments.indices.contains(marker + 1) else {
+            return .dashboard
+        }
+
+        switch arguments[marker + 1].lowercased() {
+        case "transactions": return .transactions
+        case "cashflow", "cash-flow": return .cashFlow
+        case "ai": return .ai
+        case "more": return .more
+        case "invoices": return .invoices
+        case "reports": return .reports
+        case "alerts": return .alerts
+        default: return .dashboard
         }
     }
 }
