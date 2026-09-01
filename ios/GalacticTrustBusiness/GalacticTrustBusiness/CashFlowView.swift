@@ -33,6 +33,7 @@ struct CashFlowView: View {
                 categoryCard
                 if subscription.isPro {
                     forecastCard
+                    advancedReportsLink
                 } else {
                     ProLockedCard(
                         title: "Unlock 30-day forecasting",
@@ -242,6 +243,36 @@ struct CashFlowView: View {
                 }
             }
         }
+    }
+
+    private var advancedReportsLink: some View {
+        NavigationLink {
+            BusinessModuleView(kind: .reports)
+        } label: {
+            GalacticCard {
+                HStack(spacing: 13) {
+                    Image(systemName: "chart.bar.doc.horizontal.fill")
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(GalacticTheme.heroGradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Advanced Reports")
+                            .font(.headline.bold())
+                            .foregroundStyle(GalacticTheme.navy)
+                        Text("Open your six-month Pro operating report")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(GalacticTheme.mutedText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(GalacticTheme.mutedText)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var assumptionsCard: some View {
