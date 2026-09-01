@@ -23,6 +23,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::App Store releases are allowed only from main. Merge and validate the release candidate before uploading."
+            exit 1
+          fi
+
+      - name: Determine deterministic build number
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ || "$BUILD_NUMBER" -lt 1 || "$BUILD_NUMBER" -gt 9999 ]]; then
+            echo "::error::Git commit-count build number must be between 1 and 9999; got ${BUILD_NUMBER}."
+            exit 1
+          fi
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Using CFBundleVersion $BUILD_NUMBER for commit $GITHUB_SHA"
 
       - name: Select current stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -152,7 +175,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/GalacticTrustBusiness.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             clean archive
@@ -203,5 +226,5 @@ jobs:
           {
             echo '### Galactic Trust Business uploaded'
             echo ''
-            echo 'Xcode cloud-signed and uploaded the build to App Store Connect. Apple still needs to process it before it can be selected for submission.'
+            echo "Build ${BUILD_NUMBER} was cloud-signed and uploaded to App Store Connect. Apple still needs to process it before it can be selected for submission."
           } >> "$GITHUB_STEP_SUMMARY"
