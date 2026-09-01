@@ -23,24 +23,37 @@ struct AIManagerView: View {
         "How long is my cash runway?"
     ]
 
+    private var hasFinancialRecords: Bool {
+        !store.transactions.isEmpty || !store.invoices.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(spacing: 14) {
-                    intelligenceHeader
-                    proStatusCard
-                    insightsStrip
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        intelligenceHeader
+                        proStatusCard
+                        insightsStrip
 
-                    ForEach(messages) { message in
-                        chatBubble(message)
+                        ForEach(messages) { message in
+                            chatBubble(message)
+                                .id(message.id)
+                        }
+
+                        suggestionsView
                     }
-
-                    suggestionsView
+                    .padding(16)
+                    .padding(.bottom, 8)
                 }
-                .padding(16)
-                .padding(.bottom, 8)
+                .background(GalacticTheme.page)
+                .onChange(of: messages.count) { _, _ in
+                    guard let lastMessage = messages.last else { return }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
             }
-            .background(GalacticTheme.page)
 
             composer
         }
@@ -101,7 +114,7 @@ struct AIManagerView: View {
                 Text(subscription.isPro ? "Galactic Pro active" : "Free AI allowance")
                     .font(.subheadline.bold())
                     .foregroundStyle(GalacticTheme.navy)
-                Text(subscription.isPro ? "Unlimited AI finance questions" : "\(freeQuestionsRemaining) of \(freeQuestionsPerMonth) free questions left this month")
+                Text(subscription.isPro ? "Unlimited AI finance questions" : freeAllowanceDetail)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(GalacticTheme.mutedText)
             }
@@ -257,8 +270,17 @@ struct AIManagerView: View {
         max(0, freeQuestionsPerMonth - freeAIQuestionCount)
     }
 
+    private var freeAllowanceDetail: String {
+        if !hasFinancialRecords {
+            return "Questions won’t count until you add financial records"
+        }
+        return "\(freeQuestionsRemaining) of \(freeQuestionsPerMonth) free questions left this month"
+    }
+
     private var currentAllowancePeriod: String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy-MM"
         return formatter.string(from: Date())
     }
@@ -281,7 +303,7 @@ struct AIManagerView: View {
     private func ask(_ text: String) {
         refreshFreeAllowance()
 
-        if !subscription.isPro && freeAIQuestionCount >= freeQuestionsPerMonth {
+        if hasFinancialRecords && !subscription.isPro && freeAIQuestionCount >= freeQuestionsPerMonth {
             showingPro = true
             return
         }
@@ -289,7 +311,7 @@ struct AIManagerView: View {
         messages.append(.init(role: .user, text: text))
         messages.append(.init(role: .assistant, text: store.financialAnswer(text)))
 
-        if !subscription.isPro {
+        if hasFinancialRecords && !subscription.isPro {
             freeAIQuestionCount += 1
         }
     }
