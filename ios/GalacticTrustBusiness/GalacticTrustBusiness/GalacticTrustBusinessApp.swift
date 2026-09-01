@@ -3,18 +3,12 @@ import SwiftUI
 @main
 struct GalacticTrustBusinessApp: App {
     @StateObject private var store = FinancialStore()
-    @AppStorage("didInitializeProductionWorkspace") private var didInitializeProductionWorkspace = false
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
                 .preferredColorScheme(.light)
-                .task {
-                    guard !didInitializeProductionWorkspace else { return }
-                    store.clearFinancialData()
-                    didInitializeProductionWorkspace = true
-                }
         }
     }
 }
