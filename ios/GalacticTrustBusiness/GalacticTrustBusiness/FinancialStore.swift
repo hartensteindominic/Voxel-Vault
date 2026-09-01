@@ -263,6 +263,41 @@ final class FinancialStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    func replaceWorkspace(
+        profile newProfile: BusinessProfile,
+        transactions newTransactions: [BusinessTransaction],
+        invoices newInvoices: [BusinessInvoice],
+        openingBalance newOpeningBalance: Double
+    ) -> Bool {
+        let now = Date()
+        let cleanName = newProfile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let transactionsAreValid = newTransactions.allSatisfy {
+            $0.amount.isFinite && $0.amount > 0 && $0.date <= now
+        }
+        let invoicesAreValid = newInvoices.allSatisfy {
+            $0.amount.isFinite && $0.amount > 0
+        }
+
+        guard !cleanName.isEmpty,
+              newOpeningBalance.isFinite,
+              newOpeningBalance >= 0,
+              transactionsAreValid,
+              invoicesAreValid else {
+            storageNotice = "The replacement workspace contains invalid financial values and was not loaded. Your existing workspace is unchanged."
+            return false
+        }
+
+        var normalizedProfile = newProfile
+        normalizedProfile.name = cleanName
+        return commitChanges {
+            profile = normalizedProfile
+            transactions = newTransactions.sorted { $0.date > $1.date }
+            invoices = newInvoices.sorted { $0.dueDate < $1.dueDate }
+            openingBalance = newOpeningBalance
+        }
+    }
+
     func resetToDemo() {
         guard !requiresStorageRecovery else { return }
         loadBundledSampleWorkspace()
