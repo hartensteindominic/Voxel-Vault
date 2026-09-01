@@ -287,7 +287,7 @@ struct AIManagerView: View {
         }
 
         messages.append(.init(role: .user, text: text))
-        messages.append(.init(role: .assistant, text: store.answer(text)))
+        messages.append(.init(role: .assistant, text: store.financialAnswer(text)))
 
         if !subscription.isPro {
             freeAIQuestionCount += 1
