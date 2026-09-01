@@ -182,6 +182,7 @@ extension FinancialStore {
               let range = Range(match.range(at: 1), in: text)
         else { return nil }
 
-        return Double(text[range].replacingOccurrences(of: ",", with: ""))
+        let normalized = String(text[range]).replacingOccurrences(of: ",", with: "")
+        return Double(normalized)
     }
 }
