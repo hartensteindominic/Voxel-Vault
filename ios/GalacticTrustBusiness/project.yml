@@ -17,9 +17,12 @@ targets:
         excludes:
           - Assets.xcassets
           - PrivacyInfo.xcprivacy
+          - Localizable.strings
+          - en.lproj
     resources:
       - path: GalacticTrustBusiness/Assets.xcassets
       - path: GalacticTrustBusiness/PrivacyInfo.xcprivacy
+      - path: GalacticTrustBusiness/en.lproj/Localizable.strings
     preBuildScripts:
       - name: Generate Galactic App Icon
         script: |
@@ -29,7 +32,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hartensteindominic.galactictrustbusiness
         PRODUCT_NAME: GalacticTrustBusiness
-        MARKETING_VERSION: 1.0.0
+        MARKETING_VERSION: 1.0
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Galactic Trust Business

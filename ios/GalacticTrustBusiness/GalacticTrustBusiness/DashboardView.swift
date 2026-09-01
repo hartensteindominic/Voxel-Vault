@@ -115,7 +115,7 @@ struct DashboardView: View {
                                 Text(store.profile.name)
                                     .font(.caption.bold())
                                     .foregroundStyle(GalacticTheme.navy)
-                                Text("Business Account")
+                                Text("Business Profile")
                                     .font(.caption2)
                                     .foregroundStyle(GalacticTheme.mutedText)
                             }
@@ -220,6 +220,7 @@ struct DashboardView: View {
                 title: "Total Revenue",
                 value: store.currency(rangeIncome),
                 change: revenueChange,
+                unavailableChangeLabel: comparisonUnavailableLabel,
                 icon: "banknote.fill",
                 tint: GalacticTheme.green,
                 values: store.monthlyPoints.map(\.income)
@@ -228,22 +229,25 @@ struct DashboardView: View {
                 title: "Total Expenses",
                 value: store.currency(rangeExpenses),
                 change: expenseChange,
+                unavailableChangeLabel: comparisonUnavailableLabel,
                 icon: "bag.fill",
                 tint: GalacticTheme.pink,
                 values: store.monthlyPoints.map(\.expense)
             )
             DashboardMetricCard(
-                title: "Net Profit",
+                title: "Net Cash Flow",
                 value: store.currency(rangeNet),
                 change: netChange,
+                unavailableChangeLabel: comparisonUnavailableLabel,
                 icon: "chart.line.uptrend.xyaxis",
                 tint: GalacticTheme.blue,
                 values: store.monthlyPoints.map { $0.income - $0.expense }
             )
             DashboardMetricCard(
-                title: "Cash Balance",
+                title: "Recorded Cash",
                 value: store.currency(store.balance),
-                change: netChange,
+                change: cashBalanceChange,
+                unavailableChangeLabel: comparisonUnavailableLabel,
                 icon: "wallet.pass.fill",
                 tint: GalacticTheme.violet,
                 values: cumulativeBalancePoints
@@ -370,7 +374,7 @@ struct DashboardView: View {
                         .buttonStyle(.plain)
                     }
 
-                    Button("View Full Report") {
+                    Button("View All Insights") {
                         selection = .alerts
                     }
                     .font(.caption.bold())
@@ -610,7 +614,7 @@ struct DashboardView: View {
                     showingInvoices = true
                 }
 
-                let invoices = store.invoices.filter { $0.status != .paid }
+                let invoices = store.invoices.filter { $0.status == .sent || $0.status == .overdue }
                 if invoices.isEmpty {
                     Text("No outstanding invoices.")
                         .font(.caption)
@@ -758,21 +762,34 @@ struct DashboardView: View {
         return store.monthlyPoints[store.monthlyPoints.count - 2]
     }
 
-    private var revenueChange: Double {
-        percentChange(current: store.currentMonthIncome, previous: previousPoint?.income ?? 0)
+    private var revenueChange: Double? {
+        guard rangeMonths == 1, let previousPoint else { return nil }
+        return percentChange(current: store.currentMonthIncome, previous: previousPoint.income)
     }
 
-    private var expenseChange: Double {
-        percentChange(current: store.currentMonthExpenses, previous: previousPoint?.expense ?? 0)
+    private var expenseChange: Double? {
+        guard rangeMonths == 1, let previousPoint else { return nil }
+        return percentChange(current: store.currentMonthExpenses, previous: previousPoint.expense)
     }
 
-    private var netChange: Double {
-        let previous = (previousPoint?.income ?? 0) - (previousPoint?.expense ?? 0)
+    private var netChange: Double? {
+        guard rangeMonths == 1, let previousPoint else { return nil }
+        let previous = previousPoint.income - previousPoint.expense
         return percentChange(current: store.currentMonthNet, previous: previous)
     }
 
+    private var cashBalanceChange: Double? {
+        guard rangeMonths == 1 else { return nil }
+        let startOfMonthBalance = store.balance - store.currentMonthNet
+        return percentChange(current: store.balance, previous: startOfMonthBalance)
+    }
+
+    private var comparisonUnavailableLabel: String {
+        rangeMonths == 1 ? "No prior baseline" : "Selected range total"
+    }
+
     private var cumulativeBalancePoints: [Double] {
-        var running = max(0, store.balance - store.monthlyPoints.reduce(0) { $0 + ($1.income - $1.expense) })
+        var running = store.balance - store.monthlyPoints.reduce(0) { $0 + ($1.income - $1.expense) }
         return store.monthlyPoints.map { point in
             running += point.income - point.expense
             return running
@@ -787,8 +804,8 @@ struct DashboardView: View {
         }
     }
 
-    private func percentChange(current: Double, previous: Double) -> Double {
-        guard abs(previous) > 0.001 else { return current == 0 ? 0 : 100 }
+    private func percentChange(current: Double, previous: Double) -> Double? {
+        guard abs(previous) > 0.001 else { return nil }
         return ((current - previous) / abs(previous)) * 100
     }
 
@@ -874,7 +891,8 @@ private struct DashboardSparkPoint: Identifiable {
 private struct DashboardMetricCard: View {
     let title: String
     let value: String
-    let change: Double
+    let change: Double?
+    let unavailableChangeLabel: String
     let icon: String
     let tint: Color
     let values: [Double]
@@ -907,12 +925,18 @@ private struct DashboardMetricCard: View {
                     Spacer(minLength: 0)
                 }
 
-                HStack(spacing: 5) {
-                    Image(systemName: change >= 0 ? "arrow.up" : "arrow.down")
-                    Text("\(abs(change).formatted(.number.precision(.fractionLength(1))))%")
+                if let change {
+                    HStack(spacing: 5) {
+                        Image(systemName: change >= 0 ? "arrow.up" : "arrow.down")
+                        Text("\(abs(change).formatted(.number.precision(.fractionLength(1))))%")
+                    }
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(change >= 0 ? GalacticTheme.green : GalacticTheme.pink)
+                } else {
+                    Text(unavailableChangeLabel)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(GalacticTheme.mutedText)
                 }
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(change >= 0 ? GalacticTheme.green : GalacticTheme.pink)
 
                 if points.count > 1 {
                     Chart(points) { point in

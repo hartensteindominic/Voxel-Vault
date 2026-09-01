@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct GalacticSidebar: View {
+    @EnvironmentObject private var subscription: SubscriptionManager
     @Binding var selection: AppTab
 
     var body: some View {
@@ -20,7 +21,7 @@ struct GalacticSidebar: View {
                     SidebarButton(title: "Dashboard", icon: "house.fill", tab: .dashboard, selection: $selection)
 
                     SidebarGroup(title: "MANAGE") {
-                        SidebarButton(title: "Accounts", icon: "creditcard.fill", tab: .accounts, selection: $selection)
+                        SidebarButton(title: "Cash Overview", icon: "wallet.pass.fill", tab: .accounts, selection: $selection)
                         SidebarButton(title: "Transactions", icon: "list.bullet.rectangle.fill", tab: .transactions, selection: $selection)
                         SidebarButton(title: "Invoices", icon: "doc.text.fill", tab: .invoices, selection: $selection)
                         SidebarButton(title: "Expenses", icon: "receipt.fill", tab: .expenses, selection: $selection)
@@ -32,7 +33,6 @@ struct GalacticSidebar: View {
                     SidebarGroup(title: "ANALYTICS") {
                         SidebarButton(title: "Cash Flow", icon: "chart.line.uptrend.xyaxis", tab: .cashFlow, selection: $selection)
                         SidebarButton(title: "Reports", icon: "chart.bar.doc.horizontal.fill", tab: .reports, selection: $selection)
-                        SidebarButton(title: "Budgets", icon: "chart.pie.fill", tab: .budgets, selection: $selection)
                         SidebarButton(title: "Forecasting", icon: "waveform.path.ecg.rectangle.fill", tab: .forecasting, selection: $selection)
                     }
 
@@ -45,7 +45,7 @@ struct GalacticSidebar: View {
 
                     VStack(spacing: 4) {
                         SidebarButton(title: "Settings", icon: "gearshape.fill", tab: .settings, selection: $selection)
-                        SidebarButton(title: "Integrations", icon: "point.3.connected.trianglepath.dotted", tab: .integrations, selection: $selection)
+                        SidebarButton(title: "Import Data", icon: "square.and.arrow.down.fill", tab: .integrations, selection: $selection)
                         SidebarButton(title: "Help Center", icon: "questionmark.circle.fill", tab: .help, selection: $selection)
                     }
 
@@ -95,19 +95,19 @@ struct GalacticSidebar: View {
                 .offset(x: 8, y: 8)
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("Your Business Plan")
-                    .font(.caption2)
+                Text("YOUR PLAN")
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.68))
-                Text("Growth Plan")
+                Text(subscription.isPro ? "Galactic Pro" : "Free")
                     .font(.subheadline.bold())
-                Text("Renews monthly")
+                Text(subscription.isPro ? "Premium tools unlocked" : "3 AI questions each month")
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.68))
+                    .foregroundStyle(.white.opacity(0.72))
 
                 Button {
                     selection = .settings
                 } label: {
-                    Text("Manage Plan")
+                    Text(subscription.isPro ? "Manage Plan" : "Explore Pro")
                         .font(.caption.bold())
                         .foregroundStyle(.white)
                         .padding(.horizontal, 13)

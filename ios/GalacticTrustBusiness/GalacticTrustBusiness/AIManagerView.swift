@@ -2,11 +2,18 @@ import SwiftUI
 
 struct AIManagerView: View {
     @EnvironmentObject private var store: FinancialStore
+    @EnvironmentObject private var subscription: SubscriptionManager
+    @AppStorage("freeAIQuestionCount") private var freeAIQuestionCount = 0
+    @AppStorage("freeAIQuestionPeriod") private var freeAIQuestionPeriod = ""
+
     @State private var question = ""
     @State private var messages: [FinanceChatMessage] = [
         .init(role: .assistant, text: "I’m your read-only business financial manager. I can explain money received, spending, invoices, recurring costs, cash balance, and runway using the records in this app.")
     ]
     @State private var selectedInsight: FinancialInsight?
+    @State private var showingPro = false
+
+    private let freeQuestionsPerMonth = 3
 
     private let suggestions = [
         "Why did spending change?",
@@ -16,23 +23,37 @@ struct AIManagerView: View {
         "How long is my cash runway?"
     ]
 
+    private var hasFinancialRecords: Bool {
+        !store.transactions.isEmpty || !store.invoices.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(spacing: 14) {
-                    intelligenceHeader
-                    insightsStrip
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        intelligenceHeader
+                        proStatusCard
+                        insightsStrip
 
-                    ForEach(messages) { message in
-                        chatBubble(message)
+                        ForEach(messages) { message in
+                            chatBubble(message)
+                                .id(message.id)
+                        }
+
+                        suggestionsView
                     }
-
-                    suggestionsView
+                    .padding(16)
+                    .padding(.bottom, 8)
                 }
-                .padding(16)
-                .padding(.bottom, 8)
+                .background(GalacticTheme.page)
+                .onChange(of: messages.count) { _, _ in
+                    guard let lastMessage = messages.last else { return }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
             }
-            .background(GalacticTheme.page)
 
             composer
         }
@@ -40,6 +61,13 @@ struct AIManagerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedInsight) { insight in
             InsightEvidenceView(insight: insight)
+        }
+        .sheet(isPresented: $showingPro) {
+            GalacticProPaywallView()
+                .environmentObject(subscription)
+        }
+        .onAppear {
+            refreshFreeAllowance()
         }
     }
 
@@ -64,8 +92,8 @@ struct AIManagerView: View {
                     .font(.title3.bold())
                     .foregroundStyle(.white)
                 Text("Read-only analysis • Evidence-backed • On-device records")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.80))
             }
             .padding(20)
         }
@@ -73,22 +101,60 @@ struct AIManagerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
+    private var proStatusCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: subscription.isPro ? "checkmark.seal.fill" : "sparkles")
+                .font(.headline.bold())
+                .foregroundStyle(subscription.isPro ? GalacticTheme.green : GalacticTheme.violet)
+                .frame(width: 40, height: 40)
+                .background((subscription.isPro ? GalacticTheme.green : GalacticTheme.violet).opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(subscription.isPro ? "Galactic Pro active" : "Free AI allowance")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(GalacticTheme.navy)
+                Text(subscription.isPro ? "Unlimited AI finance questions" : freeAllowanceDetail)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(GalacticTheme.mutedText)
+            }
+            Spacer()
+
+            if !subscription.isPro {
+                Button("Go Pro") { showingPro = true }
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(GalacticTheme.heroGradient)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(GalacticTheme.divider, lineWidth: 1)
+        }
+    }
+
     private var insightsStrip: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("What needs attention")
-                    .font(.headline)
+                    .font(.headline.bold())
                     .foregroundStyle(GalacticTheme.navy)
                 Spacer()
                 Text("Tap for evidence")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(GalacticTheme.mutedText)
             }
 
             if store.insights.isEmpty {
                 Text("No significant insights yet. Add or import more transactions to build a stronger baseline.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(GalacticTheme.mutedText)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -139,7 +205,7 @@ struct AIManagerView: View {
             }
 
             Text(message.text)
-                .font(.subheadline)
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(message.role == .user ? .white : GalacticTheme.navy)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
@@ -155,7 +221,7 @@ struct AIManagerView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Try asking")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(GalacticTheme.mutedText)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(suggestions, id: \.self) { suggestion in
@@ -164,7 +230,7 @@ struct AIManagerView: View {
                         }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.capsule)
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                         .tint(GalacticTheme.indigo)
                     }
                 }
@@ -200,6 +266,33 @@ struct AIManagerView: View {
         .overlay(alignment: .top) { Divider() }
     }
 
+    private var freeQuestionsRemaining: Int {
+        max(0, freeQuestionsPerMonth - freeAIQuestionCount)
+    }
+
+    private var freeAllowanceDetail: String {
+        if !hasFinancialRecords {
+            return "Questions won’t count until you add financial records"
+        }
+        return "\(freeQuestionsRemaining) of \(freeQuestionsPerMonth) free questions left this month"
+    }
+
+    private var currentAllowancePeriod: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM"
+        return formatter.string(from: Date())
+    }
+
+    private func refreshFreeAllowance() {
+        let period = currentAllowancePeriod
+        if freeAIQuestionPeriod != period {
+            freeAIQuestionPeriod = period
+            freeAIQuestionCount = 0
+        }
+    }
+
     private func submit() {
         let clean = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
@@ -208,8 +301,19 @@ struct AIManagerView: View {
     }
 
     private func ask(_ text: String) {
+        refreshFreeAllowance()
+
+        if hasFinancialRecords && !subscription.isPro && freeAIQuestionCount >= freeQuestionsPerMonth {
+            showingPro = true
+            return
+        }
+
         messages.append(.init(role: .user, text: text))
-        messages.append(.init(role: .assistant, text: store.answer(text)))
+        messages.append(.init(role: .assistant, text: store.financialAnswer(text)))
+
+        if hasFinancialRecords && !subscription.isPro {
+            freeAIQuestionCount += 1
+        }
     }
 }
 

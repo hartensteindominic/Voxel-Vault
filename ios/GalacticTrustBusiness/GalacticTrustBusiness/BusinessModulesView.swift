@@ -7,6 +7,7 @@ struct BusinessModuleView: View {
     }
 
     @EnvironmentObject private var store: FinancialStore
+    @State private var selectedInsight: FinancialInsight?
     let kind: Kind
 
     var body: some View {
@@ -21,6 +22,10 @@ struct BusinessModuleView: View {
         .background(GalacticTheme.page.ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $selectedInsight) { insight in
+            InsightEvidenceView(insight: insight)
+                .environmentObject(store)
+        }
     }
 
     @ViewBuilder
@@ -49,7 +54,7 @@ struct BusinessModuleView: View {
 
     private var title: String {
         switch kind {
-        case .accounts: "Accounts"
+        case .accounts: "Cash Overview"
         case .expenses: "Expenses"
         case .customers: "Customers"
         case .vendors: "Vendors"
@@ -68,7 +73,7 @@ struct BusinessModuleView: View {
         case .customers: "See customers and clients who have paid your business."
         case .vendors: "Track vendors receiving the most business spend."
         case .payroll: "Review payroll transactions and monthly payroll spend."
-        case .reports: "A six-month operating view of income and expenses."
+        case .reports: "A six-month operating view with totals and trends."
         case .budgets: "Compare current category spend with simple planning targets."
         case .alerts: "Explainable financial signals generated from your records."
         case .help: "Quick guidance for using Galactic Trust Business."
@@ -98,7 +103,7 @@ struct BusinessModuleView: View {
 
     private var headerIcon: String {
         switch kind {
-        case .accounts: "creditcard.fill"
+        case .accounts: "wallet.pass.fill"
         case .expenses: "receipt.fill"
         case .customers: "person.2.fill"
         case .vendors: "building.2.fill"
@@ -113,15 +118,21 @@ struct BusinessModuleView: View {
     private var accounts: some View {
         VStack(spacing: 16) {
             HStack(spacing: 12) {
-                MetricTile(title: "Recorded cash", value: store.currency(store.balance), subtitle: "Current app balance", systemImage: "building.columns.fill", tint: GalacticTheme.violet)
+                MetricTile(title: "Recorded cash", value: store.currency(store.balance), subtitle: "Calculated from app records", systemImage: "wallet.pass.fill", tint: GalacticTheme.violet)
                 MetricTile(title: "Net cash flow", value: store.currency(store.currentMonthNet), subtitle: "This month", systemImage: "arrow.up.arrow.down", tint: GalacticTheme.blue)
             }
 
             GalacticCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(title: "Recent account activity")
-                    ForEach(store.transactions.prefix(10)) { transaction in
-                        transactionRow(transaction)
+                    SectionHeader(title: "Recent recorded activity")
+                    if store.transactions.isEmpty {
+                        Text("No activity recorded yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(GalacticTheme.mutedText)
+                    } else {
+                        ForEach(store.transactions.prefix(10)) { transaction in
+                            transactionRow(transaction)
+                        }
                     }
                 }
             }
@@ -133,25 +144,31 @@ struct BusinessModuleView: View {
             GalacticCard {
                 VStack(alignment: .leading, spacing: 14) {
                     SectionHeader(title: "Expense categories")
-                    ForEach(store.expenseByCategory) { item in
-                        VStack(spacing: 6) {
-                            HStack {
-                                Text(item.category.rawValue)
-                                    .font(.subheadline.weight(.semibold))
-                                Spacer()
-                                Text(store.currency(item.amount))
-                                    .font(.subheadline.bold())
-                            }
-                            GeometryReader { proxy in
-                                let ratio = store.currentMonthExpenses > 0 ? item.amount / store.currentMonthExpenses : 0
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(GalacticTheme.divider)
-                                    Capsule()
-                                        .fill(GalacticTheme.heroGradient)
-                                        .frame(width: max(5, proxy.size.width * ratio))
+                    if store.expenseByCategory.isEmpty {
+                        Text("No expenses recorded this month.")
+                            .font(.subheadline)
+                            .foregroundStyle(GalacticTheme.mutedText)
+                    } else {
+                        ForEach(store.expenseByCategory) { item in
+                            VStack(spacing: 6) {
+                                HStack {
+                                    Text(item.category.rawValue)
+                                        .font(.subheadline.weight(.semibold))
+                                    Spacer()
+                                    Text(store.currency(item.amount))
+                                        .font(.subheadline.bold())
                                 }
+                                GeometryReader { proxy in
+                                    let ratio = store.currentMonthExpenses > 0 ? item.amount / store.currentMonthExpenses : 0
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(GalacticTheme.divider)
+                                        Capsule()
+                                            .fill(GalacticTheme.heroGradient)
+                                            .frame(width: max(5, proxy.size.width * ratio))
+                                    }
+                                }
+                                .frame(height: 7)
                             }
-                            .frame(height: 7)
                         }
                     }
                 }
@@ -241,49 +258,115 @@ struct BusinessModuleView: View {
         }
     }
 
-    private var reports: some View {
-        GalacticCard {
-            VStack(alignment: .leading, spacing: 16) {
-                SectionHeader(title: "Six-month operating report")
-                Chart(store.monthlyPoints) { point in
-                    BarMark(x: .value("Month", point.label), y: .value("Income", point.income))
-                        .foregroundStyle(GalacticTheme.green.gradient)
-                        .position(by: .value("Series", "Income"))
-                    BarMark(x: .value("Month", point.label), y: .value("Expense", point.expense))
-                        .foregroundStyle(GalacticTheme.indigo.gradient)
-                        .position(by: .value("Series", "Expense"))
-                }
-                .frame(height: 300)
+    private var sixMonthIncome: Double {
+        store.monthlyPoints.reduce(0) { $0 + $1.income }
+    }
 
-                HStack(spacing: 18) {
-                    Label("Income", systemImage: "circle.fill").foregroundStyle(GalacticTheme.green)
-                    Label("Expenses", systemImage: "circle.fill").foregroundStyle(GalacticTheme.indigo)
+    private var sixMonthExpenses: Double {
+        store.monthlyPoints.reduce(0) { $0 + $1.expense }
+    }
+
+    private var sixMonthNet: Double {
+        sixMonthIncome - sixMonthExpenses
+    }
+
+    private var averageMonthlyNet: Double {
+        guard !store.monthlyPoints.isEmpty else { return 0 }
+        return sixMonthNet / Double(store.monthlyPoints.count)
+    }
+
+    private var reports: some View {
+        VStack(spacing: 16) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                MetricTile(title: "6-mo income", value: store.currency(sixMonthIncome), subtitle: "Recorded inflows", systemImage: "arrow.down.left", tint: GalacticTheme.green)
+                MetricTile(title: "6-mo expenses", value: store.currency(sixMonthExpenses), subtitle: "Recorded outflows", systemImage: "arrow.up.right", tint: GalacticTheme.pink)
+                MetricTile(title: "6-mo net cash flow", value: store.currency(sixMonthNet), subtitle: "Income minus expenses", systemImage: "chart.line.uptrend.xyaxis", tint: GalacticTheme.blue)
+                MetricTile(title: "Avg monthly net", value: store.currency(averageMonthlyNet), subtitle: "Six-month average", systemImage: "calendar", tint: GalacticTheme.violet)
+            }
+
+            GalacticCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader(title: "Six-month operating trend")
+                    Chart(store.monthlyPoints) { point in
+                        BarMark(x: .value("Month", point.label), y: .value("Income", point.income))
+                            .foregroundStyle(GalacticTheme.green.gradient)
+                            .position(by: .value("Series", "Income"))
+                        BarMark(x: .value("Month", point.label), y: .value("Expense", point.expense))
+                            .foregroundStyle(GalacticTheme.indigo.gradient)
+                            .position(by: .value("Series", "Expense"))
+                    }
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine().foregroundStyle(GalacticTheme.divider)
+                            AxisValueLabel {
+                                if let number = value.as(Double.self) {
+                                    Text(number.formatted(.currency(code: store.profile.currencyCode).precision(.fractionLength(0))))
+                                        .font(.caption2)
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 300)
+
+                    HStack(spacing: 18) {
+                        Label("Income", systemImage: "circle.fill").foregroundStyle(GalacticTheme.green)
+                        Label("Expenses", systemImage: "circle.fill").foregroundStyle(GalacticTheme.indigo)
+                    }
+                    .font(.caption)
                 }
-                .font(.caption)
+            }
+
+            GalacticCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionHeader(title: "Current-month snapshot")
+                    reportRow("Transactions", value: "\(store.currentMonthTransactions.count)")
+                    reportRow("Recurring expenses", value: store.currency(store.currentMonthTransactions.filter { $0.kind == .expense && $0.isRecurring }.reduce(0) { $0 + $1.amount }))
+                    reportRow("Outstanding invoices", value: store.currency(store.outstandingInvoices))
+                    reportRow("Overdue invoices", value: "\(store.overdueInvoices.count)")
+                }
             }
         }
+    }
+
+    private func reportRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(GalacticTheme.mutedText)
+            Spacer()
+            Text(value)
+                .font(.subheadline.bold())
+                .foregroundStyle(GalacticTheme.navy)
+        }
+        .padding(.vertical, 3)
     }
 
     private var budgets: some View {
         GalacticCard {
             VStack(alignment: .leading, spacing: 16) {
                 SectionHeader(title: "Planning targets")
-                Text("Targets are calculated as 15% above the current recorded monthly category spend, giving you a simple editable-budget starting point for a future release.")
+                Text("Reference targets are calculated at 15% above the current recorded monthly category spend. They are planning aids and do not change your transactions.")
                     .font(.caption)
                     .foregroundStyle(GalacticTheme.mutedText)
 
-                ForEach(store.expenseByCategory) { item in
-                    let target = max(item.amount * 1.15, 1)
-                    VStack(spacing: 6) {
-                        HStack {
-                            Text(item.category.rawValue).font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Text("\(store.currency(item.amount)) / \(store.currency(target))")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(GalacticTheme.mutedText)
+                if store.expenseByCategory.isEmpty {
+                    Text("Add expense activity to generate category planning targets.")
+                        .font(.subheadline)
+                        .foregroundStyle(GalacticTheme.mutedText)
+                } else {
+                    ForEach(store.expenseByCategory) { item in
+                        let target = max(item.amount * 1.15, 1)
+                        VStack(spacing: 6) {
+                            HStack {
+                                Text(item.category.rawValue).font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text("\(store.currency(item.amount)) / \(store.currency(target))")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(GalacticTheme.mutedText)
+                            }
+                            ProgressView(value: item.amount, total: target)
+                                .tint(item.amount > target ? GalacticTheme.pink : GalacticTheme.indigo)
                         }
-                        ProgressView(value: item.amount, total: target)
-                            .tint(item.amount > target ? GalacticTheme.pink : GalacticTheme.indigo)
                     }
                 }
             }
@@ -300,19 +383,35 @@ struct BusinessModuleView: View {
                         .foregroundStyle(GalacticTheme.mutedText)
                 } else {
                     ForEach(store.insights) { insight in
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: insight.icon)
-                                .foregroundStyle(insight.color)
-                                .frame(width: 36, height: 36)
-                                .background(insight.color.opacity(0.11))
-                                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(insight.title).font(.subheadline.bold())
-                                Text(insight.detail).font(.caption).foregroundStyle(GalacticTheme.mutedText)
+                        Button {
+                            selectedInsight = insight
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: insight.icon)
+                                    .foregroundStyle(insight.color)
+                                    .frame(width: 36, height: 36)
+                                    .background(insight.color.opacity(0.11))
+                                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(insight.title)
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(GalacticTheme.navy)
+                                    Text(insight.detail)
+                                        .font(.caption)
+                                        .foregroundStyle(GalacticTheme.mutedText)
+                                    Text("View evidence")
+                                        .font(.caption2.bold())
+                                        .foregroundStyle(GalacticTheme.indigo)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(GalacticTheme.mutedText)
                             }
-                            Spacer()
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 5)
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -322,8 +421,8 @@ struct BusinessModuleView: View {
     private var help: some View {
         VStack(spacing: 12) {
             helpCard("Import business data", icon: "square.and.arrow.down.fill", text: "Open Transactions and use Import to select a CSV exported from a bank or bookkeeping tool.")
-            helpCard("Ask Galactic AI", icon: "sparkles", text: "Ask about revenue, spending, invoices, recurring costs, cash balance, or runway. The assistant is read-only.")
-            helpCard("Review the evidence", icon: "checklist", text: "Open an AI insight from the dashboard to inspect the transactions behind the conclusion.")
+            helpCard("Ask Galactic AI", icon: "sparkles", text: "Ask about revenue, spending changes, invoices, recurring costs, cash balance, runway, or top vendors. The assistant is read-only.")
+            helpCard("Review the evidence", icon: "checklist", text: "Open an AI insight to inspect the transactions behind the conclusion.")
             helpCard("Protect credentials", icon: "lock.shield.fill", text: "Never enter bank passwords, card PINs, CVVs, recovery secrets, or one-time codes into transaction notes.")
         }
     }
