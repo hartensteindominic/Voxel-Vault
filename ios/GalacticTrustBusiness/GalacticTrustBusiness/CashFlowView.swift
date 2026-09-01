@@ -10,9 +10,19 @@ struct CashFlowView: View {
         store.balance + store.currentMonthNet
     }
 
-    private var burnMultiple: Double {
-        guard store.currentMonthExpenses > 0 else { return 0 }
+    private var burnMultiple: Double? {
+        guard store.currentMonthExpenses > 0 else { return nil }
         return max(store.balance, 0) / store.currentMonthExpenses
+    }
+
+    private var cashFlowStatus: (label: String, color: Color) {
+        if store.currentMonthNet > 0.005 {
+            return ("Positive", GalacticTheme.green)
+        }
+        if store.currentMonthNet < -0.005 {
+            return ("Negative", GalacticTheme.pink)
+        }
+        return ("No activity", GalacticTheme.mutedText)
     }
 
     var body: some View {
@@ -56,14 +66,14 @@ struct CashFlowView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(store.currency(store.currentMonthNet))
                         .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(store.currentMonthNet >= 0 ? GalacticTheme.green : GalacticTheme.pink)
+                        .foregroundStyle(cashFlowStatus.color)
                     Spacer()
-                    Text(store.currentMonthNet >= 0 ? "Positive" : "Negative")
+                    Text(cashFlowStatus.label)
                         .font(.caption.bold())
-                        .foregroundStyle(store.currentMonthNet >= 0 ? GalacticTheme.green : GalacticTheme.pink)
+                        .foregroundStyle(cashFlowStatus.color)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background((store.currentMonthNet >= 0 ? GalacticTheme.green : GalacticTheme.pink).opacity(0.1))
+                        .background(cashFlowStatus.color.opacity(0.1))
                         .clipShape(Capsule())
                 }
 
@@ -194,27 +204,41 @@ struct CashFlowView: View {
                         .clipShape(Capsule())
                 }
 
-                Text(store.currency(projectedThirtyDayBalance))
-                    .font(.title.bold())
-                    .foregroundStyle(GalacticTheme.navy)
-                Text("Projected recorded cash if this month’s net cash flow repeats once more.")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(GalacticTheme.mutedText)
+                if store.transactions.isEmpty {
+                    ContentUnavailableView(
+                        "Not enough activity yet",
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        description: Text("Add or import transactions to generate a 30-day cash-flow estimate.")
+                    )
+                } else {
+                    Text(store.currency(projectedThirtyDayBalance))
+                        .font(.title.bold())
+                        .foregroundStyle(GalacticTheme.navy)
+                    Text("Projected recorded cash if this month’s net cash flow repeats once more.")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(GalacticTheme.mutedText)
 
-                Divider()
+                    Divider()
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Expense coverage")
-                            .font(.caption.weight(.medium))
+                    if let burnMultiple {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Expense coverage")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(GalacticTheme.mutedText)
+                                Text("\(burnMultiple.formatted(.number.precision(.fractionLength(1)))) months")
+                                    .font(.headline.bold())
+                            }
+                            Spacer()
+                            Image(systemName: burnMultiple >= 3 ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
+                                .font(.title2)
+                                .foregroundStyle(burnMultiple >= 3 ? GalacticTheme.green : GalacticTheme.orange)
+                        }
+                    } else {
+                        Label("Add expense history to estimate cash runway.", systemImage: "info.circle.fill")
+                            .font(.subheadline.weight(.medium))
                             .foregroundStyle(GalacticTheme.mutedText)
-                        Text("\(burnMultiple.formatted(.number.precision(.fractionLength(1)))) months")
-                            .font(.headline.bold())
                     }
-                    Spacer()
-                    Image(systemName: burnMultiple >= 3 ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                        .font(.title2)
-                        .foregroundStyle(burnMultiple >= 3 ? GalacticTheme.green : GalacticTheme.orange)
                 }
             }
         }
