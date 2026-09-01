@@ -278,13 +278,18 @@ final class FinancialStore: ObservableObject {
 
     func resetUnreadableWorkspace() {
         guard requiresStorageRecovery else { return }
+        let replacement = AppState(
+            profile: Self.emptyProfile,
+            transactions: [],
+            invoices: [],
+            openingBalance: 0
+        )
+
         do {
-            try vault.remove()
-            profile = Self.emptyProfile
-            transactions = []
-            invoices = []
-            openingBalance = 0
-            try vault.save(currentState)
+            // Data.write(.atomic) replaces the unreadable file only after the new file
+            // has been written successfully, so a failed reset does not first delete it.
+            try vault.save(replacement)
+            apply(replacement)
             requiresStorageRecovery = false
             storageNotice = nil
         } catch {
@@ -390,10 +395,5 @@ private struct LocalVault {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let data = try JSONEncoder().encode(state)
         try data.write(to: url, options: [.atomic, .completeFileProtection])
-    }
-
-    func remove() throws {
-        guard exists else { return }
-        try FileManager.default.removeItem(at: url)
     }
 }
