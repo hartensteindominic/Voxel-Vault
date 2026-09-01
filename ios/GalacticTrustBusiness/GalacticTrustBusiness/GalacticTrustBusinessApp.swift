@@ -7,17 +7,96 @@ struct GalacticTrustBusinessApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(store)
-                .environmentObject(subscription)
-                .preferredColorScheme(.light)
-                .task {
-                    // Used only by the GitHub simulator screenshot workflow. Normal installs
-                    // still start with an empty $0 workspace.
-                    if ProcessInfo.processInfo.arguments.contains("-AppStoreScreenshots") {
-                        store.resetToDemo()
-                    }
+            Group {
+                if store.requiresStorageRecovery {
+                    StorageRecoveryView()
+                } else {
+                    RootView()
                 }
+            }
+            .environmentObject(store)
+            .environmentObject(subscription)
+            .preferredColorScheme(.light)
+            .task {
+                // Used only by the GitHub simulator screenshot workflow. Normal installs
+                // still start with an empty $0 workspace.
+                if !store.requiresStorageRecovery && ProcessInfo.processInfo.arguments.contains("-AppStoreScreenshots") {
+                    store.resetToDemo()
+                }
+            }
+            .alert("Local Data Not Saved", isPresented: Binding(
+                get: { store.storageNotice != nil && !store.requiresStorageRecovery },
+                set: { if !$0 { store.dismissStorageNotice() } }
+            )) {
+                Button("OK") { store.dismissStorageNotice() }
+            } message: {
+                Text(store.storageNotice ?? "The local financial workspace could not be saved.")
+            }
+        }
+    }
+}
+
+private struct StorageRecoveryView: View {
+    @EnvironmentObject private var store: FinancialStore
+    @State private var confirmingReset = false
+
+    var body: some View {
+        ZStack {
+            GalacticTheme.page.ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 18) {
+                    Image(systemName: "externaldrive.badge.exclamationmark")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 76, height: 76)
+                        .background(GalacticTheme.heroGradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                    Text("Your saved workspace needs attention")
+                        .font(.title2.bold())
+                        .foregroundStyle(GalacticTheme.navy)
+                        .multilineTextAlignment(.center)
+
+                    Text(store.storageNotice ?? "The saved local financial workspace could not be opened.")
+                        .font(.subheadline)
+                        .foregroundStyle(GalacticTheme.mutedText)
+                        .multilineTextAlignment(.center)
+
+                    GalacticCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Your unreadable file has not been overwritten", systemImage: "lock.shield.fill")
+                                .font(.headline)
+                                .foregroundStyle(GalacticTheme.navy)
+                            Text("To prevent silent data loss, the app will not accept financial changes until you explicitly reset the local workspace. Resetting permanently replaces the unreadable local file with a new empty workspace.")
+                                .font(.subheadline)
+                                .foregroundStyle(GalacticTheme.mutedText)
+                        }
+                    }
+
+                    Button("Reset Local Workspace", role: .destructive) {
+                        confirmingReset = true
+                    }
+                    .font(.headline.bold())
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(GalacticTheme.pink.opacity(0.10))
+                    .clipShape(Capsule())
+
+                    Link("Open Support", destination: URL(string: "https://voxelvault.io/business/support")!)
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: 560)
+                .padding(24)
+            }
+        }
+        .alert("Reset local workspace?", isPresented: $confirmingReset) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                store.resetUnreadableWorkspace()
+            }
+        } message: {
+            Text("This permanently replaces the unreadable local financial file with a new empty workspace. This cannot be undone in the app.")
         }
     }
 }
