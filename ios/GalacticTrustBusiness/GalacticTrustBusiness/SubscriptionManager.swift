@@ -36,15 +36,19 @@ final class SubscriptionManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        // Entitlements can be available from StoreKit even when the storefront cannot
+        // currently return product metadata. Refresh them independently so an existing
+        // subscriber is not incorrectly treated as free during a temporary outage.
+        await refreshEntitlements()
+
         do {
             let loaded = try await Product.products(for: Self.productIDs)
             products = loaded.sorted { lhs, rhs in
                 productSortIndex(lhs.id) < productSortIndex(rhs.id)
             }
-            await refreshEntitlements()
             errorMessage = nil
         } catch {
-            errorMessage = "Subscriptions could not be loaded right now. Please try again."
+            errorMessage = "Subscriptions could not be loaded right now. Your existing Pro access will remain available if Apple can verify the entitlement."
         }
     }
 
@@ -85,10 +89,12 @@ final class SubscriptionManager: ObservableObject {
 
     func refreshEntitlements() async {
         var active: Set<String> = []
+        let now = Date()
 
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? verified(result) else { continue }
             guard transaction.revocationDate == nil else { continue }
+            if let expirationDate = transaction.expirationDate, expirationDate <= now { continue }
             guard Self.productIDs.contains(transaction.productID) else { continue }
             active.insert(transaction.productID)
         }
@@ -220,13 +226,19 @@ struct GalacticProPaywallView: View {
             } else if subscription.products.isEmpty {
                 GalacticCard {
                     VStack(spacing: 8) {
-                        Text("Subscription products are being prepared")
+                        Text("Subscription products are unavailable")
                             .font(.headline)
                             .foregroundStyle(GalacticTheme.navy)
-                        Text("Once the Galactic Pro subscriptions are approved in App Store Connect, Apple will show the localized monthly and annual prices here automatically.")
+                        Text("Apple is not returning the Galactic Pro purchase options right now. Check your connection and try again. Existing verified Pro access is not removed by this screen.")
                             .font(.subheadline)
                             .foregroundStyle(GalacticTheme.mutedText)
                             .multilineTextAlignment(.center)
+
+                        Button("Try Again") {
+                            Task { await subscription.refresh() }
+                        }
+                        .font(.subheadline.bold())
+                        .foregroundStyle(GalacticTheme.indigo)
                     }
                 }
             } else {
