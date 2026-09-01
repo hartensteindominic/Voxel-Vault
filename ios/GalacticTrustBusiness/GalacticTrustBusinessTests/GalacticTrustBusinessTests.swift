@@ -76,6 +76,21 @@ final class GalacticTrustBusinessTests: XCTestCase {
         XCTAssertEqual(rows.count, 1)
     }
 
+    func testCSVImportAcceptsUTF8BOMHeader() throws {
+        let csv = "\u{FEFF}Date,Description,Amount\n2026-08-31,BOM Client,1250\n"
+        let rows = try CSVImportService.parse(csv)
+
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].merchant, "BOM Client")
+        XCTAssertEqual(rows[0].kind, .income)
+
+        let expected = Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 31))
+        XCTAssertNotNil(expected)
+        if let expected {
+            XCTAssertTrue(Calendar.current.isDate(rows[0].date, inSameDayAs: expected))
+        }
+    }
+
     @MainActor
     func testStartingCashDoesNotCountAsRevenueOrExpense() {
         let store = FinancialStore()
@@ -133,6 +148,27 @@ final class GalacticTrustBusinessTests: XCTestCase {
 
         XCTAssertFalse(store.insights.contains { $0.title.hasPrefix("Revenue is up") })
         XCTAssertFalse(store.insights.contains { $0.title == "Spending increased quickly" })
+
+        store.clearFinancialData()
+    }
+
+    @MainActor
+    func testWorkspaceDuplicateImportReportsOnlyNewRows() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        let row = BusinessTransaction(
+            date: Date(timeIntervalSince1970: 1_800_000_000),
+            merchant: "Duplicate Vendor",
+            memo: "Imported from CSV",
+            amount: 42,
+            kind: .expense,
+            category: .other,
+            source: "CSV"
+        )
+
+        XCTAssertEqual(store.addTransactions([row]), 1)
+        XCTAssertEqual(store.addTransactions([row]), 0)
+        XCTAssertEqual(store.transactions.count, 1)
 
         store.clearFinancialData()
     }
