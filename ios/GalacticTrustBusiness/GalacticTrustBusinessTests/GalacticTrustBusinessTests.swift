@@ -304,4 +304,23 @@ final class GalacticTrustBusinessTests: XCTestCase {
 
         store.clearFinancialData()
     }
+
+    @MainActor
+    func testBundledSampleWorkspaceUsesActualActivitySemantics() {
+        let store = FinancialStore()
+        store.clearFinancialData()
+        store.loadBundledSampleWorkspace()
+
+        XCTAssertEqual(store.profile.name, "Nova Enterprises")
+        XCTAssertEqual(store.transactions.count, 36)
+        XCTAssertEqual(store.invoices.count, 3)
+        XCTAssertEqual(store.openingBalance, 0, accuracy: 0.001)
+        XCTAssertTrue(store.transactions.allSatisfy { $0.date <= Date() })
+        XCTAssertEqual(store.outstandingInvoices, 5_850, accuracy: 0.001)
+        XCTAssertEqual(store.overdueInvoices.count, 1)
+        XCTAssertGreaterThan(store.currentMonthIncome, 0)
+        XCTAssertGreaterThan(store.currentMonthExpenses, 0)
+
+        store.clearFinancialData()
+    }
 }
