@@ -114,8 +114,8 @@ jobs:
         run: |
           set -euo pipefail
           settings="$(xcodebuild -project GalacticTrustBusiness.xcodeproj -target GalacticTrustBusiness -configuration Release -showBuildSettings)"
-          version="$(awk -F ' = ' '/MARKETING_VERSION = / { print $2; exit }' <<< "$settings")"
-          bundle_id="$(awk -F ' = ' '/PRODUCT_BUNDLE_IDENTIFIER = / { print $2; exit }' <<< "$settings")"
+          version="$(awk -F ' = ' '$1 ~ /^[[:space:]]*MARKETING_VERSION$/ { print $2; exit }' <<< "$settings")"
+          bundle_id="$(awk -F ' = ' '$1 ~ /^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER$/ { print $2; exit }' <<< "$settings")"
           [[ "$version" == "1.0" ]] || { echo "::error::Expected marketing version 1.0, got $version"; exit 1; }
           [[ "$bundle_id" == "$BUNDLE_ID" ]] || { echo "::error::Unexpected bundle ID: $bundle_id"; exit 1; }
 
