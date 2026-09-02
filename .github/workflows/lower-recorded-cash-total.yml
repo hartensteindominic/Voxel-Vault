@@ -1,34 +1,54 @@
-name: Lower recorded cash total
+name: Apply recorded cash spacing tweak
 
 on:
   push:
-    branches: [fix/lower-recorded-cash-total]
+    branches:
+      - main
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  patch-dashboard:
-    if: github.actor != 'github-actions[bot]'
+  prepare-tweak:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/lower-recorded-cash-total
           fetch-depth: 0
 
-      - name: Move recorded cash total slightly lower
+      - name: Create focused dashboard patch
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 -c "from pathlib import Path; p=Path('ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift'); s=p.read_text(); old='                    .contentTransition(.numericText())\n\n                HStack(spacing: 7) {'; new='                    .contentTransition(.numericText())\n                    .padding(.top, width > 620 ? 8 : 4)\n\n                HStack(spacing: 7) {'; assert s.count(old) == 1, f'expected one target, found {s.count(old)}'; p.write_text(s.replace(old,new,1))"
+          BRANCH="fix/lower-recorded-cash-total-final"
+          git switch -c "$BRANCH"
 
-      - name: Commit focused layout adjustment
-        shell: bash
-        run: |
-          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift")
+          text = path.read_text()
+          target = "                    .contentTransition(.numericText())\n\n                HStack(spacing: 7) {"
+          replacement = "                    .contentTransition(.numericText())\n                    .padding(.top, width > 620 ? 8 : 4)\n\n                HStack(spacing: 7) {"
+          count = text.count(target)
+          if count != 1:
+              raise SystemExit(f"Expected exactly one recorded-cash balance target, found {count}")
+          path.write_text(text.replace(target, replacement, 1))
+          PY
+
+          rm .github/workflows/lower-recorded-cash-total.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift
+          git add ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift .github/workflows/lower-recorded-cash-total.yml
           git commit -m "Lower recorded cash total slightly"
-          git push origin HEAD:fix/lower-recorded-cash-total
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --repo hartensteindominic/Voxel-Vault \
+            --base main \
+            --head "$BRANCH" \
+            --title "Lower recorded cash total slightly" \
+            --body "Moves only the recorded-cash balance down slightly: 4 pt on compact iPhone layouts and 8 pt on wider/iPad layouts. Also removes the temporary one-shot workflow used to make the focused edit."
