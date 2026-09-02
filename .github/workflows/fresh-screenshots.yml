@@ -1,0 +1,244 @@
+name: Fresh Galactic Trust Screenshots
+
+on:
+  pull_request:
+    paths:
+      - 'ios/GalacticTrustBusiness/**'
+      - '.github/workflows/fresh-screenshots.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  iphone-screenshots:
+    name: Fresh iPhone screenshots
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select current stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: ios/GalacticTrustBusiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_app_icon.py
+          xcodegen generate
+
+      - name: Build simulator app
+        working-directory: ios/GalacticTrustBusiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project GalacticTrustBusiness.xcodeproj \
+            -scheme GalacticTrustBusiness \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Capture all iPhone screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_ID="com.hartensteindominic.galactictrustbusiness"
+          APP_PATH="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'GalacticTrustBusiness.app' -print -quit)"
+          test -n "$APP_PATH"
+          mkdir -p "$RUNNER_TEMP/fresh-iphone"
+
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
+          IPHONE_ID="$(python3 - "$RUNNER_TEMP/devices.json" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))['devices']
+          devices = [d for runtime in data.values() for d in runtime if d.get('isAvailable')]
+          preferred = [
+              'iPhone 16 Pro Max', 'iPhone 17 Pro Max', 'iPhone Air',
+              'iPhone 16 Plus', 'iPhone 15 Pro Max', 'iPhone 15 Plus',
+              'iPhone 14 Pro Max'
+          ]
+          for name in preferred:
+              for device in devices:
+                  if device.get('name') == name:
+                      print(device['udid'])
+                      raise SystemExit
+          raise SystemExit('No suitable large iPhone simulator is available')
+          PY
+          )"
+
+          xcrun simctl shutdown all 2>/dev/null || true
+          killall Simulator 2>/dev/null || true
+          xcrun simctl boot "$IPHONE_ID"
+          open -a Simulator --args -CurrentDeviceUDID "$IPHONE_ID"
+          python3 - "$IPHONE_ID" <<'PY'
+          import subprocess, sys
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', sys.argv[1], '-b'], check=True, timeout=600)
+          PY
+          xcrun simctl install "$IPHONE_ID" "$APP_PATH"
+
+          capture_jpg() {
+            source_png="$1"
+            target_jpg="$2"
+            xcrun simctl io "$IPHONE_ID" screenshot "$source_png"
+            sips -s format jpeg -s formatOptions best "$source_png" --out "$target_jpg" >/dev/null
+            rm -f "$source_png"
+          }
+
+          # Exact first-run experience for QA.
+          xcrun simctl launch "$IPHONE_ID" "$BUNDLE_ID"
+          sleep 4
+          capture_jpg "$RUNNER_TEMP/first-run.png" "$RUNNER_TEMP/fresh-iphone/iPhone-00-First-Run.jpg"
+          xcrun simctl terminate "$IPHONE_ID" "$BUNDLE_ID" 2>/dev/null || true
+
+          capture_tab() {
+            tab="$1"
+            filename="$2"
+            xcrun simctl terminate "$IPHONE_ID" "$BUNDLE_ID" 2>/dev/null || true
+            xcrun simctl launch "$IPHONE_ID" "$BUNDLE_ID" -AppStoreScreenshots -ScreenshotTab "$tab"
+            sleep 4
+            capture_jpg "$RUNNER_TEMP/current.png" "$RUNNER_TEMP/fresh-iphone/$filename"
+          }
+
+          capture_tab dashboard "iPhone-01-Dashboard.jpg"
+          capture_tab transactions "iPhone-02-Activity.jpg"
+          capture_tab cashflow "iPhone-03-Cash-Flow.jpg"
+          capture_tab ai "iPhone-04-AI-Manager.jpg"
+          capture_tab more "iPhone-05-More.jpg"
+
+          ls -lh "$RUNNER_TEMP/fresh-iphone"
+
+      - name: Upload fresh iPhone screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-galactic-iphone-screenshots
+          path: ${{ runner.temp }}/fresh-iphone/*.jpg
+          if-no-files-found: error
+          retention-days: 7
+
+  ipad-screenshots:
+    name: Fresh iPad screenshots
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select current stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: ios/GalacticTrustBusiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_app_icon.py
+          xcodegen generate
+
+      - name: Build simulator app
+        working-directory: ios/GalacticTrustBusiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project GalacticTrustBusiness.xcodeproj \
+            -scheme GalacticTrustBusiness \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Capture all iPad screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_ID="com.hartensteindominic.galactictrustbusiness"
+          APP_PATH="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'GalacticTrustBusiness.app' -print -quit)"
+          test -n "$APP_PATH"
+          mkdir -p "$RUNNER_TEMP/fresh-ipad"
+
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
+          IPAD_ID="$(python3 - "$RUNNER_TEMP/devices.json" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))['devices']
+          devices = [d for runtime in data.values() for d in runtime if d.get('isAvailable')]
+          preferred = [
+              'iPad Pro 13-inch (M5)', 'iPad Pro 13-inch (M4)',
+              'iPad Air 13-inch (M4)', 'iPad Air 13-inch (M3)',
+              'iPad Air 13-inch (M2)'
+          ]
+          for name in preferred:
+              for device in devices:
+                  if device.get('name') == name:
+                      print(device['udid'])
+                      raise SystemExit
+          raise SystemExit('No suitable 13-inch iPad simulator is available')
+          PY
+          )"
+
+          xcrun simctl shutdown all 2>/dev/null || true
+          killall Simulator 2>/dev/null || true
+          xcrun simctl boot "$IPAD_ID"
+          open -a Simulator --args -CurrentDeviceUDID "$IPAD_ID"
+          python3 - "$IPAD_ID" <<'PY'
+          import subprocess, sys
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', sys.argv[1], '-b'], check=True, timeout=600)
+          PY
+          xcrun simctl install "$IPAD_ID" "$APP_PATH"
+
+          capture_jpg() {
+            source_png="$1"
+            target_jpg="$2"
+            xcrun simctl io "$IPAD_ID" screenshot "$source_png"
+            sips -s format jpeg -s formatOptions best "$source_png" --out "$target_jpg" >/dev/null
+            rm -f "$source_png"
+          }
+
+          # Exact first-run experience for QA.
+          xcrun simctl launch "$IPAD_ID" "$BUNDLE_ID"
+          sleep 4
+          capture_jpg "$RUNNER_TEMP/first-run.png" "$RUNNER_TEMP/fresh-ipad/iPad-00-First-Run.jpg"
+          xcrun simctl terminate "$IPAD_ID" "$BUNDLE_ID" 2>/dev/null || true
+
+          capture_tab() {
+            tab="$1"
+            filename="$2"
+            xcrun simctl terminate "$IPAD_ID" "$BUNDLE_ID" 2>/dev/null || true
+            xcrun simctl launch "$IPAD_ID" "$BUNDLE_ID" -AppStoreScreenshots -ScreenshotTab "$tab"
+            sleep 4
+            capture_jpg "$RUNNER_TEMP/current.png" "$RUNNER_TEMP/fresh-ipad/$filename"
+          }
+
+          capture_tab dashboard "iPad-01-Dashboard.jpg"
+          capture_tab transactions "iPad-02-Activity.jpg"
+          capture_tab cashflow "iPad-03-Cash-Flow.jpg"
+          capture_tab ai "iPad-04-AI-Manager.jpg"
+          capture_tab invoices "iPad-05-Invoices.jpg"
+          capture_tab reports "iPad-06-Reports.jpg"
+          capture_tab alerts "iPad-07-Alerts.jpg"
+          capture_tab more "iPad-08-More.jpg"
+
+          ls -lh "$RUNNER_TEMP/fresh-ipad"
+
+      - name: Upload fresh iPad screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-galactic-ipad-screenshots
+          path: ${{ runner.temp }}/fresh-ipad/*.jpg
+          if-no-files-found: error
+          retention-days: 7
