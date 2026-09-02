@@ -2,14 +2,14 @@ name: Lower recorded cash total
 
 on:
   push:
-    branches:
-      - fix/lower-recorded-cash-total
+    branches: [fix/lower-recorded-cash-total]
 
 permissions:
   contents: write
 
 jobs:
   patch-dashboard:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,39 +18,17 @@ jobs:
           fetch-depth: 0
 
       - name: Move recorded cash total slightly lower
+        shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift')
-          text = path.read_text()
-          old = '''                Text(store.currency(store.balance))
-                    .font(.system(size: width > 620 ? 46 : 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .minimumScaleFactor(0.62)
-                    .lineLimit(1)
-                    .contentTransition(.numericText())
-'''
-          new = '''                Text(store.currency(store.balance))
-                    .font(.system(size: width > 620 ? 46 : 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .minimumScaleFactor(0.62)
-                    .lineLimit(1)
-                    .contentTransition(.numericText())
-                    .padding(.top, width > 620 ? 8 : 4)
-'''
-          if old not in text:
-              raise SystemExit('Expected recorded-cash total block not found; refusing broad edit')
-          if text.count(old) != 1:
-              raise SystemExit(f'Expected one recorded-cash total block, found {text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
-          PY
+          set -euo pipefail
+          python3 -c "from pathlib import Path; p=Path('ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift'); s=p.read_text(); old='                    .contentTransition(.numericText())\n\n                HStack(spacing: 7) {'; new='                    .contentTransition(.numericText())\n                    .padding(.top, width > 620 ? 8 : 4)\n\n                HStack(spacing: 7) {'; assert s.count(old) == 1, f'expected one target, found {s.count(old)}'; p.write_text(s.replace(old,new,1))"
 
       - name: Commit focused layout adjustment
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm .github/workflows/lower-recorded-cash-total.yml
-          git add ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift .github/workflows/lower-recorded-cash-total.yml
+          git add ios/GalacticTrustBusiness/GalacticTrustBusiness/DashboardView.swift
           git commit -m "Lower recorded cash total slightly"
           git push origin HEAD:fix/lower-recorded-cash-total
