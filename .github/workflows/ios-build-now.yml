@@ -140,6 +140,7 @@ jobs:
           echo "IPAD_ID=$IPAD_ID" >> "$GITHUB_ENV"
 
       - name: Capture first-run QA and real App Store iPhone screenshots
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
@@ -147,8 +148,23 @@ jobs:
           APP_PATH="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'GalacticTrustBusiness.app' -print -quit)"
           test -n "$APP_PATH"
 
+          xcrun simctl shutdown "$IPHONE_ID" 2>/dev/null || true
           xcrun simctl boot "$IPHONE_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$IPHONE_ID" -b
+          python3 - "$IPHONE_ID" <<'PY'
+          import subprocess
+          import sys
+
+          device_id = sys.argv[1]
+          try:
+              subprocess.run(
+                  ['xcrun', 'simctl', 'bootstatus', device_id, '-b'],
+                  check=True,
+                  timeout=600,
+              )
+          except subprocess.TimeoutExpired:
+              subprocess.run(['xcrun', 'simctl', 'shutdown', device_id], check=False)
+              raise SystemExit('iPhone simulator did not finish booting within 10 minutes')
+          PY
           xcrun simctl install "$IPHONE_ID" "$APP_PATH"
 
           # Fresh install without screenshot arguments: this verifies the exact onboarding
@@ -181,6 +197,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$RUNNER_TEMP/GalacticTrustBusiness-Simulator.zip"
 
       - name: Capture real App Store iPad screenshot
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
@@ -188,8 +205,23 @@ jobs:
           APP_PATH="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'GalacticTrustBusiness.app' -print -quit)"
           test -n "$APP_PATH"
 
+          xcrun simctl shutdown "$IPAD_ID" 2>/dev/null || true
           xcrun simctl boot "$IPAD_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$IPAD_ID" -b
+          python3 - "$IPAD_ID" <<'PY'
+          import subprocess
+          import sys
+
+          device_id = sys.argv[1]
+          try:
+              subprocess.run(
+                  ['xcrun', 'simctl', 'bootstatus', device_id, '-b'],
+                  check=True,
+                  timeout=600,
+              )
+          except subprocess.TimeoutExpired:
+              subprocess.run(['xcrun', 'simctl', 'shutdown', device_id], check=False)
+              raise SystemExit('iPad simulator did not finish booting within 10 minutes')
+          PY
           xcrun simctl install "$IPAD_ID" "$APP_PATH"
           xcrun simctl launch "$IPAD_ID" "$BUNDLE_ID" -AppStoreScreenshots -ScreenshotTab dashboard
           sleep 4
