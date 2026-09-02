@@ -39,7 +39,6 @@ struct BusinessTransaction: Identifiable, Codable, Equatable {
     var category: FinanceCategory
     var isRecurring: Bool = false
     var source: String = "Manual"
-    var sourceRecordID: String? = nil
 
     var signedAmount: Double {
         kind == .income ? amount : -amount
@@ -47,7 +46,7 @@ struct BusinessTransaction: Identifiable, Codable, Equatable {
 }
 
 struct BusinessInvoice: Identifiable, Codable, Equatable {
-    enum Status: String, Codable, CaseIterable, Hashable {
+    enum Status: String, Codable, CaseIterable {
         case draft = "Draft"
         case sent = "Sent"
         case paid = "Paid"
