@@ -190,6 +190,14 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             clean archive
 
+      - name: Verify archived App Store resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$IOS_DIR/scripts/verify_app_bundle.py" \
+            "$RUNNER_TEMP/GalacticTrustBusiness.xcarchive/Products/Applications/GalacticTrustBusiness.app" \
+            --require-device-icons
+
       - name: Cloud sign and upload to App Store Connect
         shell: bash
         env:

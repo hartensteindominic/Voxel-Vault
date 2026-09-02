@@ -19,14 +19,25 @@ targets:
           - PrivacyInfo.xcprivacy
           - Localizable.strings
           - en.lproj
-    resources:
       - path: GalacticTrustBusiness/Assets.xcassets
+        buildPhase: resources
       - path: GalacticTrustBusiness/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: GalacticTrustBusiness/en.lproj/Localizable.strings
+        buildPhase: resources
     preBuildScripts:
       - name: Generate Galactic App Icon
         script: |
           python3 "$SRCROOT/scripts/generate_app_icon.py"
+        basedOnDependencyAnalysis: false
+    postBuildScripts:
+      - name: Preserve Required App Store Icon PNGs
+        script: |
+          set -euo pipefail
+          icon_source="$SRCROOT/GalacticTrustBusiness/Assets.xcassets/AppIcon.appiconset"
+          app_resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          install -m 0644 "$icon_source/AppIcon-60@2x.png" "$app_resources/AppIcon60x60@2x.png"
+          install -m 0644 "$icon_source/AppIcon-76@2x.png" "$app_resources/AppIcon76x76@2x~ipad.png"
         basedOnDependencyAnalysis: false
     settings:
       base:
@@ -34,15 +45,8 @@ targets:
         PRODUCT_NAME: GalacticTrustBusiness
         MARKETING_VERSION: 1.0
         CURRENT_PROJECT_VERSION: 1
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Galactic Trust Business
-        INFOPLIST_KEY_CFBundleIconName: AppIcon
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: GalacticTrustBusiness/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
