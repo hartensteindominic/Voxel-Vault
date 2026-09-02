@@ -11,14 +11,38 @@ struct GalacticTheme {
     static let orange = Color(red: 1.00, green: 0.55, blue: 0.12)
     static let blue = Color(red: 0.08, green: 0.39, blue: 0.96)
     static let teal = Color(red: 0.02, green: 0.64, blue: 0.67)
-    static let page = Color(red: 0.963, green: 0.968, blue: 0.995)
+    static let page = Color(red: 0.972, green: 0.976, blue: 0.998)
     static let panel = Color.white
     static let softPanel = Color(red: 0.982, green: 0.984, blue: 1.0)
     static let mutedText = Color(red: 0.31, green: 0.33, blue: 0.46)
     static let divider = Color(red: 0.89, green: 0.90, blue: 0.95)
 
     static let heroGradient = LinearGradient(
-        colors: [deepBlue, indigo, violet],
+        colors: [Color(red: 0.015, green: 0.08, blue: 0.78), indigo, violet],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let blueCardGradient = LinearGradient(
+        colors: [Color(red: 0.015, green: 0.07, blue: 0.78), Color(red: 0.19, green: 0.12, blue: 0.97)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let pinkCardGradient = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.33, blue: 0.58), Color(red: 0.91, green: 0.22, blue: 0.91)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let aquaGradient = LinearGradient(
+        colors: [Color(red: 0.20, green: 0.86, blue: 0.84), teal],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let lavenderGradient = LinearGradient(
+        colors: [Color(red: 0.63, green: 0.43, blue: 1.0), violet],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -46,9 +70,9 @@ struct GalacticTheme {
 struct GalacticCard<Content: View>: View {
     let content: Content
     var padding: CGFloat = 18
-    var radius: CGFloat = 20
+    var radius: CGFloat = 22
 
-    init(padding: CGFloat = 18, radius: CGFloat = 20, @ViewBuilder content: () -> Content) {
+    init(padding: CGFloat = 18, radius: CGFloat = 22, @ViewBuilder content: () -> Content) {
         self.padding = padding
         self.radius = radius
         self.content = content()
@@ -63,7 +87,7 @@ struct GalacticCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(GalacticTheme.divider.opacity(0.72), lineWidth: 1)
             }
-            .shadow(color: GalacticTheme.navy.opacity(0.055), radius: 18, y: 8)
+            .shadow(color: GalacticTheme.navy.opacity(0.065), radius: 20, y: 9)
     }
 }
 
