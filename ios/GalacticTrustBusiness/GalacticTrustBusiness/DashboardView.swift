@@ -291,6 +291,7 @@ struct DashboardView: View {
                     .minimumScaleFactor(0.62)
                     .lineLimit(1)
                     .contentTransition(.numericText())
+                    .padding(.top, width > 620 ? 8 : 4)
 
                 HStack(spacing: 7) {
                     Image(systemName: cashBalanceChange == nil ? "checkmark.shield.fill" : "arrow.up.right")
