@@ -35,13 +35,8 @@ export default function BusinessPrivacyPolicy() {
           </section>
 
           <section style={card}>
-            <h2>Subscriptions and Apple StoreKit</h2>
-            <p>Galactic Pro subscriptions are purchased and restored through Apple StoreKit. Apple processes App Store purchase and account information under Apple’s terms and privacy practices. The app checks the subscription entitlement supplied by StoreKit on your device so it can unlock Pro features; your imported or manually entered business financial records are not sent to Apple through Galactic Pro purchase handling.</p>
-          </section>
-
-          <section style={card}>
             <h2>Data collection and tracking</h2>
-            <p>The native iOS version 1.0 does not include an advertising SDK, cross-app tracking, or a Galactic analytics SDK, and it does not intentionally collect the financial records you enter or import. Apple may independently process App Store, crash, device, diagnostics, or purchase information under Apple’s own terms and settings.</p>
+            <p>The native iOS version 1.0 does not include an advertising SDK, cross-app tracking, or a Galactic analytics SDK, and it does not intentionally collect the financial records you enter or import. Apple may independently process App Store, crash, device, or diagnostics information under Apple’s own terms and settings.</p>
           </section>
 
           <section style={card}>
@@ -51,12 +46,12 @@ export default function BusinessPrivacyPolicy() {
 
           <section style={card}>
             <h2>Deleting data</h2>
-            <p>You can delete individual transaction records inside the app, clear the local financial workspace from the app settings, or remove all app data by deleting the app from the device. The app does not require a Galactic account in version 1.0. Apple subscription history is managed separately by Apple.</p>
+            <p>You can delete individual transaction records inside the app, clear the local financial workspace from the app settings, or remove all app data by deleting the app from the device. The app does not require a Galactic account in version 1.0.</p>
           </section>
 
           <section style={card}>
             <h2>Future integrations</h2>
-            <p>If a future release adds cloud AI, bank-account connections, authentication, analytics, team sync, or other services that change how user data is handled, the app, privacy manifest, App Store privacy disclosures, and this policy must be updated before those features are released.</p>
+            <p>If a future release adds cloud AI, bank-account connections, authentication, analytics, team sync, or other network services, the app, privacy manifest, App Store privacy disclosures, and this policy must be updated before those features are released.</p>
           </section>
 
           <section style={card}>
