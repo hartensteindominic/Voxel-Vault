@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="halo" cx="36%" cy="30%" r="72%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.88"/>
+      <stop offset="38%" stop-color="#ffe7d8" stop-opacity="0.72"/>
+      <stop offset="72%" stop-color="#b8a5ff" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="#7bdfff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="moon" cx="28%" cy="22%" r="84%">
+      <stop offset="0%" stop-color="#fffdf7"/>
+      <stop offset="22%" stop-color="#fff0df"/>
+      <stop offset="49%" stop-color="#f7bfd0"/>
+      <stop offset="72%" stop-color="#c59bea"/>
+      <stop offset="100%" stop-color="#7277de"/>
+    </radialGradient>
+    <radialGradient id="crater" cx="70%" cy="72%" r="80%">
+      <stop offset="0%" stop-color="#6964a8" stop-opacity="0.45"/>
+      <stop offset="66%" stop-color="#a982bd" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.08"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.82"/>
+      <stop offset="28%" stop-color="#ffb8e1" stop-opacity="0.96"/>
+      <stop offset="58%" stop-color="#9b83ff" stop-opacity="0.98"/>
+      <stop offset="100%" stop-color="#75e8ff" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="238" fill="url(#halo)" opacity="0.50"/>
+  <ellipse cx="256" cy="276" rx="224" ry="76" fill="none" stroke="url(#ring)" stroke-width="14" opacity="0.68" transform="rotate(-15 256 276)"/>
+
+  <circle cx="256" cy="252" r="178" fill="url(#moon)" stroke="#ffffff" stroke-opacity="0.72" stroke-width="3"/>
+
+  <g opacity="0.92">
+    <circle cx="182" cy="172" r="27" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"/>
+    <circle cx="302" cy="158" r="19" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.24" stroke-width="2"/>
+    <circle cx="338" cy="225" r="34" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.26" stroke-width="2"/>
+    <circle cx="215" cy="252" r="23" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.22" stroke-width="2"/>
+    <circle cx="287" cy="287" r="18" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.20" stroke-width="2"/>
+    <circle cx="167" cy="312" r="31" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.23" stroke-width="2"/>
+    <circle cx="326" cy="340" r="25" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.22" stroke-width="2"/>
+    <circle cx="229" cy="372" r="16" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.20" stroke-width="2"/>
+    <circle cx="139" cy="228" r="14" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.19" stroke-width="2"/>
+    <circle cx="365" cy="294" r="12" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.20" stroke-width="2"/>
+    <circle cx="246" cy="143" r="10" fill="url(#crater)" stroke="#ffffff" stroke-opacity="0.20" stroke-width="2"/>
+    <circle cx="204" cy="330" r="9" fill="url(#crater)"/>
+    <circle cx="292" cy="207" r="11" fill="url(#crater)"/>
+    <circle cx="275" cy="346" r="8" fill="url(#crater)"/>
+    <circle cx="161" cy="267" r="8" fill="url(#crater)"/>
+    <circle cx="315" cy="250" r="7" fill="url(#crater)"/>
+  </g>
+
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" opacity="0.16">
+    <path d="M150 201c46-29 104-34 158-12" stroke-width="5"/>
+    <path d="M179 349c48 18 103 14 146-12" stroke-width="4"/>
+    <path d="M126 281c31 13 52 15 82 4" stroke-width="3"/>
+  </g>
+
+  <path d="M63 312 C157 365 354 365 449 251" fill="none" stroke="url(#ring)" stroke-width="16" stroke-linecap="round" opacity="0.98"/>
+  <path d="M94 329 C181 369 340 355 424 270" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.68"/>
+
+  <circle cx="191" cy="145" r="36" fill="#ffffff" opacity="0.16"/>
+  <circle cx="162" cy="125" r="9" fill="#ffffff" opacity="0.26"/>
+</svg>
