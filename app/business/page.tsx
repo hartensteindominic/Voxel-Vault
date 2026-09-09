@@ -1,10 +1,10 @@
-import { BusinessMonitorV2 } from './monitor-v2';
+import { ReferenceBusinessDashboard } from './reference-dashboard';
 
 export const metadata = {
   title: 'Business AI | Galactic Trust',
-  description: 'AI-powered business cash-flow monitoring, spending intelligence, forecasts, financial health, scenarios, and decision support.'
+  description: 'AI-powered business cash-flow monitoring, spending intelligence, forecasts, and financial insights.'
 };
 
 export default function BusinessPage() {
-  return <BusinessMonitorV2 />;
+  return <ReferenceBusinessDashboard />;
 }
