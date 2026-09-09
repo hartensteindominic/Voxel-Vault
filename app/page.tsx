@@ -3,7 +3,7 @@ import styles from './orxyz.module.css';
 export const metadata = {
   title: 'ORXYZ | Technology, connected.',
   description:
-    'ORXYZ helps businesses evaluate practical technology solutions across robotics, automation, phone charging, smart unattended retail, and AI business tools.',
+    'Founder-led technology sourcing and coordination for businesses evaluating robotics, automation, phone charging, smart unattended retail, and selected AI business tools.',
 };
 
 const contactEmail = 'connectedtechpartners@gmail.com';
@@ -64,13 +64,48 @@ const steps = [
   },
 ];
 
+const standards = [
+  {
+    title: 'Founder-led accountability',
+    body: 'ORXYZ is operated by Dominic Hartenstein in Buffalo, New York. Provider relationships, commercial terms, and consequential commitments are reviewed personally.',
+  },
+  {
+    title: 'Permission before disclosure',
+    body: 'We avoid disclosing identifying business information to a third-party provider beyond what is appropriate for evaluation without permission.',
+  },
+  {
+    title: 'Provider responsibility stays clear',
+    body: 'The applicable provider confirms its own pricing, service area, contracts, installation, support, financing, and technical obligations in writing.',
+  },
+  {
+    title: 'Compensation is disclosed',
+    body: 'ORXYZ may receive referral or introducer compensation from a provider when a documented milestone is reached. That does not authorize ORXYZ to bind a business to a purchase or contract.',
+  },
+  {
+    title: 'No inflated deployment claims',
+    body: 'An inquiry, evaluation, introduction, signed agreement, installation, and live deployment are treated as separate stages. We do not describe an opportunity as deployed before it is confirmed.',
+  },
+  {
+    title: 'Written-first coordination',
+    body: 'Where practical, key terms, attribution, approvals, and next steps are documented so both sides can review what has — and has not — been agreed.',
+  },
+];
+
+const providerChecks = [
+  ['Service area & use-case fit', 'We confirm the provider actually serves the geography and business use case before presenting the path as viable.'],
+  ['Deployment & support responsibilities', 'Who supplies, installs, services, supports, bills, and owns the equipment should be clear before a handoff.'],
+  ['Commercial model', 'Customer obligations, provider economics, and any referral compensation should be documented rather than assumed.'],
+  ['Lead attribution', 'Where relevant, duplicate checks and attribution rules are confirmed before valuable opportunity details are disclosed.'],
+  ['Written approval before commitment', 'The business makes the final decision after reviewing current provider-specific terms.'],
+];
+
 export default function Home() {
   return (
     <main className={styles.page}>
       <div className={styles.topline}>
         <div className={`${styles.shell} ${styles.toplineInner}`}>
           <span className={styles.topDot} />
-          Buffalo, New York · Independent technology sourcing & coordination
+          Founder-led · Buffalo, New York · Independent technology sourcing & coordination
         </div>
       </div>
 
@@ -83,6 +118,7 @@ export default function Home() {
           <nav className={styles.navLinks} aria-label="Primary navigation">
             <a href="#solutions">Solutions</a>
             <a href="#process">Process</a>
+            <a href="#standards">Standards</a>
             <a href="#providers">Providers</a>
             <a href="#about">About</a>
           </nav>
@@ -107,17 +143,23 @@ export default function Home() {
               ORXYZ helps businesses identify practical technology opportunities, qualify suitable providers,
               and coordinate a clear path from evaluation to deployment.
             </p>
+            <p className={styles.heroCopy} style={{ marginTop: 14, fontSize: '14px', lineHeight: 1.7 }}>
+              ORXYZ is an independent sourcing and coordination business — not a manufacturer, lender, installer,
+              or equipment operator. Provider-specific pricing, contracts, deployment, and support remain with the
+              applicable provider unless explicitly agreed otherwise.
+            </p>
             <div className={styles.heroActions}>
               <a className={styles.primaryButton} href={businessMail}>
                 Discuss a technology need <span className={styles.arrow}>↗</span>
               </a>
-              <a className={styles.secondaryButton} href="#process">
-                See how it works <span className={styles.arrow}>↓</span>
+              <a className={styles.secondaryButton} href="#standards">
+                See our operating standards <span className={styles.arrow}>↓</span>
               </a>
             </div>
             <div className={styles.heroPoints} aria-label="ORXYZ principles">
               <span className={styles.heroPoint}>Business need first</span>
               <span className={styles.heroPoint}>Provider fit qualified</span>
+              <span className={styles.heroPoint}>Permission before disclosure</span>
               <span className={styles.heroPoint}>Written terms before commitment</span>
             </div>
           </div>
@@ -229,33 +271,62 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={`${styles.section} ${styles.sectionMuted}`} id="providers">
+      <section className={`${styles.section} ${styles.sectionMuted}`} id="standards">
+        <div className={styles.shell}>
+          <div className={styles.sectionHeading}>
+            <div>
+              <div className={styles.sectionKicker}>ORXYZ operating standards</div>
+              <h2>Credibility comes from how the work is handled.</h2>
+            </div>
+            <p>
+              These standards keep introductions useful, permissioned, and commercially clear for both businesses and providers.
+            </p>
+          </div>
+          <div className={styles.audienceGrid}>
+            {standards.map((item) => (
+              <article className={styles.audienceCard} key={item.title}>
+                <b>{item.title}</b>
+                <span>{item.body}</span>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.section} id="providers">
         <div className={styles.shell}>
           <div className={styles.providerPanel}>
             <div className={styles.providerCopy}>
               <div className={styles.sectionKicker}>For technology providers</div>
               <h2>Good opportunities deserve clean handoffs.</h2>
               <p>
-                ORXYZ can qualify potential business opportunities, confirm basic fit before disclosure when appropriate,
-                preserve referral attribution, and coordinate written introductions when there is genuine mutual interest.
+                ORXYZ does not sell raw lead lists. We aim to qualify real business needs, preserve attribution where appropriate,
+                and coordinate permissioned written introductions when there is genuine mutual fit.
+              </p>
+              <p>
+                ORXYZ may receive referral or introducer compensation when a documented provider milestone is reached. That
+                compensation does not authorize ORXYZ to bind a business to provider terms.
               </p>
               <a className={styles.providerButton} href={providerMail}>Discuss provider fit <span className={styles.arrow}>↗</span></a>
             </div>
             <div className={styles.providerList}>
-              <div className={styles.providerItem}><div className={styles.providerCheck}>✓</div><div><b>Qualified context</b><span>Use case, location, constraints, and what the business is actually evaluating.</span></div></div>
-              <div className={styles.providerItem}><div className={styles.providerCheck}>✓</div><div><b>Attribution clarity</b><span>Written records around the originating opportunity and commercial handoff.</span></div></div>
-              <div className={styles.providerItem}><div className={styles.providerCheck}>✓</div><div><b>No inflated claims</b><span>Interest, evaluation, installation, and earned compensation are treated as different stages.</span></div></div>
+              {providerChecks.map(([title, body]) => (
+                <div className={styles.providerItem} key={title}>
+                  <div className={styles.providerCheck}>✓</div>
+                  <div><b>{title}</b><span>{body}</span></div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className={styles.section} id="about">
+      <section className={`${styles.section} ${styles.sectionMuted}`} id="about">
         <div className={`${styles.shell} ${styles.founderGrid}`}>
           <div className={styles.founderCard}>
             <div className={styles.founderMonogram}>DH</div>
             <b>Dominic Hartenstein</b>
-            <span>Founder · ORXYZ</span>
+            <span>Founder & operator · ORXYZ</span>
             <div className={styles.founderMeta}>
               <div className={styles.metaCard}><b>Based in</b><span>Buffalo, New York</span></div>
               <div className={styles.metaCard}><b>Communication</b><span>Written-first business coordination</span></div>
@@ -263,14 +334,16 @@ export default function Home() {
           </div>
           <div className={styles.founderCopy}>
             <div className={styles.sectionKicker}>About ORXYZ</div>
-            <h2>Independent by design. Precise by necessity.</h2>
+            <h2>Independent. Founder-led. Written-first.</h2>
             <p>
               ORXYZ is an independent technology sourcing and coordination business. We do not claim to manufacture the products
               we evaluate, and we do not present third-party pricing, installation, financing, revenue share, or support as guaranteed
               unless the applicable provider has confirmed those terms.
             </p>
             <p>
-              The goal is simple: understand what a business needs, find a credible path, and make the introduction clearer for everyone involved.
+              Dominic personally reviews provider relationships, commercial terms, and consequential commitments. Routine research,
+              drafting, scheduling, and administrative communication may be AI-assisted, but provider terms and business commitments
+              are not delegated to AI.
             </p>
           </div>
         </div>
@@ -299,7 +372,13 @@ export default function Home() {
             ORXYZ provides independent technology sourcing, introduction, and coordination services. Availability, pricing,
             installation, support, financing, and revenue-share terms are determined by the applicable third-party provider and remain subject to written approval.
           </div>
-          <div>© 2026 ORXYZ</div>
+          <div>
+            <div>© 2026 ORXYZ</div>
+            <div style={{ marginTop: 10, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+              <a href="/privacy">Privacy</a>
+              <a href="/terms">Terms</a>
+            </div>
+          </div>
         </div>
       </footer>
     </main>
