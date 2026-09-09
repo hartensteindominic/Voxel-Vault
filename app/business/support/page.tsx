@@ -25,19 +25,8 @@ export default function BusinessSupport() {
 
         <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
           <section style={card}>
-            <h2>Getting started</h2>
-            <p>New workspaces intentionally begin at $0 with no transactions or invoices. Add a transaction manually, import a CSV from Files, or open More → About → Restore sample business data if you want to explore the app with example records.</p>
-          </section>
-
-          <section style={card}>
             <h2>Importing transactions</h2>
             <p>Open Transactions, tap the import icon, and choose a CSV from Files. Common Date, Description or Merchant, Amount, Debit, Credit, Type, and Category columns are recognized. If the import fails, confirm the file has a header row and at least one non-zero transaction.</p>
-          </section>
-
-          <section style={card}>
-            <h2>Galactic Pro subscriptions</h2>
-            <p>Purchases are handled by Apple. In the app, open More → Galactic Pro to purchase or restore a subscription. If Pro should already be active, tap Restore Purchases. To manage or cancel an active subscription, use Apple Account subscription settings.</p>
-            <a href="https://apps.apple.com/account/subscriptions" style={{ display: 'inline-block', marginTop: 8, color: '#4b32df', fontWeight: 800 }}>Manage Apple subscriptions →</a>
           </section>
 
           <section style={card}>
@@ -53,7 +42,7 @@ export default function BusinessSupport() {
           <section style={card}>
             <h2>Report a problem</h2>
             <p>Please include the app version, iOS version, device model, what you expected to happen, and the steps that reproduce the issue. Do not include private financial records, passwords, account numbers, card numbers, or authentication codes.</p>
-            <a href="https://github.com/hartensteindominic/Voxel-Vault/issues" style={{ display: 'inline-block', marginTop: 8, color: '#4b32df', fontWeight: 800 }}>Open the support issue tracker →</a>
+            <a href="https://github.com/hartensteindominic/Galactic/issues" style={{ display: 'inline-block', marginTop: 8, color: '#4b32df', fontWeight: 800 }}>Open the Galactic issue tracker →</a>
           </section>
 
           <section style={card}>
