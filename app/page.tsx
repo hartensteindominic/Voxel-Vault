@@ -3,12 +3,13 @@ import styles from './orxyz.module.css';
 export const metadata = {
   title: 'ORXYZ | Technology, connected.',
   description:
-    'Founder-led technology sourcing and coordination for businesses evaluating robotics, automation, phone charging, smart unattended retail, and selected AI business tools.',
+    'Founder-led technology sourcing, hardware coordination, and selected software referrals for businesses evaluating practical technology solutions.',
 };
 
 const contactEmail = 'connectedtechpartners@gmail.com';
 const businessMail = `mailto:${contactEmail}?subject=${encodeURIComponent('ORXYZ — business technology inquiry')}`;
 const providerMail = `mailto:${contactEmail}?subject=${encodeURIComponent('ORXYZ — provider partnership inquiry')}`;
+const botNiraReferral = 'https://botnira.com/r/worldwide-technology-connection-b1b6d8';
 
 const services = [
   {
@@ -35,9 +36,9 @@ const services = [
   {
     number: '04 / SOFTWARE',
     icon: 'AI',
-    title: 'AI business tools',
-    body: 'Selected software and AI tools for customer response, lead handling, workflow support, and business operations.',
-    tags: ['workflow', 'integration', 'fit'],
+    title: 'AI & business software',
+    body: 'Selected software for customer response, missed-call coverage, lead handling, workflow support, and business operations.',
+    tags: ['customer response', 'workflow', 'fit'],
   },
 ];
 
@@ -71,7 +72,7 @@ export default function Home() {
       <div className={styles.topline}>
         <div className={`${styles.shell} ${styles.toplineInner}`}>
           <span className={styles.topDot} />
-          Founder-led · Buffalo, New York · Independent technology sourcing & coordination
+          Founder-led · Buffalo, New York · Independent technology sourcing & referral coordination
         </div>
       </div>
 
@@ -83,6 +84,7 @@ export default function Home() {
           </a>
           <nav className={styles.navLinks} aria-label="Primary navigation">
             <a href="#solutions">Solutions</a>
+            <a href="#software">Software</a>
             <a href="#process">Process</a>
             <a href="#standards">Standards</a>
             <a href="#providers">Providers</a>
@@ -106,23 +108,23 @@ export default function Home() {
               <span>connected.</span>
             </h1>
             <p className={styles.heroCopy}>
-              ORXYZ helps businesses define a technology need, qualify suitable providers, and coordinate a clear path from evaluation to an approved deployment.
+              ORXYZ helps businesses define a technology need, compare practical hardware or software options, and move toward a provider-backed solution with clear next steps.
             </p>
             <div className={styles.heroActions}>
               <a className={styles.primaryButton} href={businessMail}>
                 Discuss a technology need <span className={styles.arrow}>↗</span>
               </a>
-              <a className={styles.secondaryButton} href="#process">
-                See how it works <span className={styles.arrow}>↓</span>
+              <a className={styles.secondaryButton} href="#solutions">
+                Explore solutions <span className={styles.arrow}>↓</span>
               </a>
             </div>
             <div className={styles.heroPoints} aria-label="ORXYZ principles">
               <span className={styles.heroPoint}>Business need first</span>
               <span className={styles.heroPoint}>Provider fit qualified</span>
-              <span className={styles.heroPoint}>Written terms before commitment</span>
+              <span className={styles.heroPoint}>Referral relationships disclosed</span>
             </div>
             <p className={styles.heroNote}>
-              Independent sourcing and coordination. Provider-specific pricing, contracts, installation, and support remain with the applicable provider unless explicitly agreed otherwise.
+              Independent sourcing and referral coordination. ORXYZ may receive compensation from selected third-party providers. Provider-specific pricing, contracts, installation, product performance, and support remain with the applicable provider.
             </p>
           </div>
 
@@ -161,7 +163,7 @@ export default function Home() {
           <div className={styles.trustItem}>Robotics & automation</div>
           <div className={styles.trustItem}>Charging infrastructure</div>
           <div className={styles.trustItem}>Smart unattended retail</div>
-          <div className={styles.trustItem}>AI business tools</div>
+          <div className={styles.trustItem}>AI & business software</div>
         </div>
       </section>
 
@@ -173,7 +175,7 @@ export default function Home() {
               <h2>Practical technology for real operations.</h2>
             </div>
             <p>
-              Start with the business problem. Then evaluate providers whose service area, equipment, support model, and commercial structure may actually fit.
+              Start with the business problem. Then evaluate options whose service area, product capabilities, support model, and commercial structure may actually fit.
             </p>
           </div>
           <div className={styles.serviceGrid}>
@@ -192,7 +194,45 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={`${styles.section} ${styles.sectionMuted}`}>
+      <section className={`${styles.section} ${styles.sectionMuted}`} id="software">
+        <div className={styles.shell}>
+          <div className={styles.providerPanel}>
+            <div className={styles.providerCopy}>
+              <div className={styles.sectionKicker}>Featured software recommendation</div>
+              <h2>Missed calls should not automatically become missed customers.</h2>
+              <p>
+                For service businesses that receive calls or enquiries while the team is busy, after hours, or already on another job, ORXYZ is currently testing BotNira as a practical AI receptionist option. BotNira supports phone, WhatsApp, SMS, email, and web conversations on applicable plans and offers a 5-day free trial without a credit card.
+              </p>
+              <div className={styles.providerDisclosure}>
+                Affiliate disclosure: ORXYZ participates in BotNira&apos;s referral program and may receive 15% recurring commission on successful paid referrals for as long as the referred subscription remains active. The referral does not increase ORXYZ&apos;s control over BotNira&apos;s pricing, service, or customer relationship.
+              </div>
+              <a className={styles.providerButton} href={botNiraReferral} target="_blank" rel="noopener noreferrer sponsored">
+                Review BotNira <span className={styles.arrow}>↗</span>
+              </a>
+            </div>
+            <div className={styles.providerList}>
+              <div className={styles.providerItem}>
+                <div className={styles.providerCheck}>✓</div>
+                <div><b>Best-fit starting audience</b><span>Plumbers, HVAC, electricians, auto services, clinics, salons, and other appointment or call-driven businesses.</span></div>
+              </div>
+              <div className={styles.providerItem}>
+                <div className={styles.providerCheck}>✓</div>
+                <div><b>Low-friction evaluation</b><span>Businesses can review the product and start the current 5-day trial directly without scheduling a sales call with ORXYZ.</span></div>
+              </div>
+              <div className={styles.providerItem}>
+                <div className={styles.providerCheck}>✓</div>
+                <div><b>Provider-direct relationship</b><span>BotNira controls its product, subscription, onboarding, support, pricing, and terms. ORXYZ is the referring party.</span></div>
+              </div>
+              <div className={styles.providerItem}>
+                <div className={styles.providerCheck}>✓</div>
+                <div><b>Fit before hype</b><span>ORXYZ recommends reviewing the current feature set and trial first rather than assuming an AI receptionist fits every business.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.section}>
         <div className={styles.shell}>
           <div className={styles.sectionHeading}>
             <div>
@@ -200,13 +240,13 @@ export default function Home() {
               <h2>One coordination layer. Different business needs.</h2>
             </div>
             <p>
-              For businesses that want a credible technology path without sorting through every manufacturer, distributor, operator, installer, and commercial model on their own.
+              For businesses that want a credible technology path without sorting through every manufacturer, distributor, operator, installer, and software platform on their own.
             </p>
           </div>
           <div className={styles.audienceGrid}>
             <div className={styles.audienceCard}><b>Hospitality & entertainment</b><span>Guest charging, automation, service technology, and unattended retail.</span></div>
             <div className={styles.audienceCard}><b>Retail & customer-facing spaces</b><span>Compact technology that improves convenience without unnecessary operational burden.</span></div>
-            <div className={styles.audienceCard}><b>Operations & facilities</b><span>Robotics and automation evaluated around a specific repetitive task or service requirement.</span></div>
+            <div className={styles.audienceCard}><b>Service businesses & operations</b><span>Customer-response software, robotics, and automation evaluated around a specific operational need.</span></div>
           </div>
         </div>
       </section>
@@ -299,7 +339,7 @@ export default function Home() {
             <div className={styles.sectionKicker}>About ORXYZ</div>
             <h2>Independent. Founder-led. Written-first.</h2>
             <p>
-              ORXYZ is an independent technology sourcing and coordination business. It does not claim to manufacture the products it evaluates or guarantee third-party pricing, installation, financing, revenue share, or support.
+              ORXYZ is an independent technology sourcing and referral coordination business. It does not claim to manufacture the products it evaluates or guarantee third-party pricing, installation, financing, revenue share, software performance, or support.
             </p>
             <p>
               Dominic personally reviews provider relationships, commercial terms, and consequential commitments. Routine research, drafting, scheduling, and administrative communication may be AI-assisted, while commercial commitments remain personally reviewed.
@@ -315,7 +355,7 @@ export default function Home() {
               <div className={styles.sectionKicker}>Start with the need</div>
               <h2>What is your business trying to improve?</h2>
               <p>
-                Send the task, location, or technology category you are evaluating. ORXYZ can determine whether there is a practical provider path worth exploring.
+                Send the task, location, or technology category you are evaluating. ORXYZ can determine whether there is a practical provider or software path worth exploring.
               </p>
               <a className={styles.contactEmail} href={businessMail}>Email ORXYZ →</a>
             </div>
@@ -331,7 +371,7 @@ export default function Home() {
             <div>Buffalo, New York, USA</div>
           </div>
           <div>
-            ORXYZ provides independent technology sourcing, introduction, and coordination services. Availability, pricing, installation, support, financing, and revenue-share terms are determined by the applicable third-party provider and remain subject to written approval.
+            ORXYZ provides independent technology sourcing, referral, introduction, and coordination services. ORXYZ may receive compensation from selected third-party providers. Availability, pricing, installation, support, financing, software performance, and revenue-share terms are determined by the applicable third-party provider and remain subject to its current terms.
           </div>
           <div>
             <div>© 2026 ORXYZ</div>
