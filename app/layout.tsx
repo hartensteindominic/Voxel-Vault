@@ -6,14 +6,14 @@ import './privacy.css';
 import './privacy-link.css';
 
 export const metadata: Metadata = {
-  title: 'ORXYZ | Technology, connected.',
+  title: 'Work with ORXYZ',
   description:
-    'ORXYZ helps businesses evaluate practical technology solutions and connect with suitable providers across robotics, automation, phone charging, smart unattended retail, and AI business tools.',
+    'Send ORXYZ your BOM, drawing, or problem SKU. Get a clear, manufacturer-direct commercial offer without the distributor markup maze.',
   metadataBase: new URL('https://orxyz.xyz'),
   openGraph: {
-    title: 'ORXYZ | Technology, connected.',
+    title: 'Work with ORXYZ',
     description:
-      'Independent technology sourcing, provider qualification, introductions, and deployment coordination for businesses.',
+      'Send ORXYZ your BOM, drawing, or problem SKU. Get a clear, manufacturer-direct commercial offer without the distributor markup maze.',
     url: 'https://orxyz.xyz',
     siteName: 'ORXYZ',
     type: 'website',
