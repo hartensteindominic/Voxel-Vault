@@ -35,15 +35,7 @@ struct TransactionsView: View {
 
             Section {
                 if filtered.isEmpty {
-                    if store.transactions.isEmpty && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filter == nil {
-                        ContentUnavailableView(
-                            "No transactions yet",
-                            systemImage: "list.bullet.rectangle.portrait",
-                            description: Text("Add a transaction manually or import a CSV to start building your financial overview.")
-                        )
-                    } else {
-                        ContentUnavailableView.search(text: searchText)
-                    }
+                    ContentUnavailableView.search(text: searchText)
                 } else {
                     ForEach(filtered) { item in
                         transactionRow(item)
@@ -56,9 +48,7 @@ struct TransactionsView: View {
                 HStack {
                     Text("\(filtered.count) transactions")
                     Spacer()
-                    if !filtered.isEmpty {
-                        Text("Swipe left to delete")
-                    }
+                    Text("Swipe left to delete")
                 }
             }
         }
@@ -125,11 +115,11 @@ struct TransactionsView: View {
                 }
                 Text("\(item.category.rawValue) • \(item.date.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
-                    .foregroundStyle(GalacticTheme.mutedText)
+                    .foregroundStyle(.secondary)
                 if !item.memo.isEmpty {
                     Text(item.memo)
                         .font(.caption2)
-                        .foregroundStyle(GalacticTheme.mutedText)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -151,14 +141,8 @@ struct TransactionsView: View {
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             let text = try String(contentsOf: url, encoding: .utf8)
             let transactions = try CSVImportService.parse(text)
-            let insertedCount = store.addTransactions(transactions)
-            let duplicateCount = transactions.count - insertedCount
-
-            if duplicateCount > 0 {
-                importMessage = "Imported \(insertedCount) new transaction\(insertedCount == 1 ? "" : "s") and skipped \(duplicateCount) previously imported record\(duplicateCount == 1 ? "" : "s")."
-            } else {
-                importMessage = "Imported \(insertedCount) transaction\(insertedCount == 1 ? "" : "s")."
-            }
+            store.addTransactions(transactions)
+            importMessage = "Imported \(transactions.count) transaction\(transactions.count == 1 ? "" : "s"). Duplicate rows are ignored when they match an existing transaction."
         } catch {
             importMessage = "Could not import that CSV: \(error.localizedDescription)"
         }
@@ -183,17 +167,11 @@ struct AddTransactionView: View {
     }
 
     private var amount: Double? {
-        Double(
-            amountText
-                .replacingOccurrences(of: ",", with: "")
-                .replacingOccurrences(of: "$", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+        Double(amountText.replacingOccurrences(of: ",", with: "").replacingOccurrences(of: "$", with: ""))
     }
 
     private var canSave: Bool {
-        guard let amount else { return false }
-        return !merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && amount > 0 && amount.isFinite && date <= Date()
+        !merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (amount ?? 0) > 0
     }
 
     var body: some View {
@@ -210,7 +188,7 @@ struct AddTransactionView: View {
                     TextField("Merchant or customer", text: $merchant)
                     TextField("Amount", text: $amountText)
                         .keyboardType(.decimalPad)
-                    DatePicker("Date", selection: $date, in: ...Date(), displayedComponents: .date)
+                    DatePicker("Date", selection: $date, displayedComponents: .date)
                     Picker("Category", selection: $category) {
                         ForEach(FinanceCategory.allCases) { category in
                             Text(category.rawValue).tag(category)
@@ -232,8 +210,6 @@ struct AddTransactionView: View {
             .onChange(of: kind) { _, newValue in
                 if newValue == .income && ![FinanceCategory.sales, .services, .other].contains(category) {
                     category = .services
-                } else if newValue == .expense && [FinanceCategory.sales, .services].contains(category) {
-                    category = .other
                 }
             }
             .toolbar {
@@ -242,7 +218,7 @@ struct AddTransactionView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard let amount, amount > 0, amount.isFinite, date <= Date() else { return }
+                        guard let amount else { return }
                         store.addTransaction(BusinessTransaction(
                             date: date,
                             merchant: merchant.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -264,54 +240,41 @@ struct AddTransactionView: View {
 
 enum CSVImportError: LocalizedError {
     case missingHeader
-    case missingDate
     case missingAmount
-    case malformedCSV
     case noValidRows
 
     var errorDescription: String? {
         switch self {
         case .missingHeader: "The CSV does not contain a header row."
-        case .missingDate: "The CSV needs a date column so imported activity is not assigned to the wrong month."
         case .missingAmount: "The CSV needs an amount column, or separate debit/credit columns."
-        case .malformedCSV: "The CSV contains an unclosed quoted field."
-        case .noValidRows: "No valid dated transaction rows were found. Future-dated, malformed, or zero-value rows are skipped."
+        case .noValidRows: "No valid transaction rows were found."
         }
     }
 }
 
 struct CSVImportService {
     static func parse(_ text: String) throws -> [BusinessTransaction] {
-        let rows = try csvRows(text)
+        let rows = csvRows(text)
         guard let first = rows.first, !first.isEmpty else { throw CSVImportError.missingHeader }
         let headers = first.map(normalize)
 
         func index(_ candidates: [String]) -> Int? {
-            for candidate in candidates {
-                if let exact = headers.firstIndex(of: candidate) {
-                    return exact
-                }
-            }
-            return nil
+            headers.firstIndex { header in candidates.contains(where: { header == $0 || header.contains($0) }) }
         }
 
-        let dateIndex = index(["date", "posted date", "transaction date", "posting date"])
-        let descriptionIndex = index(["description", "merchant", "name", "payee", "memo", "details"])
-        let amountIndex = index(["amount", "transaction amount", "net amount"])
-        let debitIndex = index(["debit", "debit amount", "withdrawal", "withdrawal amount", "money out"])
-        let creditIndex = index(["credit", "credit amount", "deposit", "deposit amount", "money in"])
+        let dateIndex = index(["date", "posted date", "transaction date"])
+        let descriptionIndex = index(["description", "merchant", "name", "payee", "memo"])
+        let amountIndex = index(["amount", "transaction amount"])
+        let debitIndex = index(["debit", "withdrawal", "money out"])
+        let creditIndex = index(["credit", "deposit", "money in"])
         let typeIndex = index(["type", "transaction type"])
         let categoryIndex = index(["category"])
 
-        guard dateIndex != nil else { throw CSVImportError.missingDate }
         guard amountIndex != nil || debitIndex != nil || creditIndex != nil else {
             throw CSVImportError.missingAmount
         }
 
-        let now = Date()
         var output: [BusinessTransaction] = []
-        var sourceOccurrences: [String: Int] = [:]
-
         for fields in rows.dropFirst() where !fields.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             func value(_ idx: Int?) -> String {
                 guard let idx, fields.indices.contains(idx) else { return "" }
@@ -326,7 +289,7 @@ struct CSVImportService {
 
             let kind: TransactionKind
             let rawAmount: Double
-            if let amountValue, amountValue != 0 {
+            if let amountValue {
                 rawAmount = abs(amountValue)
                 if typeText.contains("debit") || typeText.contains("expense") || typeText.contains("withdraw") {
                     kind = .expense
@@ -345,17 +308,10 @@ struct CSVImportService {
                 continue
             }
 
-            guard rawAmount > 0, rawAmount.isFinite else { continue }
-
-            let dateText = value(dateIndex)
-            guard !dateText.isEmpty, let date = parseDate(dateText), date <= now else { continue }
-
+            guard rawAmount > 0 else { continue }
+            let date = parseDate(value(dateIndex)) ?? Date()
             let categoryText = value(categoryIndex)
             let category = categoryFrom(categoryText.isEmpty ? description : categoryText, kind: kind)
-            let sourceKey = makeSourceKey(date: date, description: description, amount: rawAmount, kind: kind)
-            let occurrence = (sourceOccurrences[sourceKey] ?? 0) + 1
-            sourceOccurrences[sourceKey] = occurrence
-            let sourceRecordID = "csv:\(sourceKey):\(occurrence)"
 
             output.append(BusinessTransaction(
                 date: date,
@@ -365,8 +321,7 @@ struct CSVImportService {
                 kind: kind,
                 category: category,
                 isRecurring: false,
-                source: "CSV",
-                sourceRecordID: sourceRecordID
+                source: "CSV"
             ))
         }
 
@@ -375,19 +330,7 @@ struct CSVImportService {
     }
 
     private static func normalize(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "\u{FEFF}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "  ", with: " ")
-    }
-
-    private static func makeSourceKey(date: Date, description: String, amount: Double, kind: TransactionKind) -> String {
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        let dateKey = "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
-        let descriptionKey = description.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return "\(dateKey)|\(descriptionKey)|\(amount.bitPattern)|\(kind.rawValue)"
+        text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private static func parseMoney(_ value: String) -> Double? {
@@ -399,20 +342,15 @@ struct CSVImportService {
             .replacingOccurrences(of: "(", with: "")
             .replacingOccurrences(of: ")", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let number = Double(cleaned), number.isFinite else { return nil }
+        guard let number = Double(cleaned) else { return nil }
         return negativeByParentheses ? -abs(number) : number
     }
 
     private static func parseDate(_ value: String) -> Date? {
         guard !value.isEmpty else { return nil }
-        let formats = [
-            "M/d/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "M/d/yy", "MM/dd/yy",
-            "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
-            "M/d/yyyy H:mm", "MM/dd/yyyy HH:mm:ss"
-        ]
+        let formats = ["M/d/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "M/d/yy", "MM/dd/yy", "yyyy-MM-dd'T'HH:mm:ssZ"]
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.isLenient = false
         for format in formats {
             formatter.dateFormat = format
             if let date = formatter.date(from: value) { return date }
@@ -437,7 +375,7 @@ struct CSVImportService {
         return .other
     }
 
-    private static func csvRows(_ text: String) throws -> [[String]] {
+    private static func csvRows(_ text: String) -> [[String]] {
         var rows: [[String]] = []
         var row: [String] = []
         var field = ""
@@ -467,8 +405,6 @@ struct CSVImportService {
             }
             i += 1
         }
-
-        guard !inQuotes else { throw CSVImportError.malformedCSV }
 
         if !field.isEmpty || !row.isEmpty {
             row.append(field)

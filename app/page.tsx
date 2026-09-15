@@ -1,310 +1,193 @@
-'use client';
+import { BankingActions } from './banking-actions';
+import { CryptoTrading } from './crypto-trading';
+import { GalacticChat } from './galactic-chat';
 
-import { useEffect, useMemo, useState } from 'react';
-import styles from './orxyz.module.css';
-
-const emailAddress = 'orxyzpartners@gmail.com';
-const phone = '+1 716 359 3694';
-
-const rfqText = `Product / part number:
-Specification or drawing:
-Quantity:
-Delivery city / country:
-Required-by date:
-Current quote or target landed price:
-Required certifications / documents:
-Acceptable equivalents? Yes / No
-Anything that must not change:`;
-
-const checklistText = `ORXYZ RFQ CHECKLIST\n\n${rfqText}\n\nSend to: ${emailAddress}\nWebsite: orxyz.xyz\n`;
-
-const process = [
-  ['01', 'You send the exact requirement', 'Specification, quantity, destination, timing, and—if available—the deal you want improved.'],
-  ['02', 'ORXYZ benchmarks the route', 'Price, freight, MOQ, lead time, documents, warranty, and repeat-order economics.'],
-  ['03', 'You receive one clear offer', 'Commercial terms from ORXYZ, with direct fulfillment coordinated where appropriate.'],
+const navItems = [
+  ['⌂', 'Dashboard', '#dashboard'],
+  ['✦', 'Business AI', '/business'],
+  ['▣', 'Accounts', '#accounts'],
+  ['⇄', 'Transfer', '#transfer'],
+  ['✣', 'Add Money', '#add-money'],
+  ['▤', 'Cards', '#cards'],
+  ['▧', 'Pay Bills', '#pay-bills'],
+  ['▥', 'Investments', '#investments'],
+  ['◇', 'Goals', '#goals'],
+  ['✿', 'Rewards', '#rewards'],
 ];
 
-const buyerChecklist = [
-  'One contact for the commercial process',
-  'Like-for-like cost and delivery comparison',
-  'Manufacturer-direct fulfillment where appropriate',
-  'Documents and compliance needs identified up front',
-  'A repeatable route for the next order',
+const activity = [
+  { icon: 'a', name: 'Amazon.com', category: 'Shopping', amount: '−$89.32', date: 'Today', tone: 'dark' },
+  { icon: '●', name: 'Spotify Premium', category: 'Entertainment', amount: '−$11.99', date: 'May 18', tone: 'green' },
+  { icon: '↓', name: 'Transfer from Alex', category: 'Incoming Transfer', amount: '+$200.00', date: 'May 18', tone: 'purple', positive: true },
+  { icon: '☕', name: 'Star Coffee', category: 'Food & Drinks', amount: '−$6.45', date: 'May 17', tone: 'sage' },
+  { icon: '▰', name: 'Payroll Direct Deposit', category: 'Income', amount: '+$2,850.00', date: 'May 15', tone: 'blue', positive: true },
 ];
 
-const supplierChecklist = [
-  'Clear specification, quantity, destination, and timing',
-  'Fast requests for net pricing and validity',
-  'Direct or blind-shipment coordination',
-  'Named-account and non-circumvention discipline',
-  'Repeat-order terms captured from the first transaction',
-];
+function PlanetLogo() {
+  return (
+    <span className="planetLogo" aria-hidden="true">
+      <span className="planetBody" />
+      <span className="planetRing" />
+      <span className="planetStar">★</span>
+    </span>
+  );
+}
 
-const categories = [
-  ['Valves & flow control', 'Industrial, sanitary, hydraulic, process, and project-specified requirements.'],
-  ['Fasteners', 'Bolts, nuts, washers, nails, threaded products, and exact drawing-based items.'],
-  ['Bearings & seals', 'Standard and custom bearings, housings, O-rings, washers, and molded rubber.'],
-  ['MRO & components', 'Problem SKUs, spares, filters, fittings, and recurring maintenance requirements.'],
-  ['Containers & equipment', 'Commercial container requirements and supplier-direct equipment sourcing.'],
-  ['Recurring consumables', 'Packaging, adhesives, lubricants, protective materials, and repeat-use supplies.'],
-];
+function Sparkline({ variant }: { variant: 'blue' | 'teal' }) {
+  const path = variant === 'blue'
+    ? 'M2 34 C18 27, 24 39, 40 31 S62 32, 78 24 S98 30, 114 20 S134 14, 148 26 S165 9, 181 12 S199 6, 216 0'
+    : 'M2 35 C16 32, 26 39, 42 33 S64 36, 78 30 S96 33, 111 22 S126 27, 142 18 S157 23, 171 12 S188 5, 201 17 S212 10, 220 4';
+  return (
+    <svg className={`sparkline ${variant}`} viewBox="0 0 222 40" role="img" aria-label="Account balance trend">
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-const faqs = [
-  ['Does ORXYZ keep inventory?', 'No. ORXYZ is a non-stocking sourcing and distribution business. Qualified suppliers can ship directly to the buyer when the transaction supports it.'],
-  ['Does ORXYZ guarantee a lower price?', 'No. ORXYZ guarantees a disciplined like-for-like comparison and negotiation process. If the current deal cannot be improved compliantly, the buyer is under no obligation to purchase through ORXYZ.'],
-  ['How does payment work?', 'For principal-resale orders, the buyer pays ORXYZ under the accepted commercial terms. ORXYZ places the supplier order only after the agreed buyer-payment condition is satisfied. Transaction-specific terms are confirmed in writing before payment.'],
-  ['Can ORXYZ handle a full BOM?', 'Yes. A buyer can send one part, a material list, or a complete BOM. ORXYZ will structure the requirement and identify which lines are ready to quote and which need clarification.'],
-  ['What happens after the first order?', 'ORXYZ records the approved specification, commercial history, delivery route, and repeat-order conditions so the next requirement can be handled faster and with less friction.'],
-];
-
-type ContactType = 'buyer' | 'supplier';
-
-const contactOptions = {
-  buyer: {
-    title: 'Start an RFQ',
-    subject: 'RFQ for ORXYZ',
-    intro: 'Copy the brief, add your details, and send it to ORXYZ. You can also try opening your email app.',
-    message: rfqText,
-  },
-  supplier: {
-    title: 'Introduce your product line',
-    subject: 'Manufacturer introduction for ORXYZ',
-    intro: 'Copy the introduction, add your company details, and send it to ORXYZ. You can also try opening your email app.',
-    message: `Company:\nProduct categories:\nCertifications:\nExport markets:\nTypical MOQ:\nStandard lead time:\nIncoterms supported:\nWebsite:`,
-  },
-} as const;
-
-async function copyText(text: string) {
-  if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  const area = document.createElement('textarea');
-  area.value = text;
-  area.setAttribute('readonly', '');
-  area.style.position = 'fixed';
-  area.style.left = '-9999px';
-  document.body.appendChild(area);
-  area.select();
-  document.execCommand('copy');
-  area.remove();
+function BankCard({ pink = false }: { pink?: boolean }) {
+  return (
+    <article className={`bankCard ${pink ? 'pink' : 'blue'}`}>
+      <div className="cardTopline"><span>★ GALACTIC TRUST</span><span className="contactless">)))</span></div>
+      <div className="cardPlanet" aria-hidden="true"><span /></div>
+      <div className="cardName">{pink ? 'Cosmic Pink' : 'Nebula Blue'}</div>
+      <div className="cardNumber">•••• {pink ? '8756' : '4532'}</div>
+      <div className="cardFooter"><span>DEBIT CARD</span>{pink ? <span className="mastercard"><i /><i /></span> : <strong>VISA</strong>}</div>
+    </article>
+  );
 }
 
 export default function Home() {
-  const [copyStatus, setCopyStatus] = useState('');
-  const [downloadStatus, setDownloadStatus] = useState('');
-  const [contactType, setContactType] = useState<ContactType | null>(null);
-  const [modalStatus, setModalStatus] = useState('');
-
-  const contact = contactType ? contactOptions[contactType] : null;
-  const mailHref = useMemo(() => {
-    if (!contact) return `mailto:${emailAddress}`;
-    return `mailto:${emailAddress}?subject=${encodeURIComponent(contact.subject)}&body=${encodeURIComponent(contact.message)}`;
-  }, [contact]);
-
-  useEffect(() => {
-    if (!contactType) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setContactType(null);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previous;
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [contactType]);
-
-  const temporary = (setter: (value: string) => void, value: string) => {
-    setter(value);
-    window.setTimeout(() => setter(''), 3200);
-  };
-
-  const handleCopyBrief = async () => {
-    try {
-      await copyText(rfqText);
-      temporary(setCopyStatus, 'RFQ brief copied.');
-    } catch {
-      temporary(setCopyStatus, 'Copy is unavailable here. Select the brief above to copy it.');
-    }
-  };
-
-  const handleDownload = () => {
-    try {
-      const blob = new Blob([checklistText], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'ORXYZ-RFQ-checklist.txt';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-      setDownloadStatus('Checklist download started.');
-    } catch {
-      setDownloadStatus('Download is unavailable in this browser.');
-    }
-  };
-
-  const openContact = (type: ContactType) => {
-    setModalStatus('');
-    setContactType(type);
-  };
-
   return (
-    <main className={styles.page}>
-      <header className={styles.hero}>
-        <div className={`${styles.wrap} ${styles.heroGrid}`}>
+    <main className="bankApp">
+      <aside className="sidebar">
+        <div className="brandLockup"><PlanetLogo /><span>Galactic<br />Trust</span></div>
+
+        <nav className="sideNav" aria-label="Primary navigation">
+          {navItems.map(([icon, label, href], index) => (
+            <a key={label} href={href} className={index === 0 ? 'active' : ''}>
+              <span className="navIcon">{icon}</span><span>{label}</span>
+            </a>
+          ))}
+        </nav>
+
+        <div className="sidebarSpacer" />
+        <div className="sideUtilities">
+          <a href="#security"><span className="navIcon">⚙</span><span>Settings</span></a>
+          <a href="#help"><span className="navIcon">?</span><span>Help Center</span></a>
+          <div className="sideRule" />
+          <a href="#logout"><span className="navIcon">↪</span><span>Log Out</span></a>
+        </div>
+
+        <div className="astronaut" aria-hidden="true">🧑‍🚀</div>
+        <section className="rewardsCard">
+          <strong>Galactic rewards<br />are waiting! ✨</strong>
+          <p>You have <b>2,450</b> stars</p>
+          <button type="button">Explore Rewards</button>
+        </section>
+      </aside>
+
+      <section className="dashboard" id="dashboard">
+        <header className="dashboardHeader">
           <div>
-            <p className={styles.label}>Industrial procurement, simplified</p>
-            <h1>Send the requirement.<br /><span>Get one clear offer.</span></h1>
-            <p className={styles.lead}>ORXYZ turns a BOM, drawing, current quote, or problem SKU into a manufacturer-direct commercial offer—benchmarked across price, freight, lead time, documentation, and repeat-order terms.</p>
-            <div className={styles.heroActions}>
-              <button className={styles.button} type="button" onClick={() => openContact('buyer')}>Email an RFQ <span className={styles.arrow}>→</span></button>
-              <button className={`${styles.button} ${styles.secondary}`} type="button" onClick={handleDownload}>Download the checklist</button>
-              <div className={styles.actionStatus} aria-live="polite">
-                <span>{downloadStatus}</span>
-                {downloadStatus && <button className={styles.inlineAction} type="button" onClick={async () => {
-                  try { await copyText(checklistText); setDownloadStatus('Checklist copied.'); }
-                  catch { setDownloadStatus('Copy is unavailable here. Use the copy-ready brief below.'); }
-                }}>Copy it instead</button>}
-              </div>
-            </div>
+            <h1>Welcome back, Nova! <span>👋</span></h1>
+            <p>Here&apos;s what&apos;s happening in your galaxy.</p>
           </div>
-          <aside className={styles.processCard} aria-label="How ORXYZ works">
-            <p className={styles.label}>One commercial path</p>
-            <ol className={styles.processList}>
-              {process.map(([step, title, body]) => (
-                <li key={step}><span className={styles.step}>{step}</span><div><strong>{title}</strong><span>{body}</span></div></li>
-              ))}
-            </ol>
+          <div className="headerTools">
+            <label className="searchBox">
+              <span className="srOnly">Search</span>
+              <input placeholder="Search anything..." />
+              <span>⌕</span>
+            </label>
+            <button className="iconButton notification" type="button" aria-label="Notifications">♧<i>3</i></button>
+            <button className="profileButton" type="button"><span className="avatar">◈</span><b>Nova Star</b><span>⌄</span></button>
+          </div>
+        </header>
+
+        <div className="contentGrid">
+          <section className="mainColumn">
+            <article className="balanceHero">
+              <div className="balanceCopy">
+                <div className="balanceLabel">Total Balance <span>◉</span></div>
+                <div className="balanceAmount">$24,350.72</div>
+                <div className="balanceGrowth">↑ <b>12.4%</b> <span>vs last month</span></div>
+              </div>
+              <div className="heroStars">✦</div>
+              <div className="heroPlanet big"><span /></div>
+              <div className="heroPlanet small"><span /></div>
+              <div className="heroHorizon" />
+            </article>
+
+            <BankingActions />
+
+            <div className="accountGrid" id="accounts">
+              <article className="accountCard">
+                <div className="accountTitle"><span className="accountIcon blue">▤</span><span>Checking Account<strong>$15,230.45</strong><small>•••• 4532</small></span><button type="button">›</button></div>
+                <Sparkline variant="blue" />
+              </article>
+              <article className="accountCard">
+                <div className="accountTitle"><span className="accountIcon teal">▣</span><span>Savings Account<strong>$9,120.27</strong><small>•••• 8756</small></span><button type="button">›</button></div>
+                <Sparkline variant="teal" />
+              </article>
+            </div>
+
+            <section className="activityCard">
+              <div className="sectionHeading"><h2>Recent Activity</h2><a href="#activity">View All</a></div>
+              <div className="activityList" id="activity">
+                {activity.map((item) => (
+                  <div className="activityRow" key={item.name}>
+                    <span className={`merchantIcon ${item.tone}`}>{item.icon}</span>
+                    <span className="activityMeta"><b>{item.name}</b><small>{item.category}</small></span>
+                    <span className={`activityAmount ${item.positive ? 'positive' : ''}`}><b>{item.amount}</b><small>{item.date}</small></span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </section>
+
+          <aside className="rightColumn">
+            <section className="cardsPanel" id="cards">
+              <div className="sectionHeading"><h2>My Cards</h2><a href="#cards">View All</a></div>
+              <BankCard />
+              <BankCard pink />
+            </section>
+
+            <section className="insightsPanel" id="insights">
+              <div className="sectionHeading"><h2>Spending Insights</h2><button type="button">This Month⌄</button></div>
+              <div className="insightsTotal"><strong>$1,586.34</strong><span>Total Spent <i>↓ 8.7% vs last month</i></span></div>
+              <div className="insightsBody">
+                <div className="legend">
+                  <div><span className="dot purple" />Shopping <b>$623.10&nbsp;&nbsp; 39%</b></div>
+                  <div><span className="dot green" />Food &amp; Drinks <b>$312.45&nbsp;&nbsp; 20%</b></div>
+                  <div><span className="dot teal" />Transport <b>$210.75&nbsp;&nbsp; 13%</b></div>
+                  <div><span className="dot coral" />Entertainment <b>$198.50&nbsp;&nbsp; 12%</b></div>
+                  <div><span className="dot blue" />Bills &amp; Utilities <b>$241.54&nbsp;&nbsp; 16%</b></div>
+                </div>
+                <div className="donut" aria-label="Spending breakdown chart"><span>•ᴗ•</span></div>
+              </div>
+              <button className="breakdownButton" type="button"><span>▥</span> See Full Breakdown <b>›</b></button>
+            </section>
+
+            <CryptoTrading />
+
+            <section className="securityPanel" id="security">
+              <div className="sectionHeading">
+                <div><h2>Security &amp; Privacy</h2><small>Protection built in</small></div>
+                <span className="shieldBadge">✓</span>
+              </div>
+              <div className="securityList">
+                <div><span className="securityIcon">⌁</span><span><b>Protected sessions</b><small>Signed live-banking authentication and short-lived requests.</small></span></div>
+                <div><span className="securityIcon">▣</span><span><b>Masked card data</b><small>Full card number, CVV and PIN are never shown in this dashboard.</small></span></div>
+                <div><span className="securityIcon">◎</span><span><b>Privacy-minded chat</b><small>Orbit never asks for passwords, PINs, CVVs or one-time codes.</small></span></div>
+                <div><span className="securityIcon">◈</span><span><b>Live-money guard</b><small>Real banking and crypto remain off until approved providers are configured.</small></span></div>
+              </div>
+              <a className="privacyCenterLink" href="/privacy">Open Privacy Center <span>›</span></a>
+              <p className="securityFootnote">Demo balances and trades are simulated. Real product disclosures must match the approved partner programs before launch.</p>
+            </section>
           </aside>
         </div>
-      </header>
-
-      <section className={styles.section}>
-        <div className={styles.wrap}>
-          <div className={styles.promise}>
-            <div className={styles.promiseCopy}>
-              <p className={styles.label}>The Beat-the-Quote Promise</p>
-              <blockquote>Before you place the order, give ORXYZ one chance to improve the deal.</blockquote>
-              <p>Send the exact specification, quantity, destination, and your current supplier quote or target landed price. ORXYZ will benchmark and negotiate qualified like-for-like routes. If we cannot produce a better compliant offer, you are under no obligation to buy through ORXYZ.</p>
-            </div>
-            <div className={styles.promiseSide}>
-              <strong>More than price.</strong>
-              <p>We can improve freight, MOQ, lead time, documentation, payment structure, warranty, or repeat-order pricing—even when the unit price is already sharp.</p>
-            </div>
-          </div>
-        </div>
       </section>
 
-      <section className={styles.section} id="ways-to-work">
-        <div className={styles.wrap}>
-          <div className={styles.sectionHead}>
-            <div><p className={styles.label}>Two ways to work together</p><h2>Less friction on both sides.</h2></div>
-            <p className={styles.sectionIntro}>Buyers get a single accountable commercial contact. Qualified manufacturers get exact, funded demand—not vague fishing expeditions.</p>
-          </div>
-          <div className={styles.tracks}>
-            <article className={`${styles.track} ${styles.buyer}`}>
-              <p className={styles.label}>For buyers</p>
-              <h3>Send one complete request.</h3>
-              <p>One SKU or a full BOM. ORXYZ structures the requirement, compares the real commercial levers, and returns a clear offer.</p>
-              <ul className={styles.checklist}>{buyerChecklist.map((item) => <li key={item}>{item}</li>)}</ul>
-              <button className={styles.button} type="button" onClick={() => openContact('buyer')}>Send a requirement <span className={styles.arrow}>→</span></button>
-            </article>
-            <article className={`${styles.track} ${styles.supplier}`}>
-              <p className={styles.label}>For manufacturers</p>
-              <h3>Receive executable demand.</h3>
-              <p>ORXYZ brings exact requirements and places supply-side work only when the buyer has accepted the commercial path and the payment gate is satisfied.</p>
-              <ul className={styles.checklist}>{supplierChecklist.map((item) => <li key={item}>{item}</li>)}</ul>
-              <button className={styles.button} type="button" onClick={() => openContact('supplier')}>Introduce your product line <span className={styles.arrow}>→</span></button>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.section} id="rfq-brief">
-        <div className={styles.wrap}>
-          <div className={styles.sectionHead}>
-            <div><p className={styles.label}>The fastest route to a quote</p><h2>Send the six facts that matter.</h2></div>
-            <p className={styles.sectionIntro}>Complete information shortens the cycle. Paste this brief into an email, attach the drawing or BOM, and ORXYZ can start with the right commercial question.</p>
-          </div>
-          <div className={styles.rfqLayout}>
-            <article className={styles.brief}>
-              <h3>What to include</h3>
-              <p>A useful request does not need to be polished. It does need to be exact.</p>
-              <ol>
-                <li>Product, part number, or description</li><li>Specification, drawing, or acceptable equivalent rule</li><li>Quantity and expected reorder cadence</li><li>Delivery city and country</li><li>Required-by date</li><li>Current quote, target landed price, or the commercial problem to improve</li>
-              </ol>
-            </article>
-            <article className={styles.templateBox}>
-              <div className={styles.templateHead}><strong>Copy-ready RFQ brief</strong><button className={`${styles.button} ${styles.secondary} ${styles.small}`} type="button" onClick={handleCopyBrief}>Copy brief</button></div>
-              <pre>{rfqText}</pre>
-              <div className={styles.status} aria-live="polite">{copyStatus}</div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.wrap}>
-          <div className={styles.sectionHead}>
-            <div><p className={styles.label}>Current sourcing scope</p><h2>Built for practical industrial demand.</h2></div>
-            <p className={styles.sectionIntro}>ORXYZ is category-flexible, but strongest where exact specifications, recurring consumption, and supplier-direct fulfillment create measurable commercial value.</p>
-          </div>
-          <div className={styles.categories}>{categories.map(([title, body]) => <div className={styles.category} key={title}><b>{title}</b><span>{body}</span></div>)}</div>
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.wrap}>
-          <div className={styles.sectionHead}>
-            <div><p className={styles.label}>Common questions</p><h2>Clear before the first order.</h2></div>
-            <div className={styles.faq}>{faqs.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div>
-          </div>
-        </div>
-      </section>
-
-      <footer className={styles.closing}>
-        <div className={`${styles.wrap} ${styles.closingGrid}`}>
-          <div><p className={styles.label}>Ready when the requirement is real</p><h2>Send the BOM. Keep your current supplier if ORXYZ cannot improve the deal.</h2><p>No vague discovery call is required. Start with the product, quantity, destination, and commercial target.</p></div>
-          <div className={styles.actions}>
-            <button className={styles.button} type="button" onClick={() => openContact('buyer')}>Start an RFQ <span className={styles.arrow}>→</span></button>
-            <a className={`${styles.button} ${styles.secondary}`} href="https://orxyz.xyz" target="_blank" rel="noopener noreferrer">Visit ORXYZ.xyz</a>
-            <div className={styles.contactLine}>{emailAddress} · {phone}</div>
-          </div>
-        </div>
-      </footer>
-
-      {contact && (
-        <div className={styles.contactModal} role="presentation">
-          <button className={styles.modalBackdrop} aria-label="Close contact options" onClick={() => setContactType(null)} />
-          <section className={styles.contactPanel} role="dialog" aria-modal="true" aria-labelledby="contactTitle">
-            <button className={styles.modalClose} type="button" onClick={() => setContactType(null)} aria-label="Close contact options">×</button>
-            <p className={styles.label}>Written inquiries</p>
-            <h2 id="contactTitle">{contact.title}</h2>
-            <p>{contact.intro}</p>
-            <div className={styles.contactEmail}><strong>{emailAddress}</strong><button className={`${styles.button} ${styles.secondary} ${styles.small}`} type="button" onClick={async () => {
-              try { await copyText(emailAddress); temporary(setModalStatus, 'Email address copied.'); }
-              catch { temporary(setModalStatus, 'Copy is unavailable. Select the email address above.'); }
-            }}>Copy email</button></div>
-            <textarea className={styles.contactMessage} readOnly value={contact.message} aria-label="Copy-ready email message" />
-            <div className={styles.modalActions}>
-              <button className={styles.button} type="button" onClick={async () => {
-                try { await copyText(contact.message); temporary(setModalStatus, 'Message copied.'); }
-                catch { temporary(setModalStatus, 'Copy is unavailable. Select the message to copy it.'); }
-              }}>Copy message</button>
-              <button className={`${styles.button} ${styles.secondary}`} type="button" onClick={async () => {
-                try { await copyText(`To: ${emailAddress}\n\n${contact.message}`); temporary(setModalStatus, 'Email address and message copied.'); }
-                catch { temporary(setModalStatus, 'Copy is unavailable. Send the message to the address above.'); }
-              }}>Copy email + message</button>
-              <a className={`${styles.button} ${styles.secondary}`} href={mailHref} onClick={() => temporary(setModalStatus, 'If no email app opens, use the copy buttons instead.')}>Open email app</a>
-            </div>
-            <div className={styles.modalStatus} aria-live="polite">{modalStatus}</div>
-          </section>
-        </div>
-      )}
+      <GalacticChat />
     </main>
   );
 }
